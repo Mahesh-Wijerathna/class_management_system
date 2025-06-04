@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 import BasicForm from '../../components/BasicForm'
 import CustomTextField from '../../components/CustomTextField'
 import CustomButton from '../../components/CustomButton'
-import { login } from '../../api/auth'
+
 
 export default function LoginPage() {
   
@@ -33,18 +33,39 @@ export default function LoginPage() {
     } else {
       localStorage.removeItem('rememberedUser')
     }
-
+  
+    const API_URL = 'http://localhost:8000'; // Your backend API base URL
+  
     try {
-      const data = await login({ userID: values.userID, password: values.password });
-      // *** Handle successful login ***
-      console.log("Login successful:", data);
-      // Example: Redirect user, store token, update auth state
-      // navigate('/dashboard'); // You would need to import useHistory or useNavigate from react-router-dom
+      const response = await fetch(`${API_URL}/api/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          // *** IMPORTANT: Verify these key names match your backend API ***
+          userID: values.userID,
+          password: values.password,
+        }),
+      });
+  
+      const data = await response.json();
+  
+      if (response.ok) {
+        // *** Handle successful login ***
+        console.log("Login successful:", data);
+        // Example: Redirect user, store token, update auth state
+        // navigate('/dashboard'); // You would need to import useHistory or useNavigate from react-router-dom
+      } else {
+        // *** Handle login errors ***
+        console.error("Login failed:", data);
+        // Example: Display error message to the user
+        alert(data.message || "Login failed. Please check your credentials."); // Assuming backend sends a message field
+      }
     } catch (error) {
-      // *** Handle login errors ***
-      console.error("Login failed:", error.message);
-      // Example: Display error message to the user
-      alert(error.message || "Login failed. Please check your credentials.");
+      // *** Handle network or other errors ***
+      console.error("An error occurred during login:", error);
+      alert("An error occurred. Please try again later.");
     }
   }
 

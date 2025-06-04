@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 import BasicForm from '../../components/BasicForm'
 import CustomTextField from '../../components/CustomTextField'
 import CustomButton from '../../components/CustomButton'
-import { register } from '../../api/auth'
+
 
 export default function RegisterPage() {
 
@@ -34,24 +34,43 @@ export default function RegisterPage() {
   })
 
   const handleRegister = async (values) => {
+    // api call for registration
+    const API_URL = 'http://localhost:8000'; // Your backend API base URL
+  
     try {
-      const data = await register({
-        userID: values.userID,
-        name: values.name,
-        email: values.email,
-        password: values.password,
-        confirmPassword: values.confirmPassword,
+      const response = await fetch(`${API_URL}/api/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+           // *** IMPORTANT: Verify these key names match your backend API ***
+          userID: values.userID,
+          name: values.name,
+          email: values.email,
+          password: values.password,
+          confirmPassword: values.confirmPassword, // Often not sent to backend, confirm with your API
+        }),
       });
-      // *** Handle successful registration ***
-      console.log("Registration successful:", data);
-      // Example: Show success message, redirect to login
-       alert("Registration successful! You can now log in.");
-      // navigate('/login'); // You would need to import useHistory or useNavigate from react-router-dom
+  
+      const data = await response.json();
+  
+      if (response.ok) {
+         // *** Handle successful registration ***
+        console.log("Registration successful:", data);
+        // Example: Show success message, redirect to login
+         alert("Registration successful! You can now log in.");
+        // navigate('/login'); // You would need to import useHistory or useNavigate from react-router-dom
+      } else {
+         // *** Handle registration errors ***
+        console.error("Registration failed:", data);
+         // Example: Display error message to the user
+        alert(data.message || "Registration failed. Please try again."); // Assuming backend sends a message field
+      }
     } catch (error) {
-       // *** Handle registration errors ***
-      console.error("Registration failed:", error.message);
-       // Example: Display error message to the user
-      alert(error.message || "Registration failed. Please try again.");
+       // *** Handle network or other errors ***
+      console.error("An error occurred during registration:", error);
+      alert("An error occurred. Please try again later.");
     }
   }
 
