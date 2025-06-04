@@ -86,7 +86,7 @@ export default function RegisterPage() {
                 id='userID'
                 name='userID'
                 type='text'
-                placeholder='Enter your user ID'
+                label='User ID'
                 value={values.userID}
                 onChange={handleChange}
                 error={errors.userID}
@@ -98,7 +98,7 @@ export default function RegisterPage() {
                 id='name'
                 name='name'
                 type='text'
-                placeholder='Enter your full name'
+                label='Full Name'
                 value={values.name}
                 onChange={handleChange}
                 error={errors.name}
@@ -110,7 +110,7 @@ export default function RegisterPage() {
                 id='email'
                 name='email'
                 type='email'
-                placeholder='Enter your email'
+                label='Email'
                 value={values.email}
                 onChange={handleChange}
                 error={errors.email}
@@ -122,7 +122,7 @@ export default function RegisterPage() {
                 id='password'
                 name='password'
                 type='password'
-                placeholder='Enter your password'
+                label='Password'
                 value={values.password}
                 onChange={handleChange}
                 error={errors.password}
@@ -135,7 +135,7 @@ export default function RegisterPage() {
                 id='confirmPassword'
                 name='confirmPassword'
                 type='password'
-                placeholder='Confirm your password'
+                label='Confirm Password'
                 value={values.confirmPassword}
                 onChange={handleChange}
                 error={errors.confirmPassword}

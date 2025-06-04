@@ -84,7 +84,7 @@ export default function LoginPage() {
                 id='userID'
                 name='userID'
                 type='text'
-                placeholder='Enter your user ID'
+                label='User ID'
                 value={values.userID}
                 onChange={handleChange}
                 error={errors.userID}
@@ -96,7 +96,7 @@ export default function LoginPage() {
                 id='password'
                 name='password'
                 type='password'
-                placeholder='Enter your password'
+                label='Password'
                 value={values.password}
                 onChange={handleChange}
                 error={errors.password}
