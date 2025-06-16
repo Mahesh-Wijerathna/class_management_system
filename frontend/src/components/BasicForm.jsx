@@ -9,7 +9,7 @@ const BasicForm = ({ initialValues, validationSchema, onSubmit, children }) => {
       onSubmit={onSubmit}
     >
       {({ errors, touched, handleChange, values }) => (
-        <Form className='flex flex-col w-full space-y-6'>
+        <Form className='flex flex-col w-full space-y-4'>
           {/* Children will be the form fields and buttons */}
           {children({ errors, touched, handleChange, values })}
         </Form>

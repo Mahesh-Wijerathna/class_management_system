@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 import BasicForm from '../../components/BasicForm'
 import CustomTextField from '../../components/CustomTextField'
 import CustomButton from '../../components/CustomButton'
-
+import { login } from '../../api/auth'
 
 export default function LoginPage() {
   
@@ -33,40 +33,19 @@ export default function LoginPage() {
     } else {
       localStorage.removeItem('rememberedUser')
     }
-  
-    const API_URL = 'http://localhost:8000'; // Your backend API base URL
-  
+
     try {
-      const response = await fetch(`${API_URL}/api/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          // *** IMPORTANT: Verify these key names match your backend API ***
-          userID: values.userID,
-          password: values.password,
-        }),
-      });
-  
-      const data = await response.json();
-  
-      if (response.ok) {
-        // *** Handle successful login ***
-        console.log("Login successful:", data);
-        // Example: Redirect user, store token, update auth state
-        // navigate('/dashboard'); // You would need to import useHistory or useNavigate from react-router-dom
-      } else {
-        // *** Handle login errors ***
-        console.error("Login failed:", data);
-        // Example: Display error message to the user
-        alert(data.message || "Login failed. Please check your credentials."); // Assuming backend sends a message field
-      }
+      const data = await login({ userID: values.userID, password: values.password });
+      // *** Handle successful login ***
+      console.log("Login successful:", data);
+      // Example: Redirect user, store token, update auth state
+      // navigate('/dashboard'); // You would need to import useHistory or useNavigate from react-router-dom
     } catch (error) {
-      // *** Handle network or other errors ***
-      console.error("An error occurred during login:", error);
-      alert("An error occurred. Please try again later.");
-    }
+      // *** Handle login errors ***
+      console.error("Login failed:", error.message);
+      // Example: Display error message to the user
+      alert(error.message || "Login failed. Please check your credentials.");
+  }
   }
 
   // Check for remembered user on component mount
@@ -98,15 +77,15 @@ export default function LoginPage() {
           }} 
           validationSchema={LoginSchema}
           onSubmit={handleLogin}
-        >
+      >
           {({ errors, touched, handleChange, values }) => (
             <>
               <CustomTextField
                 id='userID'
                 name='userID'
-                type='text'
+              type='text'
                 label='User ID'
-                value={values.userID}
+              value={values.userID}
                 onChange={handleChange}
                 error={errors.userID}
                 touched={touched.userID}
@@ -127,7 +106,7 @@ export default function LoginPage() {
               />
                <div className='flex items-center justify-between'>
                 <label className='flex items-center space-x-2 cursor-pointer'>
-                  <input
+            <input
                     type='checkbox'
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
@@ -165,7 +144,7 @@ export default function LoginPage() {
                 <Link to="/register" className='text-[#064e3b] hover:underline'>New Student? Register Here</Link>
               </div>
             </>
-          )}
+        )}
         </BasicForm>
       </div> 
     </div>
