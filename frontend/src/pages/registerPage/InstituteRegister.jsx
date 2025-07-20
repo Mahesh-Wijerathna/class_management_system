@@ -3,23 +3,33 @@ import { useNavigate, Link } from 'react-router-dom';
 import * as Yup from 'yup';
 import CustomTextField from '../../components/CustomTextField';
 import CustomButton from '../../components/CustomButton';
-import BasicForm from '../../components/BasicForm';
+import { Formik } from 'formik';
 import { FaUser, FaLock, FaPhone, FaGraduationCap } from 'react-icons/fa';
 
+const phoneRegex = /^0\d{9}$/;
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
+const userIdRegex = /^[A-Za-z0-9_-]{3,20}$/;
+
 const validationSchema = Yup.object().shape({
-  barcode: Yup.string().required('Required'),
-  mobile: Yup.string().required('Required'),
-  password: Yup.string().required('Required'),
+  userId: Yup.string()
+    .matches(userIdRegex, 'User ID must be 3-20 characters, letters, numbers, - or _')
+    .required('User ID is required'),
+  mobile: Yup.string()
+    .matches(phoneRegex, 'Invalid phone number (should be 10 digits, start with 0)')
+    .required('Mobile number is required'),
+  password: Yup.string()
+    .matches(passwordRegex, 'Password must be at least 8 characters, include uppercase, lowercase, number, and special character')
+    .required('Password is required'),
   confirmPassword: Yup.string()
     .oneOf([Yup.ref('password'), null], 'Passwords do not match')
-    .required('Required'),
+    .required('Confirm password is required'),
 });
 
 export default function InstituteRegister() {
   const navigate = useNavigate();
 
   const initialValues = {
-    barcode: '',
+    userId: '',
     mobile: '',
     password: '',
     confirmPassword: '',
@@ -45,71 +55,92 @@ export default function InstituteRegister() {
           </span>
         </div>
         <div className="w-full max-w-md">
-          
-          <BasicForm
+          <Formik
             initialValues={initialValues}
             validationSchema={validationSchema}
-            onSubmit={handleSubmit}
+            validateOnMount={true}
+            onSubmit={(values, { setSubmitting, setTouched, validateForm }) => {
+              validateForm().then(errors => {
+                if (Object.keys(errors).length > 0) {
+                  const firstErrorField = Object.keys(errors)[0];
+                  const el = document.getElementsByName(firstErrorField)[0];
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  setTouched({ userId: true, mobile: true, password: true, confirmPassword: true });
+                  setSubmitting(false);
+                } else {
+                  handleSubmit(values);
+                }
+              });
+            }}
           >
-            {({ errors, touched, handleChange, values }) => (
-              <>
+            {({ errors, touched, handleChange, values, handleSubmit, isSubmitting, submitCount }) => (
+              <form className='flex flex-col w-full space-y-4' onSubmit={handleSubmit}>
+                {submitCount > 0 && Object.keys(errors).length > 0 && (
+                  <div className='bg-red-100 text-red-700 p-2 rounded mb-2 text-xs font-semibold'>
+                    Please fix the errors below before continuing.
+                  </div>
+                )}
                 <CustomTextField
                   id="userId"
                   name="userId"
                   type="text"
                   label="User ID *"
-                  value={values.barcode}
+                  value={values.userId}
                   onChange={handleChange}
-                  error={errors.barcode}
-                  touched={touched.barcode}
+                  error={errors.userId}
+                  touched={touched.userId}
                   icon={FaUser}
+                  hasError={!!errors.userId}
                 />
                 <CustomTextField
                   id="mobile"
                   name="mobile"
                   type="text"
-                  label="Mobile"
+                  label="Mobile *"
                   value={values.mobile}
                   onChange={handleChange}
                   error={errors.mobile}
                   touched={touched.mobile}
                   icon={FaPhone}
+                  hasError={!!errors.mobile}
                 />
                 <CustomTextField
                   id="password"
                   name="password"
                   type="password"
-                  label="Password"
+                  label="Password *"
                   value={values.password}
                   onChange={handleChange}
                   error={errors.password}
                   touched={touched.password}
                   isPassword
                   icon={FaLock}
+                  hasError={!!errors.password}
                 />
                 <CustomTextField
                   id="confirmPassword"
                   name="confirmPassword"
                   type="password"
-                  label="Confirm Password"
+                  label="Confirm Password *"
                   value={values.confirmPassword}
                   onChange={handleChange}
                   error={errors.confirmPassword}
                   touched={touched.confirmPassword}
                   isPassword
                   icon={FaLock}
+                  hasError={!!errors.confirmPassword}
                 />
                 <div className="flex gap-4 mt-2">
                   <CustomButton type="button" onClick={() => navigate(-1)}>
                     Back
                   </CustomButton>
-                  <CustomButton type="submit">
+                  <CustomButton type="submit" disabled={isSubmitting}>
                     Register
                   </CustomButton>
                 </div>
-              </>
+              </form>
             )}
-          </BasicForm>
+          </Formik>
           <Link to="/login" className="mt-8 text-[#064e3b] hover:underline text-xs block text-center">Already registered?</Link>
         </div>
       </div>

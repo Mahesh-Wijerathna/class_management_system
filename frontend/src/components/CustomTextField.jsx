@@ -126,7 +126,7 @@ const CustomTextField = ({ id, name, type, value, onChange, label, icon: Icon, e
           </TogglePasswordButton>
         )}
       </InputContainer>
-      {error && touched && (
+      {error && (
         <ErrorText>{error}</ErrorText>
       )}
     </div>

@@ -62,7 +62,7 @@ export default function ForgotPassword() {
                     id="mobile"
                     name="mobile"
                     type="text"
-                    label="Mobile Number"
+                    label="Mobile Number *"
                     value={values.mobile}
                     onChange={handleChange}
                     error={errors.mobile}
@@ -86,7 +86,7 @@ export default function ForgotPassword() {
                     id="otp"
                     name="otp"
                     type="text"
-                    label="OTP"
+                    label="OTP *"
                     value={values.otp}
                     onChange={handleChange}
                     error={errors.otp}
@@ -97,7 +97,7 @@ export default function ForgotPassword() {
                     id="password"
                     name="password"
                     type="password"
-                    label="New Password"
+                    label="New Password *"
                     value={values.password}
                     onChange={handleChange}
                     error={errors.password}
@@ -109,7 +109,7 @@ export default function ForgotPassword() {
                     id="confirmPassword"
                     name="confirmPassword"
                     type="password"
-                    label="Confirm New Password"
+                    label="Confirm New Password *"
                     value={values.confirmPassword}
                     onChange={handleChange}
                     error={errors.confirmPassword}
