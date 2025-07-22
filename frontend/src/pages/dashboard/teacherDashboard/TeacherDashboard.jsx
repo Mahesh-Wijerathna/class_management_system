@@ -1,6 +1,6 @@
 import React from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import teacherSidebarSections from '../../../components/layout/TeacherDashboardSidebar';
+import teacherSidebarSections from '././TeacherDashboardSidebar';
 
 const TeacherDashboard = ({ onLogout }) => {
   return (
