@@ -283,7 +283,7 @@ export default function NewStudentRegister() {
                   .matches(phoneRegex, 'Invalid phone number (should be 10 digits, start with 0)')
                   .required('Parent mobile number is required'),
               })}
-              validateOnMount={true}
+              validateOnMount={false}
               onSubmit={(values, { setSubmitting, setTouched, setErrors, validateForm }) => {
                 validateForm().then(errors => {
                   if (Object.keys(errors).length > 0) {
