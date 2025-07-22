@@ -2,6 +2,7 @@ import React from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomButton from '../../../components/CustomButton';
+import CustomSelectField from '../../../components/CustomSelectField';
 import BasicForm from '../../../components/BasicForm';
 import adminSidebarSections from '././AdminDashboardSidebar';
 import { useNavigate } from 'react-router-dom';
@@ -104,28 +105,25 @@ const CreateTeacherLogin = () => {
               touched={touched.name}
               icon={FaUser}
             />
-            {/* Designation select dropdown */}
-            <div className="flex flex-col mb-2">
-              <label htmlFor="designation" className="text-xs font-medium text-gray-700 mb-1">Designation *</label>
-              <select
-                id="designation"
-                name="designation"
-                value={values.designation}
-                onChange={handleChange}
-                className="border-2 border-gray-300 rounded-md px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
-              >
-                <option value="">Select Designation</option>
-                <option value="Mr.">Mr.</option>
-                <option value="Mrs.">Mrs.</option>
-                <option value="Miss">Miss</option>
-                <option value="Ven.">Ven.</option>
-                <option value="Dr">Dr</option>
-                <option value="Prof">Prof</option>
-              </select>
-              {errors.designation && touched.designation && (
-                <span className="text-red-500 text-[10px] mt-1">{errors.designation}</span>
-              )}
-            </div>
+
+            <CustomSelectField
+              id="designation"
+              name="designation"
+              label="Designation"
+              value={values.designation}
+              onChange={handleChange}
+              options={[{ value: '', label: 'Select Designation' },
+                { value: 'Mr.', label: 'Mr.' },
+                { value: 'Mrs.', label: 'Mrs.' },
+                { value: 'Miss', label: 'Miss' },
+                { value: 'Ven.', label: 'Ven.' },
+                { value: 'Dr', label: 'Dr' },
+                { value: 'Prof', label: 'Prof' }
+              ]}
+              error={errors.designation}
+              touched={touched.designation}
+              required
+            />
             
             <CustomTextField
               id="password"
@@ -139,24 +137,18 @@ const CreateTeacherLogin = () => {
               isPassword
               icon={FaLock}
             />
-            <div className="flex flex-col mb-2">
-              <label htmlFor="stream" className="text-xs font-medium text-gray-700 mb-1">Stream *</label>
-              <select
-                id="stream"
-                name="stream"
-                value={values.stream}
-                onChange={handleChange}
-                className="border-2 border-gray-300 rounded-md px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
-              >
-                <option value="">Select Stream</option>
-                {streamOptions.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-              {errors.stream && touched.stream && (
-                <span className="text-red-500 text-[10px] mt-1">{errors.stream}</span>
-              )}
-            </div>
+
+            <CustomSelectField
+              id="stream"
+              name="stream"
+              label="Stream"
+              value={values.stream}
+              onChange={handleChange}
+              options={[{ value: '', label: 'Select Stream' }, ...streamOptions.map(s => ({ value: s, label: s }))]}
+              error={errors.stream}
+              touched={touched.stream}
+              required
+            />
             
             <CustomTextField
               id="phone"
