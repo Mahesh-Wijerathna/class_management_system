@@ -58,7 +58,7 @@ export default function InstituteRegister() {
           <Formik
             initialValues={initialValues}
             validationSchema={validationSchema}
-            validateOnMount={true}
+            validateOnMount={false}
             onSubmit={(values, { setSubmitting, setTouched, validateForm }) => {
               validateForm().then(errors => {
                 if (Object.keys(errors).length > 0) {
