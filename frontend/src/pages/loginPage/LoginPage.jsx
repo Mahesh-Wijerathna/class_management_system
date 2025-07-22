@@ -1,16 +1,17 @@
 import React, { useState } from 'react'
 import * as Yup from "yup"
-import { FaUser, FaLock, FaGraduationCap } from 'react-icons/fa'
-import { Link } from 'react-router-dom'
+import { FaUser, FaLock, FaEye, FaEyeSlash, FaGraduationCap } from 'react-icons/fa'
+import { Link, useNavigate } from 'react-router-dom'
 import BasicForm from '../../components/BasicForm'
 import CustomTextField from '../../components/CustomTextField'
 import CustomButton from '../../components/CustomButton'
-
+import { login } from '../../api/auth'
 
 export default function LoginPage() {
   
   const [rememberMe, setRememberMe] = useState(false)
-  const [showAdminContact, setShowAdminContact] = useState(false)
+  const [backendError, setBackendError] = useState("");
+  const navigate = useNavigate();
 
   const LoginSchema = Yup.object().shape({
     userID: Yup.string()
@@ -27,46 +28,24 @@ export default function LoginPage() {
   })
 
   const handleLogin = async (values) => {
+    setBackendError("");
     // Store remember me preference in localStorage if checked
     if (rememberMe) {
       localStorage.setItem('rememberedUser', values.userID)
     } else {
       localStorage.removeItem('rememberedUser')
     }
-  
-    const API_URL = 'http://localhost:8000'; // Your backend API base URL
-  
+
     try {
-      const response = await fetch(`${API_URL}/api/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          // *** IMPORTANT: Verify these key names match your backend API ***
-          userID: values.userID,
-          password: values.password,
-        }),
-      });
-  
-      const data = await response.json();
-  
-      if (response.ok) {
-        // *** Handle successful login ***
-        console.log("Login successful:", data);
-        // Example: Redirect user, store token, update auth state
-        // navigate('/dashboard'); // You would need to import useHistory or useNavigate from react-router-dom
-      } else {
-        // *** Handle login errors ***
-        console.error("Login failed:", data);
-        // Example: Display error message to the user
-        alert(data.message || "Login failed. Please check your credentials."); // Assuming backend sends a message field
-      }
+      const data = await login({ userID: values.userID, password: values.password });
+      // *** Handle successful login ***
+      console.log("Login successful:", data);
+      // Example: Redirect user, store token, update auth state
+      // navigate('/dashboard'); // You would need to import useHistory or useNavigate from react-router-dom
     } catch (error) {
-      // *** Handle network or other errors ***
-      console.error("An error occurred during login:", error);
-      alert("An error occurred. Please try again later.");
-    }
+      // *** Handle login errors ***
+      setBackendError(error.message || "Login failed. Please check your credentials.");
+  }
   }
 
   // Check for remembered user on component mount
@@ -98,15 +77,15 @@ export default function LoginPage() {
           }} 
           validationSchema={LoginSchema}
           onSubmit={handleLogin}
-        >
+      >
           {({ errors, touched, handleChange, values }) => (
             <>
               <CustomTextField
                 id='userID'
                 name='userID'
-                type='text'
-                label='User ID'
-                value={values.userID}
+              type='text'
+                label='User ID *'
+              value={values.userID}
                 onChange={handleChange}
                 error={errors.userID}
                 touched={touched.userID}
@@ -117,7 +96,7 @@ export default function LoginPage() {
                 id='password'
                 name='password'
                 type='password'
-                label='Password'
+                label='Password *'
                 value={values.password}
                 onChange={handleChange}
                 error={errors.password}
@@ -127,7 +106,7 @@ export default function LoginPage() {
               />
                <div className='flex items-center justify-between'>
                 <label className='flex items-center space-x-2 cursor-pointer'>
-                  <input
+            <input
                     type='checkbox'
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
@@ -137,23 +116,12 @@ export default function LoginPage() {
                 </label>
                 <button
                   type='button'
-                  onClick={() => setShowAdminContact(!showAdminContact)}
-                  className='text-xs text-[#064e3b] hover:text-[#064e3b]/80 transition-colors duration-200 underline'
+                  onClick={() => navigate('/forgotpassword')}
+                  className='text-xs text-[#064e3b] hover:underline transition-colors duration-200 underline'
                 >
                   Forgot password?
                 </button>
               </div>
-
-              {showAdminContact && (
-                <div className='bg-white/80 backdrop-blur-sm p-3 rounded-lg border border-gray-200'>
-                  <p className='text-[10px] text-gray-600'>
-                    Please contact your system administrator at{' '}
-                    <a href="mailto:admin@tcms.edu" className='text-[#064e3b] hover:text-[#064e3b]/80 font-medium'>
-                      admin@tcms.edu
-                    </a>
-                  </p>
-                </div>
-              )}
 
               <CustomButton type='submit'>Sign In</CustomButton>
 
@@ -165,7 +133,7 @@ export default function LoginPage() {
                 <Link to="/register" className='text-[#064e3b] hover:underline'>New Student? Register Here</Link>
               </div>
             </>
-          )}
+        )}
         </BasicForm>
       </div> 
     </div>
