@@ -1,0 +1,72 @@
+import React from 'react';
+import { FaUsers, FaGraduationCap, FaFolder, FaBook, FaChartBar, FaCog, FaCalendar, FaUserPlus, FaFileAlt, FaUsersCog, FaUserShield, FaDatabase, FaBell, FaSync } from 'react-icons/fa';
+
+// Sidebar sections for the teacher dashboard
+
+const teacherSidebarSections = [
+  {
+    section: 'Dashboard Overview',
+    items: [
+      { name: 'Dashboard Overview', path: '/teacherdashboard', icon: <FaChartBar className="h-5 w-5" /> },
+    ]
+  },
+  {
+    section: 'Class Schedules',
+    items: [
+      { name: 'Manage Schedules', path: '/teacher/schedules/manage', icon: <FaCalendar className="h-5 w-5" /> },
+      { name: 'Hall Availability', path: '/teacher/halls', icon: <FaDatabase className="h-5 w-5" /> },
+      { name: 'Book Classrooms', path: '/teacher/halls/book', icon: <FaSync className="h-5 w-5" /> },
+      { name: 'Online Class Link', path: '/teacher/online-link', icon: <FaUserShield className="h-5 w-5" /> },
+    ]
+  },
+  {
+    section: 'Attendance',
+    items: [
+      { name: 'Track Attendance', path: '/teacher/attendance', icon: <FaUsersCog className="h-5 w-5" /> },
+    ]
+  },
+  {
+    section: 'Student Performance',
+    items: [
+      { name: 'View Performance', path: '/teacher/students/performance', icon: <FaGraduationCap className="h-5 w-5" /> },
+      { name: 'Relevant Student Data', path: '/teacher/students/data', icon: <FaUserShield className="h-5 w-5" /> },
+      { name: 'Free/Half/Full Fees Report', path: '/teacher/students/fees-report', icon: <FaChartBar className="h-5 w-5" /> },
+    ]
+  },
+  {
+    section: 'Financial Records',
+    items: [
+      { name: 'Payment Days', path: '/teacher/finance/payment-days', icon: <FaBell className="h-5 w-5" /> },
+      { name: 'Monthly/Daily Records', path: '/teacher/finance/records', icon: <FaChartBar className="h-5 w-5" /> },
+    ]
+  },
+  {
+    section: 'Class Materials',
+    items: [
+      { name: 'Create Folders & Links', path: '/teacher/materials/folders', icon: <FaFolder className="h-5 w-5" /> },
+      { name: 'Manage Materials', path: '/teacher/materials/manage', icon: <FaFileAlt className="h-5 w-5" /> },
+      { name: 'Upload Assignments', path: '/teacher/assignments/upload', icon: <FaFileAlt className="h-5 w-5" /> },
+    ]
+  },
+  {
+    section: 'Communication',
+    items: [
+      { name: 'Announcements', path: '/teacher/announcements', icon: <FaBell className="h-5 w-5" /> },
+      { name: 'Message Students', path: '/teacher/messages', icon: <FaUsers className="h-5 w-5" /> },
+    ]
+  },
+  {
+    section: 'Reports',
+    items: [
+      { name: 'Generate Reports', path: '/teacher/reports', icon: <FaChartBar className="h-5 w-5" /> },
+    ]
+  },
+  {
+    section: 'Teacher Staff',
+    items: [
+      { name: 'Create & Manage Staff', path: '/teacher/staff', icon: <FaUserPlus className="h-5 w-5" /> },
+    ]
+  },
+];
+
+export default teacherSidebarSections;

@@ -1,45 +1,12 @@
 import React from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import { FaBook, FaUsers, FaCalendar, FaFileAlt, FaChartBar, FaGraduationCap } from 'react-icons/fa';
+import teacherSidebarSections from '././TeacherDashboardSidebar';
 
 const TeacherDashboard = ({ onLogout }) => {
-  const sidebarItems = [
-    {
-      name: 'Dashboard Overview',
-      path: '/teacher/overview',
-      icon: <FaChartBar className="h-5 w-5" />
-    },
-    {
-      name: 'My Classes',
-      path: '/teacher/classes',
-      icon: <FaBook className="h-5 w-5" />
-    },
-    {
-      name: 'Students',
-      path: '/teacher/students',
-      icon: <FaUsers className="h-5 w-5" />
-    },
-    {
-      name: 'Schedule',
-      path: '/teacher/schedule',
-      icon: <FaCalendar className="h-5 w-5" />
-    },
-    {
-      name: 'Assignments',
-      path: '/teacher/assignments',
-      icon: <FaFileAlt className="h-5 w-5" />
-    },
-    {
-      name: 'Grades',
-      path: '/teacher/grades',
-      icon: <FaGraduationCap className="h-5 w-5" />
-    }
-  ];
-
   return (
     <DashboardLayout
       userRole="Teacher"
-      sidebarItems={sidebarItems}
+      sidebarItems={teacherSidebarSections}
       onLogout={onLogout}
     >
       <div className="space-y-6">
@@ -107,6 +74,7 @@ const TeacherDashboard = ({ onLogout }) => {
           </div>
         </div>
       </div>
+
     </DashboardLayout>
   );
 };

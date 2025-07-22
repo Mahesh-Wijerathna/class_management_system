@@ -1,6 +1,6 @@
 import React from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import adminSidebarSections from '../../../components/layout/AdminDashboardSidebar';
+import adminSidebarSections from '././AdminDashboardSidebar';
 
 const AdminDashboard = ({ onLogout }) => {
   return (

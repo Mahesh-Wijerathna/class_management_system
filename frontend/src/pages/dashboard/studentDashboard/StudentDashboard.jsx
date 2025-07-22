@@ -1,45 +1,12 @@
 import React from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import { FaBook, FaCalendar, FaFileAlt, FaChartBar, FaGraduationCap, FaUsers } from 'react-icons/fa';
+import studentSidebarSections from '././StudentDashboardSidebar';
 
 const StudentDashboard = ({ onLogout }) => {
-  const sidebarItems = [
-    {
-      name: 'Dashboard Overview',
-      path: '/student/overview',
-      icon: <FaChartBar className="h-5 w-5" />
-    },
-    {
-      name: 'My Classes',
-      path: '/student/classes',
-      icon: <FaBook className="h-5 w-5" />
-    },
-    {
-      name: 'Schedule',
-      path: '/student/schedule',
-      icon: <FaCalendar className="h-5 w-5" />
-    },
-    {
-      name: 'Assignments',
-      path: '/student/assignments',
-      icon: <FaFileAlt className="h-5 w-5" />
-    },
-    {
-      name: 'Grades',
-      path: '/student/grades',
-      icon: <FaGraduationCap className="h-5 w-5" />
-    },
-    {
-      name: 'Teachers',
-      path: '/student/teachers',
-      icon: <FaUsers className="h-5 w-5" />
-    }
-  ];
-
   return (
     <DashboardLayout
       userRole="Student"
-      sidebarItems={sidebarItems}
+      sidebarItems={studentSidebarSections}
       onLogout={onLogout}
     >
       <div className="space-y-6">
@@ -117,6 +84,7 @@ const StudentDashboard = ({ onLogout }) => {
           </div>
         </div>
       </div>
+      
     </DashboardLayout>
   );
 };
