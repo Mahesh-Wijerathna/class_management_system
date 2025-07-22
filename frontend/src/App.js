@@ -9,6 +9,9 @@ import CreateTeacherLogin from './pages/dashboard/adminDashboard/CreateTeacherLo
 import InstituteRegister from './pages/registerPage/InstituteRegister';
 import NewStudentRegister from './pages/registerPage/NewStudentRegister';
 import ForgotPassword from './pages/loginPage/ForgotPassword';
+import ManageClassSchedules from './pages/dashboard/teacherDashboard/ManageClassSchedules';
+import HallAvailability from './pages/dashboard/teacherDashboard/HallAvailability';
+import ClassHalls from './pages/dashboard/adminDashboard/ClassHalls';
 
 function App() {
   return (
@@ -20,6 +23,9 @@ function App() {
         <Route path="/studentdashboard" element={<StudentDashboard/>} />
         <Route path="/teacherdashboard" element={<TeacherDashboard/>} />
         <Route path="/admin/teachers/create" element={<CreateTeacherLogin/>} />
+        <Route path="/admin/class-halls" element={<ClassHalls/>} />
+        <Route path="/teacher/schedules" element={<ManageClassSchedules/>} />
+        <Route path="/teacher/halls" element={<HallAvailability/>} />
         <Route path="/register/institute" element={<InstituteRegister/>} />
         <Route path="/register/new" element={<NewStudentRegister/>} />
         <Route path="/forgotpassword" element={<ForgotPassword/>} />

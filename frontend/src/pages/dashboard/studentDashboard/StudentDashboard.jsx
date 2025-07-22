@@ -2,6 +2,7 @@ import React from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import studentSidebarSections from '././StudentDashboardSidebar';
 
+
 const StudentDashboard = ({ onLogout }) => {
   return (
     <DashboardLayout
@@ -84,7 +85,6 @@ const StudentDashboard = ({ onLogout }) => {
           </div>
         </div>
       </div>
-      
     </DashboardLayout>
   );
 };
