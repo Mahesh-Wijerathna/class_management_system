@@ -275,7 +275,7 @@ function ClassScheduling() {
       
 
       {/* Schedule List */}
-      <div className="border-t pt-4">
+      <div className="border-t-2 pt-4">
         <h2 className="text-lg font-semibold mb-2">All Class Schedules</h2>
         {schedules.length === 0 ? (
           <p className="text-gray-500">No class schedules available.</p>
