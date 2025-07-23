@@ -7,6 +7,7 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import { date } from 'yup';
+import BasicTable from '../../../components/BasicTable';
 
 // Updated dummy initial data for halls and requests
 const initialHalls = [
@@ -254,57 +255,25 @@ const ClassHalls = () => {
         {/* Halls List */}
         <div className="border-t-2 pt-4">
         <h2 className="text-lg font-semibold mb-2">Hall List</h2>
-        <table className="w-full text-left border mb-6">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="p-2">Hall Name</th>
-              <th className="p-2">Status</th>
-              <th className="p-2">Subject</th>
-              <th className="p-2">Class Name</th>
-              <th className="p-2">Teacher</th>
-              <th className="p-2">Date</th>
-              <th className="p-2">Time Period</th>
-              <th className="p-2">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {halls.map(hall => (
-              <tr key={hall.id} className="border-t">
-                <td className="p-2">{hall.name}</td>
-                <td className="p-2">{hall.isFree ? 'Free' : 'Booked'}</td>
-                {hall.isFree ? (
-                  <>
-                    <td className="p-2"></td>
-                    <td className="p-2"></td>
-                    <td className="p-2"></td>
-                    <td className="p-2"></td>
-                    <td className="p-2"></td>
-                  </>
-                ) : (
-                  <>
-                    <td className="p-2">{hall.subject}</td>
-                    <td className="p-2">{hall.className}</td>
-                    <td className="p-2">{hall.teacher}</td>
-                    <td className="p-2">{hall.date}</td>
-                    <td className="p-2">{hall.time}</td>
-                  </>
-                )}
-                <td className="p-2 flex gap-2">
-                  <button
-                    className="text-blue-600 hover:underline"
-                    onClick={() => handleEditHall(hall)}
-                    title="Edit"
-                  >
-                    <FaEdit />
-                  </button>
-                  <button
-                    className="text-red-600 hover:underline"
-                    onClick={() => handleDeleteHall(hall.id)}
-                    title="Delete"
-                  >
-                    <FaTrash />
-                  </button>
-                </td>
+        <BasicTable
+          className="w-full text-left border mb-6"
+          columns={[
+            { key: 'name', label: 'Hall Name' },
+            { key: 'isFree', label: 'Status', render: row => row.isFree ? 'Free' : 'Booked' },
+            { key: 'subject', label: 'Subject', render: row => row.isFree ? '' : row.subject },
+            { key: 'className', label: 'Class Name', render: row => row.isFree ? '' : row.className },
+            { key: 'teacher', label: 'Teacher', render: row => row.isFree ? '' : row.teacher },
+            { key: 'date', label: 'Date', render: row => row.isFree ? '' : row.date },
+            { key: 'time', label: 'Time Period', render: row => row.isFree ? '' : row.time },
+          ]}
+          data={halls}
+          actions={row => (
+            <div className="flex gap-2">
+              <button className="text-blue-600 hover:underline" onClick={() => handleEditHall(row)} title="Edit"><FaEdit /></button>
+              <button className="text-red-600 hover:underline" onClick={() => handleDeleteHall(row.id)} title="Delete"><FaTrash /></button>
+            </div>
+          )}
+        />
 
         {/* Edit Hall Modal */}
         {editingHall && (
@@ -433,10 +402,6 @@ const ClassHalls = () => {
             </div>
           </div>
         )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
         </div>
 
         {/* Hall Requests */}
@@ -445,51 +410,40 @@ const ClassHalls = () => {
         {requests.length === 0 ? (
           <p className="text-gray-500">No hall requests at the moment.</p>
         ) : (
-          <table className="w-full text-left border mb-6">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="p-2">Teacher</th>
-                <th className="p-2">Hall</th>
-                <th className="p-2">Subject</th>
-                <th className="p-2">Class Name</th>
-                <th className="p-2">Time Period</th>
-                <th className="p-2">Status</th>
-                <th className="p-2">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {requests.map(req => (
-                <tr key={req.id} className="border-t">
-                  <td className="p-2">{req.teacher}</td>
-                  <td className="p-2">{halls.find(h => h.id === req.hallId)?.name || 'Unknown'}</td>
-                  <td className="p-2">{req.subject || '-'}</td>
-                  <td className="p-2">{req.className || '-'}</td>
-                  <td className="p-2">{req.time || '-'}</td>
-                  <td className="p-2">{req.status}</td>
-                  <td className="p-2 flex gap-2">
-                    {req.status === 'pending' && (
-                      <>
-                        <CustomButton
-                          className="bg-[#1a365d] text-white px-3 py-1 rounded hover:bg-[#13294b] active:bg-[#0f2038]"
-                          onClick={() => handleRespondRequest(req.id, 'approved')}
-                        >
-                          Approve
-                        </CustomButton>
-                        <CustomButton
-                          className="bg-[#881c1c] text-white px-3 py-1 rounded hover:bg-[#622f2f] active:bg-[#622f2f]"
-                          onClick={() => handleRespondRequest(req.id, 'rejected')}
-                        >
-                          Reject
-                        </CustomButton>
-                      </>
-                    )}
-                    {req.status === 'approved' && <span className="text-green-600">Approved</span>}
-                    {req.status === 'rejected' && <span className="text-red-600">Rejected</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <BasicTable
+            className="w-full text-left border mb-6"
+            columns={[
+              { key: 'teacher', label: 'Teacher' },
+              { key: 'hall', label: 'Hall', render: row => halls.find(h => h.id === row.hallId)?.name || 'Unknown' },
+              { key: 'subject', label: 'Subject', render: row => row.subject || '-' },
+              { key: 'className', label: 'Class Name', render: row => row.className || '-' },
+              { key: 'time', label: 'Time Period', render: row => row.time || '-' },
+              { key: 'status', label: 'Status' },
+            ]}
+            data={requests}
+            actions={row => (
+              <div className="flex gap-2">
+                {row.status === 'pending' && (
+                  <>
+                    <CustomButton
+                      className="bg-[#1a365d] text-white px-3 py-1 rounded hover:bg-[#13294b] active:bg-[#0f2038]"
+                      onClick={() => handleRespondRequest(row.id, 'approved')}
+                    >
+                      Approve
+                    </CustomButton>
+                    <CustomButton
+                      className="bg-[#881c1c] text-white px-3 py-1 rounded hover:bg-[#622f2f] active:bg-[#622f2f]"
+                      onClick={() => handleRespondRequest(row.id, 'rejected')}
+                    >
+                      Reject
+                    </CustomButton>
+                  </>
+                )}
+                {row.status === 'approved' && <span className="text-green-600">Approved</span>}
+                {row.status === 'rejected' && <span className="text-red-600">Rejected</span>}
+              </div>
+            )}
+          />
         )}
         </div>
 
