@@ -120,7 +120,7 @@ const ClassHalls = () => {
                 <td className="p-2">{hall.isFree ? 'Free' : 'Booked'}</td>
                 <td className="p-2">
                   <CustomButton
-                    className="bg-[#7b4e30] text-white px-3 py-1 rounded hover:bg-[#13294b] active:bg-[#0f2038]"
+                    className="bg-[#29553d] text-white px-3 py-1 rounded hover:bg-[#622f2f] active:bg-[#622f2f]"
                     onClick={() => handleDeleteHall(hall.id)}
                   >
                     Delete
@@ -160,7 +160,7 @@ const ClassHalls = () => {
                           Approve
                         </CustomButton>
                         <CustomButton
-                          className="bg-[#7b4e30] text-white px-3 py-1 rounded hover:bg-[#13294b] active:bg-[#0f2038]"
+                          className="bg-[#881c1c] text-white px-3 py-1 rounded hover:bg-[#622f2f] active:bg-[#622f2f]"
                           onClick={() => handleRespondRequest(req.id, 'rejected')}
                         >
                           Reject
