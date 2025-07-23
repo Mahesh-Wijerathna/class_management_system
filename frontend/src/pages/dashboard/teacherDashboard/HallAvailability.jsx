@@ -6,6 +6,7 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import { FaBook, FaUserGraduate, FaCalendarAlt, FaClock } from 'react-icons/fa';
+import BasicTable from '../../../components/BasicTable';
 
 // New dummy data for halls
 const initialHalls = [
@@ -79,69 +80,41 @@ const HallAvailability = () => {
         <h1 className="text-2xl font-bold mb-4">Hall Availability</h1>
         <p className="mb-6 text-gray-700">View free halls and request booking from admin.</p>
         {/* Teacher info is automatically used for requests */}
-        <table className="w-full text-left border mb-6">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="p-2">Hall Name</th>
-              <th className="p-2">Status</th>
-              <th className="p-2">Subject</th>
-              <th className="p-2">Class Name</th>
-              <th className="p-2">Teacher</th>
-              <th className="p-2">Date</th>
-              <th className="p-2">Time Period</th>
-              <th className="p-2">Request Status</th>
-              <th className="p-2">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {halls.map(hall => {
-              const myRequest = requests.find(r => r.hallId === hall.id && r.teacherId === teacher.id);
-              return (
-                <tr key={hall.id} className="border-t">
-                  <td className="p-2">{hall.name}</td>
-                  <td className="p-2">{hall.isFree ? 'Free' : 'Booked'}</td>
-                  {hall.isFree ? (
-                    <>
-                      <td className="p-2"></td>
-                      <td className="p-2"></td>
-                      <td className="p-2"></td>
-                      <td className="p-2"></td>
-                      <td className="p-2"></td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="p-2">{hall.subject}</td>
-                      <td className="p-2">{hall.className}</td>
-                      <td className="p-2">{hall.teacher}</td>
-                      <td className="p-2">{hall.date}</td>
-                      <td className="p-2">{hall.time}</td>
-                    </>
-                  )}
-                  <td className="p-2">
-                    {myRequest ? (
-                      myRequest.status === 'pending' ? <span className="text-yellow-600">Pending</span>
-                      : myRequest.status === 'approved' ? <span className="text-green-600">Approved</span>
-                      : <span className="text-red-600">Rejected</span>
-                    ) : <span className="text-gray-400">No Request</span>}
-                  </td>
-                  <td className="p-2">
-                    {hall.isFree ? (
-                      <CustomButton
-                        className="bg-[#1a365d] text-white px-4 py-1 rounded hover:bg-[#13294b] active:bg-[#0f2038]"
-                        onClick={() => setRequestingHall(hall)}
-                        disabled={myRequest && myRequest.status === 'pending'}
-                      >
-                        {myRequest && myRequest.status === 'pending' ? 'Requesting...' : 'Request Hall'}
-                      </CustomButton>
-                    ) : (
-                      <span className="text-gray-400">Not Available</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <BasicTable
+          columns={[
+            { key: 'name', label: 'Hall Name' },
+            { key: 'isFree', label: 'Status', render: row => row.isFree ? 'Free' : 'Booked' },
+            { key: 'subject', label: 'Subject', render: row => row.isFree ? '' : row.subject },
+            { key: 'className', label: 'Class Name', render: row => row.isFree ? '' : row.className },
+            { key: 'teacher', label: 'Teacher', render: row => row.isFree ? '' : row.teacher },
+            { key: 'date', label: 'Date', render: row => row.isFree ? '' : row.date },
+            { key: 'time', label: 'Time Period', render: row => row.isFree ? '' : row.time },
+            { key: 'requestStatus', label: 'Request Status', render: row => {
+                const myRequest = requests.find(r => r.hallId === row.id && r.teacherId === teacher.id);
+                return myRequest ? (
+                  myRequest.status === 'pending' ? <span className="text-yellow-600">Pending</span>
+                  : myRequest.status === 'approved' ? <span className="text-green-600">Approved</span>
+                  : <span className="text-red-600">Rejected</span>
+                ) : <span className="text-gray-400">No Request</span>;
+              }
+            },
+          ]}
+          data={halls}
+          actions={row => {
+            const myRequest = requests.find(r => r.hallId === row.id && r.teacherId === teacher.id);
+            return row.isFree ? (
+              <CustomButton
+                className="bg-[#1a365d] text-white px-4 py-1 rounded hover:bg-[#13294b] active:bg-[#0f2038]"
+                onClick={() => setRequestingHall(row)}
+                disabled={myRequest && myRequest.status === 'pending'}
+              >
+                {myRequest && myRequest.status === 'pending' ? 'Requesting...' : 'Request Hall'}
+              </CustomButton>
+            ) : (
+              <span className="text-gray-400">Not Available</span>
+            );
+          }}
+        />
 
         {/* Request Hall Modal/Form */}
         {requestingHall && (

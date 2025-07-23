@@ -8,6 +8,7 @@ import CustomTextField from '../../../components/CustomTextField';
 import CustomButton from '../../../components/CustomButton';
 import CustomSelectField from '../../../components/CustomSelectField';
 import * as Yup from 'yup';
+import BasicTable from '../../../components/BasicTable';
 
 const initialSchedules = [
   {
@@ -227,53 +228,36 @@ const ManageClassSchedules = () => {
         {/* Schedule List */}
         <div className="border-t-2 pt-4">
           <h2 className="text-lg font-semibold mb-2">Session Schedules</h2>
-          {schedules.length === 0 ? (
-            <p className="text-gray-500">No session schedules available.</p>
-          ) : (
-            <table className="w-full text-left border">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="p-2">Subject</th>
-                  <th className="p-2">Class</th>
-                  <th className="p-2">Date</th>
-                  <th className="p-2">Start Time</th>
-                  <th className="p-2">End Time</th>
-                  <th className="p-2">Type</th>
-                  <th className="p-2">Hall</th>
-                  <th className="p-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {schedules.map(sch => (
-                  <tr key={sch.id} className="border-t">
-                    <td className="p-2">{sch.subject}</td>
-                    <td className="p-2">{sch.className}</td>
-                    <td className="p-2">{sch.date}</td>
-                    <td className="p-2">{formatTime(sch.startTime)}</td>
-                    <td className="p-2">{formatTime(sch.endTime)}</td>
-                    <td className="p-2">{sch.classType}</td>
-                    <td className="p-2">{sch.hall}</td>
-                    <td className="p-2 flex gap-2">
-                      <button
-                        className="text-blue-600 hover:underline"
-                        onClick={() => handleEdit(sch.id)}
-                        title="Edit"
-                      >
-                        <FaEdit />
-                      </button>
-                      <button
-                        className="text-red-600 hover:underline"
-                        onClick={() => handleDelete(sch.id)}
-                        title="Delete"
-                      >
-                        <FaTrash />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          <BasicTable
+            columns={[
+              { key: 'subject', label: 'Subject' },
+              { key: 'className', label: 'Class' },
+              { key: 'date', label: 'Date' },
+              { key: 'startTime', label: 'Start Time', render: row => formatTime(row.startTime) },
+              { key: 'endTime', label: 'End Time', render: row => formatTime(row.endTime) },
+              { key: 'classType', label: 'Type' },
+              { key: 'hall', label: 'Hall' },
+            ]}
+            data={schedules}
+            actions={row => (
+              <div className="flex gap-2">
+                <button
+                  className="text-blue-600 hover:underline"
+                  onClick={() => handleEdit(row.id)}
+                  title="Edit"
+                >
+                  <FaEdit />
+                </button>
+                <button
+                  className="text-red-600 hover:underline"
+                  onClick={() => handleDelete(row.id)}
+                  title="Delete"
+                >
+                  <FaTrash />
+                </button>
+              </div>
+            )}
+          />
         </div>
       </div>
     </DashboardLayout>

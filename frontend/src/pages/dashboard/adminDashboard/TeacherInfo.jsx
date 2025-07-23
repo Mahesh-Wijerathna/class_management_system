@@ -36,12 +36,26 @@ const TeacherInfo = () => {
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [editValues, setEditValues] = useState({});
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertTeacherId, setAlertTeacherId] = useState(null);
 
   // Handle delete
   const handleDelete = (teacherId) => {
-    if (window.confirm('Are you sure you want to delete this teacher?')) {
-      setTeachers(teachers.filter(t => t.teacherId !== teacherId));
-    }
+    setAlertTeacherId(teacherId);
+    setShowAlert(true);
+  };
+  
+  // Confirm delete
+  const confirmDelete = () => {
+    setTeachers(teachers.filter(t => t.teacherId !== alertTeacherId));
+    setShowAlert(false);
+    setAlertTeacherId(null);
+  };
+  
+  // Cancel delete
+  const cancelDelete = () => {
+    setShowAlert(false);
+    setAlertTeacherId(null);
   };
 
   // Handle edit
@@ -141,6 +155,29 @@ const TeacherInfo = () => {
           )}
           className="mb-6"
         />
+  
+        {/* Custom Alert Modal for Delete Confirmation */}
+        {showAlert && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
+            <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-xs flex flex-col items-center">
+              <div className="text-lg font-semibold mb-4 text-center">Are you sure you want to delete this teacher?</div>
+              <div className="flex gap-4 mt-2">
+                <button
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 font-semibold"
+                  onClick={cancelDelete}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold"
+                  onClick={confirmDelete}
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Edit Modal */}
         {showEditModal && (
