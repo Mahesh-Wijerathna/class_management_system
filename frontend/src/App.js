@@ -12,6 +12,7 @@ import ForgotPassword from './pages/loginPage/ForgotPassword';
 import ManageClassSchedules from './pages/dashboard/teacherDashboard/ManageClassSchedules';
 import HallAvailability from './pages/dashboard/teacherDashboard/HallAvailability';
 import ClassHalls from './pages/dashboard/adminDashboard/ClassHalls';
+import ClassScheduling from './pages/dashboard/adminDashboard/ClassScheduling';
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
         <Route path="/teacherdashboard" element={<TeacherDashboard/>} />
         <Route path="/admin/teachers/create" element={<CreateTeacherLogin/>} />
         <Route path="/admin/class-halls" element={<ClassHalls/>} />
+        <Route path="admin/schedule" element={<ClassScheduling/>} />
         <Route path="/teacher/schedules" element={<ManageClassSchedules/>} />
         <Route path="/teacher/halls" element={<HallAvailability/>} />
         <Route path="/register/institute" element={<InstituteRegister/>} />
