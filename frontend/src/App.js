@@ -13,6 +13,8 @@ import ManageClassSchedules from './pages/dashboard/teacherDashboard/ManageClass
 import HallAvailability from './pages/dashboard/teacherDashboard/HallAvailability';
 import ClassHalls from './pages/dashboard/adminDashboard/ClassHalls';
 import MyProfile from './pages/dashboard/studentDashboard/MyProfile';
+import ClassScheduling from './pages/dashboard/adminDashboard/ClassScheduling';
+import TeacherInfo from './pages/dashboard/adminDashboard/TeacherInfo';
 
 function App() {
   return (
@@ -25,6 +27,8 @@ function App() {
         <Route path="/teacherdashboard" element={<TeacherDashboard/>} />
         <Route path="/admin/teachers/create" element={<CreateTeacherLogin/>} />
         <Route path="/admin/class-halls" element={<ClassHalls/>} />
+        <Route path="admin/schedule" element={<ClassScheduling/>} />
+        <Route path="admin/teachers" element={<TeacherInfo/>} />
         <Route path="/teacher/schedules" element={<ManageClassSchedules/>} />
         <Route path="/teacher/halls" element={<HallAvailability/>} />
         <Route path="/register/institute" element={<InstituteRegister/>} />
