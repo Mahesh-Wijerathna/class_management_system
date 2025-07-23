@@ -14,6 +14,7 @@ import HallAvailability from './pages/dashboard/teacherDashboard/HallAvailabilit
 import ClassHalls from './pages/dashboard/adminDashboard/ClassHalls';
 import ClassScheduling from './pages/dashboard/adminDashboard/ClassScheduling';
 import TeacherInfo from './pages/dashboard/adminDashboard/TeacherInfo';
+import StudentEnrollment from './pages/dashboard/adminDashboard/StudentEnrollment';
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
         <Route path="/admin/class-halls" element={<ClassHalls/>} />
         <Route path="admin/schedule" element={<ClassScheduling/>} />
         <Route path="admin/teachers" element={<TeacherInfo/>} />
+        <Route path="admin/students" element={<StudentEnrollment/>} />
         <Route path="/teacher/schedules" element={<ManageClassSchedules/>} />
         <Route path="/teacher/halls" element={<HallAvailability/>} />
         <Route path="/register/institute" element={<InstituteRegister/>} />
