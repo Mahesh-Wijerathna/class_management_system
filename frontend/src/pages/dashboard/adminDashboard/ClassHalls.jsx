@@ -252,7 +252,8 @@ const ClassHalls = () => {
         </div>
 
         {/* Halls List */}
-        <h2 className="text-lg mt-15 font-semibold mb-2">Hall List</h2>
+        <div className="border-t-2 pt-4">
+        <h2 className="text-lg font-semibold mb-2">Hall List</h2>
         <table className="w-full text-left border mb-6">
           <thead>
             <tr className="bg-gray-100">
@@ -436,9 +437,11 @@ const ClassHalls = () => {
             ))}
           </tbody>
         </table>
+        </div>
 
         {/* Hall Requests */}
-        <h2 className="text-lg mt-20 font-semibold mb-2">Hall Requests</h2>
+        <div className="border-t-2 pt-4 mt-16">
+        <h2 className="text-lg mt-6 font-semibold mb-2">Hall Requests</h2>
         {requests.length === 0 ? (
           <p className="text-gray-500">No hall requests at the moment.</p>
         ) : (
@@ -488,6 +491,8 @@ const ClassHalls = () => {
             </tbody>
           </table>
         )}
+        </div>
+
       </div>
     </DashboardLayout>
   );
