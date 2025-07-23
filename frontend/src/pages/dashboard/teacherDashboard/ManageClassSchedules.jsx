@@ -12,8 +12,8 @@ import * as Yup from 'yup';
 const initialSchedules = [
   {
     id: 1,
-    subject: 'Mathematics',
-    className: '10A',
+    subject: 'Physics',
+    className: '11B',
     date: '2025-07-23',
     startTime: '09:00',
     endTime: '10:30',
@@ -115,8 +115,8 @@ const ManageClassSchedules = () => {
   return (
     <DashboardLayout userRole="Teacher" sidebarItems={teacherSidebarSections}>
       <div className="p-6 bg-white rounded-lg shadow">
-        <h1 className="text-2xl font-bold mb-4">Manage Class Schedules</h1>
-        <p className="mb-6 text-gray-700">Create, update, and delete class schedules for your classes.</p>
+        <h1 className="text-2xl font-bold mb-4">Class Session Schedules</h1>
+        <p className="mb-6 text-gray-700">Create, update, and delete class session schedules for your classes.</p>
 
         <BasicForm
           key={submitKey}
@@ -226,9 +226,9 @@ const ManageClassSchedules = () => {
 
         {/* Schedule List */}
         <div className="border-t pt-4">
-          <h2 className="text-lg font-semibold mb-2">Class Schedules</h2>
+          <h2 className="text-lg font-semibold mb-2">Session Schedules</h2>
           {schedules.length === 0 ? (
-            <p className="text-gray-500">No schedules available.</p>
+            <p className="text-gray-500">No session schedules available.</p>
           ) : (
             <table className="w-full text-left border">
               <thead>
