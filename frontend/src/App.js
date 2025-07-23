@@ -12,6 +12,7 @@ import ForgotPassword from './pages/loginPage/ForgotPassword';
 import ManageClassSchedules from './pages/dashboard/teacherDashboard/ManageClassSchedules';
 import HallAvailability from './pages/dashboard/teacherDashboard/HallAvailability';
 import ClassHalls from './pages/dashboard/adminDashboard/ClassHalls';
+import MyProfile from './pages/dashboard/studentDashboard/MyProfile';
 import ClassScheduling from './pages/dashboard/adminDashboard/ClassScheduling';
 import TeacherInfo from './pages/dashboard/adminDashboard/TeacherInfo';
 import StudentEnrollment from './pages/dashboard/adminDashboard/StudentEnrollment';
@@ -35,6 +36,7 @@ function App() {
         <Route path="/register/institute" element={<InstituteRegister/>} />
         <Route path="/register/new" element={<NewStudentRegister/>} />
         <Route path="/forgotpassword" element={<ForgotPassword/>} />
+        <Route path="/student/profile" element={<MyProfile/>} />
       </Routes>
     </BrowserRouter>
   );
