@@ -290,7 +290,7 @@ const StudentEnrollment = () => {
   };
 
   return (
-    <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
+    // <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
       <div className="p-6 bg-white rounded-lg shadow">
         <h1 className="text-2xl font-bold mb-4">Student Enrollment</h1>
         <p className="mb-6 text-gray-700">View, edit, and remove registered students.</p>
@@ -314,19 +314,7 @@ const StudentEnrollment = () => {
             { key: 'district', label: 'District' },
             { key: 'dateJoined', label: 'Date Joined' },
             { key: 'stream', label: 'Stream' },
-            // { key: 'enrolledClasses', label: 'Enrolled Classes', render: row => (
-            //     <ul className="list-disc pl-4">
-            //       {Array.isArray(row.enrolledClasses) && row.enrolledClasses.length > 0
-            //         ? row.enrolledClasses.map((c, i) => (
-            //             <li key={i} className="mb-1">
-            //               <span className="font-semibold">{c.subject}</span> <span className="text-gray-500">({c.teacher})</span><br />
-            //               <span className="text-xs text-gray-600">{c.schedule} | {c.hall}</span>
-            //             </li>
-            //           ))
-            //         : <li className="text-gray-400 italic">None</li>}
-            //     </ul>
-            //   )
-            // },
+
           ]}
           data={students}
           actions={row => (
@@ -341,7 +329,7 @@ const StudentEnrollment = () => {
         {/* Edit Modal */}
         {showEditModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-            <div className="bg-white rounded-xl shadow-2xl p-0 w-full max-w-5xl max-h-[96vh] flex flex-col relative">
+            <div className="bg-white rounded-xl shadow-2xl p-0 w-full max-w-5xl max-h-[96vh] flex flex-col pointer-events-auto ml-64">
               <div className="flex items-center justify-between px-6 py-4 border-b">
                 <h2 className="text-xl font-bold">Edit Student</h2>
                 <button
@@ -694,7 +682,7 @@ const StudentEnrollment = () => {
           type={alertBox.type}
         />
       </div>
-    </DashboardLayout>
+    /* </DashboardLayout> */
   );
 };
 
