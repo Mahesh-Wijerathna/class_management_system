@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import BasicAlertBox from '../../../components/BasicAlertBox';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import adminSidebarSections from './AdminDashboardSidebar';
 import CustomButton from '../../../components/CustomButton';
@@ -36,6 +37,22 @@ const ClassHalls = () => {
     endTime: '',
   });
   const [editingHall, setEditingHall] = useState(null); // hall object or null
+
+  // Alert state (StudentEnrollment style)
+  const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: 'OK', cancelText: 'Cancel', type: 'info' });
+
+  const openAlert = (message, onConfirm, options = {}) => {
+    setAlertBox({
+      open: true,
+      message,
+      onConfirm: onConfirm || (() => setAlertBox(a => ({ ...a, open: false })) ),
+      onCancel: options.onCancel || (() => setAlertBox(a => ({ ...a, open: false })) ),
+      confirmText: options.confirmText || 'OK',
+      cancelText: options.cancelText || '',
+      type: options.type || 'info',
+    });
+  };
+  const closeAlert = () => setAlertBox(a => ({ ...a, open: false }));
 
   // Dummy teacher list for select field
   const teacherList = [
@@ -78,6 +95,7 @@ const ClassHalls = () => {
         },
       ]);
       resetForm();
+      openAlert('Hall added successfully!', null, { confirmText: 'OK', type: 'success' });
     }
   };
 
@@ -103,12 +121,21 @@ const ClassHalls = () => {
     } : h));
     setEditingHall(null);
     resetForm();
+    openAlert('Hall details saved successfully!', null, { confirmText: 'OK', type: 'success' });
   };
 
   // Delete a hall
   const handleDeleteHall = (id) => {
-    setHalls(prev => prev.filter(h => h.id !== id));
-    setRequests(prev => prev.filter(r => r.hallId !== id));
+    const hall = halls.find(h => h.id === id);
+    openAlert(
+      `Are you sure you want to delete hall "${hall?.name || ''}"?`,
+      () => {
+        setHalls(prev => prev.filter(h => h.id !== id));
+        setRequests(prev => prev.filter(r => r.hallId !== id));
+        openAlert('Hall deleted successfully!', null, { confirmText: 'OK', type: 'success' });
+      },
+      { confirmText: 'Delete', cancelText: 'Cancel', type: 'danger' }
+    );
   };
 
   // Helper for time formatting (for edit form)
@@ -123,18 +150,29 @@ const ClassHalls = () => {
 
   // Respond to a hall request
   const handleRespondRequest = (requestId, response) => {
-    setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: response } : r));
-    if (response === 'approved') {
-      const req = requests.find(r => r.id === requestId);
-      if (req) {
-        setHalls(prev => prev.map(h => h.id === req.hallId ? { ...h, isFree: false } : h));
-      }
-    }
+    const req = requests.find(r => r.id === requestId);
+        if (!req) return; // Check if the request exists
+        setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: response } : r));
+        if (response === 'approved') {
+          setHalls(prev => prev.map(h => h.id === req.hallId ? { ...h, isFree: false } : h));
+          openAlert('Request approved successfully!', null, { confirmText: 'OK', type: 'success' });
+        } else {
+          openAlert('Request rejected.', null, { confirmText: 'OK', type: 'danger' });
+        }
   };
 
   return (
     <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
       <div className="p-6 bg-white rounded-lg shadow">
+        <BasicAlertBox
+          open={alertBox.open}
+          message={alertBox.message}
+          onConfirm={alertBox.onConfirm}
+          onCancel={alertBox.onCancel}
+          confirmText={alertBox.confirmText}
+          cancelText={alertBox.cancelText}
+          type={alertBox.type}
+        />
         <h1 className="text-2xl font-bold mb-4">Class Halls Management</h1>
         <p className="mb-6 text-gray-700">Create, delete, and manage hall availability. Respond to hall requests from teachers.</p>
         {/* Add Hall */}
@@ -427,13 +465,21 @@ const ClassHalls = () => {
                   <>
                     <CustomButton
                       className="bg-[#1a365d] text-white px-3 py-1 rounded hover:bg-[#13294b] active:bg-[#0f2038]"
-                      onClick={() => handleRespondRequest(row.id, 'approved')}
+                      onClick={() => openAlert(
+                        'Are you sure you want to approve this request?',
+                        () => { handleRespondRequest(row.id, 'approved'); },
+                        { confirmText: 'Approve', cancelText: 'Cancel', type: 'danger' }
+                      )}
                     >
                       Approve
                     </CustomButton>
                     <CustomButton
                       className="bg-[#881c1c] text-white px-3 py-1 rounded hover:bg-[#622f2f] active:bg-[#622f2f]"
-                      onClick={() => handleRespondRequest(row.id, 'rejected')}
+                      onClick={() => openAlert(
+                        'Are you sure you want to reject this request?',
+                        () => { handleRespondRequest(row.id, 'rejected'); },
+                        { confirmText: 'Reject', cancelText: 'Cancel', type: 'danger' }
+                      )}
                     >
                       Reject
                     </CustomButton>

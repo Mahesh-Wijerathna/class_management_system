@@ -8,6 +8,7 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import * as Yup from 'yup';
+import BasicAlertBox from '../../../components/BasicAlertBox';
 
 // Dummy initial data (replace with API data in production)
 const initialTeachers = [
@@ -36,12 +37,24 @@ const TeacherInfo = () => {
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [editValues, setEditValues] = useState({});
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertTeacherId, setAlertTeacherId] = useState(null);
+  // For save notification
+  const [saveAlert, setSaveAlert] = useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
 
-  // Handle delete
+  // Only one set of delete/confirm/cancel functions
   const handleDelete = (teacherId) => {
-    if (window.confirm('Are you sure you want to delete this teacher?')) {
-      setTeachers(teachers.filter(t => t.teacherId !== teacherId));
-    }
+    setAlertTeacherId(teacherId);
+    setShowAlert(true);
+  };
+  const confirmDelete = () => {
+    setTeachers(teachers.filter(t => t.teacherId !== alertTeacherId));
+    setShowAlert(false);
+    setAlertTeacherId(null);
+  };
+  const cancelDelete = () => {
+    setShowAlert(false);
+    setAlertTeacherId(null);
   };
 
   // Handle edit
@@ -80,6 +93,13 @@ const TeacherInfo = () => {
     setTeachers(teachers.map(t => t.teacherId === values.teacherId ? values : t));
     setEditingTeacher(null);
     setShowEditModal(false);
+    setSaveAlert({
+      open: true,
+      message: 'Teacher details saved successfully!',
+      onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+      confirmText: 'OK',
+      type: 'success',
+    });
   };
 
   // Handle cancel
@@ -140,6 +160,17 @@ const TeacherInfo = () => {
             </div>
           )}
           className="mb-6"
+        />
+  
+        {/* BasicAlertBox for Delete Confirmation */}
+        <BasicAlertBox
+          open={showAlert}
+          message={"Are you sure you want to delete this teacher?"}
+          onConfirm={confirmDelete}
+          onCancel={cancelDelete}
+          confirmText="Delete"
+          cancelText="Cancel"
+          type="danger"
         />
 
         {/* Edit Modal */}
@@ -277,6 +308,15 @@ const TeacherInfo = () => {
             </div>
           </div>
         )}
+
+        {/* Save Success Alert */}
+        <BasicAlertBox
+          open={saveAlert.open}
+          message={saveAlert.message}
+          onConfirm={saveAlert.onConfirm}
+          confirmText={saveAlert.confirmText}
+          type={saveAlert.type}
+        />
       </div>
     </DashboardLayout>
   );

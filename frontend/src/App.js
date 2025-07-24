@@ -26,30 +26,28 @@ import Receipt from './pages/dashboard/studentDashboard/Receipt';
 import BankTransfer from './pages/dashboard/studentDashboard/BankTransfer';
 import MyPayments from './pages/dashboard/studentDashboard/MyPayments';
 import BankDetails from './pages/dashboard/studentDashboard/BankDetails';
+import StudentEnrollment from './pages/dashboard/adminDashboard/StudentEnrollment';
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        //login and register routes
         <Route path="/login" element={<LoginPage/>} />
         <Route path="/register" element={<RegisterPage/>} />
         <Route path="/register/institute" element={<InstituteRegister/>} />
         <Route path="/register/new" element={<NewStudentRegister/>} />
         <Route path="/forgotpassword" element={<ForgotPassword/>} />
 
-        //admin routes
         <Route path="/admindashboard" element={<AdminDashboard/>} />
-        
-        //teacher routes
-        <Route path="/teacherdashboard" element={<TeacherDashboard/>} />
         <Route path="/admin/teachers/create" element={<CreateTeacherLogin/>} />
         <Route path="/admin/class-halls" element={<ClassHalls/>} />
-        <Route path="admin/schedule" element={<ClassScheduling/>} />
-        <Route path="admin/teachers" element={<TeacherInfo/>} />
+        <Route path="/admin/schedule" element={<ClassScheduling/>} />
+        <Route path="/admin/teachers" element={<TeacherInfo/>} />
+        <Route path="/admin/students" element={<StudentEnrollment/>} />
+
+        <Route path="/teacherdashboard" element={<TeacherDashboard/>} />
         <Route path="/teacher/schedules" element={<ManageClassSchedules/>} />
         <Route path="/teacher/halls" element={<HallAvailability/>} />
-       
 
         <Route path="/studentdashboard" element={<StudentDashboard/>} />
         <Route path="/student/profile" element={<MyProfile/>} />
