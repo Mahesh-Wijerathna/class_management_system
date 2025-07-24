@@ -21,7 +21,7 @@ function DashboardNavButtons() {
           <span className="font-bold text-base text-[#1a365d]">MY CLASSES</span>
         </button>
         <button
-          onClick={() => navigate('/student/purchases')}
+          onClick={() => navigate('/student/purchase-classes')}
           className="flex flex-col items-center justify-center rounded-3xl bg-blue-50 shadow px-6 py-4 w-full max-w-xs h-24 transition duration-200 hover:bg-blue-100 active:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-400 border border-gray-200"
         >
           <LuMonitorSmartphone size={32} className="mb-1 text-[#1a365d]" />
@@ -29,7 +29,7 @@ function DashboardNavButtons() {
           <span className="text-xs text-gray-500">CLASSES</span>
         </button>
         <button
-          onClick={() => navigate('/student/payments')}
+          onClick={() => navigate('/student/my-payments')}
           className="flex flex-col items-center justify-center rounded-3xl bg-blue-50 shadow px-6 py-4 w-full max-w-xs h-24 transition duration-200 hover:bg-blue-100 active:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-400 border border-gray-200"
         >
           <LuCreditCard size={32} className="mb-1 text-[#1a365d]" />
