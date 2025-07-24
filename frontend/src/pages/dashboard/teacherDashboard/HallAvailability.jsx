@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import BasicAlertBox from '../../../components/BasicAlertBox';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import teacherSidebarSections from './TeacherDashboardSidebar';
 import CustomButton from '../../../components/CustomButton';
@@ -23,6 +24,7 @@ const HallAvailability = () => {
   const teacher = { id: 'T001', name: 'Mr. Silva' };
   const [requests, setRequests] = useState([]); // {id, hallId, teacher, status, subject, className, date, time}
   const [bookingStatus, setBookingStatus] = useState('');
+  const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: 'OK', cancelText: '', type: 'success' });
   const [requestingHall, setRequestingHall] = useState(null); // hall object or null
 
 
@@ -52,30 +54,44 @@ const HallAvailability = () => {
       status: 'pending',
     };
     setRequests(prev => [...prev, newRequest]);
-    setBookingStatus('Request sent to admin. Awaiting confirmation...');
     setRequestingHall(null);
     resetForm();
+    setAlertBox({
+      open: true,
+      message: 'Request sent to admin. Awaiting confirmation...',
+      onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+      onCancel: null,
+      confirmText: 'OK',
+      cancelText: '',
+      type: 'info',
+    });
     // Simulate admin response after 2 seconds
     setTimeout(() => {
       const approved = Math.random() > 0.3;
       setRequests(prev => prev.map(r => r.id === newRequest.id ? { ...r, status: approved ? 'approved' : 'rejected' } : r));
-      setBookingStatus(approved ? 'Booking confirmed! Hall is now reserved for you.' : 'Request rejected by admin.');
-      if (approved) {
-        setHalls(prev => prev.map(h => h.id === newRequest.hallId ? {
-          ...h,
-          isFree: false,
-          subject: values.subject,
-          className: values.className,
-          teacher: teacher.name,
-          date: values.date,
-          time,
-        } : h));
-      }
+      setAlertBox({
+        open: true,
+        message: approved ? 'Booking confirmed! Hall is now reserved for you.' : 'Request rejected by admin.',
+        onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+        onCancel: null,
+        confirmText: 'OK',
+        cancelText: '',
+        type: approved ? 'success' : 'danger',
+      });
     }, 2000);
   };
 
   return (
     <DashboardLayout userRole="Teacher" sidebarItems={teacherSidebarSections}>
+      <BasicAlertBox
+        open={alertBox.open}
+        message={alertBox.message}
+        onConfirm={alertBox.onConfirm}
+        onCancel={alertBox.onCancel}
+        confirmText={alertBox.confirmText}
+        cancelText={alertBox.cancelText}
+        type={alertBox.type}
+      />
       <div className="p-6 bg-white rounded-lg shadow">
         <h1 className="text-2xl font-bold mb-4">Hall Availability</h1>
         <p className="mb-6 text-gray-700">View free halls and request booking from admin.</p>
@@ -203,11 +219,7 @@ const HallAvailability = () => {
             </div>
           </div>
         )}
-        {bookingStatus && (
-          <div className="mb-4 p-3 bg-blue-100 text-blue-700 rounded text-sm font-semibold">
-            {bookingStatus}
-          </div>
-        )}
+        {/* bookingStatus alert replaced by BasicAlertBox */}
       </div>
     </DashboardLayout>
   );
