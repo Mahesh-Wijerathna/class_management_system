@@ -1,4 +1,5 @@
 import React from 'react';
+import BasicAlertBox from '../../../components/BasicAlertBox';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomButton from '../../../components/CustomButton';
@@ -47,16 +48,32 @@ const initialValues = {
 const CreateTeacherLogin = () => {
   const navigate = useNavigate();
   const [submitCount, setSubmitCount] = React.useState(0);
+  const [alertBox, setAlertBox] = React.useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
 
   const handleSubmit = (values) => {
     // TODO: Connect to backend or API
-    alert('Teacher account created!');
-    navigate(-1);
+    setAlertBox({
+      open: true,
+      message: 'Teacher account created!',
+      onConfirm: () => {
+        setAlertBox(a => ({ ...a, open: false }));
+        navigate(-1);
+      },
+      confirmText: 'OK',
+      type: 'success',
+    });
   };
 
   return (
     <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
       <div className="w-full max-w-5xl mx-auto bg-white p-8 rounded-lg shadow mt-10">
+        <BasicAlertBox
+          open={alertBox.open}
+          message={alertBox.message}
+          onConfirm={alertBox.onConfirm}
+          confirmText={alertBox.confirmText}
+          type={alertBox.type}
+        />
         <h2 className="text-2xl font-bold mb-6 text-center">Create Teacher Login</h2>
         <BasicForm
           initialValues={initialValues}

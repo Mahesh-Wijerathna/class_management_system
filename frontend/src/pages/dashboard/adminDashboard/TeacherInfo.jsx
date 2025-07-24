@@ -8,6 +8,7 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import * as Yup from 'yup';
+import BasicAlertBox from '../../../components/BasicAlertBox';
 
 // Dummy initial data (replace with API data in production)
 const initialTeachers = [
@@ -38,21 +39,19 @@ const TeacherInfo = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
   const [alertTeacherId, setAlertTeacherId] = useState(null);
+  // For save notification
+  const [saveAlert, setSaveAlert] = useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
 
-  // Handle delete
+  // Only one set of delete/confirm/cancel functions
   const handleDelete = (teacherId) => {
     setAlertTeacherId(teacherId);
     setShowAlert(true);
   };
-  
-  // Confirm delete
   const confirmDelete = () => {
     setTeachers(teachers.filter(t => t.teacherId !== alertTeacherId));
     setShowAlert(false);
     setAlertTeacherId(null);
   };
-  
-  // Cancel delete
   const cancelDelete = () => {
     setShowAlert(false);
     setAlertTeacherId(null);
@@ -94,6 +93,13 @@ const TeacherInfo = () => {
     setTeachers(teachers.map(t => t.teacherId === values.teacherId ? values : t));
     setEditingTeacher(null);
     setShowEditModal(false);
+    setSaveAlert({
+      open: true,
+      message: 'Teacher details saved successfully!',
+      onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+      confirmText: 'OK',
+      type: 'success',
+    });
   };
 
   // Handle cancel
@@ -156,28 +162,16 @@ const TeacherInfo = () => {
           className="mb-6"
         />
   
-        {/* Custom Alert Modal for Delete Confirmation */}
-        {showAlert && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
-            <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-xs flex flex-col items-center">
-              <div className="text-lg font-semibold mb-4 text-center">Are you sure you want to delete this teacher?</div>
-              <div className="flex gap-4 mt-2">
-                <button
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 font-semibold"
-                  onClick={cancelDelete}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold"
-                  onClick={confirmDelete}
-                >
-                  OK
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* BasicAlertBox for Delete Confirmation */}
+        <BasicAlertBox
+          open={showAlert}
+          message={"Are you sure you want to delete this teacher?"}
+          onConfirm={confirmDelete}
+          onCancel={cancelDelete}
+          confirmText="Delete"
+          cancelText="Cancel"
+          type="danger"
+        />
 
         {/* Edit Modal */}
         {showEditModal && (
@@ -314,6 +308,15 @@ const TeacherInfo = () => {
             </div>
           </div>
         )}
+
+        {/* Save Success Alert */}
+        <BasicAlertBox
+          open={saveAlert.open}
+          message={saveAlert.message}
+          onConfirm={saveAlert.onConfirm}
+          confirmText={saveAlert.confirmText}
+          type={saveAlert.type}
+        />
       </div>
     </DashboardLayout>
   );
