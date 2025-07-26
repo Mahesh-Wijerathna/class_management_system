@@ -222,6 +222,7 @@ const StudentEnrollment = () => {
 
   // Stylish alert state
   const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: 'OK', cancelText: 'Cancel', type: 'info' });
+  const [saveAlert, setSaveAlert] = useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
 
   const openAlert = (message, onConfirm, options = {}) => {
     setAlertBox({
@@ -269,21 +270,17 @@ const StudentEnrollment = () => {
     );
   };
 
-  const showSaveAlert = (values) => {
-    openAlert(
-      'Student details saved successfully!',
-      () => {
-        setAlertBox(a => ({ ...a, open: false }));
-        setStudents(students.map(s => s.studentId === values.studentId ? values : s));
-        setEditingStudent(null);
-        setShowEditModal(false);
-      },
-      { confirmText: 'OK', type: 'success', cancelText: '' }
-    );
-  };
-
   const handleEditSubmit = (values) => {
-    showSaveAlert(values);
+    setStudents(students.map(s => s.studentId === values.studentId ? values : s));
+    setEditingStudent(null);
+    setShowEditModal(false);
+    setSaveAlert({
+      open: true,
+      message: 'Student details saved successfully!',
+      onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+      confirmText: 'OK',
+      type: 'success',
+    });
   };
 
   const handleCancel = () => {
@@ -682,6 +679,13 @@ const StudentEnrollment = () => {
           confirmText={alertBox.confirmText}
           cancelText={alertBox.cancelText}
           type={alertBox.type}
+        />
+        <BasicAlertBox
+          open={saveAlert.open}
+          message={saveAlert.message}
+          onConfirm={saveAlert.onConfirm}
+          confirmText={saveAlert.confirmText}
+          type={saveAlert.type}
         />
       </div>
     /* </DashboardLayout> */

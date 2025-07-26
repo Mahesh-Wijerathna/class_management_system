@@ -23,6 +23,7 @@ import CreateClass from './pages/dashboard/adminDashboard/CreateClass';
 import ClassTabsPage from './pages/dashboard/adminDashboard/ClassTabsPage';
 import AttendanceOverview from './pages/dashboard/adminDashboard/AttendanceOverview';
 import ClassAttendanceDetail from './pages/dashboard/adminDashboard/ClassAttendanceDetail';
+import FinancialRecordsOverview from './pages/dashboard/adminDashboard/FinancialRecordsOverview';
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
         <Route path="/studentdashboard" element={<StudentDashboard/>} />
         <Route path="/teacherdashboard" element={<TeacherDashboard/>} />
         <Route path="/admin/class-halls" element={<ClassHalls/>} />
+        <Route path="/admin/financial" element={<FinancialRecordsOverview />} />
         
         <Route path="/admin/classes" element={<ClassTabsPage/>}>
           <Route path="create" element={<CreateClass />} />
