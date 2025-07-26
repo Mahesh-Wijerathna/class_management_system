@@ -15,8 +15,8 @@ import ClassHalls from './pages/dashboard/adminDashboard/ClassHalls';
 import MyProfile from './pages/dashboard/studentDashboard/MyProfile';
 import ClassScheduling from './pages/dashboard/adminDashboard/ClassScheduling';
 import TeacherInfo from './pages/dashboard/adminDashboard/TeacherInfo';
-import StudentEnrollment from './pages/dashboard/adminDashboard/StudentEnrollment';
 import StudentTabsPage from './pages/dashboard/adminDashboard/StudentTabsPage';
+import TeacherTabsPage from './pages/dashboard/adminDashboard/TeacherTabsPage';
 
 function App() {
   return (
@@ -27,11 +27,16 @@ function App() {
         <Route path="/admindashboard" element={<AdminDashboard/>} />
         <Route path="/studentdashboard" element={<StudentDashboard/>} />
         <Route path="/teacherdashboard" element={<TeacherDashboard/>} />
-        <Route path="/admin/teachers/create" element={<CreateTeacherLogin/>} />
         <Route path="/admin/class-halls" element={<ClassHalls/>} />
         <Route path="/admin/schedule" element={<ClassScheduling/>} />
-        <Route path="/admin/teachers" element={<TeacherInfo/>} />
         <Route path="/admin/students" element={<StudentTabsPage/>} />
+
+        <Route path="/admin/teachers/" element={<TeacherTabsPage/>}>
+          <Route index element={<TeacherInfo />} />
+          <Route path="info" element={<TeacherInfo />} />
+          <Route path="create" element={<CreateTeacherLogin />} />
+        </Route>
+        
         <Route path="/teacher/schedules" element={<ManageClassSchedules/>} />
         <Route path="/teacher/halls" element={<HallAvailability/>} />
         <Route path="/register/institute" element={<InstituteRegister/>} />

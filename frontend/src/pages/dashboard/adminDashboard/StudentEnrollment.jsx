@@ -44,7 +44,9 @@ function parseNIC(nic) {
   } else {
     return null;
   }
+  
   const dob = `${year}-${month}-${day}`;
+
   // Calculate age
   const today = new Date();
   const birthDate = new Date(dob);
@@ -293,7 +295,7 @@ const StudentEnrollment = () => {
     // <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
       <div className="p-6 bg-white rounded-lg shadow">
         <h1 className="text-2xl font-bold mb-4">Student Enrollment</h1>
-        <p className="mb-6 text-gray-700">View, edit, and remove registered students.</p>
+        <p className="mb-6 text-gray-700">View, edit and remove registered students.</p>
         <BasicTable
           columns={[
             { key: 'studentId', label: 'Student ID' },
