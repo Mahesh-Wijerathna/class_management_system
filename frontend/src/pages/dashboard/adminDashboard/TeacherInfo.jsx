@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as Yup from 'yup';
 import { FaUser, FaLock, FaPhone, FaIdCard } from 'react-icons/fa';
 // import { Formik } from 'formik';
@@ -35,7 +35,11 @@ const initialTeachers = [
 ];
 
 const TeacherInfo = () => {
-  const [teachers, setTeachers] = useState(initialTeachers);
+  // Load from localStorage or fallback to initialTeachers
+  const [teachers, setTeachers] = useState(() => {
+    const stored = localStorage.getItem('teachers');
+    return stored ? JSON.parse(stored) : initialTeachers;
+  });
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [editValues, setEditValues] = useState({});
   const [showEditModal, setShowEditModal] = useState(false);
@@ -110,6 +114,11 @@ const TeacherInfo = () => {
     setEditValues({});
     setShowEditModal(false);
   };
+
+  // Save to localStorage whenever teachers changes
+  useEffect(() => {
+    localStorage.setItem('teachers', JSON.stringify(teachers));
+  }, [teachers]);
 
   return (
       <div className="p-6 bg-white rounded-lg shadow">

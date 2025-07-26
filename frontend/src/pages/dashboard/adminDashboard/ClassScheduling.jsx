@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 import adminSidebarSections from './AdminDashboardSidebar';
@@ -92,13 +92,22 @@ function formatTime(timeStr) {
 
 
 function ClassScheduling() {
-  const [schedules, setSchedules] = useState(initialSchedules);
+  // Load from localStorage or fallback to initialSchedules
+  const [schedules, setSchedules] = useState(() => {
+    const stored = localStorage.getItem('schedules');
+    return stored ? JSON.parse(stored) : initialSchedules;
+  });
   const [editingId, setEditingId] = useState(null);
   const [formValues, setFormValues] = useState(initialValues);
   const [submitKey, setSubmitKey] = useState(0);
   const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: 'Delete', cancelText: 'Cancel', type: 'danger' });
   const [zoomLoading, setZoomLoading] = useState(false);
   const [zoomError, setZoomError] = useState('');
+
+  // Save to localStorage whenever schedules changes
+  useEffect(() => {
+    localStorage.setItem('schedules', JSON.stringify(schedules));
+  }, [schedules]);
 
   // Dummy teacher list for select fields
   const teacherList = [

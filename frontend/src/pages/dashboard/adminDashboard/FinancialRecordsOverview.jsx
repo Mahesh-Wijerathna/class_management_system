@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import adminSidebarSections from './AdminDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
@@ -7,8 +7,10 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import BasicAlertBox from '../../../components/BasicAlertBox';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import * as Yup from 'yup';
 import { FaEdit, FaTrash } from 'react-icons/fa';
+import { initialRecords } from './financialDummyData';
 
 const typeOptions = [
   { value: 'income', label: 'Income' },
@@ -24,6 +26,7 @@ const roleOptions = [
 const statusOptions = [
   { value: 'Paid', label: 'Paid' },
   { value: 'Pending', label: 'Pending' },
+  { value: 'Unpaid', label: 'Unpaid' },
   { value: 'Refunded', label: 'Refunded' },
 ];
 const categoryOptions = [
@@ -47,66 +50,15 @@ const validationSchema = Yup.object().shape({
   status: Yup.string().required('Status is required'),
 });
 
-const initialRecords = [
-  {
-    id: 'TXN001',
-    date: '2025-07-01',
-    type: 'income',
-    category: 'Tuition Fee',
-    person: 'Alice Perera',
-    role: 'Student',
-    className: 'Advanced Mathematics',
-    amount: 5000,
-    status: 'Paid',
-  },
-  {
-    id: 'TXN002',
-    date: '2025-07-01',
-    type: 'outcome',
-    category: 'Teacher Salary',
-    person: 'Mr. Silva',
-    role: 'Teacher',
-    className: 'Advanced Mathematics',
-    amount: 3000,
-    status: 'Paid',
-  },
-  {
-    id: 'TXN003',
-    date: '2025-07-01',
-    type: 'outcome',
-    category: 'Cleaner Salary',
-    person: 'Kumara',
-    role: 'Cleaner',
-    className: '-',
-    amount: 500,
-    status: 'Paid',
-  },
-  {
-    id: 'TXN004',
-    date: '2025-07-02',
-    type: 'income',
-    category: 'Exam Fee',
-    person: 'Bob Silva',
-    role: 'Student',
-    className: 'Physics Fundamentals',
-    amount: 2000,
-    status: 'Pending',
-  },
-  {
-    id: 'TXN005',
-    date: '2025-07-02',
-    type: 'outcome',
-    category: 'Cashier Salary',
-    person: 'Ms. Perera',
-    role: 'Cashier',
-    className: '-',
-    amount: 1200,
-    status: 'Paid',
-  },
-];
+// Chart colors
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
 const FinancialRecordsOverview = () => {
-  const [records, setRecords] = useState(initialRecords);
+  // Load from localStorage or fallback to initialRecords
+  const [records, setRecords] = useState(() => {
+    const stored = localStorage.getItem('financialRecords');
+    return stored ? JSON.parse(stored) : initialRecords;
+  });
   const [selectedType, setSelectedType] = useState('all');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedRole, setSelectedRole] = useState('All');
@@ -115,6 +67,11 @@ const FinancialRecordsOverview = () => {
   const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: 'OK', cancelText: 'Cancel', type: 'info' });
   const [saveAlert, setSaveAlert] = useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
 
+  // Save to localStorage whenever records changes
+  useEffect(() => {
+    localStorage.setItem('financialRecords', JSON.stringify(records));
+  }, [records]);
+
   // Filter records by type, date, and role
   const filteredRecords = records.filter(rec =>
     (selectedType === 'all' || rec.type === selectedType) &&
@@ -122,10 +79,47 @@ const FinancialRecordsOverview = () => {
     (selectedRole === 'All' || rec.role === selectedRole)
   );
 
-  // Calculate totals
-  const totalIncome = records.filter(r => r.type === 'income').reduce((sum, r) => sum + r.amount, 0);
-  const totalOutcome = records.filter(r => r.type === 'outcome').reduce((sum, r) => sum + r.amount, 0);
+  // Calculate totals (include Paid and Refunded records)
+  const totalIncome = records.filter(r => r.type === 'income' && (r.status === 'Paid' || r.status === 'Refunded')).reduce((sum, r) => sum + r.amount, 0);
+  const totalOutcome = records.filter(r => r.type === 'outcome' && (r.status === 'Paid' || r.status === 'Refunded')).reduce((sum, r) => sum + r.amount, 0);
   const profit = totalIncome - totalOutcome;
+
+  // Prepare chart data (include Paid and Refunded records)
+  const prepareIncomeByRoleData = () => {
+    const incomeByRole = {};
+    records.filter(r => r.type === 'income' && (r.status === 'Paid' || r.status === 'Refunded')).forEach(record => {
+      incomeByRole[record.role] = (incomeByRole[record.role] || 0) + record.amount;
+    });
+    return Object.entries(incomeByRole).map(([role, amount], index) => ({
+      name: role,
+      value: amount,
+      color: COLORS[index % COLORS.length]
+    }));
+  };
+
+  const prepareOutcomeByRoleData = () => {
+    const outcomeByRole = {};
+    records.filter(r => r.type === 'outcome' && (r.status === 'Paid' || r.status === 'Refunded')).forEach(record => {
+      outcomeByRole[record.role] = (outcomeByRole[record.role] || 0) + record.amount;
+    });
+    return Object.entries(outcomeByRole).map(([role, amount], index) => ({
+      name: role,
+      value: amount,
+      color: COLORS[index % COLORS.length]
+    }));
+  };
+
+  const prepareProfitData = () => {
+    return [
+      { name: 'Income', value: totalIncome, color: '#00C49F' },
+      { name: 'Outcome', value: totalOutcome, color: '#FF8042' },
+      { name: 'Profit', value: profit, color: profit >= 0 ? '#0088FE' : '#FF0000' }
+    ];
+  };
+
+  const incomeByRoleData = prepareIncomeByRoleData();
+  const outcomeByRoleData = prepareOutcomeByRoleData();
+  const profitData = prepareProfitData();
 
   // Get next transaction ID
   const getNextTransactionId = () => {
@@ -216,10 +210,96 @@ const FinancialRecordsOverview = () => {
     }
   };
 
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-3 border border-gray-300 rounded shadow-lg">
+          <p className="font-semibold">{`${payload[0].name}: Rs. ${payload[0].value}`}</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
       <div className="p-6 bg-white rounded-lg shadow">
         <h1 className="text-2xl font-bold mb-4">Financial Records</h1>
+        
+        {/* Charts Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {/* Profit Overview Chart */}
+          <div className="bg-white p-4 rounded-lg shadow border">
+            <h3 className="text-lg font-semibold mb-3 text-center">Financial Overview</h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={profitData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={40}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {profitData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Income by Role Chart */}
+          <div className="bg-white p-4 rounded-lg shadow border">
+            <h3 className="text-lg font-semibold mb-3 text-center">Income</h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={incomeByRoleData}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {incomeByRoleData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Outcome by Role Chart */}
+          <div className="bg-white p-4 rounded-lg shadow border">
+            <h3 className="text-lg font-semibold mb-3 text-center">Outcome</h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={outcomeByRoleData}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {outcomeByRoleData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Summary Cards */}
         <div className="flex flex-wrap gap-6 mb-6">
           <div className="bg-green-100 text-green-800 rounded-lg px-6 py-4 font-bold text-lg">
             Total Income: Rs. {totalIncome}

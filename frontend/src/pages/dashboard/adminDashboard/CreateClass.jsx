@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 import adminSidebarSections from './AdminDashboardSidebar';
@@ -74,7 +74,7 @@ const validationSchema = Yup.object().shape({
   subject: Yup.string().required('Subject is required'),
   teacher: Yup.string().required('Teacher is required'),
   teacherId: Yup.string().required('Teacher ID is required'),
-  stream: Yup.string().oneOf(streamOptions.map(o => o.value), 'Invalid stream').required('Stream is required'),
+  stream: Yup.string().oneOf(streamOptions, 'Invalid stream').required('Stream is required'),
   deliveryMethod: Yup.string().oneOf(['online', 'physical', 'hybrid', 'other'], 'Invalid delivery method').required('Delivery Method is required'),
   deliveryOther: Yup.string().when('deliveryMethod', {
     is: (val) => val === 'other',
@@ -143,13 +143,22 @@ function formatDay(day) {
 }
 
 const CreateClass = () => {
-  const [classes, setClasses] = useState(initialClasses);
+  // Load from localStorage or fallback to initialClasses
+  const [classes, setClasses] = useState(() => {
+    const stored = localStorage.getItem('classes');
+    return stored ? JSON.parse(stored) : initialClasses;
+  });
   const [editingId, setEditingId] = useState(null);
   const [formValues, setFormValues] = useState(initialValues);
   const [submitKey, setSubmitKey] = useState(0);
   const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: 'Delete', cancelText: 'Cancel', type: 'danger' });
   const [zoomLoading, setZoomLoading] = useState(false);
   const [zoomError, setZoomError] = useState('');
+
+  // Save to localStorage whenever classes changes
+  useEffect(() => {
+    localStorage.setItem('classes', JSON.stringify(classes));
+  }, [classes]);
 
   // Dummy teacher list for select fields
   const teacherList = [

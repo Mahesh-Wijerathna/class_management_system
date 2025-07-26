@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import adminSidebarSections from './AdminDashboardSidebar';
@@ -215,10 +215,19 @@ const validationSchema = Yup.object().shape({
 
 
 const StudentEnrollment = () => {
-  const [students, setStudents] = useState(initialStudents);
+  // Load from localStorage or fallback to initialStudents
+  const [students, setStudents] = useState(() => {
+    const stored = localStorage.getItem('students');
+    return stored ? JSON.parse(stored) : initialStudents;
+  });
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
   const [editValues, setEditValues] = useState({});
+
+  // Save to localStorage whenever students changes
+  useEffect(() => {
+    localStorage.setItem('students', JSON.stringify(students));
+  }, [students]);
 
   // Stylish alert state
   const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: 'OK', cancelText: 'Cancel', type: 'info' });
