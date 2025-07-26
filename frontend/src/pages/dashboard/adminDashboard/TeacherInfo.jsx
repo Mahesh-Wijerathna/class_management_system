@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import * as Yup from 'yup';
+import { FaUser, FaLock, FaPhone, FaIdCard } from 'react-icons/fa';
+// import { Formik } from 'formik';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import adminSidebarSections from './AdminDashboardSidebar';
 import CustomButton from '../../../components/CustomButton';
-import { FaEdit, FaTrash, FaUser, FaEnvelope, FaPhone, FaIdCard, FaLock, FaBook } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaEnvelope,   FaBook } from 'react-icons/fa';
 import BasicTable from '../../../components/BasicTable';
 import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
-import * as Yup from 'yup';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 
 // Dummy initial data (replace with API data in production)
@@ -33,7 +35,11 @@ const initialTeachers = [
 ];
 
 const TeacherInfo = () => {
-  const [teachers, setTeachers] = useState(initialTeachers);
+  // Load from localStorage or fallback to initialTeachers
+  const [teachers, setTeachers] = useState(() => {
+    const stored = localStorage.getItem('teachers');
+    return stored ? JSON.parse(stored) : initialTeachers;
+  });
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [editValues, setEditValues] = useState({});
   const [showEditModal, setShowEditModal] = useState(false);
@@ -109,8 +115,12 @@ const TeacherInfo = () => {
     setShowEditModal(false);
   };
 
+  // Save to localStorage whenever teachers changes
+  useEffect(() => {
+    localStorage.setItem('teachers', JSON.stringify(teachers));
+  }, [teachers]);
+
   return (
-    <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
       <div className="p-6 bg-white rounded-lg shadow">
         <h1 className="text-2xl font-bold mb-4">Teachers Information</h1>
         <p className="mb-6 text-gray-700">View, edit and delete teacher details.</p>
@@ -318,7 +328,6 @@ const TeacherInfo = () => {
           type={saveAlert.type}
         />
       </div>
-    </DashboardLayout>
   );
 };
 

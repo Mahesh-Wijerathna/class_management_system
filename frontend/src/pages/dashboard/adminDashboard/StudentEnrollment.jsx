@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import adminSidebarSections from './AdminDashboardSidebar';
@@ -44,7 +44,9 @@ function parseNIC(nic) {
   } else {
     return null;
   }
+  
   const dob = `${year}-${month}-${day}`;
+
   // Calculate age
   const today = new Date();
   const birthDate = new Date(dob);
@@ -213,13 +215,23 @@ const validationSchema = Yup.object().shape({
 
 
 const StudentEnrollment = () => {
-  const [students, setStudents] = useState(initialStudents);
+  // Load from localStorage or fallback to initialStudents
+  const [students, setStudents] = useState(() => {
+    const stored = localStorage.getItem('students');
+    return stored ? JSON.parse(stored) : initialStudents;
+  });
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
   const [editValues, setEditValues] = useState({});
 
+  // Save to localStorage whenever students changes
+  useEffect(() => {
+    localStorage.setItem('students', JSON.stringify(students));
+  }, [students]);
+
   // Stylish alert state
   const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: 'OK', cancelText: 'Cancel', type: 'info' });
+  const [saveAlert, setSaveAlert] = useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
 
   const openAlert = (message, onConfirm, options = {}) => {
     setAlertBox({
@@ -267,21 +279,17 @@ const StudentEnrollment = () => {
     );
   };
 
-  const showSaveAlert = (values) => {
-    openAlert(
-      'Student details saved successfully!',
-      () => {
-        setAlertBox(a => ({ ...a, open: false }));
-        setStudents(students.map(s => s.studentId === values.studentId ? values : s));
-        setEditingStudent(null);
-        setShowEditModal(false);
-      },
-      { confirmText: 'OK', type: 'success', cancelText: '' }
-    );
-  };
-
   const handleEditSubmit = (values) => {
-    showSaveAlert(values);
+    setStudents(students.map(s => s.studentId === values.studentId ? values : s));
+    setEditingStudent(null);
+    setShowEditModal(false);
+    setSaveAlert({
+      open: true,
+      message: 'Student details saved successfully!',
+      onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+      confirmText: 'OK',
+      type: 'success',
+    });
   };
 
   const handleCancel = () => {
@@ -290,10 +298,10 @@ const StudentEnrollment = () => {
   };
 
   return (
-    <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
+    // <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
       <div className="p-6 bg-white rounded-lg shadow">
         <h1 className="text-2xl font-bold mb-4">Student Enrollment</h1>
-        <p className="mb-6 text-gray-700">View, edit, and remove registered students.</p>
+        <p className="mb-6 text-gray-700">View, edit and remove registered students.</p>
         <BasicTable
           columns={[
             { key: 'studentId', label: 'Student ID' },
@@ -314,19 +322,7 @@ const StudentEnrollment = () => {
             { key: 'district', label: 'District' },
             { key: 'dateJoined', label: 'Date Joined' },
             { key: 'stream', label: 'Stream' },
-            // { key: 'enrolledClasses', label: 'Enrolled Classes', render: row => (
-            //     <ul className="list-disc pl-4">
-            //       {Array.isArray(row.enrolledClasses) && row.enrolledClasses.length > 0
-            //         ? row.enrolledClasses.map((c, i) => (
-            //             <li key={i} className="mb-1">
-            //               <span className="font-semibold">{c.subject}</span> <span className="text-gray-500">({c.teacher})</span><br />
-            //               <span className="text-xs text-gray-600">{c.schedule} | {c.hall}</span>
-            //             </li>
-            //           ))
-            //         : <li className="text-gray-400 italic">None</li>}
-            //     </ul>
-            //   )
-            // },
+
           ]}
           data={students}
           actions={row => (
@@ -341,7 +337,7 @@ const StudentEnrollment = () => {
         {/* Edit Modal */}
         {showEditModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-            <div className="bg-white rounded-xl shadow-2xl p-0 w-full max-w-5xl max-h-[96vh] flex flex-col relative">
+            <div className="bg-white rounded-xl shadow-2xl p-0 w-full max-w-5xl max-h-[96vh] flex flex-col pointer-events-auto ml-64">
               <div className="flex items-center justify-between px-6 py-4 border-b">
                 <h2 className="text-xl font-bold">Edit Student</h2>
                 <button
@@ -693,8 +689,15 @@ const StudentEnrollment = () => {
           cancelText={alertBox.cancelText}
           type={alertBox.type}
         />
+        <BasicAlertBox
+          open={saveAlert.open}
+          message={saveAlert.message}
+          onConfirm={saveAlert.onConfirm}
+          confirmText={saveAlert.confirmText}
+          type={saveAlert.type}
+        />
       </div>
-    </DashboardLayout>
+    /* </DashboardLayout> */
   );
 };
 

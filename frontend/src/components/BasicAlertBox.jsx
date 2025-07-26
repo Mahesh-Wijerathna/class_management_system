@@ -52,19 +52,19 @@ const BasicAlertBox = ({
   const t = theme[type] || theme.info;
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-40">
-      <div className={`rounded-xl shadow-2xl p-6 w-full max-w-xs flex flex-col items-center border-2 ${t.border} ${t.bg}`}>
-        <div className={`text-lg font-bold mb-4 text-center ${t.text}`}>{message}</div>
-        <div className={`flex gap-4 mt-2 ${!cancelText ? 'justify-center' : ''}`}>
+      <div className={`rounded-lg shadow-xl p-3 w-full max-w-[260px] flex flex-col items-center border ${t.border} ${t.bg}`}>
+        <div className={`text-base font-semibold mb-2 text-center ${t.text}`}>{message}</div>
+        <div className={`flex gap-2 mt-1 ${!cancelText ? 'justify-center' : ''}`}>
           {cancelText ? (
             <>
               <button
-                className={`px-4 py-2 rounded ${t.btnCancel}`}
+                className={`px-2 py-1 text-xs rounded ${t.btnCancel}`}
                 onClick={onCancel}
               >
                 {cancelText}
               </button>
               <button
-                className={`px-4 py-2 rounded ${t.btnBg}`}
+                className={`px-2 py-1 text-xs rounded ${t.btnBg}`}
                 onClick={onConfirm}
               >
                 {confirmText}
@@ -72,7 +72,7 @@ const BasicAlertBox = ({
             </>
           ) : (
             <button
-              className={`px-4 py-2 rounded ${t.btnBg}`}
+              className={`px-2 py-1 text-xs rounded ${t.btnBg}`}
               onClick={onConfirm}
             >
               {confirmText}
