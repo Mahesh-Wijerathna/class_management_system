@@ -1,33 +1,32 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import adminSidebarSections from '../../dashboard/adminDashboard/AdminDashboardSidebar';
+import adminSidebarSections from './AdminDashboardSidebar';
 
-const StudentTabsPage = () => {
+const ClassTabsPage = () => {
   return (
-    <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections} >
+    <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
       <div className="w-full max-w-25xl bg-white rounded-lg shadow p-4 mx-auto">
         <div className="flex gap-4 mb-6 border-b">
           <NavLink
-            to="/admin/students/enrollment"
-            className={({ isActive }) => 
+            to="/admin/classes/create"
+            className={({ isActive }) =>
               `px-4 py-2 font-bold text-base focus:outline-none border-b-2 transition-colors ${
                 isActive ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-600'
               }`
             }
           >
-            Student Enrollment
+            Create Class
           </NavLink>
           <NavLink
-            to="/admin/students/physical"
-            className={({ isActive }) => 
+            to="/admin/classes/schedule"
+            className={({ isActive }) =>
               `px-4 py-2 font-bold text-base focus:outline-none border-b-2 transition-colors ${
                 isActive ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-600'
               }`
             }
           >
-            Physical Student Registration
+            Class Scheduling
           </NavLink>
         </div>
         <div>
@@ -38,4 +37,4 @@ const StudentTabsPage = () => {
   );
 };
 
-export default StudentTabsPage;
+export default ClassTabsPage; 
