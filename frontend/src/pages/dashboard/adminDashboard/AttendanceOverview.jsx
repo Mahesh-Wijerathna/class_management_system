@@ -5,8 +5,8 @@ import adminSidebarSections from './AdminDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
 import CustomButton from '../../../components/CustomButton';
 
-// Dummy class data (replace with API data in production)
-const allClasses = [
+// Dummy class data (keep for now)
+const dummyClasses = [
   {
     id: 'class1',
     className: 'Advanced Mathematics',
@@ -53,10 +53,38 @@ const allClasses = [
 
 const AttendanceOverview = () => {
   const navigate = useNavigate();
-  const [selectedDate, setSelectedDate] = useState('2025-07-26');
 
-  // Filter classes by selected date
-  const filteredClasses = allClasses.filter(cls => cls.date === selectedDate);
+  // Date filter: empty string means show all
+  const [selectedDate, setSelectedDate] = useState('');
+
+  // Get user-created classes from localStorage
+  const userClasses = (() => {
+    try {
+      const stored = localStorage.getItem('classes');
+      if (!stored) return [];
+      return JSON.parse(stored).map(cls => ({
+        ...cls,
+        id: cls.id || `userclass-${Math.random()}`,
+        date: cls.startDate || selectedDate,
+        from: cls.schedule?.startTime || '',
+        to: cls.schedule?.endTime || '',
+        location: cls.hall || '',
+        status: 'Not Started',
+        studentsPresent: 0,
+        totalStudents: cls.maxStudents || 0,
+      }));
+    } catch {
+      return [];
+    }
+  })();
+
+  // Combine dummy and user classes
+  const allClasses = [...dummyClasses, ...userClasses];
+
+  // Filter classes by selected date if selectedDate is set, else show all
+  const filteredClasses = selectedDate
+    ? allClasses.filter(cls => cls.date === selectedDate)
+    : allClasses;
 
   return (
     <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
@@ -69,7 +97,17 @@ const AttendanceOverview = () => {
             value={selectedDate}
             onChange={e => setSelectedDate(e.target.value)}
             className="border rounded px-2 py-1"
+            placeholder="Select date (optional)"
           />
+          {selectedDate && (
+            <button
+              type="button"
+              className="ml-2 text-sm text-gray-600 underline hover:text-blue-700"
+              onClick={() => setSelectedDate('')}
+            >
+              Clear
+            </button>
+          )}
         </div>
         <BasicTable
           columns={[
