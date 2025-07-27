@@ -27,6 +27,11 @@ import BankTransfer from './pages/dashboard/studentDashboard/BankTransfer';
 import MyPayments from './pages/dashboard/studentDashboard/MyPayments';
 import BankDetails from './pages/dashboard/studentDashboard/BankDetails';
 import StudentEnrollment from './pages/dashboard/adminDashboard/StudentEnrollment';
+import PurchaseStudyPack from './pages/dashboard/studentDashboard/PurchaseStudyPack';
+import MyStudyPacks from './pages/dashboard/studentDashboard/MyStudyPacks';
+import StudyPackDetail from './pages/dashboard/studentDashboard/StudyPackDetail';
+import LiveClasses from './pages/dashboard/studentDashboard/LiveClasses';
+
 import PhysicalStudentRegisterTab from './pages/dashboard/adminDashboard/PhysicalStudentRegisterTab';
 import StudentTabsPage from './pages/dashboard/adminDashboard/StudentTabsPage';
 import TeacherTabsPage from './pages/dashboard/adminDashboard/TeacherTabsPage';
@@ -83,6 +88,7 @@ function App() {
         <Route path="/admin/teachers" element={<TeacherInfo/>} />
         <Route path="/admin/students" element={<StudentEnrollment/>} />
 
+
         <Route path="/teacherdashboard" element={<TeacherDashboard/>} />
         <Route path="/teacher/schedules" element={<ManageClassSchedules/>} />
         <Route path="/teacher/halls" element={<HallAvailability/>} />
@@ -100,6 +106,10 @@ function App() {
         <Route path="/student/bank-transfer" element={<BankTransfer />} />
         <Route path="/student/my-payments" element={<MyPayments/>} />
         <Route path="/student/bankdetails" element={<BankDetails/>} />
+        <Route path="/student/purchasestudypack" element={<PurchaseStudyPack />} />
+        <Route path="/student/studypacks" element={<MyStudyPacks />} />
+        <Route path="/student/studypacks/:id" element={<StudyPackDetail />} />
+        <Route path="/student/liveclasses" element={<LiveClasses />} />
       </Routes>
     </BrowserRouter>
   );
