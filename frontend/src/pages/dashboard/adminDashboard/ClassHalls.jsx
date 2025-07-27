@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import adminSidebarSections from './AdminDashboardSidebar';
@@ -24,8 +24,15 @@ const initialRequests = [
 ];
 
 const ClassHalls = () => {
-  const [halls, setHalls] = useState(initialHalls);
-  const [requests, setRequests] = useState(initialRequests);
+  // Load from localStorage or fallback to initialHalls/initialRequests
+  const [halls, setHalls] = useState(() => {
+    const stored = localStorage.getItem('halls');
+    return stored ? JSON.parse(stored) : initialHalls;
+  });
+  const [requests, setRequests] = useState(() => {
+    const stored = localStorage.getItem('hallRequests');
+    return stored ? JSON.parse(stored) : initialRequests;
+  });
   const [newHall, setNewHall] = useState({
     name: '',
     status: 'Select Status',
@@ -160,6 +167,14 @@ const ClassHalls = () => {
           openAlert('Request rejected.', null, { confirmText: 'OK', type: 'danger' });
         }
   };
+
+  // Save to localStorage whenever halls or requests changes
+  useEffect(() => {
+    localStorage.setItem('halls', JSON.stringify(halls));
+  }, [halls]);
+  useEffect(() => {
+    localStorage.setItem('hallRequests', JSON.stringify(requests));
+  }, [requests]);
 
   return (
     <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>

@@ -32,6 +32,15 @@ import MyStudyPacks from './pages/dashboard/studentDashboard/MyStudyPacks';
 import StudyPackDetail from './pages/dashboard/studentDashboard/StudyPackDetail';
 import LiveClasses from './pages/dashboard/studentDashboard/LiveClasses';
 
+import PhysicalStudentRegisterTab from './pages/dashboard/adminDashboard/PhysicalStudentRegisterTab';
+import StudentTabsPage from './pages/dashboard/adminDashboard/StudentTabsPage';
+import TeacherTabsPage from './pages/dashboard/adminDashboard/TeacherTabsPage';
+import CreateClass from './pages/dashboard/adminDashboard/CreateClass';
+import ClassTabsPage from './pages/dashboard/adminDashboard/ClassTabsPage';
+import AttendanceOverview from './pages/dashboard/adminDashboard/AttendanceOverview';
+import ClassAttendanceDetail from './pages/dashboard/adminDashboard/ClassAttendanceDetail';
+import FinancialRecordsOverview from './pages/dashboard/adminDashboard/FinancialRecordsOverview';
+import Reports from './pages/dashboard/adminDashboard/Reports';
 
 function App() {
   return (
@@ -39,6 +48,35 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage/>} />
         <Route path="/register" element={<RegisterPage/>} />
+        <Route path="/admindashboard" element={<AdminDashboard/>} />
+        <Route path="/studentdashboard" element={<StudentDashboard/>} />
+        <Route path="/teacherdashboard" element={<TeacherDashboard/>} />
+        <Route path="/admin/class-halls" element={<ClassHalls/>} />
+        <Route path="/admin/financial" element={<FinancialRecordsOverview />} />
+        <Route path="/admin/reports" element={<Reports />} />
+        
+        <Route path="/admin/classes" element={<ClassTabsPage/>}>
+          <Route path="create" element={<CreateClass />} />
+          <Route path="schedule" element={<ClassScheduling />} />
+          <Route index element={<CreateClass />} />
+        </Route>
+        
+        <Route path="/admin/students" element={<StudentTabsPage/>}>
+          <Route index element={<StudentEnrollment />} />
+          <Route path="enrollment" element={<StudentEnrollment />} />
+          <Route path="physical" element={<PhysicalStudentRegisterTab />} />
+        </Route>
+
+        <Route path="/admin/teachers/" element={<TeacherTabsPage/>}>
+          <Route index element={<TeacherInfo />} />
+          <Route path="info" element={<TeacherInfo />} />
+          <Route path="create" element={<CreateTeacherLogin />} />
+        </Route>
+        
+        <Route path="/admin/attendance" element={<AttendanceOverview />} />
+        <Route path="/admin/attendance/:classId" element={<ClassAttendanceDetail />} />
+        <Route path="/teacher/schedules" element={<ManageClassSchedules/>} />
+        <Route path="/teacher/halls" element={<HallAvailability/>} />
         <Route path="/register/institute" element={<InstituteRegister/>} />
         <Route path="/register/new" element={<NewStudentRegister/>} />
         <Route path="/forgotpassword" element={<ForgotPassword/>} />

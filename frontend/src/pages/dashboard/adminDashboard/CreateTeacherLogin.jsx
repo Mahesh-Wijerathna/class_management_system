@@ -65,7 +65,6 @@ const CreateTeacherLogin = () => {
   };
 
   return (
-    <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
       <div className="w-full max-w-5xl mx-auto bg-white p-8 rounded-lg shadow mt-10">
         <BasicAlertBox
           open={alertBox.open}
@@ -201,7 +200,6 @@ const CreateTeacherLogin = () => {
           )}
         </BasicForm>
       </div>
-    </DashboardLayout>
   );
 };
 

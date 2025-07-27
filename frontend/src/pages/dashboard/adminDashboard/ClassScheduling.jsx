@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 import adminSidebarSections from './AdminDashboardSidebar';
@@ -37,6 +37,13 @@ const initialSchedules = [
   },
 ];
 
+const deliveryMethodOptions = [
+  { value: 'online', label: 'Online' },
+  { value: 'physical', label: 'Physical' },
+  { value: 'hybrid', label: 'Hybrid' },
+  { value: 'other', label: 'Other' },
+];
+
 const validationSchema = Yup.object().shape({
   subject: Yup.string().required('Subject is required'),
   className: Yup.string().required('Class Name is required'),
@@ -45,7 +52,17 @@ const validationSchema = Yup.object().shape({
   date: Yup.string().required('Date is required'),
   startTime: Yup.string().required('Start Time is required'),
   endTime: Yup.string().required('End Time is required'),
-  classType: Yup.string().oneOf(['Online', 'Physical', 'Hybrid'], 'Invalid class type').required('Class Type is required'),
+  deliveryMethod: Yup.string().oneOf(['online', 'physical', 'hybrid', 'other'], 'Invalid delivery method').required('Delivery Method is required'),
+  deliveryOther: Yup.string().when('deliveryMethod', {
+    is: (val) => val === 'other',
+    then: (schema) => schema.required('Please specify delivery method'),
+    otherwise: (schema) => schema.notRequired(),
+  }),
+  zoomLink: Yup.string().when('deliveryMethod', {
+    is: (val) => val === 'online' || val === 'hybrid',
+    then: (schema) => schema.required('Zoom Link is required'),
+    otherwise: (schema) => schema.notRequired(), // Optional for 'other' and 'physical'
+  }),
   hall: Yup.string(),
 });
 
@@ -57,7 +74,9 @@ const initialValues = {
   date: '',
   startTime: '',
   endTime: '',
-  classType: '',
+  deliveryMethod: 'online',
+  deliveryOther: '',
+  zoomLink: '',
   hall: '',
 };
 
@@ -73,11 +92,22 @@ function formatTime(timeStr) {
 
 
 function ClassScheduling() {
-  const [schedules, setSchedules] = useState(initialSchedules);
+  // Load from localStorage or fallback to initialSchedules
+  const [schedules, setSchedules] = useState(() => {
+    const stored = localStorage.getItem('schedules');
+    return stored ? JSON.parse(stored) : initialSchedules;
+  });
   const [editingId, setEditingId] = useState(null);
   const [formValues, setFormValues] = useState(initialValues);
   const [submitKey, setSubmitKey] = useState(0);
   const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: 'Delete', cancelText: 'Cancel', type: 'danger' });
+  const [zoomLoading, setZoomLoading] = useState(false);
+  const [zoomError, setZoomError] = useState('');
+
+  // Save to localStorage whenever schedules changes
+  useEffect(() => {
+    localStorage.setItem('schedules', JSON.stringify(schedules));
+  }, [schedules]);
 
   // Dummy teacher list for select fields
   const teacherList = [
@@ -154,7 +184,7 @@ function ClassScheduling() {
   };
 
   return (
-    <DashboardLayout sidebarItems={adminSidebarSections}>
+    <>
       <BasicAlertBox
         open={alertBox.open}
         message={alertBox.message}
@@ -175,11 +205,7 @@ function ClassScheduling() {
         onSubmit={handleSubmit}
       >
         {(props) => {
-          // Try to get setFieldValue from props, or from props.form (Formik v1/v2 compatibility)
-          const { errors, touched, handleChange, values } = props;
-          const setFieldValue = props.setFieldValue || (props.form && props.form.setFieldValue);
-          // Debug: log props to see what is available
-          // console.log('BasicForm props:', props);
+          const { errors, touched, handleChange, values, setFieldValue } = props;
           // Auto-fill Teacher ID when teacher is selected
           const handleTeacherChange = (e) => {
             const selectedName = e.target.value;
@@ -193,6 +219,21 @@ function ClassScheduling() {
             handleChange(e);
             const found = teacherList.find(t => t.id === selectedId);
             if (found && setFieldValue) setFieldValue('teacher', found.name);
+          };
+          // Move handleGenerateZoomLink here so setFieldValue is in scope
+          const handleGenerateZoomLink = async () => {
+            setZoomLoading(true);
+            setZoomError('');
+            try {
+              await new Promise(res => setTimeout(res, 1000));
+              const randomId = Math.floor(100000000 + Math.random() * 900000000);
+              const zoomUrl = `https://zoom.us/j/${randomId}`;
+              setFieldValue('zoomLink', zoomUrl);
+            } catch (err) {
+              setZoomError('Failed to generate Zoom link. Please try again.');
+            } finally {
+              setZoomLoading(false);
+            }
           };
 
           return (
@@ -275,21 +316,53 @@ function ClassScheduling() {
                 icon={FaClock}
               />
               <CustomSelectField
-                id="classType"
-                name="classType"
-                label="Class Type"
-                value={values.classType}
+                id="deliveryMethod"
+                name="deliveryMethod"
+                label="Delivery Method *"
+                value={values.deliveryMethod}
                 onChange={handleChange}
-                options={[
-                  { value: '', label: 'Select Type' },
-                  { value: 'Online', label: 'Online' },
-                  { value: 'Physical', label: 'Physical' },
-                  { value: 'Hybrid', label: 'Hybrid' },
-                ]}
-                error={errors.classType}
-                touched={touched.classType}
+                options={deliveryMethodOptions}
+                error={errors.deliveryMethod}
+                touched={touched.deliveryMethod}
                 required
               />
+              {values.deliveryMethod === 'other' && (
+                <CustomTextField
+                  id="deliveryOther"
+                  name="deliveryOther"
+                  type="text"
+                  label="Describe Delivery Method *"
+                  value={values.deliveryOther}
+                  onChange={handleChange}
+                  error={errors.deliveryOther}
+                  touched={touched.deliveryOther}
+                />
+              )}
+              {(values.deliveryMethod === 'online' || values.deliveryMethod === 'hybrid' || values.deliveryMethod === 'other') && (
+                <div className="flex items-center gap-2 col-span-2">
+                  <CustomTextField
+                    id="zoomLink"
+                    name="zoomLink"
+                    type="url"
+                    label={values.deliveryMethod === 'other' ? "Zoom Link (Optional)" : "Zoom Link"}
+                    value={values.zoomLink}
+                    onChange={handleChange}
+                    error={errors.zoomLink}
+                    touched={touched.zoomLink}
+                    icon={FaCalendar}
+                    placeholder="https://zoom.us/j/..."
+                  />
+                  <CustomButton
+                    type="button"
+                    onClick={handleGenerateZoomLink}
+                    className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
+                    disabled={zoomLoading}
+                  >
+                    {zoomLoading ? 'Generating...' : 'Create Zoom Link'}
+                  </CustomButton>
+                  {zoomError && <div className="text-red-600 text-sm mt-1">{zoomError}</div>}
+                </div>
+              )}
               <CustomTextField
                 id="hall"
                 name="hall"
@@ -353,7 +426,7 @@ function ClassScheduling() {
       </div>
 
       </div>  
-    </DashboardLayout>
+    </>
   );
 }
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaUsers, FaGraduationCap, FaBook, FaChartBar, FaCog, FaCalendar, FaUserPlus, FaFileAlt, FaUsersCog, FaUserShield, FaDatabase, FaBell, FaSync } from 'react-icons/fa';
+import { FaUsers, FaGraduationCap, FaBook, FaChartBar, FaCog, FaCalendar, FaUserPlus, FaFileAlt, FaUsersCog, FaUserShield, FaDatabase, FaBell, FaSync, FaPlusSquare, FaClipboardList } from 'react-icons/fa';
 
 // Sidebar sections for the admin dashboard
 const adminSidebarSections = [
@@ -13,26 +13,27 @@ const adminSidebarSections = [
     section: 'Teacher Management',
     items: [
       { name: 'Create Teacher Login', path: '/admin/teachers/create', icon: <FaUserPlus className="h-5 w-5" /> },
-      { name: 'Teacher Info', path: '/admin/teachers', icon: <FaUsers className="h-5 w-5" /> },
+      { name: 'Teacher Info', path: '/admin/teachers/info', icon: <FaUsers className="h-5 w-5" /> },
     ]
   },
   {
     section: 'Student Management',
     items: [
-      { name: 'Student Enrollment', path: '/admin/students', icon: <FaGraduationCap className="h-5 w-5" /> },
+      { name: 'Student Enrollment', path: '/admin/students/enrollment', icon: <FaGraduationCap className="h-5 w-5" /> },
+      { name: 'Attendance', path: '/admin/attendance', icon: <FaClipboardList className="h-5 w-5" /> },
     ]
   },
   {
     section: 'Class & Schedule',
     items: [
-      { name: 'Class Scheduling', path: '/admin/schedule', icon: <FaCalendar className="h-5 w-5" /> },
+      { name: 'Create Class', path: '/admin/classes/create', icon: <FaPlusSquare className="h-5 w-5" /> },
       { name: 'Class Halls', path: '/admin/class-halls', icon: <FaBook className="h-5 w-5" /> },
     ]
   },
   {
     section: 'Finance & Reports',
     items: [
-      { name: 'Financial Records', path: '/admin/finance', icon: <FaChartBar className="h-5 w-5" /> },
+      { name: 'Financial Records', path: '/admin/financial', icon: <FaChartBar className="h-5 w-5" /> },
       { name: 'Generate Reports', path: '/admin/reports', icon: <FaFileAlt className="h-5 w-5" /> },
     ]
   },
