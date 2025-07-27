@@ -5,7 +5,7 @@ import adminSidebarSections from './AdminDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
 import CustomButton from '../../../components/CustomButton';
 
-// Get all classes from localStorage (as in CreateClass.jsx)
+// Get all classes from localStorage
 const getClassList = () => {
   try {
     const stored = localStorage.getItem('classes');
@@ -16,82 +16,51 @@ const getClassList = () => {
   }
 };
 
-// Dummy payment data (same as in StudentClassPayments.jsx)
-const paymentData = {
-  class1: [
-    {
-      id: 'inv001',
-      student: 'Vishwa Senadhi',
-      method: 'Online',
-      status: 'Paid',
-      amount: 4000,
-      date: '2025-07-01',
-      time: '09:10',
-      invoiceId: 'INV-001',
-    },
-    {
-      id: 'inv002',
-      student: 'Shashini Devindi',
-      method: 'Bank Transfer',
-      status: 'Pending',
-      amount: 4000,
-      date: '2025-07-01',
-      time: '10:15',
-      invoiceId: 'INV-002',
-    },
-    {
-      id: 'inv003',
-      student: 'Tharushika Hansamali',
-      method: 'Physical',
-      status: 'Paid',
-      amount: 4000,
-      date: '2025-07-01',
-      time: '11:00',
-      invoiceId: 'INV-003',
-    },
-  ],
-  class2: [
-    {
-      id: 'inv004',
-      student: 'Nimesha Nimandi',
-      method: 'Online',
-      status: 'Paid',
-      amount: 3500,
-      date: '2025-07-01',
-      time: '09:30',
-      invoiceId: 'INV-004',
-    },
-  ],
-  class3: [
-    {
-      id: 'inv005',
-      student: 'Ashidhi Nethma',
-      method: 'Physical',
-      status: 'Paid',
-      amount: 3500,
-      date: '2025-07-01',
-      time: '08:45',
-      invoiceId: 'INV-005',
-    },
-  ],
+// Get all enrollments from localStorage (simulate student enrollments)
+const getEnrollments = () => {
+  try {
+    const stored = localStorage.getItem('enrollments');
+    if (!stored) return [];
+    return JSON.parse(stored);
+  } catch {
+    return [];
+  }
 };
+
+
 
 const StudentAllPayments = () => {
   const navigate = useNavigate();
 
 
 
-  // Get classes from localStorage
   const classList = getClassList();
+  const enrollments = getEnrollments();
 
-  // Calculate total received payment for each class (status: Paid)
+  // Calculate total students and total payment for each class (like AllClasses.jsx)
+  // Payment data must be fetched from localStorage (not dummy)
+  const getPayments = () => {
+    try {
+      const stored = localStorage.getItem('payments');
+      if (!stored) return [];
+      return JSON.parse(stored);
+    } catch {
+      return [];
+    }
+  };
+
+  const payments = getPayments();
+
   const classPaymentsWithTotal = classList.map(cls => {
-    let payments = paymentData[cls.id] || [];
-    const totalPayment = payments
+    const totalStudents = enrollments.filter(e => e.classId === cls.id).length;
+    // Find all payments for this class
+    const classPayments = payments.filter(p => p.classId === cls.id);
+    const totalPayment = classPayments
       .filter(p => p.status === 'Paid')
       .reduce((sum, p) => sum + (p.amount || 0), 0);
     return {
       ...cls,
+      totalStudents,
       totalPayment,
     };
   });
