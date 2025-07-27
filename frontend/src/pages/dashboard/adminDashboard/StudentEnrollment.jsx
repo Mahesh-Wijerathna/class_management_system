@@ -558,93 +558,80 @@ const StudentEnrollment = () => {
                           />
 
                         </div>
+
                         <div className="mb-6">
                           <label className="block text-sm font-semibold text-gray-700 mb-2">Enrolled Classes</label>
                           <FieldArray name="enrolledClasses">
                             {({ push, remove }) => (
-                              <div className="overflow-x-auto border rounded-lg bg-white">
-                                <div className="max-h-64 overflow-y-auto">
-                                  <table className="min-w-[900px] w-full border-separate border-spacing-0">
-                                    <thead className="sticky top-0 z-10 bg-gray-100">
-                                      <tr>
-                                        <th className="px-4 py-2 text-left text-xs font-bold text-gray-700 border-b border-gray-300 sticky top-0 bg-gray-100">Subject</th>
-                                        <th className="px-4 py-2 text-left text-xs font-bold text-gray-700 border-b border-gray-300 sticky top-0 bg-gray-100">Teacher</th>
-                                        <th className="px-4 py-2 text-left text-xs font-bold text-gray-700 border-b border-gray-300 sticky top-0 bg-gray-100">Schedule</th>
-                                        <th className="px-4 py-2 text-left text-xs font-bold text-gray-700 border-b border-gray-300 sticky top-0 bg-gray-100">Hall</th>
-                                        <th className="px-4 py-2 text-center text-xs font-bold text-gray-700 border-b border-gray-300 sticky top-0 bg-gray-100">Action</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {values.enrolledClasses && values.enrolledClasses.length > 0 ? (
-                                        values.enrolledClasses.map((cls, idx) => (
-                                          <tr key={idx} className="border-b hover:bg-blue-50 transition-colors">
-                                            <td className="px-4 py-2 align-middle">
-                                              <CustomTextField
-                                                id={`enrolledClasses[${idx}].subject`}
-                                                name={`enrolledClasses[${idx}].subject`}
-                                                type="text"
-                                                label=""
-                                                value={cls.subject}
-                                                onChange={handleChange}
-                                                icon={FaBook}
-                                                className="w-full focus:ring-2 focus:ring-blue-400"
-                                              />
-                                            </td>
-                                            <td className="px-4 py-2 align-middle">
-                                              <CustomTextField
-                                                id={`enrolledClasses[${idx}].teacher`}
-                                                name={`enrolledClasses[${idx}].teacher`}
-                                                type="text"
-                                                label=""
-                                                value={cls.teacher}
-                                                onChange={handleChange}
-                                                icon={FaUser}
-                                                className="w-full focus:ring-2 focus:ring-blue-400"
-                                              />
-                                            </td>
-                                            <td className="px-4 py-2 align-middle">
-                                              <CustomTextField
-                                                id={`enrolledClasses[${idx}].schedule`}
-                                                name={`enrolledClasses[${idx}].schedule`}
-                                                type="text"
-                                                label=""
-                                                value={cls.schedule}
-                                                onChange={handleChange}
-                                                icon={FaCalendar}
-                                                className="w-full focus:ring-2 focus:ring-blue-400"
-                                              />
-                                            </td>
-                                            <td className="px-4 py-2 align-middle">
-                                              <CustomTextField
-                                                id={`enrolledClasses[${idx}].hall`}
-                                                name={`enrolledClasses[${idx}].hall`}
-                                                type="text"
-                                                label=""
-                                                value={cls.hall}
-                                                onChange={handleChange}
-                                                icon={FaBook}
-                                                className="w-full focus:ring-2 focus:ring-blue-400"
-                                              />
-                                            </td>
-                                            <td className="px-4 py-2 text-center align-middle">
-                                              <button
-                                                type="button"
-                                                className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs font-semibold shadow focus:outline-none focus:ring-2 focus:ring-red-400"
-                                                onClick={() => showRemoveClassAlert(remove, idx)}
-                                              >
-                                                Remove
-                                              </button>
-                                            </td>
-                                          </tr>
-                                        ))
-                                      ) : (
-                                        <tr>
-                                          <td colSpan={5} className="text-center text-gray-400 italic py-2">No enrolled classes</td>
-                                        </tr>
-                                      )}
-                                    </tbody>
-                                  </table>
-                                </div>
+                              <>
+                                <BasicTable
+                                  columns={[
+                                    { key: 'subject', label: 'Subject', render: (row, idx) => (
+                                      <CustomTextField
+                                        id={`enrolledClasses[${idx}].subject`}
+                                        name={`enrolledClasses[${idx}].subject`}
+                                        type="text"
+                                        label=""
+                                        value={row.subject}
+                                        onChange={handleChange}
+                                        icon={FaBook}
+                                        className="w-full focus:ring-2 focus:ring-blue-400"
+                                      />
+                                    ) },
+                                    { key: 'teacher', label: 'Teacher', render: (row, idx) => (
+                                      <CustomTextField
+                                        id={`enrolledClasses[${idx}].teacher`}
+                                        name={`enrolledClasses[${idx}].teacher`}
+                                        type="text"
+                                        label=""
+                                        value={row.teacher}
+                                        onChange={handleChange}
+                                        icon={FaUser}
+                                        className="w-full focus:ring-2 focus:ring-blue-400"
+                                      />
+                                    ) },
+                                    { key: 'schedule', label: 'Schedule', render: (row, idx) => (
+                                      <CustomTextField
+                                        id={`enrolledClasses[${idx}].schedule`}
+                                        name={`enrolledClasses[${idx}].schedule`}
+                                        type="text"
+                                        label=""
+                                        value={row.schedule}
+                                        onChange={handleChange}
+                                        icon={FaCalendar}
+                                        className="w-full focus:ring-2 focus:ring-blue-400"
+                                      />
+                                    ) },
+                                    { key: 'hall', label: 'Hall', render: (row, idx) => (
+                                      <CustomTextField
+                                        id={`enrolledClasses[${idx}].hall`}
+                                        name={`enrolledClasses[${idx}].hall`}
+                                        type="text"
+                                        label=""
+                                        value={row.hall}
+                                        onChange={handleChange}
+                                        icon={FaBook}
+                                        className="w-full focus:ring-2 focus:ring-blue-400"
+                                      />
+                                    ) },
+                                  ]}
+                                  data={values.enrolledClasses?.map((row, idx) => ({ ...row, _idx: idx })) || []}
+                                  actions={row => (
+                                    <button
+                                      type="button"
+                                      className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs font-semibold shadow focus:outline-none focus:ring-2 focus:ring-red-400"
+                                      onClick={() => showRemoveClassAlert(remove, row._idx)}
+                                    >
+                                      Remove
+                                    </button>
+                                  )}
+                                  className="min-w-[900px]"
+                                  rowsPerPage={1000}
+                                  page={1}
+                                  totalCount={values.enrolledClasses?.length || 0}
+                                  onPageChange={() => {}}
+                                  onRowsPerPageChange={() => {}}
+                                />
                                 <button
                                   type="button"
                                   className="mt-3 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-xs font-bold shadow focus:outline-none focus:ring-2 focus:ring-green-400"
@@ -652,10 +639,11 @@ const StudentEnrollment = () => {
                                 >
                                   + Add Class
                                 </button>
-                              </div>
+                              </>
                             )}
                           </FieldArray>
                         </div>
+
                         <div className="flex flex-row gap-4 mt-8 mb-2">
                           <CustomButton
                             type="button"

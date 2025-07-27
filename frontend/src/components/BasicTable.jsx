@@ -77,19 +77,19 @@ const BasicTable = ({
                 }
                   style={{ fontWeight: 500 }}
               >
-                {columns.map(col => (
+                {columns.map((col, idxCol) => (
                     <td key={col.key} className="p-4 align-middle text-[#22223b] border-b border-[#f0f1f6] last:border-0">
                       {col.key === 'status' ? (
                         row.status === 'Approved' ? (
                           <span className="flex items-center gap-1 text-green-600 font-semibold"><svg width="18" height="18" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#22c55e"/><path d="M8 12.5l2.5 2.5 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg> Approved</span>
                         ) : row.status === 'Error' ? (
-                          <span className="flex items-center gap-1 text-red-600 font-semibold"><svg width="18" height="18" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#ef4444"/><path d="M12 8v4" stroke="#fff" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="16" r="1" fill="#fff"/></svg> Error</span>
+                          <span className="flex items-center gap-1 text-red-600 font-semibold"><svg width="18" height="18" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#ef4444"/><path d="M12" v="8v4" stroke="#fff" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="16" r="1" fill="#fff"/></svg> Error</span>
                         ) : row.status === 'Disable' ? (
                           <span className="flex items-center gap-1 text-gray-500 font-semibold"><svg width="18" height="18" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#a3a3a3"/><path d="M8 12h8" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg> Disable</span>
                         ) : (
-                          row.status
+                          col.render ? col.render(row, idx) : row.status
                         )
-                      ) : col.render ? col.render(row) : row[col.key]}
+                      ) : col.render ? col.render(row, idx) : row[col.key]}
                   </td>
                 ))}
                   {actions && <td className="p-4 align-middle border-b border-[#f0f1f6] last:border-0">{actions(row)}</td>}

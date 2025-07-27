@@ -10,6 +10,20 @@ const adminSidebarSections = [
     ]
   },
   {
+    section: 'Core Admin Management',
+    items: [
+      { name: 'Core Admin Login', path: '/core-admin/management', icon: <FaUserPlus className="h-5 w-5" /> },
+      { name: 'Core Admin Info', path: '/core-admin/info', icon: <FaUsers className="h-5 w-5" /> },
+    ]
+  },
+  {
+    section: 'Cashier Management',
+    items: [
+      { name: 'Cashier Login', path: '/admin/cashier', icon: <FaUserPlus className="h-5 w-5" /> },
+      { name: 'Cashier Info', path: '/admin/cashier/info', icon: <FaUsers className="h-5 w-5" /> },
+    ]
+  },
+  {
     section: 'Teacher Management',
     items: [
       { name: 'Create Teacher Login', path: '/admin/teachers/create', icon: <FaUserPlus className="h-5 w-5" /> },
@@ -43,6 +57,13 @@ const adminSidebarSections = [
     items: [
       { name: 'View All Roles', path: '/admin/roles', icon: <FaUsersCog className="h-5 w-5" /> },
       { name: 'Roles with Permissions', path: '/admin/roles/create', icon: <FaUserShield className="h-5 w-5" /> },
+    ]
+  },
+  {
+    section: 'Communication',
+    items: [
+      { name: 'Announcements', path: '/admin/announcements', icon: <FaBell className="h-5 w-5" /> },
+      { name: 'Messages', path: '/admin/messages', icon: <FaUsers className="h-5 w-5" /> },
     ]
   },
   {

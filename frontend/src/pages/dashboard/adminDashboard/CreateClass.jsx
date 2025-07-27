@@ -16,7 +16,7 @@ const initialClasses = [
     className: 'Advanced Mathematics',
     subject: 'Mathematics',
     teacher: 'Mr. Silva',
-    classType: 'A/L',
+    stream: 'A/L Art',
     deliveryMethod: 'online',
     schedule: {
       day: 'monday',
@@ -39,7 +39,7 @@ const initialClasses = [
     className: 'Physics Fundamentals',
     subject: 'Physics',
     teacher: 'Ms. Perera',
-    classType: 'O/L',
+    stream: 'O/L',
     deliveryMethod: 'physical',
     schedule: {
       day: 'tuesday',
@@ -68,6 +68,13 @@ const streamOptions = [
     'A/L-Technology',
     'Primary',
   ];
+
+const statusOptions = [
+  { value: '', label: 'Select Status' },
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+  { value: 'archived', label: 'Archived' },
+];
 
 const validationSchema = Yup.object().shape({
   className: Yup.string().required('Class Name is required'),
@@ -101,6 +108,7 @@ const validationSchema = Yup.object().shape({
     otherwise: (schema) => schema.notRequired(), // Optional for 'other' and 'physical'
   }),
   courseType: Yup.string().oneOf(['theory', 'revision', 'both'], 'Invalid course type').required('Course Type is required'),
+  status: Yup.string().oneOf(['active', 'inactive', 'archived'], 'Invalid status').required('Status is required'),
 });
 
 const initialValues = {
@@ -126,7 +134,8 @@ const initialValues = {
   zoomLink: '',
   description: '',
   courseType: 'theory',
-  theoryRevisionDiscount: false
+  theoryRevisionDiscount: false,
+  status: ''
 };
 
 function formatTime(timeStr) {
@@ -180,7 +189,7 @@ const CreateClass = () => {
 
   const handleSubmit = (values, { resetForm }) => {
     if (editingId) {
-      setClasses(classes.map(cls => cls.id === editingId ? { ...values, id: editingId, status: 'active' } : cls));
+      setClasses(classes.map(cls => cls.id === editingId ? { ...values, id: editingId } : cls));
       setEditingId(null);
       setAlertBox({
         open: true,
@@ -550,6 +559,20 @@ const CreateClass = () => {
                     icon={FaMoneyBill}
                     min="0"
                   />
+                  <CustomSelectField
+                    id="status"
+                    name="status"
+                    label="Status *"
+                    value={values.status}
+                    onChange={handleChange}
+                    options={[
+                      { value: '', label: 'Select Status' },
+                      ...statusOptions
+                    ]}
+                    error={errors.status}
+                    touched={touched.status}
+                    required
+                  />
                 </div>
                 {/* Payment Tracking (for all classes) */}
                 <div className="flex items-center mb-2">
@@ -640,6 +663,8 @@ const CreateClass = () => {
                     <div className="text-red-600 text-sm mt-1">{errors.courseType}</div>
                   )}
                 </div>
+
+                
                 {/* Discount Options */}
                 {values.courseType === 'both' && (
                   <div className="flex items-center p-3 bg-green-50 rounded-lg">
@@ -689,12 +714,17 @@ const CreateClass = () => {
               { key: 'className', label: 'Class Name' },
               { key: 'subject', label: 'Subject' },
               { key: 'teacher', label: 'Teacher' },
-              { key: 'classType', label: 'Type' },
+              { key: 'stream', label: 'Stream' },
               { key: 'deliveryMethod', label: 'Delivery' },
               { key: 'schedule', label: 'Schedule', render: row => `${formatDay(row.schedule.day)} ${formatTime(row.schedule.startTime)}-${formatTime(row.schedule.endTime)}` },
               { key: 'fee', label: 'Fee', render: row => `Rs. ${row.fee}` },
               { key: 'courseType', label: 'Course Type' },
-              { key: 'status', label: 'Status' },
+              { key: 'status', label: 'Status', render: row => {
+                if (row.status === 'active') return <span className="px-2 py-1 rounded bg-green-100 text-green-800 font-semibold">Active</span>;
+                if (row.status === 'inactive') return <span className="px-2 py-1 rounded bg-red-100 text-red-800 font-semibold">Inactive</span>;
+                if (row.status === 'archived') return <span className="px-2 py-1 rounded bg-yellow-100 text-yellow-800 font-semibold">Archived</span>;
+                return row.status;
+              } },
             ]}
             data={classes}
             actions={row => (
