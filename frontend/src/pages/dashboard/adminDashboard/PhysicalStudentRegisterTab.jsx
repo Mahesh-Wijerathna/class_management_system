@@ -91,7 +91,26 @@ const step1Schema = Yup.object().shape({
     .required('Confirm password is required'),
 });
 
+
+
 const PhysicalStudentRegisterTab = () => {
+  const handleRegister = () => {
+    // Combine step1Values and manualFields for full student object
+    const newStudent = { ...step1Values, ...manualFields };
+    // Get existing students from localStorage or use empty array
+    const students = JSON.parse(localStorage.getItem('students')) || [];
+    students.push(newStudent);
+    localStorage.setItem('students', JSON.stringify(students));
+    // Optionally, show a success message or reset form
+    alert('Student registered successfully!');
+    setStep1Values({
+      firstName: '', lastName: '', idNumber: '', mobile: '', password: '', confirmPassword: '',
+    });
+    setManualFields({
+      dob: '', age: '', gender: '', email: '', school: '', stream: '', address: '', district: '', parentName: '', parentMobile: '',
+    });
+    setStep(1);
+  };
   const [step, setStep] = useState(1);
   const [summaryValues, setSummaryValues] = useState({});
   const [nicInfo, setNicInfo] = useState(null);
@@ -139,18 +158,6 @@ const PhysicalStudentRegisterTab = () => {
     setStep(3);
   };
 
-  const handleRegister = () => {
-    // TODO: Connect to backend or add to students list
-    alert('Physical Student Registered! ' + JSON.stringify(summaryValues, null, 2));
-    setStep(1);
-    setStep1Values({
-      firstName: '', lastName: '', idNumber: '', mobile: '', password: '', confirmPassword: ''
-    });
-    setManualFields({
-      dob: '', age: '', gender: '', email: '', school: '', stream: '', address: '', district: '', parentName: '', parentMobile: ''
-    });
-    setSummaryValues({});
-  };
 
   return (
     <div className="w-full flex flex-col items-center min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
