@@ -8,11 +8,15 @@ import FinancialRecordsOverview from '../../pages/dashboard/adminDashboard/Finan
 import Reports from '../../pages/dashboard/adminDashboard/Reports';
 import AttendanceOverview from '../../pages/dashboard/adminDashboard/AttendanceOverview';
 import ClassAttendanceDetail from '../../pages/dashboard/adminDashboard/ClassAttendanceDetail';
+import CoreAdminInfo from '../../pages/dashboard/adminDashboard/CoreAdminInfo';
+import CashiersInfo from '../../pages/dashboard/adminDashboard/CashiersInfo';
 
 export const adminDashboardRoutes = [
   { path: "/admindashboard", element: <AdminDashboard/> },
   { path: "/admin/class-halls", element: <ClassHalls/> },
   { path: "/admin/schedule", element: <ClassScheduling/> },
+  { path: "/admin/core-admins",element: <CoreAdminInfo/> },
+  { path: "admin/cashiers", element: <CashiersInfo/> },
   { path: "/admin/teachers", element: <TeacherInfo/> },
   { path: "/admin/students", element: <StudentEnrollment/> },
   { path: "/admin/financial", element: <FinancialRecordsOverview /> },

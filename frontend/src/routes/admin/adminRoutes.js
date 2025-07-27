@@ -7,6 +7,12 @@ import PhysicalStudentRegisterTab from '../../pages/dashboard/adminDashboard/Phy
 import TeacherTabsPage from '../../pages/dashboard/adminDashboard/TeacherTabsPage';
 import TeacherInfo from '../../pages/dashboard/adminDashboard/TeacherInfo';
 import CreateTeacherLogin from '../../pages/dashboard/adminDashboard/CreateTeacherLogin';
+import CoreAdminInfo from '../../pages/dashboard/adminDashboard/CoreAdminInfo';
+import CreateCoreAdminLogin from '../../pages/dashboard/adminDashboard/CreateCoreAdminLogin';
+import CoreAdminTabsPage from '../../pages/dashboard/adminDashboard/CoreAdminTabsPage';
+import CashiersTabsPage from '../../pages/dashboard/adminDashboard/CashiersTabsPage';
+import CashiersInfo from '../../pages/dashboard/adminDashboard/CashiersInfo';
+import CreateCashierLogin from '../../pages/dashboard/adminDashboard/CreateCashierLogin';
 
 export const adminRoutes = [
   {
@@ -35,5 +41,23 @@ export const adminRoutes = [
       { path: "info", element: <TeacherInfo /> },
       { path: "create", element: <CreateTeacherLogin /> }
     ]
+  },
+  {
+    path: "/admin/core-admins/",
+    element: <CoreAdminTabsPage />, 
+    children: [
+      { index: true, element: <CoreAdminInfo /> },  
+      { path: "info", element: <CoreAdminInfo /> },
+      { path: "create", element: <CreateCoreAdminLogin /> }
+    ]
+  },
+  {
+    path: "/admin/cashiers",
+    element: <CashiersTabsPage />,
+    children: [
+      { index: true, element: <CashiersInfo /> },
+      { path: "info", element: <CashiersInfo /> },
+      { path: "create", element: <CreateCashierLogin /> }
+    ]  
   }
 ]; 
