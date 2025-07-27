@@ -10,6 +10,8 @@ import AttendanceOverview from '../../pages/dashboard/adminDashboard/AttendanceO
 import ClassAttendanceDetail from '../../pages/dashboard/adminDashboard/ClassAttendanceDetail';
 import CoreAdminInfo from '../../pages/dashboard/adminDashboard/CoreAdminInfo';
 import CashiersInfo from '../../pages/dashboard/adminDashboard/CashiersInfo';
+import StudentAllPayments from '../../pages/dashboard/adminDashboard/StudentAllPayments';
+import StudentClassPayments from '../../pages/dashboard/adminDashboard/StudentClassPayments';
 
 export const adminDashboardRoutes = [
   { path: "/admindashboard", element: <AdminDashboard/> },
@@ -22,5 +24,7 @@ export const adminDashboardRoutes = [
   { path: "/admin/financial", element: <FinancialRecordsOverview /> },
   { path: "/admin/reports", element: <Reports /> },
   { path: "/admin/attendance", element: <AttendanceOverview /> },
-  { path: "/admin/attendance/:classId", element: <ClassAttendanceDetail /> }
+  { path: "/admin/attendance/:classId", element: <ClassAttendanceDetail /> },
+  { path: "/admin/students-payments", element: <StudentAllPayments /> },
+  { path: "/admin/students-payments/:classId", element: <StudentClassPayments /> },
 ]; 

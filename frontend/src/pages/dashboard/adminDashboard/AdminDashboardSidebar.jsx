@@ -41,6 +41,7 @@ const adminSidebarSections = [
     section: 'Class & Schedule',
     items: [
       { name: 'Create Class', path: '/admin/classes/create', icon: <FaPlusSquare className="h-5 w-5" /> },
+      { name: 'All Classes', path: '/admin/classes', icon: <FaClipboardList className="h-5 w-5" /> },
       { name: 'Class Halls', path: '/admin/class-halls', icon: <FaBook className="h-5 w-5" /> },
     ]
   },
@@ -49,7 +50,7 @@ const adminSidebarSections = [
     items: [
       { name: 'Financial Records', path: '/admin/financial', icon: <FaChartBar className="h-5 w-5" /> },
       { name: 'Generate Reports', path: '/admin/reports', icon: <FaFileAlt className="h-5 w-5" /> },
-      { name: 'Student All Payments', path: '/admin/students-payments', icon: <FaFileAlt className="h-5 w-5" /> },
+      { name: 'Student All Payments', path: '/admin/students-payments', icon: <FaChartBar className="h-5 w-5" /> },
     ]
   },
   {
