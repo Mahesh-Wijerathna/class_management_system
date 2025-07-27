@@ -12,6 +12,8 @@ import CoreAdminInfo from '../../pages/dashboard/adminDashboard/CoreAdminInfo';
 import CashiersInfo from '../../pages/dashboard/adminDashboard/CashiersInfo';
 import StudentAllPayments from '../../pages/dashboard/adminDashboard/StudentAllPayments';
 import StudentClassPayments from '../../pages/dashboard/adminDashboard/StudentClassPayments';
+import AllClasses from '../../pages/dashboard/adminDashboard/AllClasses';
+import ClassStudents from '../../pages/dashboard/adminDashboard/ClassStudents';
 
 export const adminDashboardRoutes = [
   { path: "/admindashboard", element: <AdminDashboard/> },
@@ -27,4 +29,6 @@ export const adminDashboardRoutes = [
   { path: "/admin/attendance/:classId", element: <ClassAttendanceDetail /> },
   { path: "/admin/students-payments", element: <StudentAllPayments /> },
   { path: "/admin/students-payments/:classId", element: <StudentClassPayments /> },
+  { path: "/admin/classes/all", element: <AllClasses /> },
+  { path: "/admin/classes/all/:classId", element: <ClassStudents /> },
 ]; 

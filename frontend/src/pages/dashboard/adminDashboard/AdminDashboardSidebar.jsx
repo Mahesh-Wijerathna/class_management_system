@@ -41,7 +41,7 @@ const adminSidebarSections = [
     section: 'Class & Schedule',
     items: [
       { name: 'Create Class', path: '/admin/classes/create', icon: <FaPlusSquare className="h-5 w-5" /> },
-      { name: 'All Classes', path: '/admin/classes', icon: <FaClipboardList className="h-5 w-5" /> },
+      { name: 'All Classes', path: '/admin/classes/all', icon: <FaClipboardList className="h-5 w-5" /> },
       { name: 'Class Halls', path: '/admin/class-halls', icon: <FaBook className="h-5 w-5" /> },
     ]
   },
