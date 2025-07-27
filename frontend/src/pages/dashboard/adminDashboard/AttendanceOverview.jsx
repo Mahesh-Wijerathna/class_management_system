@@ -5,86 +5,58 @@ import adminSidebarSections from './AdminDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
 import CustomButton from '../../../components/CustomButton';
 
-// Dummy class data (keep for now)
-const dummyClasses = [
-  {
-    id: 'class1',
-    className: 'Advanced Mathematics',
-    subject: 'Mathematics',
-    teacher: 'Mr. Silva',
-    stream: 'A/L',
-    date: '2025-07-26',
-    from: '08:00',
-    to: '11:00',
-    location: 'Main',
-    status: 'Started',
-    studentsPresent: 25,
-    totalStudents: 30,
-  },
-  {
-    id: 'class2',
-    className: 'Physics Fundamentals',
-    subject: 'Physics',
-    teacher: 'Ms. Perera',
-    stream: 'O/L',
-    date: '2025-07-26',
-    from: '12:00',
-    to: '14:00',
-    location: 'Main',
-    status: 'Not Started',
-    studentsPresent: 0,
-    totalStudents: 28,
-  },
-  {
-    id: 'class3',
-    className: '2025 Theory [I]',
-    subject: 'Geography',
-    teacher: 'Mr. Ranasinghe',
-    stream: 'RR',
-    date: '2025-07-26',
-    from: '08:00',
-    to: '10:00',
-    location: 'Main',
-    status: 'Started',
-    studentsPresent: 18,
-    totalStudents: 20,
-  },
-];
+
+// Get all classes from localStorage
+const getClassList = () => {
+  try {
+    const stored = localStorage.getItem('classes');
+    if (!stored) return [];
+    return JSON.parse(stored);
+  } catch {
+    return [];
+  }
+};
+
+// Get all enrollments from localStorage (simulate student enrollments)
+const getEnrollments = () => {
+  try {
+    const stored = localStorage.getItem('enrollments');
+    if (!stored) return [];
+    return JSON.parse(stored);
+  } catch {
+    return [];
+  }
+};
 
 const AttendanceOverview = () => {
   const navigate = useNavigate();
 
+
   // Date filter: empty string means show all
   const [selectedDate, setSelectedDate] = useState('');
 
-  // Get user-created classes from localStorage
-  const userClasses = (() => {
-    try {
-      const stored = localStorage.getItem('classes');
-      if (!stored) return [];
-      return JSON.parse(stored).map(cls => ({
-        ...cls,
-        id: cls.id || `userclass-${Math.random()}`,
-        date: cls.startDate || selectedDate,
-        from: cls.schedule?.startTime || '',
-        to: cls.schedule?.endTime || '',
-        location: cls.hall || '',
-        status: 'Not Started',
-        studentsPresent: 0,
-        totalStudents: cls.maxStudents || 0,
-      }));
-    } catch {
-      return [];
-    }
-  })();
+  const classList = getClassList();
+  const enrollments = getEnrollments();
 
-  // Combine dummy and user classes
-  const allClasses = [...dummyClasses, ...userClasses];
+  // Calculate studentsPresent and totalStudents for each class
+  const classesWithAttendance = classList.map(cls => {
+    const students = enrollments.filter(e => e.classId === cls.id);
+    return {
+      ...cls,
+      studentsPresent: students.length, // For now, all enrolled are present (customize as needed)
+      totalStudents: students.length,
+      date: cls.startDate || '',
+      from: cls.schedule?.startTime || '',
+      to: cls.schedule?.endTime || '',
+      location: cls.hall || '',
+      status: cls.status || 'Not Started',
+    };
+  });
 
   // Filter classes by selected date if selectedDate is set, else show all
   const filteredClasses = selectedDate
-    ? allClasses.filter(cls => cls.date === selectedDate)
-    : allClasses;
+    ? classesWithAttendance.filter(cls => cls.date === selectedDate)
+    : classesWithAttendance;
 
   return (
     <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
@@ -111,31 +83,31 @@ const AttendanceOverview = () => {
         </div>
         <BasicTable
           columns={[
-            { key: 'className', label: 'Class', render: row => (
-                <span>
-                  <span className="font-semibold">{row.subject}</span>{' '}
-                  <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded ml-1">{row.stream}</span>{' '}
-                  <span className="text-gray-700">{row.className}</span>
-                </span>
-              ) },
+            { key: 'className', label: 'Class Name' },
+            { key: 'subject', label: 'Subject' },
+            { key: 'teacher', label: 'Teacher' },
+            { key: 'stream', label: 'Stream' },
             { key: 'date', label: 'Date' },
             { key: 'from', label: 'From' },
             { key: 'to', label: 'To' },
             { key: 'location', label: 'Location' },
-            { key: 'status', label: 'Status', render: row => (
-                <span className={`px-2 py-1 rounded text-xs font-bold ${row.status === 'Started' ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'}`}>{row.status}</span>
-              ) },
+            { key: 'status', label: 'Status', render: row => {
+                if (row.status === 'active') return <span className="px-2 py-1 rounded bg-green-100 text-green-800 font-semibold">Active</span>;
+                if (row.status === 'inactive') return <span className="px-2 py-1 rounded bg-red-100 text-red-800 font-semibold">Inactive</span>;
+                if (row.status === 'archived') return <span className="px-2 py-1 rounded bg-yellow-100 text-yellow-800 font-semibold">Archived</span>;
+                return row.status;
+              } },
             { key: 'studentsPresent', label: 'Attendance', render: row => (
-                <span className="font-semibold text-blue-700">{row.studentsPresent} / {row.totalStudents}</span>
+                <span className="font-semibold text-blue-700">{row.studentsPresent}</span>
               ) },
-            { key: 'actions', label: 'Actions', render: (row) => (
-              <CustomButton
-                onClick={() => navigate(`/admin/attendance/${row.id}`)}
-                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                View Attendance
-              </CustomButton>
-            ) },
+            { key: 'actions', label: 'Actions', render: row => (
+                <CustomButton
+                  onClick={() => navigate(`/admin/attendance/${row.id}`)}
+                  className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  View Attendance
+                </CustomButton>
+              ) },
           ]}
           data={filteredClasses}
         />
