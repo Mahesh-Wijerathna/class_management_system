@@ -51,16 +51,19 @@ const CreateTeacherLogin = () => {
   const [alertBox, setAlertBox] = React.useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
 
   const handleSubmit = (values) => {
-    // TODO: Connect to backend or API
+    // Save teacher to localStorage
+    const teachers = JSON.parse(localStorage.getItem('teachers')) || [];
+    teachers.push(values);
+    localStorage.setItem('teachers', JSON.stringify(teachers));
     setAlertBox({
       open: true,
       message: 'Teacher account created!',
       onConfirm: () => {
         setAlertBox(a => ({ ...a, open: false }));
-        navigate(-1);
+        navigate('/admin/teachers/info');
       },
       confirmText: 'OK',
-      type: 'success',
+      type: 'success'
     });
   };
 

@@ -40,6 +40,11 @@ const TeacherInfo = () => {
     const stored = localStorage.getItem('teachers');
     return stored ? JSON.parse(stored) : initialTeachers;
   });
+
+  // Save to localStorage whenever teachers changes
+  useEffect(() => {
+    localStorage.setItem('teachers', JSON.stringify(teachers));
+  }, [teachers]);
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [editValues, setEditValues] = useState({});
   const [showEditModal, setShowEditModal] = useState(false);

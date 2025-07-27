@@ -7,12 +7,15 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 import dayjs from 'dayjs';
 import { initialRecords } from './financialDummyData';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
 const FinancialReport = () => {
-  const [records] = useState(initialRecords);
+  const [records] = useState(() => {
+    const stored = localStorage.getItem('financialRecords');
+    return stored ? JSON.parse(stored) : initialRecords;
+  });
   const [reportType, setReportType] = useState('daily'); // 'daily' or 'monthly'
   const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [selectedMonth, setSelectedMonth] = useState(dayjs().format('YYYY-MM'));
@@ -53,10 +56,63 @@ const FinancialReport = () => {
   // Export PDF
   const handleExportPDF = () => {
     const doc = new jsPDF();
-    doc.text('Hello world!', 10, 10);
-    doc.autoTable({ head: [['A', 'B']], body: [['1', '2']] });
-    doc.save('test.pdf');
+
+    // Title
+    doc.setFontSize(18);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Financial Report', 14, 18);
+
+    // Summary section
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    let summaryY = 28;
+    doc.text(`Report Type: ${reportType === 'daily' ? 'Daily' : 'Monthly'}`, 14, summaryY);
+    if (reportType === 'daily') {
+      doc.text(`Date: ${selectedDate}`, 80, summaryY);
+    } else {
+      doc.text(`Month: ${selectedMonth}`, 80, summaryY);
+    }
+    summaryY += 8;
+    doc.text(`Total Income: Rs. ${totalIncome}`, 14, summaryY);
+    doc.text(`Total Outcome: Rs. ${totalOutcome}`, 80, summaryY);
+    doc.text(`Profit: Rs. ${profit}`, 150, summaryY);
+
+    // Table headers and rows (from filteredRecords)
+    const headers = [
+      'Transaction ID', 'Date', 'Type', 'Category', 'Person', 'Role', 'Class', 'Amount', 'Status'
+    ];
+    const rows = filteredRecords.map(row => [
+      row.id,
+      row.date,
+      row.type,
+      row.category,
+      row.person,
+      row.role,
+      row.className,
+      row.amount,
+      row.status
+    ]);
+
+    // Add table below summary
+    autoTable(doc, {
+      head: [headers],
+      body: rows,
+      startY: summaryY + 10,
+      styles: {
+        fontSize: 9,
+        cellPadding: 2
+      },
+      headStyles: {
+        fillColor: [41, 128, 185],
+        textColor: 255
+      },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      margin: { left: 10, right: 10 }
+    });
+
+    doc.save('financial_report.pdf');
   };
+
 
   // Export Excel (CSV)
   const handleExportExcel = () => {
