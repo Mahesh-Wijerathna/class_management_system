@@ -10,54 +10,6 @@ import { FaEdit, FaTrash, FaPlus, FaCalendar, FaBook, FaUser, FaClock, FaDoorOpe
 import * as Yup from 'yup';
 import BasicTable from '../../../components/BasicTable';
 
-const initialClasses = [
-  {
-    id: 1,
-    className: 'Advanced Mathematics',
-    subject: 'Mathematics',
-    teacher: 'Mr. Silva',
-    stream: 'A/L Art',
-    deliveryMethod: 'online',
-    schedule: {
-      day: 'monday',
-      startTime: '09:00',
-      endTime: '10:30',
-      frequency: 'weekly'
-    },
-    hall: 'hall1',
-    maxStudents: 50,
-    fee: '5000',
-    paymentTracking: true,
-    zoomLink: 'https://zoom.us/j/123456789',
-    description: 'Advanced level mathematics for A/L students',
-    courseType: 'theory',
-    theoryRevisionDiscount: false,
-    status: 'active'
-  },
-  {
-    id: 2,
-    className: 'Physics Fundamentals',
-    subject: 'Physics',
-    teacher: 'Ms. Perera',
-    stream: 'O/L',
-    deliveryMethod: 'physical',
-    schedule: {
-      day: 'tuesday',
-      startTime: '14:00',
-      endTime: '15:30',
-      frequency: 'weekly'
-    },
-    hall: 'hall2',
-    maxStudents: 40,
-    fee: '4000',
-    paymentTracking: false,
-    zoomLink: '',
-    description: 'O/L physics fundamentals',
-    courseType: 'revision',
-    theoryRevisionDiscount: false,
-    status: 'active'
-  }
-];
 
 const streamOptions = [
     'O/L',
@@ -152,10 +104,9 @@ function formatDay(day) {
 }
 
 const CreateClass = () => {
-  // Load from localStorage or fallback to initialClasses
   const [classes, setClasses] = useState(() => {
     const stored = localStorage.getItem('classes');
-    return stored ? JSON.parse(stored) : initialClasses;
+    return stored ? JSON.parse(stored) : [];
   });
   const [editingId, setEditingId] = useState(null);
   const [formValues, setFormValues] = useState(initialValues);

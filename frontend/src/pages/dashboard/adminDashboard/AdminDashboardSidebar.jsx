@@ -12,15 +12,15 @@ const adminSidebarSections = [
   {
     section: 'Core Admin Management',
     items: [
-      { name: 'Core Admin Login', path: '/core-admin/management', icon: <FaUserPlus className="h-5 w-5" /> },
-      { name: 'Core Admin Info', path: '/core-admin/info', icon: <FaUsers className="h-5 w-5" /> },
+      { name: 'Core Admin Login', path: '/admin/core-admins/create', icon: <FaUserPlus className="h-5 w-5" /> },
+      { name: 'Core Admin Info', path: '/admin/core-admins/info', icon: <FaUsers className="h-5 w-5" /> },
     ]
   },
   {
     section: 'Cashier Management',
     items: [
-      { name: 'Cashier Login', path: '/admin/cashier', icon: <FaUserPlus className="h-5 w-5" /> },
-      { name: 'Cashier Info', path: '/admin/cashier/info', icon: <FaUsers className="h-5 w-5" /> },
+      { name: 'Cashier Login', path: '/admin/cashiers/create', icon: <FaUserPlus className="h-5 w-5" /> },
+      { name: 'Cashier Info', path: '/admin/cashiers/info', icon: <FaUsers className="h-5 w-5" /> },
     ]
   },
   {
