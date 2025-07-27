@@ -35,6 +35,7 @@ const adminSidebarSections = [
     items: [
       { name: 'Financial Records', path: '/admin/financial', icon: <FaChartBar className="h-5 w-5" /> },
       { name: 'Generate Reports', path: '/admin/reports', icon: <FaFileAlt className="h-5 w-5" /> },
+      { name: 'Student All Payments', path: '/admin/students-payments', icon: <FaFileAlt className="h-5 w-5" /> },
     ]
   },
   {
