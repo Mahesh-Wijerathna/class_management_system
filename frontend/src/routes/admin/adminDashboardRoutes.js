@@ -1,5 +1,4 @@
 import AdminDashboard from '../../pages/dashboard/adminDashboard/AdminDashboard';
-import CreateTeacherLogin from '../../pages/dashboard/adminDashboard/CreateTeacherLogin';
 import ClassHalls from '../../pages/dashboard/adminDashboard/ClassHalls';
 import ClassScheduling from '../../pages/dashboard/adminDashboard/ClassScheduling';
 import TeacherInfo from '../../pages/dashboard/adminDashboard/TeacherInfo';
@@ -14,6 +13,8 @@ import StudentAllPayments from '../../pages/dashboard/adminDashboard/StudentAllP
 import StudentClassPayments from '../../pages/dashboard/adminDashboard/StudentClassPayments';
 import AllClasses from '../../pages/dashboard/adminDashboard/AllClasses';
 import ClassStudents from '../../pages/dashboard/adminDashboard/ClassStudents';
+import AllRoles from '../../pages/dashboard/adminDashboard/AllRoles';
+import RolesWithPermission from '../../pages/dashboard/adminDashboard/RolesWithPermission';
 
 export const adminDashboardRoutes = [
   { path: "/admindashboard", element: <AdminDashboard/> },
@@ -31,4 +32,6 @@ export const adminDashboardRoutes = [
   { path: "/admin/students-payments/:classId", element: <StudentClassPayments /> },
   { path: "/admin/classes/all", element: <AllClasses /> },
   { path: "/admin/classes/all/:classId", element: <ClassStudents /> },
+  { path: "/admin/roles", element: <AllRoles /> },
+  { path: "/admin/roles/permissions", element: <RolesWithPermission /> }, 
 ]; 
