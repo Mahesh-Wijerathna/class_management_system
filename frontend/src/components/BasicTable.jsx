@@ -51,45 +51,57 @@ const BasicTable = ({
   };
 
   return (
-    <div className={`overflow-x-auto rounded-xl shadow border border-gray-200 ${className}`.trim()}>
-      <table className="w-full text-left">
+    <div className={`w-full max-w-full px-2 sm:px-0 py-2 sm:py-0`}>
+      <div className={`overflow-x-auto rounded-2xl shadow-lg border border-[#e0e3f7] bg-white ${className}`.trim()}>
+        <table className="w-full min-w-[600px] text-left font-['Inter','Roboto',sans-serif] text-[13px]">
         <thead>
-          <tr className="bg-[#bfc3fa] text-black rounded-t-xl">
+            <tr className="bg-[#a4a9fc] text-[#1a1a2e] rounded-t-2xl">
             {columns.map(col => (
-              <th key={col.key} className="p-3 font-semibold">{col.label}</th>
+                <th key={col.key} className="p-4 font-semibold text-[14px] tracking-wide border-b border-[#d1d5db]">{col.label}</th>
             ))}
-            {actions && <th className="p-3 font-semibold">Action</th>}
+              {actions && <th className="p-4 font-semibold text-[14px] tracking-wide border-b border-[#d1d5db]">Action</th>}
           </tr>
         </thead>
-        <tbody className="bg-[#f7f8fd]">
+          <tbody className="bg-white text-[13px]">
           {pagedData.length === 0 ? (
             <tr>
-              <td colSpan={columns.length + (actions ? 1 : 0)} className="p-6 text-center text-gray-500">No data available</td>
+                <td colSpan={columns.length + (actions ? 1 : 0)} className="p-6 text-center text-gray-500 font-semibold">No data available</td>
             </tr>
           ) : (
             pagedData.map((row, idx) => (
               <tr
                 key={row.id || row.teacherId || idx}
                 className={
-                  `border-b border-[#e0e3f7] last:border-0 hover:bg-[#ecefff] transition-colors` +
+                    `transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-[#f6f7fb]'} hover:bg-[#e0e7ff]` +
                   (row.status === 'Error' ? ' bg-red-50' : '')
                 }
+                  style={{ fontWeight: 500 }}
               >
                 {columns.map(col => (
-                  <td key={col.key} className="p-3 align-middle">
-                    {col.render ? col.render(row) : row[col.key]}
+                    <td key={col.key} className="p-4 align-middle text-[#22223b] border-b border-[#f0f1f6] last:border-0">
+                      {col.key === 'status' ? (
+                        row.status === 'Approved' ? (
+                          <span className="flex items-center gap-1 text-green-600 font-semibold"><svg width="18" height="18" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#22c55e"/><path d="M8 12.5l2.5 2.5 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg> Approved</span>
+                        ) : row.status === 'Error' ? (
+                          <span className="flex items-center gap-1 text-red-600 font-semibold"><svg width="18" height="18" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#ef4444"/><path d="M12 8v4" stroke="#fff" strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="16" r="1" fill="#fff"/></svg> Error</span>
+                        ) : row.status === 'Disable' ? (
+                          <span className="flex items-center gap-1 text-gray-500 font-semibold"><svg width="18" height="18" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#a3a3a3"/><path d="M8 12h8" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg> Disable</span>
+                        ) : (
+                          row.status
+                        )
+                      ) : col.render ? col.render(row) : row[col.key]}
                   </td>
                 ))}
-                {actions && <td className="p-3 align-middle">{actions(row)}</td>}
+                  {actions && <td className="p-4 align-middle border-b border-[#f0f1f6] last:border-0">{actions(row)}</td>}
               </tr>
             ))
           )}
         </tbody>
       </table>
       {/* Pagination/Footer Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-[#bfc3fa] px-6 py-3 rounded-b-xl text-sm mt-0">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-[#a4a9fc] px-8 py-4 rounded-b-2xl text-[14px] mt-0 font-['Inter','Roboto',sans-serif] font-semibold border-t border-[#d1d5db]">
         <div className="flex items-center gap-2 mb-2 sm:mb-0">
-          <span className="font-medium">Rows Per Page</span>
+            <span className="font-bold">Rows Per Page</span>
           <input
             type="number"
             min={1}
@@ -120,6 +132,7 @@ const BasicTable = ({
           >
             &#62;
           </button>
+          </div>
         </div>
       </div>
     </div>

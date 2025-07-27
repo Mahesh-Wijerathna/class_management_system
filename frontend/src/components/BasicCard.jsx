@@ -14,8 +14,16 @@ export default function BasicCard({ title, price, description, image, buttonText
       )}
       {title && (
         <div className="mb-1 w-full flex items-center justify-between">
+          {typeof title === 'string' ? (
           <p className="text-slate-800 text-base sm:text-lg font-semibold">{title}</p>
-          {price && <p className="text-cyan-600 text-base sm:text-lg font-semibold">{price}</p>}
+          ) : (
+            <div className="text-slate-800 text-base sm:text-lg font-semibold">{title}</div>
+          )}
+          {price && (typeof price === 'string' ? (
+            <p className="text-cyan-600 text-base sm:text-lg font-semibold">{price}</p>
+          ) : (
+            <div className="text-cyan-600 text-base sm:text-lg font-semibold">{price}</div>
+          ))}
         </div>
       )}
       {description && (

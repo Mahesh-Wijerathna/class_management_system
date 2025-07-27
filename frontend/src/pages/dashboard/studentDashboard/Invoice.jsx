@@ -6,6 +6,7 @@ import CustomButton2 from '../../../components/CustomButton2';
 import { FaCcVisa, FaCcMastercard, FaDownload } from 'react-icons/fa';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import PaymentSuccess from './PaymentSuccess';
 
 // REMINDER: Add this to your public/index.html
 // <script type="text/javascript" src="https://www.payhere.lk/lib/payhere.js"></script>
@@ -74,8 +75,9 @@ const Invoice = () => {
         alert("PayHere script not loaded. Please add it to your public/index.html.");
       }
     } catch (err) {
-      alert('Failed to initiate payment. Please try again.');
-      console.error(err);
+       //alert('Failed to initiate payment. Please try again.');
+       //console.error(err);
+      console.log(PaymentSuccess);
     }
     setLoading(false);
   };

@@ -53,14 +53,14 @@ const Sidebar = ({ items, onToggle }) => {
                   <button
                     key={itemIdx}
                     onClick={() => navigate(item.path)}
-                    className={`w-full flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-colors mb-1
+                    className={`w-full flex items-center px-3 py-3 text-sm font-bold rounded-lg transition-colors mb-1
                       ${location.pathname === item.path
                         ? 'bg-blue-50 text-blue-700'
                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                       }`}
                   >
                     <span className={`${isOpen ? 'mr-3' : 'mx-auto'}`}>{item.icon}</span>
-                    {isOpen && <span>{item.name}</span>}
+                    {isOpen && <span className="font-bold">{item.name}</span>}
                   </button>
                 ))}
               </div>

@@ -54,7 +54,7 @@ const sriLankaDistricts = [
 const MyProfile = () => {
   return (
     <DashboardLayout userRole="Student" sidebarItems={studentSidebarSections}>
-      <div className="p-6 max-w-3xl mx-auto">
+      <div className="p-6 max-w-6xl mx-auto">
         <h2 className="text-xl font-semibold mb-4">Edit Profile</h2>
         <div className="bg-white rounded-2xl shadow p-6">
           {/* Avatar and Upload */}
@@ -179,7 +179,7 @@ const MyProfile = () => {
                       className="border-2 border-[#1a365d] rounded-md px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a365d]"
                     >
                       <option value="">Select Stream</option>
-                      {streams.map(s => <option key={s} value={s}>{s}</option>)}
+                      {streams.map((s, i) => <option key={s + '-' + i} value={s}>{s}</option>)}
                     </select>
                     {errors.stream && <span className='text-red-500 text-[10px] mt-1'>{errors.stream}</span>}
                   </div>
@@ -204,7 +204,7 @@ const MyProfile = () => {
                       className="border-2 border-[#1a365d] rounded-md px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a365d]"
                     >
                       <option value="">Select District</option>
-                      {sriLankaDistricts.map(d => <option key={d} value={d}>{d}</option>)}
+                      {sriLankaDistricts.map((d, i) => <option key={d + '-' + i} value={d}>{d}</option>)}
                     </select>
                     {errors.district && <span className='text-red-500 text-[10px] mt-1'>{errors.district}</span>}
                   </div>
