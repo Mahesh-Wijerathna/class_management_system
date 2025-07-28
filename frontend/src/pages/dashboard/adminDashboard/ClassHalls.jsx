@@ -170,7 +170,7 @@ const ClassHalls = () => {
 
   // Save to localStorage whenever halls or requests changes
   useEffect(() => {
-    localStorage.setItem('halls', JSON.stringify(halls));
+    localStorage.setItem('classHalls', JSON.stringify(halls));
   }, [halls]);
   useEffect(() => {
     localStorage.setItem('hallRequests', JSON.stringify(requests));

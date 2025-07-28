@@ -52,7 +52,15 @@ const AllClasses = () => {
             { key: 'teacher', label: 'Teacher' },
             { key: 'stream', label: 'Stream' },
             { key: 'deliveryMethod', label: 'Delivery' },
-            { key: 'fee', label: 'Fee', render: row => `Rs. ${row.fee}` },
+            { key: 'fee', label: 'Fee', render: row => {
+                let fee = Number(row.fee) || 0;
+                if (row.courseType === 'revision' && row.revisionDiscountPrice) {
+                  const discounted = Math.max(0, fee - Number(row.revisionDiscountPrice));
+                  return `Rs. ${fee} (Theory student: Rs. ${discounted})`;
+                }
+                return `Rs. ${fee}`;
+              }
+            },
             { key: 'courseType', label: 'Course Type' },
             { key: 'status', label: 'Status', render: row => {
                 if (row.status === 'active') return <span className="px-2 py-1 rounded bg-green-100 text-green-800 font-semibold">Active</span>;
