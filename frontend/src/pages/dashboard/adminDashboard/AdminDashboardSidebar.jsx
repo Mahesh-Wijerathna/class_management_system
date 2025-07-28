@@ -10,9 +10,23 @@ const adminSidebarSections = [
     ]
   },
   {
+    section: 'Core Admin Management',
+    items: [
+      { name: 'Create Core Admin', path: '/admin/core-admins/create', icon: <FaUserPlus className="h-5 w-5" /> },
+      { name: 'Core Admin Info', path: '/admin/core-admins/info', icon: <FaUsers className="h-5 w-5" /> },
+    ]
+  },
+  {
+    section: 'Cashier Management',
+    items: [
+      { name: 'Create Cashier', path: '/admin/cashiers/create', icon: <FaUserPlus className="h-5 w-5" /> },
+      { name: 'Cashier Info', path: '/admin/cashiers/info', icon: <FaUsers className="h-5 w-5" /> },
+    ]
+  },
+  {
     section: 'Teacher Management',
     items: [
-      { name: 'Create Teacher Login', path: '/admin/teachers/create', icon: <FaUserPlus className="h-5 w-5" /> },
+      { name: 'Create Teacher', path: '/admin/teachers/create', icon: <FaUserPlus className="h-5 w-5" /> },
       { name: 'Teacher Info', path: '/admin/teachers/info', icon: <FaUsers className="h-5 w-5" /> },
     ]
   },
@@ -27,6 +41,7 @@ const adminSidebarSections = [
     section: 'Class & Schedule',
     items: [
       { name: 'Create Class', path: '/admin/classes/create', icon: <FaPlusSquare className="h-5 w-5" /> },
+      { name: 'All Classes', path: '/admin/classes/all', icon: <FaClipboardList className="h-5 w-5" /> },
       { name: 'Class Halls', path: '/admin/class-halls', icon: <FaBook className="h-5 w-5" /> },
     ]
   },
@@ -35,14 +50,20 @@ const adminSidebarSections = [
     items: [
       { name: 'Financial Records', path: '/admin/financial', icon: <FaChartBar className="h-5 w-5" /> },
       { name: 'Generate Reports', path: '/admin/reports', icon: <FaFileAlt className="h-5 w-5" /> },
-      { name: 'Student All Payments', path: '/admin/students-payments', icon: <FaFileAlt className="h-5 w-5" /> },
+      { name: 'Student All Payments', path: '/admin/students-payments', icon: <FaUserShield className="h-5 w-5" /> },
     ]
   },
   {
     section: 'User Roles',
     items: [
-      { name: 'View All Roles', path: '/admin/roles', icon: <FaUsersCog className="h-5 w-5" /> },
-      { name: 'Roles with Permissions', path: '/admin/roles/create', icon: <FaUserShield className="h-5 w-5" /> },
+      { name: 'All Roles', path: '/admin/roles', icon: <FaUsersCog className="h-5 w-5" /> }
+    ]
+  },
+  {
+    section: 'Communication',
+    items: [
+      { name: 'Announcements', path: '/admin/announcements', icon: <FaBell className="h-5 w-5" /> },
+      { name: 'Messages', path: '/admin/messages', icon: <FaUsers className="h-5 w-5" /> },
     ]
   },
   {

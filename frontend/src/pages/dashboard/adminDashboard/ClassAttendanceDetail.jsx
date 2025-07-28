@@ -5,71 +5,7 @@ import adminSidebarSections from './AdminDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
 import CustomButton from '../../../components/CustomButton';
 
-// Dummy data for demonstration
-const classData = {
-  class1: {
-    className: 'Advanced Mathematics',
-    subject: 'Mathematics',
-    teacher: 'Mr. Silva',
-    stream: 'A/L',
-    students: [
-      { id: '93279565', indexNo: 159, name: 'Vishwa Senadhi', school: '---' },
-      { id: '89877693', indexNo: 93, name: 'Shashini Devindi', school: 'Mr/thelijjawila Central College' },
-      { id: '89662773', indexNo: 252, name: 'Tharushika Hansamali', school: 'M. R/dematapitiya M. V' },
-      { id: '88956858', indexNo: 228, name: 'Nimesha Nimandi', school: 'Mahinda Rajapaksha College' },
-      { id: '88895608', indexNo: 250, name: 'Ashidhi Nethma', school: 'St. Thomas Girl\'s High School, Matara' },
-      { id: '88817415', indexNo: 132, name: 'Dasun Maduka', school: 'St. Thomas\' College' },
-      { id: '88806015', indexNo: 98, name: 'Himaya Oshadi', school: 'Kongala M. M. V., Hakmana' },
-      { id: '88499049', indexNo: 231, name: 'Nirmani Dinihya', school: 'Narandeniya National School' },
-      { id: '88433869', indexNo: 108, name: 'Chanuthmi Nimsara', school: 'Mr/ Sumangala Balika Vidyalaya' },
-      { id: '88409818', indexNo: 326, name: 'Thihasna Nimsaree', school: 'St. Thomas Girls High School' },
-    ],
-    sessions: [
-      '2025-07-26',
-      '2025-07-19',
-    ],
-    sessionDetails: {
-      '2025-07-26': {
-        name: '2025-07-26',
-        description: '',
-        location: 'Main',
-        from: '08:00',
-        to: '10:00',
-        attendance: {
-          '93279565': { status: 'absent', in: '', out: '' },
-          '89877693': { status: 'present', in: '07:56', out: '' },
-          '89662773': { status: 'absent', in: '', out: '' },
-          '88956858': { status: 'absent', in: '', out: '' },
-          '88895608': { status: 'absent', in: '', out: '' },
-          '88817415': { status: 'present', in: '', out: '' },
-          '88806015': { status: 'absent', in: '', out: '' },
-          '88499049': { status: 'present', in: '07:40', out: '' },
-          '88433869': { status: 'present', in: '07:55', out: '' },
-          '88409818': { status: 'absent', in: '', out: '' },
-        },
-      },
-      '2025-07-19': {
-        name: '2025-07-19',
-        description: '',
-        location: 'Main',
-        from: '08:00',
-        to: '10:00',
-        attendance: {
-          '93279565': { status: 'present', in: '07:50', out: '' },
-          '89877693': { status: 'present', in: '07:55', out: '' },
-          '89662773': { status: 'late', in: '08:10', out: '' },
-          '88956858': { status: 'absent', in: '', out: '' },
-          '88895608': { status: 'present', in: '', out: '' },
-          '88817415': { status: 'present', in: '', out: '' },
-          '88806015': { status: 'absent', in: '', out: '' },
-          '88499049': { status: 'present', in: '07:45', out: '' },
-          '88433869': { status: 'absent', in: '', out: '' },
-          '88409818': { status: 'absent', in: '', out: '' },
-        },
-      },
-    },
-  },
-};
+
 
 const statusColor = {
   present: 'text-green-700 font-bold',
@@ -80,10 +16,40 @@ const statusColor = {
 const ClassAttendanceDetail = () => {
   const { classId } = useParams();
   const navigate = useNavigate();
-  const classInfo = classData[classId];
-  const [selectedSession, setSelectedSession] = useState(classInfo?.sessions?.[0] || '');
 
-  if (!classInfo) {
+  // Fetch classes and enrollments from localStorage
+  const getClassList = () => {
+    try {
+      const stored = localStorage.getItem('classes');
+      if (!stored) return [];
+      return JSON.parse(stored);
+    } catch {
+      return [];
+    }
+  };
+
+  const getEnrollments = () => {
+    try {
+      const stored = localStorage.getItem('enrollments');
+      if (!stored) return [];
+      return JSON.parse(stored);
+    } catch {
+      return [];
+    }
+  };
+
+  const classList = getClassList();
+  const enrollments = getEnrollments();
+  // Ensure classId is compared as string
+  const classObj = classList.find(cls => String(cls.id) === String(classId));
+  const students = enrollments.filter(e => String(e.classId) === String(classId));
+  // Sessions: support both sessions array and sessionDetails object
+  const sessions = classObj?.sessions && Array.isArray(classObj.sessions)
+    ? classObj.sessions
+    : (classObj?.sessionDetails ? Object.keys(classObj.sessionDetails) : []);
+  const [selectedSession, setSelectedSession] = useState(sessions[0] || '');
+
+  if (!classObj) {
     return (
       <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
         <div className="p-6 bg-white rounded-lg shadow text-red-600 font-bold">
@@ -99,14 +65,21 @@ const ClassAttendanceDetail = () => {
     );
   }
 
+
   // Get attendance for the selected session
-  const sessionDetails = classInfo.sessionDetails[selectedSession];
-  const studentsWithAttendance = classInfo.students.map(stu => ({
-    ...stu,
-    status: sessionDetails.attendance[stu.id]?.status || 'absent',
-    in: sessionDetails.attendance[stu.id]?.in || '',
-    out: sessionDetails.attendance[stu.id]?.out || '',
-  }));
+  const sessionDetails = (classObj.sessionDetails && classObj.sessionDetails[selectedSession]) || {};
+  // If attendance data exists, map students with attendance; else, just show enrolled students
+  const studentsWithAttendance = students.map(stu => {
+    // Support both studentId and id for mapping
+    const sid = stu.studentId || stu.id;
+    const att = sessionDetails.attendance?.[sid] || {};
+    return {
+      ...stu,
+      status: att.status || 'absent',
+      in: att.in || '',
+      out: att.out || '',
+    };
+  });
 
   // Calculate summary
   const presentCount = studentsWithAttendance.filter(s => s.status === 'present').length;
@@ -124,7 +97,7 @@ const ClassAttendanceDetail = () => {
         {/* Left summary/details panel */}
         <div className="md:w-1/4 w-full bg-white rounded-lg shadow p-4">
           <h2 className="text-xl font-bold mb-2">{selectedSession} <span className="text-sm text-gray-500">({sessionDetails.from} - {sessionDetails.to})</span></h2>
-          <div className="mb-2 text-gray-700">Location: <span className="font-semibold">{sessionDetails.location}</span></div>
+          <div className="mb-2 text-gray-700">Location: <span className="font-semibold">{classObj.hall}</span></div>
           <div className="mb-4">
             <div className="font-semibold mb-1">Summary</div>
             <div className="text-sm mb-1">Present: <span className="text-green-700 font-bold">{presentCount}</span> ({presentPercent}%)</div>
@@ -134,9 +107,10 @@ const ClassAttendanceDetail = () => {
           </div>
           <div className="border-t pt-2 mt-2">
             <div className="font-semibold">Details</div>
-            <div className="text-sm">Name: {sessionDetails.name}</div>
-            <div className="text-sm">Description: {sessionDetails.description || '-'}</div>
-            <div className="text-sm">Location: {sessionDetails.location}</div>
+            <div className="text-sm">Class Name: {classObj.className}</div>
+            <div className="text-sm">Subject: {classObj.subject}</div>
+            <div className="text-sm">Total Students: {classObj.length}</div>
+            <div className="text-sm">Location: {classObj.hall}</div>
           </div>
           <div className="mt-4">
             <label className="font-semibold mr-2">Session Date:</label>
@@ -145,7 +119,7 @@ const ClassAttendanceDetail = () => {
               onChange={e => setSelectedSession(e.target.value)}
               className="border rounded px-2 py-1"
             >
-              {classInfo.sessions.map(date => (
+              {sessions.map(date => (
                 <option key={date} value={date}>{date}</option>
               ))}
             </select>
@@ -154,6 +128,7 @@ const ClassAttendanceDetail = () => {
             <CustomButton onClick={() => navigate('/admin/attendance')} className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-700 w-full">Back</CustomButton>
           </div>
         </div>
+
         {/* Right attendance table */}
         <div className="md:w-3/4 w-full bg-white rounded-lg shadow p-4">
           <h1 className="text-2xl font-bold mb-4">Attendance</h1>

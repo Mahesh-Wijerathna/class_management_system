@@ -7,31 +7,18 @@ import { FaTrash, FaEdit, FaChalkboardTeacher, FaBook, FaUserGraduate, FaCalenda
 import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
-import { date } from 'yup';
 import BasicTable from '../../../components/BasicTable';
 
-// Updated dummy initial data for halls and requests
-const initialHalls = [
-  { id: 1, name: '101', isFree: true, subject: '', className: '', teacher: '', date: '', time: '' },
-  { id: 2, name: '203', isFree: false, subject: 'Mathematics', className: '10A', teacher: 'Ms. Perera', date: '2025-07-24', time: '11:00 AM - 12:30 PM' },
-  { id: 3, name: '305', isFree: true, subject: '', className: '', teacher: '', date: '', time: '' },
-]
-
-const initialRequests = [
-  { id: 1, hallId: 2, teacher: 'Ms. Perera', subject: 'Mathematics', className: '10A', time: '11:00 AM - 12:30 PM', status: 'approved' },
-  { id: 2, hallId: 1, teacher: 'Mr. Silva', subject: 'Physics', className: '11B', time: '09:00 AM - 10:30 AM', status: 'pending' },
-  { id: 3, hallId: 3, teacher: 'Ms. Perera', subject: 'English', className: '12C', time: '08:00 AM - 09:00 AM', status: 'rejected' },
-];
 
 const ClassHalls = () => {
   // Load from localStorage or fallback to initialHalls/initialRequests
   const [halls, setHalls] = useState(() => {
-    const stored = localStorage.getItem('halls');
-    return stored ? JSON.parse(stored) : initialHalls;
+    const stored = localStorage.getItem('classHalls');
+    return stored ? JSON.parse(stored) : [];
   });
   const [requests, setRequests] = useState(() => {
     const stored = localStorage.getItem('hallRequests');
-    return stored ? JSON.parse(stored) : initialRequests;
+    return stored ? JSON.parse(stored) : [];
   });
   const [newHall, setNewHall] = useState({
     name: '',
@@ -61,12 +48,24 @@ const ClassHalls = () => {
   };
   const closeAlert = () => setAlertBox(a => ({ ...a, open: false }));
 
-  // Dummy teacher list for select field
-  const teacherList = [
-    { id: 'T001', name: 'Mr. Silva' },
-    { id: 'T002', name: 'Ms. Perera' },
-    // Add more as needed
-  ];
+  // Teacher list from localStorage or fallback to dummy data
+  const teacherList = (() => {
+    const stored = localStorage.getItem('teachers');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        // Accepts array of objects with at least a 'name' property
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].name) {
+          return parsed;
+        }
+      } catch (e) {}
+    }
+    // Fallback dummy data
+    return [
+      { id: 'T001', name: 'Mr. Silva' },
+      { id: 'T002', name: 'Ms. Perera' },
+    ];
+  })();
   const teacherOptions = [
     { value: '', label: 'Select Teacher' },
     ...teacherList.map(t => ({ value: t.name, label: t.name }))
@@ -170,7 +169,7 @@ const ClassHalls = () => {
 
   // Save to localStorage whenever halls or requests changes
   useEffect(() => {
-    localStorage.setItem('halls', JSON.stringify(halls));
+    localStorage.setItem('classHalls', JSON.stringify(halls));
   }, [halls]);
   useEffect(() => {
     localStorage.setItem('hallRequests', JSON.stringify(requests));

@@ -20,4 +20,4 @@ const BasicForm = ({ initialValues, validationSchema, onSubmit, children }) => {
   );
 };
 
-export default BasicForm; 
+export default BasicForm;
