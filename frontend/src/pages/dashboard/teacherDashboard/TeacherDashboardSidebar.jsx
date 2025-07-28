@@ -29,7 +29,7 @@ const teacherSidebarSections = [
     items: [
       { name: 'View Performance', path: '/teacher/students/performance', icon: <FaGraduationCap className="h-5 w-5" /> },
       { name: 'Relevant Student Data', path: '/teacher/students/data', icon: <FaUserShield className="h-5 w-5" /> },
-      { name: 'Free/Half/Full Fees Report', path: '/teacher/students/fees-report', icon: <FaChartBar className="h-5 w-5" /> },
+      { name: 'Fees Report', path: '/teacher/students/fees-report', icon: <FaChartBar className="h-5 w-5" /> },
     ]
   },
   {

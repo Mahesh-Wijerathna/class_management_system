@@ -1,5 +1,4 @@
 import AdminDashboard from '../../pages/dashboard/adminDashboard/AdminDashboard';
-import CreateTeacherLogin from '../../pages/dashboard/adminDashboard/CreateTeacherLogin';
 import ClassHalls from '../../pages/dashboard/adminDashboard/ClassHalls';
 import ClassScheduling from '../../pages/dashboard/adminDashboard/ClassScheduling';
 import TeacherInfo from '../../pages/dashboard/adminDashboard/TeacherInfo';
@@ -8,15 +7,31 @@ import FinancialRecordsOverview from '../../pages/dashboard/adminDashboard/Finan
 import Reports from '../../pages/dashboard/adminDashboard/Reports';
 import AttendanceOverview from '../../pages/dashboard/adminDashboard/AttendanceOverview';
 import ClassAttendanceDetail from '../../pages/dashboard/adminDashboard/ClassAttendanceDetail';
+import CoreAdminInfo from '../../pages/dashboard/adminDashboard/CoreAdminInfo';
+import CashiersInfo from '../../pages/dashboard/adminDashboard/CashiersInfo';
+import StudentAllPayments from '../../pages/dashboard/adminDashboard/StudentAllPayments';
+import StudentClassPayments from '../../pages/dashboard/adminDashboard/StudentClassPayments';
+import AllClasses from '../../pages/dashboard/adminDashboard/AllClasses';
+import ClassStudents from '../../pages/dashboard/adminDashboard/ClassStudents';
+import AllRoles from '../../pages/dashboard/adminDashboard/AllRoles';
+import RolesWithPermission from '../../pages/dashboard/adminDashboard/RolesWithPermission';
 
 export const adminDashboardRoutes = [
   { path: "/admindashboard", element: <AdminDashboard/> },
   { path: "/admin/class-halls", element: <ClassHalls/> },
   { path: "/admin/schedule", element: <ClassScheduling/> },
+  { path: "/admin/core-admins",element: <CoreAdminInfo/> },
+  { path: "admin/cashiers", element: <CashiersInfo/> },
   { path: "/admin/teachers", element: <TeacherInfo/> },
   { path: "/admin/students", element: <StudentEnrollment/> },
   { path: "/admin/financial", element: <FinancialRecordsOverview /> },
   { path: "/admin/reports", element: <Reports /> },
   { path: "/admin/attendance", element: <AttendanceOverview /> },
-  { path: "/admin/attendance/:classId", element: <ClassAttendanceDetail /> }
+  { path: "/admin/attendance/:classId", element: <ClassAttendanceDetail /> },
+  { path: "/admin/students-payments", element: <StudentAllPayments /> },
+  { path: "/admin/students-payments/:classId", element: <StudentClassPayments /> },
+  { path: "/admin/classes/all", element: <AllClasses /> },
+  { path: "/admin/classes/all/:classId", element: <ClassStudents /> },
+  { path: "/admin/roles", element: <AllRoles /> },
+  { path: "/admin/roles/permissions", element: <RolesWithPermission /> }, 
 ]; 

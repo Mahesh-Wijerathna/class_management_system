@@ -1,7 +1,6 @@
+// (moved inside BasicForm render)
 import React, { useState, useEffect } from 'react';
-import DashboardLayout from '../../../components/layout/DashboardLayout';
 import BasicAlertBox from '../../../components/BasicAlertBox';
-import adminSidebarSections from './AdminDashboardSidebar';
 import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomButton from '../../../components/CustomButton';
@@ -10,71 +9,29 @@ import { FaEdit, FaTrash, FaPlus, FaCalendar, FaBook, FaUser, FaClock, FaDoorOpe
 import * as Yup from 'yup';
 import BasicTable from '../../../components/BasicTable';
 
-const initialClasses = [
-  {
-    id: 1,
-    className: 'Advanced Mathematics',
-    subject: 'Mathematics',
-    teacher: 'Mr. Silva',
-    classType: 'A/L',
-    deliveryMethod: 'online',
-    schedule: {
-      day: 'monday',
-      startTime: '09:00',
-      endTime: '10:30',
-      frequency: 'weekly'
-    },
-    hall: 'hall1',
-    maxStudents: 50,
-    fee: '5000',
-    paymentTracking: true,
-    zoomLink: 'https://zoom.us/j/123456789',
-    description: 'Advanced level mathematics for A/L students',
-    courseType: 'theory',
-    theoryRevisionDiscount: false,
-    status: 'active'
-  },
-  {
-    id: 2,
-    className: 'Physics Fundamentals',
-    subject: 'Physics',
-    teacher: 'Ms. Perera',
-    classType: 'O/L',
-    deliveryMethod: 'physical',
-    schedule: {
-      day: 'tuesday',
-      startTime: '14:00',
-      endTime: '15:30',
-      frequency: 'weekly'
-    },
-    hall: 'hall2',
-    maxStudents: 40,
-    fee: '4000',
-    paymentTracking: false,
-    zoomLink: '',
-    description: 'O/L physics fundamentals',
-    courseType: 'revision',
-    theoryRevisionDiscount: false,
-    status: 'active'
-  }
-];
 
 const streamOptions = [
-    'O/L',
-    'A/L-Art',
-    'A/L-Maths',
-    'A/L-Science',
-    'A/L-Commerce',
-    'A/L-Technology',
-    'Primary',
-  ];
+  { value: '', label: 'Select Stream' },
+  { value: 'O/L', label: 'O/L' },
+  { value: 'A/L-Art', label: 'A/L-Art' },
+  { value: 'A/L-Maths', label: 'A/L-Maths' },
+  { value: 'A/L-Science', label: 'A/L-Science' },
+  { value: 'A/L-Commerce', label: 'A/L-Commerce' },
+  { value: 'A/L-Technology', label: 'A/L-Technology' },
+  { value: 'Primary', label: 'Primary' },
+];
+
+const statusOptions = [
+  { value: '', label: 'Select Status' },
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+];
 
 const validationSchema = Yup.object().shape({
   className: Yup.string().required('Class Name is required'),
   subject: Yup.string().required('Subject is required'),
   teacher: Yup.string().required('Teacher is required'),
-  teacherId: Yup.string().required('Teacher ID is required'),
-  stream: Yup.string().oneOf(streamOptions, 'Invalid stream').required('Stream is required'),
+  stream: Yup.string().oneOf(streamOptions.map(o => o.value), 'Invalid stream').required('Stream is required'),
   deliveryMethod: Yup.string().oneOf(['online', 'physical', 'hybrid', 'other'], 'Invalid delivery method').required('Delivery Method is required'),
   deliveryOther: Yup.string().when('deliveryMethod', {
     is: (val) => val === 'other',
@@ -100,7 +57,8 @@ const validationSchema = Yup.object().shape({
     then: (schema) => schema.required('Zoom Link is required'),
     otherwise: (schema) => schema.notRequired(), // Optional for 'other' and 'physical'
   }),
-  courseType: Yup.string().oneOf(['theory', 'revision', 'both'], 'Invalid course type').required('Course Type is required'),
+  courseType: Yup.string().oneOf(['theory', 'revision'], 'Invalid course type').required('Course Type is required'),
+  status: Yup.string().oneOf(statusOptions.map(o => o.value), 'Invalid status').required('Status is required'),
 });
 
 const initialValues = {
@@ -120,13 +78,15 @@ const initialValues = {
   startDate: '',
   endDate: '',
   hall: '',
-  maxStudents: 50,
+  maxStudents: 0,
   fee: '',
   paymentTracking: false,
+  paymentTrackingFreeDays: 7,
   zoomLink: '',
   description: '',
   courseType: 'theory',
-  theoryRevisionDiscount: false
+  revisionDiscountPrice: '', 
+  status: ''
 };
 
 function formatTime(timeStr) {
@@ -139,14 +99,22 @@ function formatTime(timeStr) {
 }
 
 function formatDay(day) {
+  if (!day) return '';
   return day.charAt(0).toUpperCase() + day.slice(1);
 }
 
 const CreateClass = () => {
-  // Load from localStorage or fallback to initialClasses
   const [classes, setClasses] = useState(() => {
     const stored = localStorage.getItem('classes');
-    return stored ? JSON.parse(stored) : initialClasses;
+    const parsed = stored ? JSON.parse(stored) : [];
+    // Ensure all classes have the required structure
+    return parsed.map(cls => ({
+      ...cls,
+      schedule: cls.schedule || { day: '', startTime: '', endTime: '', frequency: 'weekly' },
+      fee: cls.fee || 0,
+      maxStudents: cls.maxStudents || 50,
+      status: cls.status || 'active'
+    }));
   });
   const [editingId, setEditingId] = useState(null);
   const [formValues, setFormValues] = useState(initialValues);
@@ -160,27 +128,95 @@ const CreateClass = () => {
     localStorage.setItem('classes', JSON.stringify(classes));
   }, [classes]);
 
-  // Dummy teacher list for select fields
-  const teacherList = [
-    { id: 'T001', name: 'Mr. Silva' },
-    { id: 'T002', name: 'Ms. Perera' },
-    { id: 'T003', name: 'Mr. Wilson' },
-    { id: 'T004', name: 'Ms. Johnson' },
-  ];
+  // Get teacher list from localStorage (from TeacherInfo.jsx)
+  const teacherList = React.useMemo(() => {
+    const stored = localStorage.getItem('teachers');
+    if (!stored) return [];
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return [];
+    }
+  }, []);
 
   const teacherOptions = [
     { value: '', label: 'Select Teacher' },
-    ...teacherList.map(t => ({ value: t.name, label: t.name }))
-  ];
-
-  const teacherIdOptions = [
-    { value: '', label: 'Select Teacher ID' },
-    ...teacherList.map(t => ({ value: t.id, label: t.id }))
+    ...teacherList.map(t => ({ value: `${t.designation} ${t.name}`, label: `${t.designation} ${t.name}` }))
   ];
 
   const handleSubmit = (values, { resetForm }) => {
+    let submitValues = { ...values };
+    // If revision+related, always use related theory class values for main fields
+    if (
+      submitValues.courseType === 'revision' &&
+      revisionRelation === 'related' &&
+      selectedTheoryId
+    ) {
+      const related = classes.find(tc => String(tc.id) === String(selectedTheoryId));
+      if (related) {
+        submitValues = {
+          ...submitValues,
+          className: related.className,
+          subject: related.subject,
+          teacher: related.teacher,
+          teacherId: related.teacherId,
+          stream: related.stream,
+          deliveryMethod: related.deliveryMethod,
+          schedule: { ...related.schedule },
+          startDate: related.startDate,
+          endDate: related.endDate,
+          hall: related.hall,
+          maxStudents: related.maxStudents,
+          zoomLink: related.zoomLink,
+          description: related.description,
+          relatedTheoryId: related.id,
+        };
+      }
+    } else if (submitValues.courseType === 'revision' && revisionRelation === 'unrelated') {
+      // For revision+unrelated, ensure relatedTheoryId is not set
+      submitValues.relatedTheoryId = '';
+    } else if (submitValues.courseType === 'theory') {
+      // For theory, ensure relatedTheoryId is not set
+      submitValues.relatedTheoryId = '';
+    }
+    // Always ensure teacherId is set if teacher is selected
+    if (!submitValues.teacherId && submitValues.teacher) {
+      const found = teacherList.find(t => `${t.designation} ${t.name}` === submitValues.teacher);
+      if (found) submitValues.teacherId = found.teacherId;
+    }
+    // Always ensure fee and revisionDiscountPrice are numbers
+    submitValues.fee = submitValues.fee ? Number(submitValues.fee) : 0;
+    if (submitValues.revisionDiscountPrice) {
+      submitValues.revisionDiscountPrice = Number(submitValues.revisionDiscountPrice);
+    }
+    // Add payment tracking logic
+    let paymentTrackingObj = { enabled: false };
+    if (submitValues.paymentTracking && submitValues.startDate) {
+      // Use user input for free days, default to 7 if not set
+      const freeDays = Number(submitValues.paymentTrackingFreeDays) || 7;
+      const start = new Date(submitValues.startDate);
+      const freeUntil = new Date(start);
+      freeUntil.setDate(start.getDate() + freeDays);
+      paymentTrackingObj = {
+        enabled: true,
+        startDate: submitValues.startDate,
+        freeUntil: freeUntil.toISOString().slice(0, 10),
+        freeDays,
+        active: true
+      };
+    }
+    // Ensure submitValues has the required structure
+    const normalizedSubmitValues = {
+      ...submitValues,
+      schedule: submitValues.schedule || { day: '', startTime: '', endTime: '', frequency: 'weekly' },
+      fee: submitValues.fee || 0,
+      maxStudents: submitValues.maxStudents || 50,
+      status: submitValues.status || 'active',
+      paymentTracking: paymentTrackingObj
+    };
+
     if (editingId) {
-      setClasses(classes.map(cls => cls.id === editingId ? { ...values, id: editingId, status: 'active' } : cls));
+      setClasses(classes.map(cls => cls.id === editingId ? { ...normalizedSubmitValues, id: editingId } : cls));
       setEditingId(null);
       setAlertBox({
         open: true,
@@ -192,7 +228,7 @@ const CreateClass = () => {
         type: 'success',
       });
     } else {
-      setClasses([...classes, { ...values, id: Date.now(), status: 'active' }]);
+      setClasses([...classes, { ...normalizedSubmitValues, id: Date.now(), status: 'active' }]);
       setAlertBox({
         open: true,
         message: 'Class created successfully!',
@@ -237,6 +273,40 @@ const CreateClass = () => {
     });
   };
 
+  // State for revision relation (must be at top level, not inside render callback)
+  const [revisionRelation, setRevisionRelation] = React.useState('none'); // 'none' | 'related' | 'unrelated'
+  // State for selected theory class id (for autofill)
+  const [selectedTheoryId, setSelectedTheoryId] = React.useState('');
+
+
+  // Sync formValues with related theory class when selectedTheoryId changes (for revision+related)
+  useEffect(() => {
+    if (!selectedTheoryId) return;
+    if (formValues.courseType !== 'revision' || revisionRelation !== 'related') return;
+    const related = classes.find(tc => String(tc.id) === String(selectedTheoryId));
+    if (related) {
+      setFormValues(prev => ({
+        ...prev,
+        className: related.className,
+        subject: related.subject,
+        teacher: related.teacher,
+        teacherId: related.teacherId,
+        stream: related.stream,
+        deliveryMethod: related.deliveryMethod,
+        schedule: { ...related.schedule },
+        startDate: related.startDate,
+        endDate: related.endDate,
+        hall: related.hall,
+        maxStudents: related.maxStudents,
+        zoomLink: related.zoomLink,
+        description: related.description,
+        relatedTheoryId: related.id,
+        // Do NOT overwrite fee or revisionDiscountPrice here!
+        status: 'active',
+      }));
+    }
+  }, [selectedTheoryId, formValues.courseType, revisionRelation, classes]);
+
   return (
     <>
       <BasicAlertBox
@@ -255,8 +325,11 @@ const CreateClass = () => {
         <BasicForm
           key={submitKey}
           initialValues={formValues}
+          enableReinitialize={true}
           validationSchema={validationSchema}
+          validationContext={{ courseType: formValues.courseType }}
           onSubmit={handleSubmit}
+
         >
           {(props) => {
             const { errors, touched, handleChange, values, setFieldValue } = props;
@@ -264,14 +337,13 @@ const CreateClass = () => {
             const handleTeacherChange = (e) => {
               const selectedName = e.target.value;
               handleChange(e);
-              const found = teacherList.find(t => t.name === selectedName);
-              if (found && setFieldValue) setFieldValue('teacher', found.name);
-            };
-            const handleTeacherIdChange = (e) => {
-              const selectedId = e.target.value;
-              handleChange(e);
-              const found = teacherList.find(t => t.id === selectedId);
-              if (found && setFieldValue) setFieldValue('teacherId', found.id);
+              const found = teacherList.find(t => `${t.designation} ${t.name}` === selectedName);
+              if (found && setFieldValue) {
+                setFieldValue('teacher', `${found.designation} ${found.name}`);
+                setFieldValue('teacherId', found.teacherId); // Store TeacherId for display
+              } else if (setFieldValue) {
+                setFieldValue('teacherId', '');
+              }
             };
             // Move handleGenerateZoomLink here so setFieldValue is in scope
             const handleGenerateZoomLink = async () => {
@@ -288,66 +360,237 @@ const CreateClass = () => {
                 setZoomLoading(false);
               }
             };
+
+            // Get all theory classes for dropdown
+            const theoryClasses = classes.filter(c => c.courseType === 'theory');
+
+            // Autofill revision fields when related theory class is selected
+            const handleRelatedTheoryChange = (e) => {
+              const selectedId = e.target.value;
+              setSelectedTheoryId(selectedId);
+              const selectedTheory = theoryClasses.find(c => String(c.id) === String(selectedId));
+              if (selectedTheory && setFieldValue) {
+                // Set all required fields in Formik state
+                setFieldValue('className', selectedTheory.className, false);
+                setFieldValue('subject', selectedTheory.subject, false);
+                setFieldValue('teacher', selectedTheory.teacher, false);
+                setFieldValue('teacherId', selectedTheory.teacherId, false);
+                setFieldValue('stream', selectedTheory.stream, false);
+                setFieldValue('deliveryMethod', selectedTheory.deliveryMethod, false);
+                setFieldValue('schedule.day', selectedTheory.schedule.day, false);
+                setFieldValue('schedule.startTime', selectedTheory.schedule.startTime, false);
+                setFieldValue('schedule.endTime', selectedTheory.schedule.endTime, false);
+                setFieldValue('schedule.frequency', selectedTheory.schedule.frequency, false);
+                setFieldValue('startDate', selectedTheory.startDate, false);
+                setFieldValue('endDate', selectedTheory.endDate, false);
+                setFieldValue('hall', selectedTheory.hall, false);
+                setFieldValue('maxStudents', selectedTheory.maxStudents, false);
+                setFieldValue('zoomLink', selectedTheory.zoomLink, false);
+                setFieldValue('description', selectedTheory.description, false);
+                setFieldValue('relatedTheoryId', selectedTheory.id, false); // for table mapping
+                // Always require user to enter fee and discount for revision, so clear them
+                setFieldValue('fee', '', false);
+                setFieldValue('revisionDiscountPrice', '', false);
+                setFieldValue('status', 'active', false);
+              }
+            };
+
             return (
               <div className="mb-8 space-y-6">
-                {/* Basic Information */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <CustomTextField
-                    id="className"
-                    name="className"
-                    type="text"
-                    label="Class Name *"
-                    value={values.className}
-                    onChange={handleChange}
-                    error={errors.className}
-                    touched={touched.className}
-                    icon={FaGraduationCap}
-                  />
-                  <CustomTextField
-                    id="subject"
-                    name="subject"
-                    type="text"
-                    label="Subject *"
-                    value={values.subject}
-                    onChange={handleChange}
-                    error={errors.subject}
-                    touched={touched.subject}
-                    icon={FaBook}
-                  />
-                  <CustomSelectField
-                    id="teacher"
-                    name="teacher"
-                    label="Teacher *"
-                    value={values.teacher}
-                    onChange={handleTeacherChange}
-                    options={teacherOptions}
-                    error={errors.teacher}
-                    touched={touched.teacher}
-                    required
-                  />
-                  <CustomSelectField
-                    id="teacherId"
-                    name="teacherId"
-                    label="Teacher ID *"
-                    value={values.teacherId}
-                    onChange={handleTeacherIdChange}
-                    options={teacherIdOptions}
-                    error={errors.teacherId}
-                    touched={touched.teacherId}
-                    required
-                  />
-                  <CustomSelectField
-                    id="stream"
-                    name="stream"
-                    label="Stream *"
-                    value={values.stream}
-                    onChange={handleChange}
-                    options={[{ value: '', label: 'Select Stream' }, ...streamOptions.map(s => ({ value: s, label: s }))]}
-                    error={errors.stream}
-                    touched={touched.stream}
-                    required
-                  />
+                {/* Course Type at the top */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">Course Type *</label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="radio"
+                        name="courseType"
+                        value="theory"
+                        checked={values.courseType === 'theory'}
+                        onChange={e => {
+                          handleChange(e);
+                          setRevisionRelation('none');
+                        }}
+                        className="mr-2"
+                      />
+                      <div>
+                        <div className="font-medium">Theory</div>
+                      </div>
+                    </label>
+                    <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="radio"
+                        name="courseType"
+                        value="revision"
+                        checked={values.courseType === 'revision'}
+                        onChange={e => {
+                          handleChange(e);
+                          setRevisionRelation('none');
+                        }}
+                        className="mr-2"
+                      />
+                      <div>
+                        <div className="font-medium">Revision</div>
+                      </div>
+                    </label>
+                  </div>
+                  {errors.courseType && touched.courseType && (
+                    <div className="text-red-600 text-sm mt-1">{errors.courseType}</div>
+                  )}
                 </div>
+
+                {/* If Revision, show related/unrelated options */}
+                {values.courseType === 'revision' && (
+                  <div className="flex flex-col md:flex-row items-center gap-4 p-3 bg-blue-50 rounded-lg">
+                    <label className="text-sm text-blue-800 font-medium min-w-max">Revision Class Relation:</label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="revisionRelation"
+                        value="related"
+                        checked={revisionRelation === 'related'}
+                        onChange={() => setRevisionRelation('related')}
+                        className="mr-2"
+                      />
+                      <span>Related Theory Class</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="revisionRelation"
+                        value="unrelated"
+                        checked={revisionRelation === 'unrelated'}
+                        onChange={() => setRevisionRelation('unrelated')}
+                        className="mr-2"
+                      />
+                      <span>No Related Class</span>
+                    </label>
+                  </div>
+                )}
+
+                {/* If related, show theory class dropdown and autofill */}
+                {values.courseType === 'revision' && revisionRelation === 'related' && (
+                  <div className="flex flex-col md:flex-row items-center gap-4 p-3 bg-blue-100 rounded-lg">
+                    <label className="text-sm text-blue-900 font-medium min-w-max">Select Related Theory Class:</label>
+                    <select
+                      className="w-full md:w-1/3 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onChange={handleRelatedTheoryChange}
+                      value={selectedTheoryId}
+                    >
+                      <option key="default-related-theory" value="">Select Theory Class</option>
+                      {theoryClasses.map(tc => (
+                        <option key={`theory-${tc.id}`} value={tc.id}>{tc.className} ({tc.subject}) - {tc.teacher}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {/* Basic Information */}
+                {values.courseType === 'revision' && revisionRelation === 'related' && selectedTheoryId ? (
+                  (() => {
+                    const related = classes.find(tc => String(tc.id) === String(selectedTheoryId));
+                    return (
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50 rounded p-3">
+                          {/* Class Name */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Class Name *</label>
+                            <input type="text" className="px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-900 w-full" value={related?.className || ''} disabled readOnly />
+                            {/* Hidden input for Formik */}
+                            <input type="hidden" name="className" value={related?.className || ''} />
+                          </div>
+                          {/* Subject */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Subject *</label>
+                            <input type="text" className="px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-900 w-full" value={related?.subject || ''} disabled readOnly />
+                            <input type="hidden" name="subject" value={related?.subject || ''} />
+                          </div>
+                          {/* Teacher */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Teacher *</label>
+                            <input type="text" className="px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-900 w-full" value={related?.teacher || ''} disabled readOnly />
+                            <input type="hidden" name="teacher" value={related?.teacher || ''} />
+                          </div>
+                          {/* Stream */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Stream *</label>
+                            <input type="text" className="px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-900 w-full" value={related?.stream || ''} disabled readOnly />
+                            <input type="hidden" name="stream" value={related?.stream || ''} />
+                          </div>
+                        </div>
+                        {/* Discount Price Input for Revision class (for theory students) - styled as in image */}
+                        <div className="flex flex-col md:flex-row items-center gap-4 p-3 bg-blue-50 rounded-lg mt-2">
+                          <label className="text-sm text-blue-800 font-medium min-w-max">Discount for Theory Students (Rs.)</label>
+                          <input
+                            type="number"
+                            name="revisionDiscountPrice"
+                            value={values.revisionDiscountPrice || ''}
+                            onChange={handleChange}
+                            min="0"
+                            className="w-full md:w-1/3 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Enter discount price for theory students (Rs.)"
+                          />
+                        </div>
+
+                      </>
+                    );
+                  })()
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CustomTextField
+                      id="className"
+                      name="className"
+                      type="text"
+                      label="Class Name *"
+                      value={values.className}
+                      onChange={handleChange}
+                      error={errors.className}
+                      touched={touched.className}
+                      icon={FaGraduationCap}
+                    />
+                    <CustomTextField
+                      id="subject"
+                      name="subject"
+                      type="text"
+                      label="Subject *"
+                      value={values.subject}
+                      onChange={handleChange}
+                      error={errors.subject}
+                      touched={touched.subject}
+                      icon={FaBook}
+                    />
+                    <CustomSelectField
+                      id="teacher"
+                      name="teacher"
+                      label="Teacher *"
+                      value={values.teacher}
+                      onChange={handleTeacherChange}
+                      options={teacherOptions}
+                      error={errors.teacher}
+                      touched={touched.teacher}
+                      required
+                    />
+                    {/* Show Teacher ID after selecting Teacher Name */}
+                    {values.teacher && (
+                      <div className="flex flex-col justify-end">
+                        <label className="text-xs font-medium text-gray-700 mb-1">Teacher ID</label>
+                        <div className="px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base font-normal">
+                          {teacherList.find(t => `${t.designation} ${t.name}` === values.teacher)?.teacherId || ''}
+                        </div>
+                      </div>
+                    )}
+                    <CustomSelectField
+                      id="stream"
+                      name="stream"
+                      label="Stream *"
+                      value={values.stream}
+                      onChange={handleChange}
+                      options={streamOptions}
+                      error={errors.stream}
+                      touched={touched.stream}
+                      required
+                    />
+                  </div>
+                )}
                 {/* Dates */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <CustomTextField
@@ -471,6 +714,7 @@ const CreateClass = () => {
                     error={errors.schedule?.day}
                     touched={touched.schedule?.day}
                     required
+                    disabled={values.courseType === 'theory+revision'}
                   />
                   <CustomTextField
                     id="schedule.startTime"
@@ -482,6 +726,7 @@ const CreateClass = () => {
                     error={errors.schedule?.startTime}
                     touched={touched.schedule?.startTime}
                     icon={FaClock}
+                    disabled={values.courseType === 'theory+revision'}
                   />
                   <CustomTextField
                     id="schedule.endTime"
@@ -493,6 +738,7 @@ const CreateClass = () => {
                     error={errors.schedule?.endTime}
                     touched={touched.schedule?.endTime}
                     icon={FaClock}
+                    disabled={values.courseType === 'theory+revision'}
                   />
                   <CustomSelectField
                     id="schedule.frequency"
@@ -507,25 +753,39 @@ const CreateClass = () => {
                     ]}
                     error={errors.schedule?.frequency}
                     touched={touched.schedule?.frequency}
+                    disabled={values.courseType === 'theory+revision'}
                   />
                 </div>
                 {/* Class Details */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <CustomSelectField
-                    id="hall"
-                    name="hall"
-                    label="Class Hall"
-                    value={values.hall}
-                    onChange={handleChange}
-                    options={[
-                      { value: '', label: 'Select Hall' },
-                      { value: 'hall1', label: 'Hall A' },
-                      { value: 'hall2', label: 'Hall B' },
-                      { value: 'hall3', label: 'Hall C' },
-                    ]}
-                    error={errors.hall}
-                    touched={touched.hall}
-                  />
+                  {/* Get hall options from localStorage (created by ClassHalls.jsx) */}
+                  {(() => {
+                    let hallOptions = [{ value: '', label: 'Select Hall' }];
+                    try {
+                      const storedHalls = localStorage.getItem('classHalls');
+                      if (storedHalls) {
+                        const parsed = JSON.parse(storedHalls);
+                        if (Array.isArray(parsed)) {
+                          hallOptions = [
+                            { value: '', label: 'Select Hall' },
+                            ...parsed.map(hall => ({ value: hall.id || hall.name, label: hall.name }))
+                          ];
+                        }
+                      }
+                    } catch {}
+                    return (
+                      <CustomSelectField
+                        id="hall"
+                        name="hall"
+                        label="Class Hall"
+                        value={values.hall}
+                        onChange={handleChange}
+                        options={hallOptions}
+                        error={errors.hall}
+                        touched={touched.hall}
+                      />
+                    );
+                  })()}
                   <CustomTextField
                     id="maxStudents"
                     name="maxStudents"
@@ -550,19 +810,47 @@ const CreateClass = () => {
                     icon={FaMoneyBill}
                     min="0"
                   />
+                  <CustomSelectField
+                    id="status"
+                    name="status"
+                    label="Status *"
+                    value={values.status}
+                    onChange={handleChange}
+                    options={statusOptions}
+                    error={errors.status}
+                    touched={touched.status}
+                    required
+                  />
                 </div>
                 {/* Payment Tracking (for all classes) */}
-                <div className="flex items-center mb-2">
-                  <input
-                    type="checkbox"
-                    name="paymentTracking"
-                    checked={values.paymentTracking}
-                    onChange={handleChange}
-                    className="mr-2"
-                  />
-                  <label className="text-sm text-gray-700">
-                    Enable Payment Tracking (First 7 days free)
-                  </label>
+                <div className="flex flex-col md:flex-row items-center mb-2 gap-2">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      name="paymentTracking"
+                      checked={values.paymentTracking}
+                      onChange={handleChange}
+                      className="mr-2"
+                    />
+                    <label className="text-sm text-gray-700">
+                      Enable Payment Tracking
+                    </label>
+                  </div>
+                  {values.paymentTracking && (
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm text-gray-700">First </label>
+                      <input
+                        type="number"
+                        name="paymentTrackingFreeDays"
+                        min="1"
+                        max="31"
+                        value={values.paymentTrackingFreeDays || 7}
+                        onChange={handleChange}
+                        className="w-20 px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-500">days free of the month</span>
+                    </div>
+                  )}
                 </div>
                 {/* Zoom Link for online, hybrid, and other */}
                 {(values.deliveryMethod === 'online' || values.deliveryMethod === 'hybrid' || values.deliveryMethod === 'other') && (
@@ -592,69 +880,9 @@ const CreateClass = () => {
                     {zoomError && <div className="text-red-600 text-sm mt-1">{zoomError}</div>}
                   </div>
                 )}
-                {/* Course Type */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">Course Type *</label>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                      <input
-                        type="radio"
-                        name="courseType"
-                        value="theory"
-                        checked={values.courseType === 'theory'}
-                        onChange={handleChange}
-                        className="mr-2"
-                      />
-                      <div>
-                        <div className="font-medium">Theory</div>
-                      </div>
-                    </label>
-                    <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                      <input
-                        type="radio"
-                        name="courseType"
-                        value="revision"
-                        checked={values.courseType === 'revision'}
-                        onChange={handleChange}
-                        className="mr-2"
-                      />
-                      <div>
-                        <div className="font-medium">Revision</div>
-                      </div>
-                    </label>
-                    <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                      <input
-                        type="radio"
-                        name="courseType"
-                        value="both"
-                        checked={values.courseType === 'both'}
-                        onChange={handleChange}
-                        className="mr-2"
-                      />
-                      <div>
-                        <div className="font-medium">Theory + Revision</div>
-                      </div>
-                    </label>
-                  </div>
-                  {errors.courseType && touched.courseType && (
-                    <div className="text-red-600 text-sm mt-1">{errors.courseType}</div>
-                  )}
-                </div>
-                {/* Discount Options */}
-                {values.courseType === 'both' && (
-                  <div className="flex items-center p-3 bg-green-50 rounded-lg">
-                    <input
-                      type="checkbox"
-                      name="theoryRevisionDiscount"
-                      checked={values.theoryRevisionDiscount}
-                      onChange={handleChange}
-                      className="mr-2"
-                    />
-                    <label className="text-sm text-green-800 font-medium">
-                      Apply Theory + Revision Discount
-                    </label>
-                  </div>
-                )}
+                
+                
+                
                 {/* Description */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
@@ -686,15 +914,55 @@ const CreateClass = () => {
           <h2 className="text-lg font-semibold mb-4">All Classes</h2>
           <BasicTable
             columns={[
-              { key: 'className', label: 'Class Name' },
-              { key: 'subject', label: 'Subject' },
-              { key: 'teacher', label: 'Teacher' },
-              { key: 'classType', label: 'Type' },
-              { key: 'deliveryMethod', label: 'Delivery' },
-              { key: 'schedule', label: 'Schedule', render: row => `${formatDay(row.schedule.day)} ${formatTime(row.schedule.startTime)}-${formatTime(row.schedule.endTime)}` },
-              { key: 'fee', label: 'Fee', render: row => `Rs. ${row.fee}` },
-              { key: 'courseType', label: 'Course Type' },
-              { key: 'status', label: 'Status' },
+              { key: 'className', label: 'Class Name', render: row => {
+                // For revision class with related theory, show related theory className
+                if (row.courseType === 'revision' && row.relatedTheoryId) {
+                  const related = classes.find(c => String(c.id) === String(row.relatedTheoryId));
+                  return related ? related.className : (row.className || 'N/A');
+                }
+                return row.className || 'N/A';
+              } },
+              { key: 'subject', label: 'Subject', render: row => {
+                if (row.courseType === 'revision' && row.relatedTheoryId) {
+                  const related = classes.find(c => String(c.id) === String(row.relatedTheoryId));
+                  return related ? related.subject : (row.subject || 'N/A');
+                }
+                return row.subject || 'N/A';
+              } },
+              { key: 'teacher', label: 'Teacher', render: row => {
+                if (row.courseType === 'revision' && row.relatedTheoryId) {
+                  const related = classes.find(c => String(c.id) === String(row.relatedTheoryId));
+                  return related ? related.teacher : (row.teacher || 'N/A');
+                }
+                return row.teacher || 'N/A';
+              } },
+              { key: 'stream', label: 'Stream', render: row => {
+                if (row.courseType === 'revision' && row.relatedTheoryId) {
+                  const related = classes.find(c => String(c.id) === String(row.relatedTheoryId));
+                  return related ? related.stream : (row.stream || 'N/A');
+                }
+                return row.stream || 'N/A';
+              } },
+              { key: 'deliveryMethod', label: 'Delivery', render: row => row.deliveryMethod || 'N/A' },
+              { key: 'schedule', label: 'Schedule', render: row => {
+                if (!row.schedule) return 'N/A';
+                return `${formatDay(row.schedule.day)} ${formatTime(row.schedule.startTime)}-${formatTime(row.schedule.endTime)}`;
+              } },
+              { key: 'fee', label: 'Fee', render: row => {
+                let fee = Number(row.fee) || 0;
+                // For revision class, show discount for theory students
+                if (row.courseType === 'revision' && row.revisionDiscountPrice) {
+                  return <span>Rs. {fee} <span className="text-xs text-blue-700">(Theory student: Rs. {Math.max(0, fee - Number(row.revisionDiscountPrice))})</span></span>;
+                }
+                return `Rs. ${fee}`;
+              } },
+              { key: 'courseType', label: 'Course Type', render: row => row.courseType || 'N/A' },
+              { key: 'revisionDiscountPrice', label: 'Theory Student Discount', render: row => row.courseType === 'revision' && row.revisionDiscountPrice ? `Rs. ${row.revisionDiscountPrice}` : '' },
+              { key: 'status', label: 'Status', render: row => {
+                if (row.status === 'active') return <span className="px-2 py-1 rounded bg-green-100 text-green-800 font-semibold">Active</span>;
+                if (row.status === 'inactive') return <span className="px-2 py-1 rounded bg-red-100 text-red-800 font-semibold">Inactive</span>;
+                return row.status || 'N/A';
+              } },
             ]}
             data={classes}
             actions={row => (
@@ -722,4 +990,4 @@ const CreateClass = () => {
   );
 };
 
-export default CreateClass; 
+export default CreateClass;

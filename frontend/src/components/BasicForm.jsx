@@ -7,15 +7,17 @@ const BasicForm = ({ initialValues, validationSchema, onSubmit, children }) => {
       initialValues={initialValues}
       validationSchema={validationSchema}
       onSubmit={onSubmit}
+      validateOnChange={true}
+      validateOnBlur={true}
     >
-      {({ errors, touched, handleChange, values }) => (
+      {({ errors, touched, handleChange, values, setFieldValue }) => (
         <Form className='flex flex-col w-full space-y-4'>
           {/* Children will be the form fields and buttons */}
-          {children({ errors, touched, handleChange, values })}
+          {children({ errors, touched, handleChange, values, setFieldValue })}
         </Form>
       )}
     </Formik>
   );
 };
 
-export default BasicForm; 
+export default BasicForm;
