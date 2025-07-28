@@ -7,7 +7,7 @@ import StudentEnrollment from '../../pages/dashboard/adminDashboard/StudentEnrol
 import FinancialRecordsOverview from '../../pages/dashboard/adminDashboard/FinancialRecordsOverview';
 import Reports from '../../pages/dashboard/adminDashboard/Reports';
 import AttendanceOverview from '../../pages/dashboard/adminDashboard/AttendanceOverview';
-import ClassAttendanceDetail from '../../pages/dashboard/adminDashboard/ClassAttendanceDetail';
+import ClassAttendance from '../../pages/dashboard/adminDashboard/ClassAttendance';
 
 export const adminDashboardRoutes = [
   { path: "/admindashboard", element: <AdminDashboard/> },
@@ -18,5 +18,5 @@ export const adminDashboardRoutes = [
   { path: "/admin/financial", element: <FinancialRecordsOverview /> },
   { path: "/admin/reports", element: <Reports /> },
   { path: "/admin/attendance", element: <AttendanceOverview /> },
-  { path: "/admin/attendance/:classId", element: <ClassAttendanceDetail /> }
+  { path: "/admin/attendance/:classId", element: <ClassAttendance /> }
 ]; 

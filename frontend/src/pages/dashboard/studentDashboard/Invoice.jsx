@@ -6,7 +6,6 @@ import CustomButton2 from '../../../components/CustomButton2';
 import { FaCcVisa, FaCcMastercard, FaDownload } from 'react-icons/fa';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import PaymentSuccess from './PaymentSuccess';
 
 // REMINDER: Add this to your public/index.html
 // <script type="text/javascript" src="https://www.payhere.lk/lib/payhere.js"></script>
@@ -23,42 +22,20 @@ const Invoice = () => {
     return <div className="p-8 text-center text-gray-500">No invoice data. Please complete checkout first.</div>;
   }
 
-  // PayHere integration
+  // PayHere integration - Simplified for demo
   const handlePayHere = async () => {
-    setLoading(true);
-    try {
-      // Fetch hash from backend
-      const response = await fetch('http://localhost:5000/api/payhere-hash', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          order_id: data.invoiceId,
-          amount: data.total,
-          currency: 'LKR',
-        }),
-      });
-      const { hash } = await response.json();
+    if (!agreed) {
+      alert('Please agree to the privacy policy and terms first.');
+      return;
+    }
 
-      const payment = {
-        sandbox: true, // Set to false for live
-        merchant_id: "1231330", // Sandbox Merchant ID
-        return_url: window.location.origin + "/payment-success",
-        cancel_url: window.location.origin + "/payment-cancel",
-        notify_url: window.location.origin + "/payment-notify",
-        order_id: data.invoiceId,
-        items: data.classTitle,
-        amount: data.total,
-        currency: "LKR",
-        hash, // <-- Add the hash here!
-        first_name: data.fullName ? data.fullName.split(' ')[0] : '',
-        last_name: data.fullName ? data.fullName.split(' ').slice(1).join(' ') : '',
-        email: data.email,
-        phone: data.mobile,
-        address: data.address,
-        city: "Colombo",
-        country: "Sri Lanka",
-      };
-      // Save payment record to localStorage (for demo)
+    setLoading(true);
+    
+    try {
+      // Simulate payment processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Save payment record to localStorage
       const payments = JSON.parse(localStorage.getItem('payments') || '[]');
       payments.push({
         date: data.date,
@@ -67,19 +44,89 @@ const Invoice = () => {
         method: 'online',
         status: 'Paid',
         invoiceId: data.invoiceId,
+        paymentDate: new Date().toISOString()
       });
       localStorage.setItem('payments', JSON.stringify(payments));
-      if (window.payhere && window.payhere.startPayment) {
-        window.payhere.startPayment(payment);
+      
+      // Add class to My Classes after successful payment
+      if (!data.isStudyPack) {
+        const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
+        const classToAdd = {
+          id: data.classId || Date.now(), // Use classId from data or generate new one
+          className: data.classTitle,
+          subject: data.subject,
+          teacher: data.teacher,
+          stream: data.stream,
+          deliveryMethod: data.deliveryMethod,
+          courseType: data.courseType,
+          schedule: data.schedule,
+          fee: data.basePrice,
+          purchaseDate: new Date().toISOString(),
+          paymentStatus: 'paid',
+          paymentMethod: 'online',
+          nextPaymentDate: data.nextPaymentDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          attendance: [],
+          paymentHistory: [{
+            date: new Date().toISOString(),
+            amount: data.total,
+            method: 'online',
+            status: 'paid',
+            invoiceId: data.invoiceId
+          }],
+          // Add additional fields for MyClasses functionality
+          hasExams: Math.random() > 0.5, // Random for demo
+          hasTutes: Math.random() > 0.3, // Random for demo
+          currentStudents: 1,
+          forgetCardRequested: false,
+          latePaymentRequested: false
+        };
+        
+        // Only add if not already in My Classes
+        if (!myClasses.some(c => c.id === classToAdd.id)) {
+          myClasses.push(classToAdd);
+          localStorage.setItem('myClasses', JSON.stringify(myClasses));
+        }
       } else {
-        alert("PayHere script not loaded. Please add it to your public/index.html.");
+        // Add study pack to My Study Packs
+        const myStudyPacks = JSON.parse(localStorage.getItem('myStudyPacks') || '[]');
+        const studyPackToAdd = {
+          title: data.classTitle,
+          price: data.basePrice,
+          teacher: data.teacher,
+          image: data.image,
+          description: data.description,
+          purchaseDate: new Date().toISOString(),
+          paymentStatus: 'paid',
+          paymentMethod: 'online',
+          invoiceId: data.invoiceId
+        };
+        
+        if (!myStudyPacks.some(p => p.title === studyPackToAdd.title && p.teacher === studyPackToAdd.teacher)) {
+          myStudyPacks.push(studyPackToAdd);
+          localStorage.setItem('myStudyPacks', JSON.stringify(myStudyPacks));
+        }
       }
+      
+      // Mark as paid
+      setPaid(true);
+      
+      // Navigate to success page after a short delay
+      setTimeout(() => {
+        navigate('/student/payment-success', { 
+          state: { 
+            ...data, 
+            paymentDate: new Date().toISOString(),
+            transactionId: `TXN${Date.now()}`
+          } 
+        });
+      }, 1000);
+      
     } catch (err) {
-       //alert('Failed to initiate payment. Please try again.');
-       //console.error(err);
-      console.log(PaymentSuccess);
+      console.error('Payment failed:', err);
+      alert('Payment failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleDownload = () => {
@@ -193,7 +240,7 @@ const Invoice = () => {
               onClick={handlePayHere}
               disabled={!agreed || paid || loading}
             >
-              {loading ? 'Processing...' : paid ? 'Paid' : 'Confirm and Pay Now'}
+              {loading ? 'Processing Payment...' : paid ? 'Payment Successful!' : 'Confirm and Pay Now'}
             </CustomButton2>
             <div className="flex items-center gap-2 mb-2">
               <FaCcVisa className="text-3xl text-blue-700" />
@@ -220,7 +267,7 @@ const Invoice = () => {
               <div><span className="font-bold">Email:</span> {data.email}</div>
               <div><span className="font-bold">Mobile:</span> {data.mobile}</div>
               <div><span className="font-bold">Medium:</span> {data.medium}</div>
-              <div><span className="font-bold">Invoice Status:</span> <span className="bg-red-500 text-white px-2 py-1 rounded text-xs">{paid ? 'Paid' : 'Unpaid'}</span></div>
+              <div><span className="font-bold">Invoice Status:</span> <span className={`px-2 py-1 rounded text-xs ${paid ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>{paid ? 'Paid' : 'Unpaid'}</span></div>
             </div>
           </div>
           <div className="border-t pt-4 mt-4">

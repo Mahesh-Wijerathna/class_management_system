@@ -9,7 +9,7 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import * as Yup from 'yup';
-import { FaCreditCard, FaUniversity, FaUser, FaPhone, FaEnvelope, FaMapMarkerAlt, FaBook } from 'react-icons/fa';
+import { FaCreditCard, FaUniversity, FaUser, FaPhone, FaEnvelope, FaMapMarkerAlt, FaBook, FaCalendar, FaClock, FaVideo, FaUsers, FaGraduationCap, FaCheckCircle } from 'react-icons/fa';
 import CustomButton from '../../../components/CustomButton';
 
 const dummyStudent = {
@@ -48,26 +48,26 @@ const getValidationSchema = (isStudyPack) =>
   Yup.object().shape({
     firstName: Yup.string().required('Required'),
     lastName: Yup.string().required('Required'),
-    mobile: Yup.string().required('Required'),
+    mobile: Yup.string().required('Required').matches(/^0[1-9][0-9]{8}$/, 'Invalid mobile number'),
     email: Yup.string().email('Invalid email').required('Required'),
     homeCity: Yup.string().required('Required'),
     medium: Yup.string().required('Required'),
-    tuteType: isStudyPack ? Yup.string() : Yup.string().required('Required'),
-    address: isStudyPack
-      ? Yup.string()
-      : Yup.string().when('tuteType', {
-          is: 'Speed Post',
-          then: schema => schema.required('Required'),
-          otherwise: schema => schema.notRequired(),
-        }),
+    ...(isStudyPack ? {} : {
+      tuteType: Yup.string().required('Required'),
+      address: Yup.string().when('tuteType', {
+        is: 'Speed Post',
+        then: (schema) => schema.required('Address is required for Speed Post'),
+        otherwise: (schema) => schema.notRequired(),
+      }),
+    }),
   });
 
 const paymentMethods = [
-  { key: 'online', label: 'Online', icon: <FaCreditCard className="text-2xl mx-auto mb-1" />, sinhala: 'ඔන්ලයින් ගෙවීම' },
-  { key: 'bank', label: 'Bank transfer', icon: <FaUniversity className="text-2xl mx-auto mb-1" />, sinhala: 'බැංකු හරහා ගෙවීම' },
+  { key: 'online', label: 'Online', sinhala: 'අන්තර්ජාලයෙන්', icon: <FaCreditCard className="text-2xl text-green-600 mb-2" /> },
+  { key: 'bank', label: 'Bank transfer', sinhala: 'බැංකු මාර්ගයෙන්', icon: <FaUniversity className="text-2xl text-blue-600 mb-2" /> },
 ];
 
-// Get image based on subject or use default
+// Get image based on subject
 const getClassImage = (subject) => {
   const imageMap = {
     'Physics': '/assets/nfts/Nft1.png',
@@ -80,18 +80,63 @@ const getClassImage = (subject) => {
   return imageMap[subject] || '/assets/nfts/Nft1.png';
 };
 
-// Calculate next payment date based on duration
-const calculateNextPaymentDate = (duration) => {
+// Format time for display
+const formatTime = (timeStr) => {
+  if (!timeStr) return '';
+  const [hour, minute] = timeStr.split(':');
+  let h = parseInt(hour, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${minute} ${ampm}`;
+};
+
+// Format day for display
+const formatDay = (day) => {
+  return day.charAt(0).toUpperCase() + day.slice(1);
+};
+
+// Get delivery method info
+const getDeliveryMethodInfo = (method) => {
+  switch (method) {
+    case 'online':
+      return { color: 'text-purple-600', icon: <FaVideo />, text: 'Online' };
+    case 'physical':
+      return { color: 'text-orange-600', icon: <FaMapMarkerAlt />, text: 'Physical' };
+    case 'hybrid':
+      return { color: 'text-indigo-600', icon: <FaUsers />, text: 'Hybrid' };
+    default:
+      return { color: 'text-gray-600', icon: <FaUsers />, text: method };
+  }
+};
+
+// Get course type info
+const getCourseTypeInfo = (type) => {
+  switch (type) {
+    case 'theory':
+      return { color: 'text-blue-600', icon: <FaBook />, text: 'Theory' };
+    case 'revision':
+      return { color: 'text-green-600', icon: <FaGraduationCap />, text: 'Revision' };
+    case 'both':
+      return { color: 'text-purple-600', icon: <FaBook />, text: 'Theory + Revision' };
+    default:
+      return { color: 'text-gray-600', icon: <FaBook />, text: type };
+  }
+};
+
+// Calculate next payment date based on schedule frequency
+const calculateNextPaymentDate = (schedule) => {
   const now = new Date();
-  switch (duration) {
-    case 'daily':
-      return new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+  if (!schedule || !schedule.frequency) {
+    return new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  }
+  
+  switch (schedule.frequency) {
     case 'weekly':
       return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    case 'bi-weekly':
+      return new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
     case 'monthly':
       return new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()).toISOString();
-    case 'yearly':
-      return new Date(now.getFullYear() + 1, now.getMonth(), now.getDate()).toISOString();
     default:
       return new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
   }
@@ -103,17 +148,20 @@ const Checkout = () => {
   const location = useLocation();
   const isStudyPack = location.state && location.state.type === 'studyPack';
   const [classes, setClasses] = useState([]);
+  const [myClasses, setMyClasses] = useState([]);
   const [cls, setCls] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('online');
   const [promo, setPromo] = useState('');
   const [appliedPromo, setAppliedPromo] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [theoryStudentDiscount, setTheoryStudentDiscount] = useState(0);
+  const [discountReason, setDiscountReason] = useState('');
 
-  // Load classes from localStorage
+  // Load classes and student's purchased classes from localStorage
   useEffect(() => {
     if (!isStudyPack) {
-      const savedClasses = localStorage.getItem('adminClasses');
+      const savedClasses = localStorage.getItem('classes');
       if (savedClasses) {
         const allClasses = JSON.parse(savedClasses);
         setClasses(allClasses);
@@ -126,7 +174,39 @@ const Checkout = () => {
       const foundStudyPack = studyPacks[parseInt(id, 10)];
       setCls(foundStudyPack);
     }
+
+    // Load student's purchased classes
+    const savedMyClasses = localStorage.getItem('myClasses');
+    if (savedMyClasses) {
+      setMyClasses(JSON.parse(savedMyClasses));
+    }
   }, [id, isStudyPack]);
+
+  // Check if student owns the related theory class for a revision class
+  const checkRelatedTheoryOwnership = (revisionClass) => {
+    if (revisionClass.courseType !== 'revision' || !revisionClass.relatedTheoryId) {
+      return false;
+    }
+    return myClasses.some(myClass => myClass.id === revisionClass.relatedTheoryId);
+  };
+
+  // Calculate theory student discount
+  useEffect(() => {
+    if (cls && !isStudyPack && cls.courseType === 'revision' && cls.revisionDiscountPrice) {
+      const ownsRelatedTheory = checkRelatedTheoryOwnership(cls);
+      if (ownsRelatedTheory) {
+        const discount = Number(cls.revisionDiscountPrice) || 0;
+        setTheoryStudentDiscount(discount);
+        setDiscountReason('Theory Student Discount');
+      } else {
+        setTheoryStudentDiscount(0);
+        setDiscountReason('');
+      }
+    } else {
+      setTheoryStudentDiscount(0);
+      setDiscountReason('');
+    }
+  }, [cls, myClasses, isStudyPack]);
 
   if (!cls) {
     return (
@@ -153,98 +233,65 @@ const Checkout = () => {
         <BasicForm initialValues={dummyStudent} validationSchema={getValidationSchema(isStudyPack)} onSubmit={async values => {
           const isSpeedPost = values.tuteType === 'Speed Post';
           const speedPostFee = isSpeedPost ? 300 : 0;
-          const basePrice = isStudyPack ? parseInt(cls.price.replace(/\D/g, '')) : cls.price;
-          const discount = appliedPromo || 0;
-          const total = basePrice - discount + speedPostFee;
+          const basePrice = isStudyPack ? parseInt(cls.price.replace(/\D/g, '')) : parseInt(cls.fee);
+          const promoDiscount = appliedPromo || 0;
+          const totalDiscount = promoDiscount + theoryStudentDiscount;
+          const total = basePrice - totalDiscount + speedPostFee;
           const invoiceId = `INV${Date.now()}`;
           const fullName = `${values.firstName} ${values.lastName}`;
           const orderData = {
             ...values,
             fullName,
-            classTitle: cls.title,
+            classTitle: isStudyPack ? cls.title : cls.className,
             basePrice,
-            discount,
+            discount: totalDiscount,
+            promoDiscount,
+            theoryStudentDiscount,
             speedPostFee,
             total,
             invoiceId,
             date: new Date().toLocaleDateString(),
+            // Add class data for My Classes
+            isStudyPack,
+            classId: cls.id,
+            subject: cls.subject,
+            teacher: cls.teacher,
+            stream: cls.stream,
+            deliveryMethod: cls.deliveryMethod,
+            courseType: cls.courseType,
+            schedule: cls.schedule,
+            nextPaymentDate: calculateNextPaymentDate(cls.schedule),
+            image: cls.image,
+            description: cls.description,
           };
 
           if (paymentMethod === 'bank') {
-            if (isStudyPack) {
-              // Add to myStudyPacks in localStorage
-              const packs = JSON.parse(localStorage.getItem('myStudyPacks') || '[]');
-              if (!packs.some(p => p.title === cls.title && p.teacher === cls.teacher)) {
-                packs.push(cls);
-                localStorage.setItem('myStudyPacks', JSON.stringify(packs));
-              }
-            } else {
-              // Add to myClasses in localStorage
-              const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
-              const classToAdd = {
-                ...cls,
-                purchaseDate: new Date().toISOString(),
-                paymentStatus: 'pending',
-                paymentMethod: 'bank',
-                nextPaymentDate: calculateNextPaymentDate(cls.duration),
-                attendance: [],
-                paymentHistory: [{
-                  date: new Date().toISOString(),
-                  amount: total,
-                  method: 'bank',
-                  status: 'pending',
-                  invoiceId: invoiceId
-                }]
-              };
-              if (!myClasses.some(c => c.id === cls.id)) {
-                myClasses.push(classToAdd);
-                localStorage.setItem('myClasses', JSON.stringify(myClasses));
-              }
-            }
+            // For bank transfer, don't add to My Classes yet - wait for successful transfer
             navigate('/student/bank-transfer', { state: orderData });
           } else {
             setLoading(true);
             setTimeout(() => {
               setLoading(false);
-              if (isStudyPack) {
-                // Add to myStudyPacks in localStorage
-                const packs = JSON.parse(localStorage.getItem('myStudyPacks') || '[]');
-                if (!packs.some(p => p.title === cls.title && p.teacher === cls.teacher)) {
-                  packs.push(cls);
-                  localStorage.setItem('myStudyPacks', JSON.stringify(packs));
-                }
-              } else {
-                // Add to myClasses in localStorage
-                const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
-                const classToAdd = {
-                  ...cls,
-                  purchaseDate: new Date().toISOString(),
-                  paymentStatus: 'paid',
-                  paymentMethod: 'online',
-                  nextPaymentDate: calculateNextPaymentDate(cls.duration),
-                  attendance: [],
-                  paymentHistory: [{
-                    date: new Date().toISOString(),
-                    amount: total,
-                    method: 'online',
-                    status: 'paid',
-                    invoiceId: invoiceId
-                  }]
-                };
-                if (!myClasses.some(c => c.id === cls.id)) {
-                  myClasses.push(classToAdd);
-                  localStorage.setItem('myClasses', JSON.stringify(myClasses));
-                }
-              }
+              // For online payment, don't add to My Classes yet - wait for successful payment
               navigate('/student/invoice', { state: orderData });
-            }, 1200);
+            }, 2000);
           }
         }}>
           {({ errors, touched, handleChange, values }) => {
             const isSpeedPost = values.tuteType === 'Speed Post';
             const speedPostFee = isSpeedPost ? 300 : 0;
-            const price = isStudyPack ? parseInt(cls.price.replace(/\D/g, '')) : cls.price;
-            const total = price - (appliedPromo || 0) + speedPostFee;
+            const price = isStudyPack ? parseInt(cls.price.replace(/\D/g, '')) : parseInt(cls.fee);
+            const promoDiscount = appliedPromo || 0;
+            const totalDiscount = promoDiscount + theoryStudentDiscount;
+            const total = price - totalDiscount + speedPostFee;
+            
+            // Get class info for display
+            const deliveryInfo = !isStudyPack ? getDeliveryMethodInfo(cls.deliveryMethod) : null;
+            const courseTypeInfo = !isStudyPack ? getCourseTypeInfo(cls.courseType) : null;
+            const scheduleText = !isStudyPack && cls.schedule ? 
+              `${formatDay(cls.schedule.day)} ${formatTime(cls.schedule.startTime)}-${formatTime(cls.schedule.endTime)}` : 
+              'Schedule not set';
+
             return (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Main Card */}
@@ -252,15 +299,45 @@ const Checkout = () => {
                   <div className="bg-white rounded-xl shadow p-6 mb-6 border">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
                       <div className="flex items-center gap-4">
-                        <img src={isStudyPack ? cls.image : getClassImage(cls.subject)} alt={cls.title} className="w-20 h-20 rounded-lg object-cover border" />
+                        <img src={isStudyPack ? cls.image : getClassImage(cls.subject)} alt={isStudyPack ? cls.title : cls.className} className="w-20 h-20 rounded-lg object-cover border" />
                         <div>
-                          <div className="font-semibold text-base">{cls.title} <span className="text-xs text-gray-400 font-normal">- {isStudyPack ? 'Study Pack Details' : 'Course Details'}</span></div>
+                          <div className="font-semibold text-base">
+                            {isStudyPack ? cls.title : cls.className} 
+                            <span className="text-xs text-gray-400 font-normal">- {isStudyPack ? 'Study Pack Details' : 'Course Details'}</span>
+                          </div>
                           <div className="text-xs text-gray-500 mt-1">{cls.teacher}</div>
+                          {!isStudyPack && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              <div className="flex items-center gap-1">
+                                <FaBook className="text-gray-400" />
+                                {cls.subject} - {cls.stream}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <FaCalendar className="text-gray-400" />
+                                {scheduleText}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className={deliveryInfo?.color}>{deliveryInfo?.icon}</span>
+                                {deliveryInfo?.text}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className={courseTypeInfo?.color}>{courseTypeInfo?.icon}</span>
+                                {courseTypeInfo?.text}
+                              </div>
+                              {/* Show theory student discount info */}
+                              {theoryStudentDiscount > 0 && (
+                                <div className="flex items-center gap-1 text-blue-600 mt-1">
+                                  <FaCheckCircle />
+                                  <span className="text-xs font-semibold">{discountReason} Applied</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
                           {cls.description && <div className="text-xs text-gray-500 mt-1">{cls.description}</div>}
                         </div>
                       </div>
                       <div className="mt-4 md:mt-0 text-cyan-700 font-bold text-lg">
-                        LKR {(isStudyPack ? parseInt(cls.price.replace(/\D/g, '')) : cls.price).toLocaleString()}
+                        LKR {price.toLocaleString()}
                       </div>
                     </div>
                     <hr className="mb-6" />
@@ -310,6 +387,7 @@ const Checkout = () => {
                         <div className="bg-white rounded-xl shadow p-4 border">
                           <div className="font-semibold mb-2">Product Price</div>
                           <div className="flex justify-between text-sm mb-1"><span>Price</span><span> LKR {price.toLocaleString()}</span></div>
+                          {theoryStudentDiscount > 0 && <div className="flex justify-between text-xs text-blue-600 mb-1"><span>{discountReason}</span><span>- LKR {theoryStudentDiscount.toLocaleString()}</span></div>}
                           {appliedPromo ? <div className="flex justify-between text-xs text-green-600 mb-1"><span>Promo Applied</span><span>- LKR {appliedPromo.toLocaleString()}</span></div> : null}
                           {isSpeedPost && <div className="flex justify-between text-xs text-red-600 mb-1"><span>Speed Post</span><span>+ LKR 300.00</span></div>}
                           <div className="flex justify-between font-bold text-base border-t pt-2 mt-2"><span>Total</span><span>LKR {total.toLocaleString()}</span></div>
@@ -330,6 +408,7 @@ const Checkout = () => {
                   <div className="bg-white rounded-xl shadow p-4 border">
                     <div className="font-semibold mb-2">Product Price</div>
                     <div className="flex justify-between text-sm mb-1"><span>Price</span><span> LKR {price.toLocaleString()}</span></div>
+                    {theoryStudentDiscount > 0 && <div className="flex justify-between text-xs text-blue-600 mb-1"><span>{discountReason}</span><span>- LKR {theoryStudentDiscount.toLocaleString()}</span></div>}
                     {appliedPromo ? <div className="flex justify-between text-xs text-green-600 mb-1"><span>Promo Applied</span><span>- LKR {appliedPromo.toLocaleString()}</span></div> : null}
                     {isSpeedPost && <div className="flex justify-between text-xs text-red-600 mb-1"><span>Speed Post</span><span>+ LKR 300.00</span></div>}
                     <div className="flex justify-between font-bold text-base border-t pt-2 mt-2"><span>Total</span><span>LKR {total.toLocaleString()}</span></div>
