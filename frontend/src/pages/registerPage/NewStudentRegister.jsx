@@ -59,7 +59,7 @@ const phoneRegex = /^0\d{9}$/;
 const genderRegex = /^(male|female)$/i;
 const nameRegex = /^[A-Za-z ]+$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
-const allowedStreams = ['AL-Maths', 'AL-Science', 'AL-Art', 'AL-Tech', 'AL-Common', 'OL', 'Primary'];
+const allowedStreams = ['AL-Maths', 'AL-Science', 'AL-Art', 'AL-Tech', 'AL-Commerce', 'OL', 'Primary'];
 const allowedDistricts = [
   'Ampara', 'Anuradhapura', 'Badulla', 'Batticaloa', 'Colombo', 'Galle', 'Gampaha', 'Hambantota',
   'Jaffna', 'Kalutara', 'Kandy', 'Kegalle', 'Kilinochchi', 'Kurunegala', 'Mannar', 'Matale',

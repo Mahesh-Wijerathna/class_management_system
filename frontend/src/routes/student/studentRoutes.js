@@ -15,6 +15,7 @@ import PurchaseStudyPack from '../../pages/dashboard/studentDashboard/PurchaseSt
 import MyStudyPacks from '../../pages/dashboard/studentDashboard/MyStudyPacks';
 import StudyPackDetail from '../../pages/dashboard/studentDashboard/StudyPackDetail';
 import LiveClasses from '../../pages/dashboard/studentDashboard/LiveClasses';
+import AttendanceMarking from '../../pages/dashboard/studentDashboard/AttendanceMarking';
 
 export const studentRoutes = [
   { path: "/studentdashboard", element: <StudentDashboard/> },
@@ -33,5 +34,6 @@ export const studentRoutes = [
   { path: "/student/purchasestudypack", element: <PurchaseStudyPack /> },
   { path: "/student/studypacks", element: <MyStudyPacks /> },
   { path: "/student/studypacks/:id", element: <StudyPackDetail /> },
-  { path: "/student/liveclasses", element: <LiveClasses /> }
+  { path: "/student/liveclasses", element: <LiveClasses /> },
+ 
 ]; 

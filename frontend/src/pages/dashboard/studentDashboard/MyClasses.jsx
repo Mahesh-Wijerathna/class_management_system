@@ -32,6 +32,21 @@ const MyClasses = () => {
     return imageMap[subject] || '/assets/nfts/Nft1.png';
   };
 
+  // Format time for display
+  const formatTime = (timeStr) => {
+    if (!timeStr) return '';
+    const [hour, minute] = timeStr.split(':');
+    let h = parseInt(hour, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return `${h}:${minute} ${ampm}`;
+  };
+
+  // Format day for display
+  const formatDay = (day) => {
+    return day.charAt(0).toUpperCase() + day.slice(1);
+  };
+
   // Get payment status info
   const getPaymentStatusInfo = (status) => {
     switch (status) {
@@ -48,9 +63,9 @@ const MyClasses = () => {
     }
   };
 
-  // Get class type info
-  const getClassTypeInfo = (type) => {
-    switch (type) {
+  // Get delivery method info
+  const getDeliveryMethodInfo = (method) => {
+    switch (method) {
       case 'online':
         return { color: 'text-purple-600', icon: <FaVideo />, text: 'Online' };
       case 'physical':
@@ -58,7 +73,21 @@ const MyClasses = () => {
       case 'hybrid':
         return { color: 'text-indigo-600', icon: <FaUsers />, text: 'Hybrid' };
       default:
-        return { color: 'text-gray-600', icon: <FaUsers />, text: 'Unknown' };
+        return { color: 'text-gray-600', icon: <FaUsers />, text: method };
+    }
+  };
+
+  // Get course type info
+  const getCourseTypeInfo = (type) => {
+    switch (type) {
+      case 'theory':
+        return { color: 'text-blue-600', icon: <FaBook />, text: 'Theory' };
+      case 'revision':
+        return { color: 'text-green-600', icon: <FaGraduationCap />, text: 'Revision' };
+      case 'both':
+        return { color: 'text-purple-600', icon: <FaBook />, text: 'Theory + Revision' };
+      default:
+        return { color: 'text-gray-600', icon: <FaBook />, text: type };
     }
   };
 
@@ -82,7 +111,25 @@ const MyClasses = () => {
     if (selectedTab === 'with-tutes') {
       return cls.hasTutes;
     }
-    return cls.duration === selectedTab;
+    if (selectedTab === 'online') {
+      return cls.deliveryMethod === 'online';
+    }
+    if (selectedTab === 'physical') {
+      return cls.deliveryMethod === 'physical';
+    }
+    if (selectedTab === 'hybrid') {
+      return cls.deliveryMethod === 'hybrid';
+    }
+    if (selectedTab === 'theory') {
+      return cls.courseType === 'theory';
+    }
+    if (selectedTab === 'revision') {
+      return cls.courseType === 'revision';
+    }
+    if (selectedTab === 'both') {
+      return cls.courseType === 'both';
+    }
+    return cls.schedule?.frequency === selectedTab;
   });
 
   // Handle make payment
@@ -97,7 +144,7 @@ const MyClasses = () => {
 
   // Handle join class
   const handleJoinClass = (cls) => {
-    if (cls.type === 'online' || cls.type === 'hybrid') {
+    if (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid') {
       if (cls.zoomLink) {
         window.open(cls.zoomLink, '_blank');
       } else {
@@ -221,10 +268,15 @@ const MyClasses = () => {
 
   const tabOptions = [
     { key: 'all', label: 'All Classes' },
-    { key: 'daily', label: 'Daily' },
+    { key: 'online', label: 'Online' },
+    { key: 'physical', label: 'Physical' },
+    { key: 'hybrid', label: 'Hybrid' },
+    { key: 'theory', label: 'Theory' },
+    { key: 'revision', label: 'Revision' },
+    { key: 'both', label: 'Theory + Revision' },
     { key: 'weekly', label: 'Weekly' },
+    { key: 'bi-weekly', label: 'Bi-weekly' },
     { key: 'monthly', label: 'Monthly' },
-    { key: 'yearly', label: 'Yearly' },
     { key: 'payment-due', label: 'Payment Due' },
     { key: 'overdue', label: 'Overdue' },
     { key: 'late-payment', label: 'Late Payment' },
@@ -258,39 +310,50 @@ const MyClasses = () => {
           {filteredClasses.length > 0 ? (
             filteredClasses.map((cls) => {
               const paymentStatus = getPaymentStatusInfo(cls.paymentStatus);
-              const classType = getClassTypeInfo(cls.type);
+              const deliveryInfo = getDeliveryMethodInfo(cls.deliveryMethod);
+              const courseTypeInfo = getCourseTypeInfo(cls.courseType);
               const nextPaymentDate = new Date(cls.nextPaymentDate);
               const today = new Date();
               const isPaymentDue = nextPaymentDate <= today && cls.paymentStatus !== 'paid';
               const canAttendToday = cls.paymentStatus === 'paid' || cls.paymentStatus === 'late_payment';
+              
+              const scheduleText = cls.schedule ? 
+                `${formatDay(cls.schedule.day)} ${formatTime(cls.schedule.startTime)}-${formatTime(cls.schedule.endTime)}` : 
+                'Schedule not set';
 
               return (
-                <BasicCard
+              <BasicCard
                   key={cls.id}
-                  title={<div><span className="text-sm">{cls.title}</span><div className="text-xs text-gray-500 mt-1">{cls.teacher}</div></div>}
-                  price={<span className="text-xs">LKR {cls.price.toLocaleString()}</span>}
+                  title={<div><span className="text-sm">{cls.className}</span><div className="text-xs text-gray-500 mt-1">{cls.teacher}</div></div>}
+                  price={<span className="text-xs">LKR {parseInt(cls.fee).toLocaleString()}</span>}
                   image={getClassImage(cls.subject)}
                   description={
                     <div className="text-xs text-gray-600 space-y-1">
                       <div><strong>Subject:</strong> {cls.subject}</div>
-                      <div><strong>Duration:</strong> {cls.duration}</div>
-                      <div><strong>Schedule:</strong> {cls.schedule}</div>
+                      <div><strong>Stream:</strong> {cls.stream}</div>
+                      <div><strong>Schedule:</strong> {scheduleText}</div>
                       <div className="flex items-center gap-1">
-                        <span className={classType.color}>{classType.icon}</span>
-                        <span>{classType.text}</span>
+                        <span className={deliveryInfo.color}>{deliveryInfo.icon}</span>
+                        <span>{deliveryInfo.text}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className={courseTypeInfo.color}>{courseTypeInfo.icon}</span>
+                        <span>{courseTypeInfo.text}</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <span className={paymentStatus.color}>{paymentStatus.icon}</span>
                         <span>{paymentStatus.text}</span>
                       </div>
                       <div><strong>Next Payment:</strong> {nextPaymentDate.toLocaleDateString()}</div>
-                      <div><strong>Students:</strong> {cls.currentStudents}/{cls.maxStudents}</div>
+                      <div><strong>Students:</strong> {cls.currentStudents || 0}/{cls.maxStudents}</div>
                       {cls.attendance && cls.attendance.length > 0 && (
                         <div><strong>Attendance:</strong> {cls.attendance.filter(a => a.status === 'present').length}/{cls.attendance.length}</div>
                       )}
                       {cls.hasExams && <div className="text-blue-600"><FaGraduationCap className="inline mr-1" />Exams Available</div>}
                       {cls.hasTutes && <div className="text-green-600"><FaBook className="inline mr-1" />Tutes Available</div>}
                       {cls.forgetCardRequested && <div className="text-orange-600"><FaQrcode className="inline mr-1" />Forget Card Requested</div>}
+                      {cls.paymentTracking && <div className="text-green-600"><FaMoneyBill className="inline mr-1" />Payment Tracking</div>}
+                      {cls.theoryRevisionDiscount && cls.courseType === 'both' && <div className="text-purple-600"><FaMoneyBill className="inline mr-1" />Discount Applied</div>}
                       {isPaymentDue && (
                         <div className="text-red-600 font-semibold">⚠️ Payment Due!</div>
                       )}
@@ -393,7 +456,7 @@ const MyClasses = () => {
             <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
               <h3 className="text-lg font-semibold mb-4">Request Forget Card</h3>
               <p className="text-gray-600 mb-4">
-                You are requesting a forget card for: <strong>{selectedClassForForgetCard?.title}</strong>
+                You are requesting a forget card for: <strong>{selectedClassForForgetCard?.className}</strong>
               </p>
               <p className="text-sm text-gray-500 mb-4">
                 This will allow you to attend the class even if you forgot your ID card.
@@ -422,7 +485,7 @@ const MyClasses = () => {
             <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
               <h3 className="text-lg font-semibold mb-4">Request Late Payment</h3>
               <p className="text-gray-600 mb-4">
-                You are requesting late payment for: <strong>{selectedClassForLatePayment?.title}</strong>
+                You are requesting late payment for: <strong>{selectedClassForLatePayment?.className}</strong>
               </p>
               <p className="text-sm text-gray-500 mb-4">
                 This will allow you to attend today's class without immediate payment.
