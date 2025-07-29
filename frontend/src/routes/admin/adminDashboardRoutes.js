@@ -16,6 +16,7 @@ import ClassStudents from '../../pages/dashboard/adminDashboard/ClassStudents';
 import AllRoles from '../../pages/dashboard/adminDashboard/AllRoles';
 import RolesWithPermission from '../../pages/dashboard/adminDashboard/RolesWithPermission';
 
+
 export const adminDashboardRoutes = [
   { path: "/admindashboard", element: <AdminDashboard/> },
   { path: "/admin/class-halls", element: <ClassHalls/> },
@@ -34,4 +35,5 @@ export const adminDashboardRoutes = [
   { path: "/admin/classes/all/:classId", element: <ClassStudents /> },
   { path: "/admin/roles", element: <AllRoles /> },
   { path: "/admin/roles/permissions", element: <RolesWithPermission /> }, 
+  
 ]; 

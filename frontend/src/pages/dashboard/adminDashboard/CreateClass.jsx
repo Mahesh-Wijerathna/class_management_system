@@ -5,7 +5,7 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomButton from '../../../components/CustomButton';
 import CustomSelectField from '../../../components/CustomSelectField';
-import { FaEdit, FaTrash, FaPlus, FaCalendar, FaBook, FaUser, FaClock, FaDoorOpen, FaMoneyBill, FaVideo, FaUsers, FaGraduationCap } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaPlus, FaCalendar, FaBook, FaUser, FaClock, FaMoneyBill, FaVideo, FaUsers, FaGraduationCap, FaSync } from 'react-icons/fa';
 import * as Yup from 'yup';
 import BasicTable from '../../../components/BasicTable';
 
@@ -49,7 +49,6 @@ const validationSchema = Yup.object().shape({
     const { startDate } = this.parent;
     return !startDate || !value || value >= startDate;
   }),
-  hall: Yup.string(),
   maxStudents: Yup.number().min(1, 'Must be at least 1').required('Maximum Students is required'),
   fee: Yup.number().min(0, 'Must be 0 or greater').required('Fee is required'),
   zoomLink: Yup.string().when('deliveryMethod', {
@@ -77,7 +76,6 @@ const initialValues = {
   },
   startDate: '',
   endDate: '',
-  hall: '',
   maxStudents: 0,
   fee: '',
   paymentTracking: false,
@@ -128,6 +126,75 @@ const CreateClass = () => {
     localStorage.setItem('classes', JSON.stringify(classes));
   }, [classes]);
 
+  // Auto-sync myClasses with admin classes on component mount
+  useEffect(() => {
+    // Only sync if there are classes loaded
+    if (classes.length > 0) {
+      const hasUpdates = syncMyClassesWithAdminClasses();
+      if (hasUpdates) {
+        console.log('Auto-synced myClasses with admin classes on component mount');
+      }
+    }
+  }, [classes]); // Run when classes change
+
+  // Sync function to update myClasses with latest admin class data
+  const syncMyClassesWithAdminClasses = () => {
+    try {
+      const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
+      let hasUpdates = false;
+      
+      const updatedMyClasses = myClasses.map(studentClass => {
+        // Find corresponding admin class
+        const adminClass = classes.find(adminCls => 
+          adminCls.id === studentClass.classId || adminCls.id === studentClass.id
+        );
+        
+        if (adminClass) {
+                     // Update student class with latest admin data while preserving student-specific data
+           const updatedStudentClass = {
+             ...studentClass,
+             className: adminClass.className,
+             subject: adminClass.subject,
+             teacher: adminClass.teacher,
+             stream: adminClass.stream,
+             deliveryMethod: adminClass.deliveryMethod,
+             schedule: adminClass.schedule,
+             fee: adminClass.fee,
+             maxStudents: adminClass.maxStudents,
+             zoomLink: adminClass.zoomLink, // Update zoom link
+             description: adminClass.description,
+             courseType: adminClass.courseType,
+             status: adminClass.status, // Update status (active/inactive)
+             paymentTracking: adminClass.paymentTracking,
+             paymentTrackingFreeDays: adminClass.paymentTrackingFreeDays,
+             // Preserve student-specific data
+             // paymentStatus, paymentMethod, purchaseDate, attendance, etc. remain unchanged
+           };
+          
+          // Check if any updates were made
+          if (JSON.stringify(studentClass) !== JSON.stringify(updatedStudentClass)) {
+            hasUpdates = true;
+          }
+          
+          return updatedStudentClass;
+        }
+        
+        return studentClass;
+      });
+      
+      if (hasUpdates) {
+        localStorage.setItem('myClasses', JSON.stringify(updatedMyClasses));
+        console.log('Synced myClasses with latest admin class data');
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error syncing myClasses with admin classes:', error);
+      return false;
+    }
+  };
+
   // Get teacher list from localStorage (from TeacherInfo.jsx)
   const teacherList = React.useMemo(() => {
     const stored = localStorage.getItem('teachers');
@@ -162,12 +229,11 @@ const CreateClass = () => {
           teacherId: related.teacherId,
           stream: related.stream,
           deliveryMethod: related.deliveryMethod,
-          schedule: { ...related.schedule },
-          startDate: related.startDate,
-          endDate: related.endDate,
-          hall: related.hall,
-          maxStudents: related.maxStudents,
-          zoomLink: related.zoomLink,
+                  schedule: { ...related.schedule },
+        startDate: related.startDate,
+        endDate: related.endDate,
+        maxStudents: related.maxStudents,
+          zoomLink: related.zoomLink || submitValues.zoomLink, // Keep user's zoom link if related doesn't have one
           description: related.description,
           relatedTheoryId: related.id,
         };
@@ -212,15 +278,57 @@ const CreateClass = () => {
       fee: submitValues.fee || 0,
       maxStudents: submitValues.maxStudents || 50,
       status: submitValues.status || 'active',
-      paymentTracking: paymentTrackingObj
+      paymentTracking: paymentTrackingObj,
+      zoomLink: submitValues.zoomLink || '', // Ensure zoom link is included
+      description: submitValues.description || ''
     };
 
+    // Debug: Log the normalized values to see if zoom link is included
+    console.log('Saving class with zoom link:', normalizedSubmitValues.zoomLink);
+    
     if (editingId) {
+      // Update the class in admin's classes list
       setClasses(classes.map(cls => cls.id === editingId ? { ...normalizedSubmitValues, id: editingId } : cls));
+      
+      // Also update the class in students' myClasses if it exists
+      try {
+        const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
+        const updatedMyClasses = myClasses.map(studentClass => {
+          if (studentClass.classId === editingId || studentClass.id === editingId) {
+            // Update the class data while preserving student-specific data
+            return {
+              ...studentClass,
+              className: normalizedSubmitValues.className,
+              subject: normalizedSubmitValues.subject,
+              teacher: normalizedSubmitValues.teacher,
+              stream: normalizedSubmitValues.stream,
+              deliveryMethod: normalizedSubmitValues.deliveryMethod,
+              schedule: normalizedSubmitValues.schedule,
+              fee: normalizedSubmitValues.fee,
+              maxStudents: normalizedSubmitValues.maxStudents,
+              zoomLink: normalizedSubmitValues.zoomLink, // Update zoom link
+              description: normalizedSubmitValues.description,
+              courseType: normalizedSubmitValues.courseType,
+              status: normalizedSubmitValues.status, // Update status (active/inactive)
+              paymentTracking: normalizedSubmitValues.paymentTracking,
+              paymentTrackingFreeDays: normalizedSubmitValues.paymentTrackingFreeDays,
+              // Preserve student-specific data
+              // paymentStatus, paymentMethod, purchaseDate, attendance, etc. remain unchanged
+            };
+          }
+          return studentClass;
+        });
+        
+        localStorage.setItem('myClasses', JSON.stringify(updatedMyClasses));
+        console.log('Updated class in myClasses localStorage for existing students');
+      } catch (error) {
+        console.error('Error updating myClasses localStorage:', error);
+      }
+      
       setEditingId(null);
       setAlertBox({
         open: true,
-        message: 'Class updated successfully!',
+        message: 'Class updated successfully! All enrolled students will see the updated information.',
         onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
         onCancel: null,
         confirmText: 'OK',
@@ -239,8 +347,13 @@ const CreateClass = () => {
         type: 'success',
       });
     }
+    // Reset form but preserve zoom link if it was generated
+    const currentZoomLink = values.zoomLink;
     resetForm();
-    setFormValues(initialValues);
+    setFormValues({
+      ...initialValues,
+      zoomLink: currentZoomLink || '' // Preserve the zoom link
+    });
     setSubmitKey(prev => prev + 1);
   };
 
@@ -256,9 +369,24 @@ const CreateClass = () => {
   const handleDelete = (id) => {
     setAlertBox({
       open: true,
-      message: 'Are you sure you want to delete this class?',
+      message: 'Are you sure you want to delete this class? This will also remove it from all enrolled students.',
       onConfirm: () => {
+        // Remove from admin's classes list
         setClasses(classes.filter(c => c.id !== id));
+        
+        // Also remove from students' myClasses if it exists
+        try {
+          const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
+          const updatedMyClasses = myClasses.filter(studentClass => 
+            studentClass.classId !== id && studentClass.id !== id
+          );
+          
+          localStorage.setItem('myClasses', JSON.stringify(updatedMyClasses));
+          console.log('Removed class from myClasses localStorage for all students');
+        } catch (error) {
+          console.error('Error removing class from myClasses localStorage:', error);
+        }
+        
         if (editingId === id) {
           setEditingId(null);
           setFormValues(initialValues);
@@ -296,7 +424,6 @@ const CreateClass = () => {
         schedule: { ...related.schedule },
         startDate: related.startDate,
         endDate: related.endDate,
-        hall: related.hall,
         maxStudents: related.maxStudents,
         zoomLink: related.zoomLink,
         description: related.description,
@@ -383,7 +510,6 @@ const CreateClass = () => {
                 setFieldValue('schedule.frequency', selectedTheory.schedule.frequency, false);
                 setFieldValue('startDate', selectedTheory.startDate, false);
                 setFieldValue('endDate', selectedTheory.endDate, false);
-                setFieldValue('hall', selectedTheory.hall, false);
                 setFieldValue('maxStudents', selectedTheory.maxStudents, false);
                 setFieldValue('zoomLink', selectedTheory.zoomLink, false);
                 setFieldValue('description', selectedTheory.description, false);
@@ -757,35 +883,7 @@ const CreateClass = () => {
                   />
                 </div>
                 {/* Class Details */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Get hall options from localStorage (created by ClassHalls.jsx) */}
-                  {(() => {
-                    let hallOptions = [{ value: '', label: 'Select Hall' }];
-                    try {
-                      const storedHalls = localStorage.getItem('classHalls');
-                      if (storedHalls) {
-                        const parsed = JSON.parse(storedHalls);
-                        if (Array.isArray(parsed)) {
-                          hallOptions = [
-                            { value: '', label: 'Select Hall' },
-                            ...parsed.map(hall => ({ value: hall.id || hall.name, label: hall.name }))
-                          ];
-                        }
-                      }
-                    } catch {}
-                    return (
-                      <CustomSelectField
-                        id="hall"
-                        name="hall"
-                        label="Class Hall"
-                        value={values.hall}
-                        onChange={handleChange}
-                        options={hallOptions}
-                        error={errors.hall}
-                        touched={touched.hall}
-                      />
-                    );
-                  })()}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <CustomTextField
                     id="maxStudents"
                     name="maxStudents"
@@ -855,12 +953,18 @@ const CreateClass = () => {
                 {/* Zoom Link for online, hybrid, and other */}
                 {(values.deliveryMethod === 'online' || values.deliveryMethod === 'hybrid' || values.deliveryMethod === 'other') && (
                   <div>
+                    <div className="mb-2">
+                      <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded border border-blue-200">
+                        <FaVideo className="inline mr-1" />
+                        <strong>Zoom Link Required:</strong> For online and hybrid classes, you must provide a zoom link. You can either enter one manually or click "Create Zoom Link" to generate one automatically.
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2">
                       <CustomTextField
                         id="zoomLink"
                         name="zoomLink"
                         type="url"
-                        label={values.deliveryMethod === 'other' ? "Zoom Link (Optional)" : "Zoom Link"}
+                        label={values.deliveryMethod === 'other' ? "Zoom Link (Optional)" : "Zoom Link *"}
                         value={values.zoomLink}
                         onChange={handleChange}
                         error={errors.zoomLink}
@@ -878,6 +982,11 @@ const CreateClass = () => {
                       </CustomButton>
                     </div>
                     {zoomError && <div className="text-red-600 text-sm mt-1">{zoomError}</div>}
+                    {!values.zoomLink && (values.deliveryMethod === 'online' || values.deliveryMethod === 'hybrid') && (
+                      <div className="text-orange-600 text-sm mt-1">
+                        ⚠️ Please enter a zoom link or click "Create Zoom Link" to generate one.
+                      </div>
+                    )}
                   </div>
                 )}
                 
@@ -911,7 +1020,22 @@ const CreateClass = () => {
 
         {/* Classes List */}
         <div className="border-t-2 pt-4">
-          <h2 className="text-lg font-semibold mb-4">All Classes</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold">All Classes</h2>
+            <CustomButton
+              onClick={() => {
+                const hasUpdates = syncMyClassesWithAdminClasses();
+                if (hasUpdates) {
+                  alert('Successfully synced all enrolled students with the latest class information!');
+                } else {
+                  alert('No updates needed. All enrolled students already have the latest information.');
+                }
+              }}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2"
+            >
+              <FaSync className="mr-1" /> Sync Student Data
+            </CustomButton>
+          </div>
           <BasicTable
             columns={[
               { key: 'className', label: 'Class Name', render: row => {

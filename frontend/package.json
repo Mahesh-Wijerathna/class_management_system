@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@fingerprintjs/fingerprintjs": "^4.6.2",
     "@heroicons/react": "^2.2.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
@@ -14,6 +15,9 @@
     "formik": "^2.4.6",
     "jspdf": "^3.0.1",
     "jspdf-autotable": "^5.0.2",
+    "md5": "^2.3.0",
+    "qrcode": "^1.5.4",
+    "qrcode.react": "^4.2.0",
     "react": "^19.1.0",
     "react-barcode": "^1.6.1",
     "react-calendar": "^6.0.0",
