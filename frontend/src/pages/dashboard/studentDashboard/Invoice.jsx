@@ -48,38 +48,47 @@ const Invoice = () => {
       });
       localStorage.setItem('payments', JSON.stringify(payments));
       
-      // Add class to My Classes after successful payment
-      if (!data.isStudyPack) {
-        const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
-        const classToAdd = {
-          id: data.classId || Date.now(), // Use classId from data or generate new one
-          className: data.classTitle,
-          subject: data.subject,
-          teacher: data.teacher,
-          stream: data.stream,
-          deliveryMethod: data.deliveryMethod,
-          courseType: data.courseType,
-          schedule: data.schedule,
-          fee: data.basePrice,
-          purchaseDate: new Date().toISOString(),
-          paymentStatus: 'paid',
-          paymentMethod: 'online',
-          nextPaymentDate: data.nextPaymentDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          attendance: [],
-          paymentHistory: [{
-            date: new Date().toISOString(),
-            amount: data.total,
-            method: 'online',
-            status: 'paid',
-            invoiceId: data.invoiceId
-          }],
-          // Add additional fields for MyClasses functionality
-          hasExams: Math.random() > 0.5, // Random for demo
-          hasTutes: Math.random() > 0.3, // Random for demo
-          currentStudents: 1,
-          forgetCardRequested: false,
-          latePaymentRequested: false
-        };
+                // Add class to My Classes after successful payment
+          if (!data.isStudyPack) {
+            const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
+            // Debug: Log the data received
+            console.log('Invoice - Received data zoom link:', data.zoomLink);
+            
+            const classToAdd = {
+              id: data.classId || Date.now(), // Use classId from data or generate new one
+              className: data.classTitle,
+              subject: data.subject,
+              teacher: data.teacher,
+              stream: data.stream,
+              deliveryMethod: data.deliveryMethod,
+              courseType: data.courseType,
+              schedule: data.schedule,
+              fee: data.basePrice,
+              purchaseDate: new Date().toISOString(),
+              paymentStatus: 'paid',
+              paymentMethod: 'online',
+              nextPaymentDate: data.nextPaymentDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              attendance: [],
+              paymentHistory: [{
+                date: new Date().toISOString(),
+                amount: data.total,
+                method: 'online',
+                status: 'paid',
+                invoiceId: data.invoiceId
+              }],
+              // Add payment tracking data
+                      paymentTracking: data.paymentTracking || { enabled: false },
+        paymentTrackingFreeDays: data.paymentTrackingFreeDays || 7,
+        // Add zoom link and other important fields
+        zoomLink: data.zoomLink || '',
+        description: data.description || '',
+        // Add additional fields for MyClasses functionality
+              hasExams: Math.random() > 0.5, // Random for demo
+              hasTutes: Math.random() > 0.3, // Random for demo
+              currentStudents: 1,
+              forgetCardRequested: false,
+              latePaymentRequested: false
+            };
         
         // Only add if not already in My Classes
         if (!myClasses.some(c => c.id === classToAdd.id)) {

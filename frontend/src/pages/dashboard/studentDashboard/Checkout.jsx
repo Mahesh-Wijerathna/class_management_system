@@ -261,9 +261,18 @@ const Checkout = () => {
             courseType: cls.courseType,
             schedule: cls.schedule,
             nextPaymentDate: calculateNextPaymentDate(cls.schedule),
-            image: cls.image,
-            description: cls.description,
+                    image: cls.image,
+        description: cls.description,
+        // Add zoom link and other important fields
+        zoomLink: cls.zoomLink || '',
+        // Add payment tracking data
+        paymentTracking: cls.paymentTracking,
+            paymentTrackingFreeDays: cls.paymentTrackingFreeDays,
           };
+
+          // Debug: Log the order data to verify zoom link is included
+          console.log('Checkout - Class zoom link:', cls.zoomLink);
+          console.log('Checkout - Order data zoom link:', orderData.zoomLink);
 
           if (paymentMethod === 'bank') {
             // For bank transfer, don't add to My Classes yet - wait for successful transfer
