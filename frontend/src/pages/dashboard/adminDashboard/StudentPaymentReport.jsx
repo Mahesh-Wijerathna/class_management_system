@@ -35,9 +35,9 @@ const StudentPaymentReport = () => {
   const paidRecords = filteredRecords.filter(r => r.status === 'Paid');
   const pendingRecords = filteredRecords.filter(r => r.status === 'Pending');
   const failedRecords = filteredRecords.filter(r => r.status === 'Failed');
-  const totalPaid = paidRecords.reduce((sum, r) => sum + r.total, 0);
-  const totalPending = pendingRecords.reduce((sum, r) => sum + r.total, 0);
-  const totalFailed = failedRecords.reduce((sum, r) => sum + r.total, 0);
+  const totalPaid = paidRecords.reduce((sum, r) => sum + r.amount, 0);
+  const totalPending = pendingRecords.reduce((sum, r) => sum + r.amount, 0);
+  const totalFailed = failedRecords.reduce((sum, r) => sum + r.amount, 0);
 
   // Pie chart data
   const pieData = [
@@ -189,8 +189,8 @@ const StudentPaymentReport = () => {
           { key: 'invoiceId', label: 'Invoice ID' },
           { key: 'date', label: 'Date' },
           { key: 'student', label: 'Student' },
-          { key: 'classTitle', label: 'Class' },
-          { key: 'total', label: 'Amount' },
+          { key: 'className', label: 'Class' },
+          { key: 'amount', label: 'Amount' },
           { key: 'status', label: 'Status' },
           { key: 'method', label: 'Method' },
         ]}

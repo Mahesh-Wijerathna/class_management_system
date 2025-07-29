@@ -39,8 +39,8 @@ const Invoice = () => {
       const payments = JSON.parse(localStorage.getItem('payments') || '[]');
       payments.push({
         date: data.date,
-        classTitle: data.classTitle,
-        total: data.total,
+        className: data.className,
+        amount: data.amount,
         method: 'online',
         status: 'Paid',
         invoiceId: data.invoiceId,
@@ -56,7 +56,7 @@ const Invoice = () => {
             
             const classToAdd = {
               id: data.classId || Date.now(), // Use classId from data or generate new one
-              className: data.classTitle,
+              className: data.className,
               subject: data.subject,
               teacher: data.teacher,
               stream: data.stream,
@@ -71,7 +71,7 @@ const Invoice = () => {
               attendance: [],
               paymentHistory: [{
                 date: new Date().toISOString(),
-                amount: data.total,
+                amount: data.amount,
                 method: 'online',
                 status: 'paid',
                 invoiceId: data.invoiceId
@@ -99,7 +99,7 @@ const Invoice = () => {
         // Add study pack to My Study Packs
         const myStudyPacks = JSON.parse(localStorage.getItem('myStudyPacks') || '[]');
         const studyPackToAdd = {
-          title: data.classTitle,
+          title: data.className,
           price: data.basePrice,
           teacher: data.teacher,
           image: data.image,
@@ -187,7 +187,7 @@ const Invoice = () => {
       startY: y,
       head: [['Item', 'Qty', 'Price']],
       body: [
-        [data.classTitle, '1', `LKR ${data.basePrice?.toLocaleString()}`],
+        [data.className, '1', `LKR ${data.basePrice?.toLocaleString()}`],
         [
           { content: 'Sub Total', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
           `LKR ${data.basePrice?.toLocaleString()}`
@@ -202,7 +202,7 @@ const Invoice = () => {
         ],
         [
           { content: 'Total', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
-          { content: `LKR ${data.total?.toLocaleString()}`, styles: { fontStyle: 'bold' } }
+          { content: `LKR ${data.amount?.toLocaleString()}`, styles: { fontStyle: 'bold' } }
         ]
       ],
       theme: 'grid',
@@ -286,7 +286,7 @@ const Invoice = () => {
               <div className="col-span-3 text-right">PRICE</div>
             </div>
             <div className="grid grid-cols-12 text-sm mb-2">
-              <div className="col-span-7">{data.classTitle}</div>
+              <div className="col-span-7">{data.className}</div>
               <div className="col-span-2 text-center">1</div>
               <div className="col-span-3 text-right">LKR {data.basePrice?.toLocaleString()}</div>
             </div>
@@ -296,7 +296,7 @@ const Invoice = () => {
             {data.speedPostFee > 0 && (
               <div className="flex justify-end text-xs text-red-600 mb-1">Speed Post: + LKR {data.speedPostFee.toLocaleString()}</div>
             )}
-            <div className="flex justify-end font-bold mt-2">Total: LKR {data.total?.toLocaleString()}</div>
+            <div className="flex justify-end font-bold mt-2">Total: LKR {data.amount?.toLocaleString()}</div>
           </div>
           <div className="mt-4 text-xs text-gray-500">
             <span className="font-bold">Note:</span> ඉහත සඳහන් මුදල සම්පූර්ණයෙන්ම අය කරනු ලබන්නේ ඔබගේ ඇනවුම සදහා පමණි. (මුදල් once paid ඇතුළු ඔබගේ පන්ති හා ඇනවුම් වෙනස් කල නොහැක.)

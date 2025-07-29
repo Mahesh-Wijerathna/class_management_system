@@ -235,19 +235,19 @@ const Checkout = () => {
           const basePrice = isStudyPack ? parseInt(cls.price.replace(/\D/g, '')) : parseInt(cls.fee);
           const promoDiscount = appliedPromo || 0;
           const totalDiscount = promoDiscount + theoryStudentDiscount;
-          const total = basePrice - totalDiscount + speedPostFee;
+          const amount = basePrice - totalDiscount + speedPostFee;
           const invoiceId = `INV${Date.now()}`;
           const fullName = `${values.firstName} ${values.lastName}`;
           const orderData = {
             ...values,
             fullName,
-            classTitle: isStudyPack ? cls.title : cls.className,
+            className: isStudyPack ? cls.title : cls.className,
             basePrice,
             discount: totalDiscount,
             promoDiscount,
             theoryStudentDiscount,
             speedPostFee,
-            total,
+            amount,
             invoiceId,
             date: new Date().toLocaleDateString(),
             // Add class data for My Classes
@@ -286,7 +286,7 @@ const Checkout = () => {
             const price = isStudyPack ? parseInt(cls.price.replace(/\D/g, '')) : parseInt(cls.fee);
             const promoDiscount = appliedPromo || 0;
             const totalDiscount = promoDiscount + theoryStudentDiscount;
-            const total = price - totalDiscount + speedPostFee;
+            const amount = price - totalDiscount + speedPostFee;
             
             // Get class info for display
             const deliveryInfo = !isStudyPack ? getDeliveryMethodInfo(cls.deliveryMethod) : null;
@@ -393,7 +393,7 @@ const Checkout = () => {
                           {theoryStudentDiscount > 0 && <div className="flex justify-between text-xs text-blue-600 mb-1"><span>{discountReason}</span><span>- LKR {theoryStudentDiscount.toLocaleString()}</span></div>}
                           {appliedPromo ? <div className="flex justify-between text-xs text-green-600 mb-1"><span>Promo Applied</span><span>- LKR {appliedPromo.toLocaleString()}</span></div> : null}
                           {isSpeedPost && <div className="flex justify-between text-xs text-red-600 mb-1"><span>Speed Post</span><span>+ LKR 300.00</span></div>}
-                          <div className="flex justify-between font-bold text-base border-t pt-2 mt-2"><span>Total</span><span>LKR {total.toLocaleString()}</span></div>
+                          <div className="flex justify-between font-bold text-base border-t pt-2 mt-2"><span>amount</span><span>LKR {amount.toLocaleString()}</span></div>
                         </div>
                       </div>
                     </div>
@@ -414,7 +414,7 @@ const Checkout = () => {
                     {theoryStudentDiscount > 0 && <div className="flex justify-between text-xs text-blue-600 mb-1"><span>{discountReason}</span><span>- LKR {theoryStudentDiscount.toLocaleString()}</span></div>}
                     {appliedPromo ? <div className="flex justify-between text-xs text-green-600 mb-1"><span>Promo Applied</span><span>- LKR {appliedPromo.toLocaleString()}</span></div> : null}
                     {isSpeedPost && <div className="flex justify-between text-xs text-red-600 mb-1"><span>Speed Post</span><span>+ LKR 300.00</span></div>}
-                    <div className="flex justify-between font-bold text-base border-t pt-2 mt-2"><span>Total</span><span>LKR {total.toLocaleString()}</span></div>
+                    <div className="flex justify-between font-bold text-base border-t pt-2 mt-2"><span>amount</span><span>LKR {amount.toLocaleString()}</span></div>
                   </div>
                 </div>
               </div>

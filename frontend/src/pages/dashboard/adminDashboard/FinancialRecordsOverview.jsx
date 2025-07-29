@@ -16,6 +16,7 @@ const typeOptions = [
   { value: 'income', label: 'Income' },
   { value: 'outcome', label: 'Outcome' },
 ];
+
 const roleOptions = [
   { value: '', label: 'Select Role' },
   { value: 'Student', label: 'Student' },
@@ -23,12 +24,15 @@ const roleOptions = [
   { value: 'Cashier', label: 'Cashier' },
   { value: 'Cleaner', label: 'Cleaner' },
 ];
+
 const statusOptions = [
+  { value: '', label: 'Select Status' },
   { value: 'Paid', label: 'Paid' },
   { value: 'Pending', label: 'Pending' },
   { value: 'Unpaid', label: 'Unpaid' },
   { value: 'Refunded', label: 'Refunded' },
 ];
+
 const categoryOptions = [
   { value: '', label: 'Select Category' },
   { value: 'Tuition Fee', label: 'Tuition Fee' },
@@ -50,11 +54,10 @@ const validationSchema = Yup.object().shape({
   status: Yup.string().required('Status is required'),
 });
 
-// Chart colors
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
 const FinancialRecordsOverview = () => {
-  // Load from localStorage or fallback to initialRecords
+
   const [records, setRecords] = useState(() => {
     const stored = localStorage.getItem('financialRecords');
     return stored ? JSON.parse(stored) : initialRecords;
@@ -67,24 +70,20 @@ const FinancialRecordsOverview = () => {
   const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: 'OK', cancelText: 'Cancel', type: 'info' });
   const [saveAlert, setSaveAlert] = useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
 
-  // Save to localStorage whenever records changes
   useEffect(() => {
     localStorage.setItem('financialRecords', JSON.stringify(records));
   }, [records]);
 
-  // Filter records by type, date, and role
   const filteredRecords = records.filter(rec =>
     (selectedType === 'all' || rec.type === selectedType) &&
     (!selectedDate || rec.date === selectedDate) &&
     (selectedRole === 'All' || rec.role === selectedRole)
   );
 
-  // Calculate totals (include Paid and Refunded records)
   const totalIncome = records.filter(r => r.type === 'income' && (r.status === 'Paid' || r.status === 'Refunded')).reduce((sum, r) => sum + r.amount, 0);
   const totalOutcome = records.filter(r => r.type === 'outcome' && (r.status === 'Paid' || r.status === 'Refunded')).reduce((sum, r) => sum + r.amount, 0);
   const profit = totalIncome - totalOutcome;
 
-  // Prepare chart data (include Paid and Refunded records)
   const prepareIncomeByRoleData = () => {
     const incomeByRole = {};
     records.filter(r => r.type === 'income' && (r.status === 'Paid' || r.status === 'Refunded')).forEach(record => {
