@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import adminSidebarSections from './AdminDashboardSidebar';
 import FinancialReport from './FinancialReport';
+import StudentPaymentReport from './StudentPaymentReport';
+import AttendanceReport from './AttendanceReport';
 
 const tabList = [
   { key: 'financial', label: 'Full Financial Report' },
@@ -35,8 +37,8 @@ const Reports = () => {
         </div>
         <div>
           {activeTab === 'financial' && <FinancialReport />}
-          {activeTab === 'studentPayments' && <Placeholder label="Student Payment Reports" />}
-          {activeTab === 'attendance' && <Placeholder label="Attendance Reports" />}
+          {activeTab === 'studentPayments' && <StudentPaymentReport />}
+          {activeTab === 'attendance' && <AttendanceReport/>}
           {activeTab === 'performance' && <Placeholder label="Performance Reports" />}
           {activeTab === 'cardFees' && <Placeholder label="Card Fees Reports" />}
         </div>

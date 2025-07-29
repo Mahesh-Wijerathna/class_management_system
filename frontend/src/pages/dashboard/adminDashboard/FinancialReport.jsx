@@ -17,14 +17,16 @@ const FinancialReport = () => {
     return stored ? JSON.parse(stored) : initialRecords;
   });
   const [reportType, setReportType] = useState('daily'); // 'daily' or 'monthly'
-  const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
-  const [selectedMonth, setSelectedMonth] = useState(dayjs().format('YYYY-MM'));
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('');
 
   // Filter records by selected day or month
   const filteredRecords = records.filter(rec => {
     if (reportType === 'daily') {
+      if (!selectedDate) return true; // Show all if no date selected
       return rec.date === selectedDate;
     } else {
+      if (!selectedMonth) return true; // Show all if no month selected
       return rec.date.startsWith(selectedMonth);
     }
   });

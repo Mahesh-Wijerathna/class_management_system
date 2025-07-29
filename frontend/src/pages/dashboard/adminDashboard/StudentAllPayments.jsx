@@ -31,15 +31,10 @@ const getEnrollments = () => {
 
 const StudentAllPayments = () => {
   const navigate = useNavigate();
-
-
-
   const classList = getClassList();
   const enrollments = getEnrollments();
 
-  // Calculate total students and total payment for each class (like AllClasses.jsx)
-  // Payment data must be fetched from localStorage (not dummy)
-  const getPayments = () => {
+  const payments = (() => {
     try {
       const stored = localStorage.getItem('payments');
       if (!stored) return [];
@@ -47,9 +42,7 @@ const StudentAllPayments = () => {
     } catch {
       return [];
     }
-  };
-
-  const payments = getPayments();
+  })();
 
   const classPaymentsWithTotal = classList.map(cls => {
     const totalStudents = enrollments.filter(e => e.classId === cls.id).length;
