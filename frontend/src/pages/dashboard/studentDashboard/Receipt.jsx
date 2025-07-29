@@ -46,7 +46,7 @@ const Receipt = () => {
             <div className="col-span-3 text-right">PRICE</div>
           </div>
           <div className="grid grid-cols-12 text-sm mb-2">
-            <div className="col-span-7">{data.classTitle}</div>
+            <div className="col-span-7">{data.className}</div>
             <div className="col-span-2 text-center">1</div>
             <div className="col-span-3 text-right">LKR {data.basePrice?.toLocaleString()}</div>
           </div>
@@ -56,7 +56,7 @@ const Receipt = () => {
           {data.speedPostFee > 0 && (
             <div className="flex justify-end text-xs text-red-600 mb-1">Speed Post: + LKR {data.speedPostFee.toLocaleString()}</div>
           )}
-          <div className="flex justify-end font-bold mt-2">Total: LKR {data.total?.toLocaleString()}</div>
+          <div className="flex justify-end font-bold mt-2">Total: LKR {data.amount?.toLocaleString()}</div>
         </div>
         <div className="mt-4 text-xs text-gray-500">
           <span className="font-bold">Note:</span> This is your official payment receipt. Please keep a printed or digital copy for your records.

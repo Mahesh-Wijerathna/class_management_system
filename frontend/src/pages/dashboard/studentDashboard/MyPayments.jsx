@@ -5,8 +5,8 @@ import BasicTable from '../../../components/BasicTable';
 
 const columns = [
   { key: 'date', label: 'Date' },
-  { key: 'classTitle', label: 'Class' },
-  { key: 'total', label: 'Amount' },
+  { key: 'className', label: 'Class' },
+  { key: 'amount', label: 'Amount' },
   { key: 'method', label: 'Method' },
   { key: 'status', label: 'Status' },
   { key: 'invoiceId', label: 'Invoice ID' },
@@ -30,7 +30,7 @@ const MyPayments = () => {
           <div className="bg-white rounded-2xl shadow-lg p-0 sm:p-4 my-6">
             <BasicTable columns={columns} data={payments.map(p => ({
               ...p,
-              total: `LKR ${p.total?.toLocaleString()}`,
+              amount: `LKR ${p.amount?.toLocaleString()}`,
               method: 'Online',
               status: p.status || 'Paid',
             }))} />
