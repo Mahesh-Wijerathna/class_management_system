@@ -4,7 +4,7 @@ import BasicCard from '../../../components/BasicCard';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import studentSidebarSections from './StudentDashboardSidebar';
 import SecureZoomMeeting from '../../../components/SecureZoomMeeting';
-import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch } from 'react-icons/fa';
+import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog } from 'react-icons/fa';
 
 const MyClasses = () => {
   const [myClasses, setMyClasses] = useState([]);
@@ -15,10 +15,14 @@ const MyClasses = () => {
   const [selectedClassForLatePayment, setSelectedClassForLatePayment] = useState(null);
   const [showSecureZoomModal, setShowSecureZoomModal] = useState(false);
   const [selectedClassForZoom, setSelectedClassForZoom] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedClassForDetails, setSelectedClassForDetails] = useState(null);
+  const [detailsActiveTab, setDetailsActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('name'); // 'name', 'date', 'payment', 'status'
+  const [testDate, setTestDate] = useState(null); // For testing payment tracking
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -44,14 +48,14 @@ const MyClasses = () => {
           // Handle new payment tracking structure
           paymentTracking: cls.paymentTracking || { enabled: false },
           paymentTrackingFreeDays: cls.paymentTrackingFreeDays || 7,
-          // Ensure payment tracking is properly structured
-          ...(cls.paymentTracking && typeof cls.paymentTracking === 'object' ? {} : {
-            paymentTracking: {
-              enabled: cls.paymentTracking || false,
-              freeDays: cls.paymentTrackingFreeDays || 7,
-              active: cls.paymentTracking || false
-            }
-          }),
+                  // Ensure payment tracking is properly structured
+        ...(cls.paymentTracking && typeof cls.paymentTracking === 'object' ? {} : {
+          paymentTracking: {
+            enabled: true, // Enable payment tracking for all classes
+            freeDays: cls.paymentTrackingFreeDays || 7,
+            active: true
+          }
+        }),
           // Add missing fields with defaults
           attendance: cls.attendance || [],
           paymentHistory: cls.paymentHistory || [],
@@ -74,6 +78,185 @@ const MyClasses = () => {
       setLoading(false);
     }
   }, []);
+
+  // Handle keyboard events for modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && showDetailsModal) {
+        setShowDetailsModal(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showDetailsModal]);
+
+  // Payment Tracking Utility Functions
+  const getPaymentTrackingStatus = (cls) => {
+    // For demonstration purposes, let's enable payment tracking for all classes
+    // In a real scenario, this would be based on the class configuration
+    const hasPaymentTracking = cls.paymentTracking || cls.paymentTracking === true || cls.paymentTracking?.enabled;
+    
+    if (!hasPaymentTracking) {
+      return { canAccess: true, status: 'no-tracking', message: 'No payment tracking enabled' };
+    }
+
+    const today = testDate || new Date(); // Use test date if available
+    
+    // Check if there's a payment history
+    if (!cls.paymentHistory || cls.paymentHistory.length === 0) {
+      return { 
+        canAccess: false, 
+        status: 'no-payment', 
+        message: 'No payment history - payment required' 
+      };
+    }
+
+    // Get the latest payment
+    const latestPayment = cls.paymentHistory[cls.paymentHistory.length - 1];
+    const paymentDate = new Date(latestPayment.date);
+    
+    // Calculate next payment date: 1st day of next month from payment date
+    const nextPaymentDate = new Date(paymentDate.getFullYear(), paymentDate.getMonth() + 1, 1);
+    
+    // Calculate grace period end date: next payment date + 7 days
+    const gracePeriodEndDate = new Date(nextPaymentDate);
+    gracePeriodEndDate.setDate(gracePeriodEndDate.getDate() + 7);
+    
+    // Check if today is within the grace period
+    if (today <= gracePeriodEndDate) {
+      const daysRemaining = Math.ceil((gracePeriodEndDate - today) / (1000 * 60 * 60 * 24));
+      const nextPaymentDay = nextPaymentDate.getDate();
+      const nextPaymentMonth = nextPaymentDate.toLocaleDateString('en-US', { month: 'long' });
+      
+      return { 
+        canAccess: true, 
+        status: 'paid', 
+        message: `Payment completed (${daysRemaining} days remaining in grace period)${testDate ? ` [TEST: ${testDate.toDateString()}]` : ''}`,
+        daysRemaining: daysRemaining,
+        nextPaymentDate: nextPaymentDate,
+        gracePeriodEndDate: gracePeriodEndDate
+      };
+    }
+
+    // If we're past the grace period, payment is required
+    return { 
+      canAccess: false, 
+      status: 'payment-required', 
+      message: 'Payment required - grace period expired' 
+    };
+  };
+
+  const getPaymentTrackingInfo = (cls) => {
+    const trackingStatus = getPaymentTrackingStatus(cls);
+    const freeDays = cls.paymentTracking?.freeDays || 7;
+    const today = testDate || new Date(); // Use test date if available
+    const currentDay = today.getDate();
+    
+    return {
+      ...trackingStatus,
+      freeDays,
+      currentDay,
+      isFreePeriod: currentDay <= freeDays,
+      daysRemaining: Math.max(0, freeDays - currentDay + 1),
+      nextPaymentDate: cls.nextPaymentDate ? new Date(cls.nextPaymentDate) : null,
+      lastPaymentDate: cls.paymentHistory && cls.paymentHistory.length > 0 
+        ? new Date(cls.paymentHistory[cls.paymentHistory.length - 1].date) 
+        : null,
+      testDate: testDate ? testDate.toDateString() : null
+    };
+  };
+
+  // Debug function to log payment tracking info
+  const debugPaymentTracking = (cls) => {
+    const paymentInfo = getPaymentTrackingInfo(cls);
+    console.log('Payment Tracking Debug for:', cls.className, {
+      paymentTracking: cls.paymentTracking,
+      paymentStatus: cls.paymentStatus,
+      currentDay: paymentInfo.currentDay,
+      freeDays: paymentInfo.freeDays,
+      canAccess: paymentInfo.canAccess,
+      status: paymentInfo.status,
+      message: paymentInfo.message
+    });
+    return paymentInfo;
+  };
+
+  // Test function to simulate different dates for payment tracking
+  const testPaymentTrackingWithDate = (cls, testDate) => {
+    const hasPaymentTracking = cls.paymentTracking || cls.paymentTracking === true || cls.paymentTracking?.enabled;
+    
+    if (!hasPaymentTracking) {
+      return { canAccess: true, status: 'no-tracking', message: 'No payment tracking enabled' };
+    }
+
+    const freeDays = cls.paymentTracking?.freeDays || 7;
+    const currentDay = testDate.getDate();
+    
+    // Check if within free days period (first 7 days of the month)
+    if (currentDay <= freeDays) {
+      return { 
+        canAccess: true, 
+        status: 'free-period', 
+        message: `Free access (${freeDays - currentDay + 1} days remaining) - TEST DATE: ${testDate.toDateString()}`,
+        daysRemaining: freeDays - currentDay + 1,
+        testDate: testDate.toDateString()
+      };
+    }
+
+    // Check payment status
+    if (cls.paymentStatus === 'paid') {
+      return { canAccess: true, status: 'paid', message: 'Payment completed' };
+    }
+
+    if (cls.paymentStatus === 'pending') {
+      return { canAccess: false, status: 'pending', message: 'Payment pending - access restricted' };
+    }
+
+    if (cls.paymentStatus === 'overdue') {
+      return { canAccess: false, status: 'overdue', message: 'Payment overdue - access restricted' };
+    }
+
+    return { canAccess: false, status: 'unpaid', message: 'Payment required - access restricted' };
+  };
+
+  // Test scenarios - add this to test different dates
+  const testScenarios = () => {
+    const testClass = myClasses[0]; // Use first class for testing
+    if (!testClass) return;
+
+    console.log('=== PAYMENT TRACKING TEST SCENARIOS ===');
+    console.log('Updated Logic: Payment made on July 29, 2025');
+    console.log('Timeline:');
+    console.log('- July 29: Payment made');
+    console.log('- August 1: Next payment date (1st day of next month)');
+    console.log('- August 8: Grace period ends (August 1 + 7 days)');
+    console.log('- August 9: Payment required (after grace period)');
+    console.log('');
+    
+    // Test the updated timeline
+    const testDates = [
+      new Date('2025-07-29'), // Payment day
+      new Date('2025-08-01'), // Next payment date (1st day of next month)
+      new Date('2025-08-07'), // Still in grace period
+      new Date('2025-08-08'), // Grace period ends
+      new Date('2025-08-09'), // Payment required (after grace period)
+      new Date('2025-08-15'), // Payment required
+      new Date('2025-08-31'), // Payment required
+    ];
+
+    testDates.forEach(date => {
+      // Temporarily set test date
+      const originalTestDate = testDate;
+      testDate = date;
+      
+      const result = getPaymentTrackingStatus(testClass);
+      console.log(`${date.toDateString()}: ${result.message}`);
+      
+      // Restore original test date
+      testDate = originalTestDate;
+    });
+  };
 
   // Get image based on subject
   const getClassImage = (subject) => {
@@ -236,7 +419,10 @@ const MyClasses = () => {
       if (selectedTab === 'theory') return cls.courseType === 'theory';
       if (selectedTab === 'revision') return cls.courseType === 'revision';
       if (selectedTab === 'both') return cls.courseType === 'both';
-      if (selectedTab === 'payment-tracking') return cls.paymentTracking && (cls.paymentTracking.enabled || cls.paymentTracking === true);
+              if (selectedTab === 'payment-tracking') {
+          const paymentInfo = getPaymentTrackingInfo(cls);
+          return paymentInfo.status !== 'no-tracking';
+        }
       return cls.schedule?.frequency === selectedTab;
     })
     .filter(cls => {
@@ -274,9 +460,11 @@ const MyClasses = () => {
     navigate(`/student/checkout/${cls.id}`, { state: { type: 'renewal' } });
   };
 
-  // Handle view details
+  // Handle view details - modern modal approach
   const handleViewDetails = (cls) => {
-    navigate(`/student/my-classes/${cls.id}`, { state: { class: cls } });
+    setSelectedClassForDetails(cls);
+    setDetailsActiveTab('overview');
+    setShowDetailsModal(true);
   };
 
   // Handle join class
@@ -486,7 +674,10 @@ const MyClasses = () => {
             </div>
             <div className="bg-purple-50 p-3 rounded-lg text-center">
               <div className="text-2xl font-bold text-purple-600">
-                {myClasses.filter(c => c.paymentTracking && (c.paymentTracking.enabled || c.paymentTracking === true)).length}
+                {myClasses.filter(c => {
+                  const paymentInfo = getPaymentTrackingInfo(c);
+                  return paymentInfo.status !== 'no-tracking';
+                }).length}
               </div>
               <div className="text-sm text-purple-700">Payment Tracking</div>
             </div>
@@ -518,6 +709,43 @@ const MyClasses = () => {
               <option value="payment">Sort by Payment Due</option>
               <option value="status">Sort by Priority</option>
             </select>
+            {/* Test Button for Payment Tracking */}
+            <button
+              onClick={testScenarios}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
+              title="Test Payment Tracking Scenarios"
+            >
+              <FaShieldAlt /> Test 7-Day
+            </button>
+            {/* Test Date Selector */}
+            <select
+              value={testDate ? testDate.toISOString().split('T')[0] : ''}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setTestDate(new Date(e.target.value));
+                } else {
+                  setTestDate(null);
+                }
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">Current Date</option>
+              <option value="2025-07-29">Day 1 (Free Access)</option>
+              <option value="2025-08-06">Day 7 (Free Access)</option>
+              <option value="2025-08-07">Day 8 (Payment Required)</option>
+              <option value="2025-08-15">Day 15 (Payment Required)</option>
+              <option value="2025-08-29">Day 31 (Payment Required)</option>
+              <option value="2025-09-19">Day 50 (Payment Required)</option>
+            </select>
+            {testDate && (
+              <button
+                onClick={() => setTestDate(null)}
+                className="px-2 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                title="Reset to Current Date"
+              >
+                Reset
+              </button>
+            )}
           </div>
         </div>
         
@@ -549,10 +777,11 @@ const MyClasses = () => {
               const courseTypeInfo = getCourseTypeInfo(cls.courseType);
               const classStatus = getClassStatusInfo(cls.status);
               const priority = getClassPriority(cls);
+              const paymentTrackingInfo = getPaymentTrackingInfo(cls);
               const nextPaymentDate = new Date(cls.nextPaymentDate);
               const today = new Date();
               const isPaymentDue = nextPaymentDate <= today && cls.paymentStatus !== 'paid';
-              const canAttendToday = (cls.paymentStatus === 'paid' || cls.paymentStatus === 'late_payment') && cls.status === 'active';
+              const canAttendToday = paymentTrackingInfo.canAccess && cls.status === 'active';
               const isInactive = cls.status === 'inactive';
               
               const scheduleText = cls.schedule ? 
@@ -607,30 +836,58 @@ const MyClasses = () => {
                         {cls.hasExams && <span className="text-blue-600 text-xs bg-blue-50 px-2 py-1 rounded"><FaGraduationCap className="inline mr-1" />Exams</span>}
                         {cls.hasTutes && <span className="text-green-600 text-xs bg-green-50 px-2 py-1 rounded"><FaBook className="inline mr-1" />Tutes</span>}
                         {cls.forgetCardRequested && <span className="text-orange-600 text-xs bg-orange-50 px-2 py-1 rounded"><FaQrcode className="inline mr-1" />Forget Card</span>}
-                        {(cls.paymentTracking && (cls.paymentTracking.enabled || cls.paymentTracking === true)) && (
-                          <span className="text-green-600 text-xs bg-green-50 px-2 py-1 rounded">
-                            <FaMoneyBill className="inline mr-1" />
-                            Payment Tracking
-                            {cls.paymentTracking.enabled && cls.paymentTracking.freeDays && (
-                              <span> ({cls.paymentTracking.freeDays}d)</span>
-                            )}
-                            {cls.paymentTracking === true && (
-                              <span> (7d)</span>
-                            )}
-                          </span>
-                        )}
+                                              {paymentTrackingInfo.status !== 'no-tracking' && (
+                        <span className={`text-xs px-2 py-1 rounded flex items-center gap-1 ${
+                          paymentTrackingInfo.canAccess 
+                            ? 'text-green-600 bg-green-50' 
+                            : 'text-red-600 bg-red-50'
+                        }`}>
+                          <FaMoneyBill className="inline" />
+                          {paymentTrackingInfo.status === 'free-period' && (
+                            <span>Free Access ({paymentTrackingInfo.daysRemaining}d left)</span>
+                          )}
+                          {paymentTrackingInfo.status === 'paid' && (
+                            <span>Paid</span>
+                          )}
+                          {paymentTrackingInfo.status === 'payment-required' && (
+                            <span>Payment Required</span>
+                          )}
+                          {paymentTrackingInfo.status === 'no-payment' && (
+                            <span>No Payment</span>
+                          )}
+                          {paymentTrackingInfo.status === 'unknown' && (
+                            <span>Status Unclear</span>
+                          )}
+                        </span>
+                      )}
+                      {paymentTrackingInfo.status === 'no-tracking' && (
+                        <span className="text-xs px-2 py-1 rounded flex items-center gap-1 text-gray-600 bg-gray-50">
+                          <FaMoneyBill className="inline" />
+                          <span>No Payment Tracking</span>
+                        </span>
+                      )}
                         {cls.theoryRevisionDiscount && cls.courseType === 'both' && <span className="text-purple-600 text-xs bg-purple-50 px-2 py-1 rounded"><FaMoneyBill className="inline mr-1" />Discount</span>}
                       </div>
-                      {isPaymentDue && (
-                        <div className="text-red-600 font-semibold bg-red-50 p-2 rounded border border-red-200">⚠️ Payment Due!</div>
+                      {!paymentTrackingInfo.canAccess && paymentTrackingInfo.status !== 'no-tracking' && (
+                        <div className="text-red-600 font-semibold bg-red-50 p-2 rounded border border-red-200">
+                          ⚠️ {paymentTrackingInfo.message}
+                        </div>
+                      )}
+                      {paymentTrackingInfo.status === 'free-period' && (
+                        <div className="text-green-600 font-semibold bg-green-50 p-2 rounded border border-green-200">
+                          🎉 {paymentTrackingInfo.message}
+                          <div className="text-xs text-green-600 mt-1">
+                            (Day {paymentTrackingInfo.currentDay} of month, {paymentTrackingInfo.freeDays} days free)
+                          </div>
+                        </div>
                       )}
                       {isInactive && (
                         <div className="text-red-600 font-semibold bg-red-50 p-2 rounded border border-red-200">⚠️ This class has been deactivated by the admin.</div>
                       )}
                     </div>
                   }
-                  buttonText={isPaymentDue ? "Make Payment" : "View Details"}
-                  onButtonClick={() => isPaymentDue ? handleMakePayment(cls) : handleViewDetails(cls)}
+                  buttonText="View Details"
+                  onButtonClick={() => handleViewDetails(cls)}
                 >
                   {/* Action Buttons */}
                   <div className="flex flex-wrap gap-1 mt-2">
@@ -800,6 +1057,472 @@ const MyClasses = () => {
             }}
             isOpen={showSecureZoomModal}
           />
+        )}
+
+        {/* Modern Class Details Modal */}
+        {showDetailsModal && selectedClassForDetails && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <img 
+                      src={getClassImage(selectedClassForDetails.subject)} 
+                      alt={selectedClassForDetails.subject}
+                      className="w-16 h-16 rounded-lg object-cover"
+                    />
+                    <div>
+                      <h2 className="text-2xl font-bold">{selectedClassForDetails.className}</h2>
+                      <p className="text-blue-100">{selectedClassForDetails.subject} • {selectedClassForDetails.teacher}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowDetailsModal(false)}
+                    className="text-white hover:text-gray-200 transition-colors"
+                  >
+                    <FaTimesCircle size={24} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Tab Navigation */}
+              <div className="border-b border-gray-200">
+                <div className="flex space-x-8 px-6">
+                  {[
+                    { id: 'overview', label: 'Overview', icon: <FaInfoCircle /> },
+                    { id: 'schedule', label: 'Schedule', icon: <FaCalendar /> },
+                    { id: 'payments', label: 'Payments', icon: <FaMoneyBill /> },
+                    { id: 'payment-tracking', label: 'Payment Tracking', icon: <FaShieldAlt /> },
+                    { id: 'attendance', label: 'Attendance', icon: <FaCheckCircle /> },
+                    { id: 'actions', label: 'Actions', icon: <FaCog /> }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setDetailsActiveTab(tab.id)}
+                      className={`flex items-center gap-2 py-4 px-2 border-b-2 transition-colors ${
+                        detailsActiveTab === tab.id
+                          ? 'border-blue-600 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      {tab.icon} {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-6 overflow-y-auto max-h-[60vh]">
+                {detailsActiveTab === 'overview' && (
+                  <div className="space-y-6">
+                                         {/* Payment Status Alert */}
+                     {(() => {
+                       const paymentInfo = getPaymentTrackingInfo(selectedClassForDetails);
+                       return (
+                         <>
+                           {!paymentInfo.canAccess && (
+                             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                               <div className="flex items-center gap-3">
+                                 <FaExclamationTriangle className="text-red-600 text-xl" />
+                                 <div>
+                                   <div className="font-semibold text-red-700 text-lg">Access Restricted</div>
+                                   <div className="text-red-600">{paymentInfo.message}</div>
+                                   <div className="text-sm text-red-500 mt-1">
+                                     Please make payment to restore access to this class.
+                                   </div>
+                                 </div>
+                               </div>
+                             </div>
+                           )}
+                           
+                           {paymentInfo.status === 'free-period' && (
+                             <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                               <div className="flex items-center gap-3">
+                                 <FaCheckCircle className="text-green-600 text-xl" />
+                                 <div>
+                                   <div className="font-semibold text-green-700 text-lg">Free Access Granted</div>
+                                   <div className="text-green-600">{paymentInfo.message}</div>
+                                   <div className="text-sm text-green-500 mt-1">
+                                     You can access this class during the free period.
+                                   </div>
+                                 </div>
+                               </div>
+                             </div>
+                           )}
+                         </>
+                       );
+                     })()}
+
+                     {/* Quick Stats */}
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                       <div className="bg-blue-50 p-4 rounded-lg">
+                         <div className="flex items-center gap-2 text-blue-600 mb-2">
+                           <FaCalendar /> <span className="font-semibold">Next Class</span>
+                         </div>
+                         <p className="text-lg font-bold">
+                           {formatDay(selectedClassForDetails.schedule?.day)} {formatTime(selectedClassForDetails.schedule?.startTime)}
+                         </p>
+                       </div>
+                       <div className="bg-green-50 p-4 rounded-lg">
+                         <div className="flex items-center gap-2 text-green-600 mb-2">
+                           <FaMoneyBill /> <span className="font-semibold">Payment Status</span>
+                         </div>
+                         <p className="text-lg font-bold">{getPaymentTrackingInfo(selectedClassForDetails).message}</p>
+                       </div>
+                       <div className="bg-purple-50 p-4 rounded-lg">
+                         <div className="flex items-center gap-2 text-purple-600 mb-2">
+                           <FaUsers /> <span className="font-semibold">Class Status</span>
+                         </div>
+                         <p className="text-lg font-bold">{getClassStatusInfo(selectedClassForDetails.status).text}</p>
+                       </div>
+                     </div>
+
+                    {/* Class Information */}
+                    <div className="bg-gray-50 p-6 rounded-lg">
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <FaBook /> Class Information
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><strong>Stream:</strong> {selectedClassForDetails.stream}</div>
+                        <div><strong>Course Type:</strong> {getCourseTypeInfo(selectedClassForDetails.courseType).text}</div>
+                        <div><strong>Delivery Method:</strong> {getDeliveryMethodInfo(selectedClassForDetails.deliveryMethod).text}</div>
+                        <div><strong>Students:</strong> {selectedClassForDetails.currentStudents || 0}/{selectedClassForDetails.maxStudents}</div>
+                        <div><strong>Fee:</strong> LKR {selectedClassForDetails.fee?.toLocaleString()}</div>
+                        <div><strong>Purchase Date:</strong> {new Date(selectedClassForDetails.purchaseDate).toLocaleDateString()}</div>
+                      </div>
+                    </div>
+
+                                         {/* Quick Actions */}
+                     <div className="bg-blue-50 p-6 rounded-lg">
+                       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                         <FaPlay /> Quick Actions
+                       </h3>
+                       <div className="flex flex-wrap gap-2">
+                         {(() => {
+                           const paymentInfo = getPaymentTrackingInfo(selectedClassForDetails);
+                           return (
+                             <>
+                               {/* Payment Status Alert */}
+                               {!paymentInfo.canAccess && (
+                                 <div className="w-full mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                                   <div className="flex items-center gap-2 text-red-700">
+                                     <FaExclamationTriangle />
+                                     <span className="font-semibold">Access Restricted</span>
+                                   </div>
+                                   <p className="text-sm text-red-600 mt-1">{paymentInfo.message}</p>
+                                 </div>
+                               )}
+                               
+                               {/* Join Class Button - Only if access is granted */}
+                               {(selectedClassForDetails.deliveryMethod === 'online' || selectedClassForDetails.deliveryMethod === 'hybrid') && selectedClassForDetails.zoomLink && paymentInfo.canAccess && (
+                                 <button
+                                   onClick={() => {
+                                     setShowDetailsModal(false);
+                                     setSelectedClassForZoom(selectedClassForDetails);
+                                     setShowSecureZoomModal(true);
+                                   }}
+                                   className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                                 >
+                                   <FaVideo /> Join Class
+                                 </button>
+                               )}
+                               
+                               {/* Make Payment Button - Only if access is restricted */}
+                               {!paymentInfo.canAccess && (
+                                 <button
+                                   onClick={() => handleMakePayment(selectedClassForDetails)}
+                                   className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2"
+                                 >
+                                   <FaMoneyBill /> Make Payment
+                                 </button>
+                               )}
+                               
+                               {/* Always Available Actions */}
+                               <button
+                                 onClick={() => setDetailsActiveTab('schedule')}
+                                 className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 flex items-center gap-2"
+                               >
+                                 <FaCalendar /> View Schedule
+                               </button>
+                               <button
+                                 onClick={() => setDetailsActiveTab('payments')}
+                                 className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+                               >
+                                 <FaMoneyBill /> Payment Details
+                               </button>
+                               <button
+                                 onClick={() => setDetailsActiveTab('payment-tracking')}
+                                 className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                               >
+                                 <FaShieldAlt /> Payment Tracking
+                               </button>
+                               
+                               {/* Additional Actions */}
+                               {selectedClassForDetails.hasTutes && (
+                                 <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
+                                   <FaBook /> Access Tutes
+                                 </button>
+                               )}
+                               {selectedClassForDetails.hasExams && (
+                                 <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2">
+                                   <FaGraduationCap /> Access Exams
+                                 </button>
+                               )}
+                             </>
+                           );
+                         })()}
+                       </div>
+                     </div>
+                  </div>
+                )}
+
+                {detailsActiveTab === 'schedule' && (
+                  <div className="space-y-6">
+                    <div className="bg-blue-50 p-6 rounded-lg">
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <FaCalendar /> Class Schedule
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><strong>Day:</strong> {formatDay(selectedClassForDetails.schedule?.day)}</div>
+                        <div><strong>Time:</strong> {formatTime(selectedClassForDetails.schedule?.startTime)} - {formatTime(selectedClassForDetails.schedule?.endTime)}</div>
+                        <div><strong>Frequency:</strong> {selectedClassForDetails.schedule?.frequency}</div>
+                        <div><strong>Duration:</strong> {selectedClassForDetails.startDate && selectedClassForDetails.endDate ? 
+                          `${new Date(selectedClassForDetails.startDate).toLocaleDateString()} to ${new Date(selectedClassForDetails.endDate).toLocaleDateString()}` : 'Not specified'}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {detailsActiveTab === 'payments' && (
+                  <div className="space-y-6">
+                    <div className="bg-green-50 p-6 rounded-lg">
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <FaMoneyBill /> Payment Information
+                      </h3>
+                      {(() => {
+                        const paymentInfo = getPaymentTrackingInfo(selectedClassForDetails);
+                        return (
+                          <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div><strong>Status:</strong> {paymentInfo.message}</div>
+                              <div><strong>Method:</strong> {selectedClassForDetails.paymentMethod}</div>
+                              <div><strong>Next Payment:</strong> {paymentInfo.nextPaymentDate?.toLocaleDateString() || 'Not set'}</div>
+                              <div><strong>Amount:</strong> LKR {selectedClassForDetails.fee?.toLocaleString()}</div>
+                              {paymentInfo.status !== 'no-tracking' && (
+                                <>
+                                  <div><strong>Free Days:</strong> {paymentInfo.freeDays} days</div>
+                                  <div><strong>Current Day:</strong> {paymentInfo.currentDay} of month</div>
+                                </>
+                              )}
+                            </div>
+                            
+                            {paymentInfo.status !== 'no-tracking' && (
+                              <div className={`mt-4 p-4 rounded-lg ${
+                                paymentInfo.canAccess ? 'bg-green-100' : 'bg-red-100'
+                              }`}>
+                                <div className={`flex items-center gap-2 ${
+                                  paymentInfo.canAccess ? 'text-green-700' : 'text-red-700'
+                                }`}>
+                                  {paymentInfo.canAccess ? <FaCheckCircle /> : <FaExclamationTriangle />}
+                                  <div>
+                                    <div className="font-semibold">
+                                      {paymentInfo.canAccess ? 'Access Granted' : 'Access Restricted'}
+                                    </div>
+                                    <div className="text-sm">
+                                      {paymentInfo.status === 'free-period' && (
+                                        <span>You have {paymentInfo.daysRemaining} days of free access remaining this month.</span>
+                                      )}
+                                      {paymentInfo.status === 'paid' && (
+                                        <span>Payment completed. Full access granted.</span>
+                                      )}
+                                      {paymentInfo.status === 'pending' && (
+                                        <span>Payment is pending. Please complete payment to access class.</span>
+                                      )}
+                                      {paymentInfo.status === 'overdue' && (
+                                        <span>Payment is overdue. Please make payment immediately to restore access.</span>
+                                      )}
+                                      {paymentInfo.status === 'unpaid' && (
+                                        <span>Payment required. Please make payment to access class.</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {detailsActiveTab === 'payment-tracking' && (
+                  <div className="space-y-6">
+                    <div className="bg-blue-50 p-6 rounded-lg">
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <FaShieldAlt /> Payment Tracking System
+                      </h3>
+                      {(() => {
+                        const paymentInfo = getPaymentTrackingInfo(selectedClassForDetails);
+                        return (
+                          <>
+                            {paymentInfo.status === 'no-tracking' ? (
+                              <div className="text-center py-8">
+                                <FaShieldAlt className="text-4xl mx-auto mb-4 text-gray-400" />
+                                <p className="text-gray-600">No payment tracking enabled for this class.</p>
+                                <p className="text-sm text-gray-500 mt-2">You have unlimited access to this class.</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-4">
+                                {/* Current Status */}
+                                <div className={`p-4 rounded-lg ${
+                                  paymentInfo.canAccess ? 'bg-green-100 border border-green-200' : 'bg-red-100 border border-red-200'
+                                }`}>
+                                  <div className={`flex items-center gap-3 ${
+                                    paymentInfo.canAccess ? 'text-green-700' : 'text-red-700'
+                                  }`}>
+                                    {paymentInfo.canAccess ? <FaCheckCircle size={24} /> : <FaExclamationTriangle size={24} />}
+                                    <div>
+                                      <div className="font-bold text-lg">
+                                        {paymentInfo.canAccess ? 'Access Granted' : 'Access Restricted'}
+                                      </div>
+                                      <div className="text-sm">{paymentInfo.message}</div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Free Days Progress */}
+                                {paymentInfo.status === 'free-period' && (
+                                  <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                                    <div className="flex items-center gap-2 text-yellow-700 mb-2">
+                                      <FaCalendar /> <span className="font-semibold">Free Days Progress</span>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <div className="flex justify-between text-sm">
+                                        <span>Current Day: {paymentInfo.currentDay}</span>
+                                        <span>Free Days: {paymentInfo.freeDays}</span>
+                                      </div>
+                                      <div className="w-full bg-gray-200 rounded-full h-2">
+                                        <div 
+                                          className="bg-yellow-500 h-2 rounded-full transition-all duration-300"
+                                          style={{ width: `${Math.min(100, (paymentInfo.currentDay / paymentInfo.freeDays) * 100)}%` }}
+                                        ></div>
+                                      </div>
+                                      <div className="text-xs text-yellow-600">
+                                        {paymentInfo.daysRemaining} days of free access remaining
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Payment Tracking Rules */}
+                                <div className="bg-gray-50 p-4 rounded-lg">
+                                  <div className="font-semibold mb-2">Payment Tracking Rules:</div>
+                                  <ul className="text-sm text-gray-600 space-y-1">
+                                    <li>• First {paymentInfo.freeDays} days of each month: Free access</li>
+                                    <li>• After {paymentInfo.freeDays} days: Payment required for access</li>
+                                    <li>• Payment status determines ongoing access</li>
+                                    <li>• Access is automatically restored upon payment</li>
+                                  </ul>
+                                </div>
+
+                                {/* Next Actions */}
+                                <div className="bg-blue-50 p-4 rounded-lg">
+                                  <div className="font-semibold mb-2 text-blue-700">Next Actions:</div>
+                                  {paymentInfo.canAccess ? (
+                                    <div className="text-sm text-blue-600">
+                                      ✅ You can currently access this class. Continue learning!
+                                    </div>
+                                  ) : (
+                                    <div className="text-sm text-blue-600">
+                                      💳 Please make payment to restore access to this class.
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {detailsActiveTab === 'attendance' && (
+                  <div className="space-y-6">
+                    <div className="bg-purple-50 p-6 rounded-lg">
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <FaCheckCircle /> Attendance Record
+                      </h3>
+                      {selectedClassForDetails.attendance && selectedClassForDetails.attendance.length > 0 ? (
+                        <div className="space-y-2">
+                          {selectedClassForDetails.attendance.map((record, index) => (
+                            <div key={index} className="flex justify-between items-center p-3 bg-white rounded-lg">
+                              <span>{new Date(record.date).toLocaleDateString()}</span>
+                              <span className={`px-2 py-1 rounded text-sm ${
+                                record.status === 'present' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                              }`}>
+                                {record.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500">No attendance records available.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {detailsActiveTab === 'actions' && (
+                  <div className="space-y-6">
+                    <div className="bg-orange-50 p-6 rounded-lg">
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <FaCog /> Available Actions
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {selectedClassForDetails.hasExams && (
+                          <button className="bg-purple-600 text-white p-3 rounded-lg hover:bg-purple-700 flex items-center gap-2">
+                            <FaGraduationCap /> Access Exams
+                          </button>
+                        )}
+                        {selectedClassForDetails.hasTutes && (
+                          <button className="bg-green-600 text-white p-3 rounded-lg hover:bg-green-700 flex items-center gap-2">
+                            <FaBook /> Access Tutes
+                          </button>
+                        )}
+                        {!selectedClassForDetails.forgetCardRequested && (
+                          <button 
+                            onClick={() => {
+                              setShowDetailsModal(false);
+                              setSelectedClassForForgetCard(selectedClassForDetails);
+                              setShowForgetCardModal(true);
+                            }}
+                            className="bg-orange-600 text-white p-3 rounded-lg hover:bg-orange-700 flex items-center gap-2"
+                          >
+                            <FaQrcode /> Request Forget Card
+                          </button>
+                        )}
+                        {selectedClassForDetails.paymentStatus === 'overdue' && !selectedClassForDetails.latePaymentRequested && (
+                          <button 
+                            onClick={() => {
+                              setShowDetailsModal(false);
+                              setSelectedClassForLatePayment(selectedClassForDetails);
+                              setShowLatePaymentModal(true);
+                            }}
+                            className="bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 flex items-center gap-2"
+                          >
+                            <FaExclamationCircle /> Request Late Payment
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </DashboardLayout>

@@ -9,7 +9,7 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import * as Yup from 'yup';
-import { FaCreditCard, FaUniversity, FaUser, FaPhone, FaEnvelope, FaMapMarkerAlt, FaBook, FaCalendar, FaClock, FaVideo, FaUsers, FaGraduationCap, FaCheckCircle } from 'react-icons/fa';
+import { FaCreditCard, FaUser, FaPhone, FaEnvelope, FaMapMarkerAlt, FaBook, FaCalendar, FaClock, FaVideo, FaUsers, FaGraduationCap, FaCheckCircle } from 'react-icons/fa';
 import CustomButton from '../../../components/CustomButton';
 
 const dummyStudent = {
@@ -64,7 +64,6 @@ const getValidationSchema = (isStudyPack) =>
 
 const paymentMethods = [
   { key: 'online', label: 'Online', sinhala: 'අන්තර්ජාලයෙන්', icon: <FaCreditCard className="text-2xl text-green-600 mb-2" /> },
-  { key: 'bank', label: 'Bank transfer', sinhala: 'බැංකු මාර්ගයෙන්', icon: <FaUniversity className="text-2xl text-blue-600 mb-2" /> },
 ];
 
 // Get image based on subject
@@ -274,17 +273,12 @@ const Checkout = () => {
           console.log('Checkout - Class zoom link:', cls.zoomLink);
           console.log('Checkout - Order data zoom link:', orderData.zoomLink);
 
-          if (paymentMethod === 'bank') {
-            // For bank transfer, don't add to My Classes yet - wait for successful transfer
-            navigate('/student/bank-transfer', { state: orderData });
-          } else {
-            setLoading(true);
-            setTimeout(() => {
-              setLoading(false);
-              // For online payment, don't add to My Classes yet - wait for successful payment
-              navigate('/student/invoice', { state: orderData });
-            }, 2000);
-          }
+          setLoading(true);
+          setTimeout(() => {
+            setLoading(false);
+            // For online payment, don't add to My Classes yet - wait for successful payment
+            navigate('/student/invoice', { state: orderData });
+          }, 2000);
         }}>
           {({ errors, touched, handleChange, values }) => {
             const isSpeedPost = values.tuteType === 'Speed Post';
@@ -387,7 +381,7 @@ const Checkout = () => {
                       )}
                       <div className="md:col-span-2 grid grid-cols-2 gap-2 mt-2">
                         <CustomButton type="submit" disabled={loading}>
-                          {paymentMethod === 'bank' ? 'Proceed to Bank Transfer' : loading ? 'Processing...' : 'Pay Online'}
+                          {loading ? 'Processing...' : 'Pay Online'}
                         </CustomButton>
                         <CustomButton type="reset" >Reset</CustomButton>
                       </div>
