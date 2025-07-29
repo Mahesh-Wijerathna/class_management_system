@@ -31,8 +31,8 @@ const MyPayments = () => {
             <BasicTable columns={columns} data={payments.map(p => ({
               ...p,
               total: `LKR ${p.total?.toLocaleString()}`,
-              method: p.method === 'online' ? 'Online' : 'Bank Transfer',
-              status: p.status || (p.method === 'online' ? 'Paid' : 'Pending'),
+              method: 'Online',
+              status: p.status || 'Paid',
             }))} />
           </div>
         )}

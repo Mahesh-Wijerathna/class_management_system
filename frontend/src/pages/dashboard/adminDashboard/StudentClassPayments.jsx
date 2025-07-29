@@ -37,7 +37,7 @@ const paymentData = {
     {
       id: 'inv002',
       student: 'Shashini Devindi',
-      method: 'Bank Transfer',
+      method: 'Online',
       status: 'Pending',
       amount: 4000,
       date: '2025-07-01',
