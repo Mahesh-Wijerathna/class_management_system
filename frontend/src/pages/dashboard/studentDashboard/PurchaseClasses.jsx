@@ -34,7 +34,18 @@ const PurchaseClasses = () => {
           teacher: cls.teacher || 'Unknown Teacher',
           stream: cls.stream || 'Unknown Stream',
           deliveryMethod: cls.deliveryMethod || 'online',
-          courseType: cls.courseType || 'theory'
+          courseType: cls.courseType || 'theory',
+          // Handle new payment tracking structure
+          paymentTracking: cls.paymentTracking || { enabled: false },
+          paymentTrackingFreeDays: cls.paymentTrackingFreeDays || 7,
+          // Ensure payment tracking is properly structured
+          ...(cls.paymentTracking && typeof cls.paymentTracking === 'object' ? {} : {
+            paymentTracking: {
+              enabled: cls.paymentTracking || false,
+              freeDays: cls.paymentTrackingFreeDays || 7,
+              active: cls.paymentTracking || false
+            }
+          })
         }));
         
         // Filter only active classes for purchase
@@ -215,16 +226,7 @@ const PurchaseClasses = () => {
     }
   };
 
-  // Get hall display name
-  const getHallDisplayName = (hall) => {
-    if (!hall) return '';
-    const hallMap = {
-      'hall1': 'Hall A',
-      'hall2': 'Hall B', 
-      'hall3': 'Hall C'
-    };
-    return hallMap[hall] || hall;
-  };
+  
 
   const tabOptions = [
     { key: 'all', label: 'All Classes' },
@@ -368,22 +370,24 @@ const PurchaseClasses = () => {
                         <FaUsers className="text-gray-400" />
                         <strong>Students:</strong> {cls.currentStudents || 0}/{cls.maxStudents || 50}
                       </div>
-                      {cls.hall && (
-                        <div className="flex items-center gap-1">
-                          <FaMapMarkerAlt className="text-gray-400" />
-                          <strong>Hall:</strong> {getHallDisplayName(cls.hall)}
-                        </div>
-                      )}
                       {cls.zoomLink && (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid') && (
                         <div className="flex items-center gap-1 text-blue-600">
                           <FaVideo />
                           <span className="text-xs">Zoom Available</span>
                         </div>
                       )}
-                      {cls.paymentTracking && (
+                      {(cls.paymentTracking && (cls.paymentTracking.enabled || cls.paymentTracking === true)) && (
                         <div className="flex items-center gap-1 text-green-600">
                           <FaMoneyBill />
-                          <span className="text-xs">Payment Tracking Enabled</span>
+                          <span className="text-xs">
+                            Payment Tracking 
+                            {cls.paymentTracking.enabled && cls.paymentTracking.freeDays && (
+                              <span> ({cls.paymentTracking.freeDays} days free)</span>
+                            )}
+                            {cls.paymentTracking === true && (
+                              <span> (7 days free)</span>
+                            )}
+                          </span>
                         </div>
                       )}
                       {/* Purchase Status */}
