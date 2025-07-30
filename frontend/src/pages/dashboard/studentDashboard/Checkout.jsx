@@ -55,11 +55,11 @@ const getValidationSchema = (isStudyPack) =>
     ...(isStudyPack ? {} : {
       tuteType: Yup.string().required('Required'),
       address: Yup.string().when('tuteType', {
-        is: 'Speed Post',
+          is: 'Speed Post',
         then: (schema) => schema.required('Address is required for Speed Post'),
         otherwise: (schema) => schema.notRequired(),
       }),
-    }),
+        }),
   });
 
 const paymentMethods = [
@@ -259,25 +259,27 @@ const Checkout = () => {
             deliveryMethod: cls.deliveryMethod,
             courseType: cls.courseType,
             schedule: cls.schedule,
-            nextPaymentDate: calculateNextPaymentDate(cls.schedule),
+                nextPaymentDate: calculateNextPaymentDate(cls.schedule),
                     image: cls.image,
         description: cls.description,
         // Add zoom link and other important fields
         zoomLink: cls.zoomLink || '',
-        // Add payment tracking data
-        paymentTracking: cls.paymentTracking,
+                    // Add payment tracking data
+            paymentTracking: cls.paymentTracking,
             paymentTrackingFreeDays: cls.paymentTrackingFreeDays,
+            // Add student count data
+            maxStudents: cls.maxStudents || 50,
           };
 
           // Debug: Log the order data to verify zoom link is included
           console.log('Checkout - Class zoom link:', cls.zoomLink);
           console.log('Checkout - Order data zoom link:', orderData.zoomLink);
 
-          setLoading(true);
-          setTimeout(() => {
-            setLoading(false);
+            setLoading(true);
+            setTimeout(() => {
+              setLoading(false);
             // For online payment, don't add to My Classes yet - wait for successful payment
-            navigate('/student/invoice', { state: orderData });
+              navigate('/student/invoice', { state: orderData });
           }, 2000);
         }}>
           {({ errors, touched, handleChange, values }) => {

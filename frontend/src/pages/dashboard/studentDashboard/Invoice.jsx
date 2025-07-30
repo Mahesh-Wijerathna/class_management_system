@@ -48,53 +48,115 @@ const Invoice = () => {
       });
       localStorage.setItem('payments', JSON.stringify(payments));
       
-                // Add class to My Classes after successful payment
-          if (!data.isStudyPack) {
-            const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
-            // Debug: Log the data received
-            console.log('Invoice - Received data zoom link:', data.zoomLink);
-            
-            const classToAdd = {
-              id: data.classId || Date.now(), // Use classId from data or generate new one
-              className: data.className,
-              subject: data.subject,
-              teacher: data.teacher,
-              stream: data.stream,
-              deliveryMethod: data.deliveryMethod,
-              courseType: data.courseType,
-              schedule: data.schedule,
-              fee: data.basePrice,
-              purchaseDate: new Date().toISOString(),
-              paymentStatus: 'paid',
-              paymentMethod: 'online',
-              nextPaymentDate: data.nextPaymentDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-              attendance: [],
-              paymentHistory: [{
-                date: new Date().toISOString(),
-                amount: data.amount,
-                method: 'online',
-                status: 'paid',
-                invoiceId: data.invoiceId
-              }],
-              // Add payment tracking data
-                      paymentTracking: data.paymentTracking || { enabled: false },
-        paymentTrackingFreeDays: data.paymentTrackingFreeDays || 7,
-        // Add zoom link and other important fields
-        zoomLink: data.zoomLink || '',
-        description: data.description || '',
-        // Add additional fields for MyClasses functionality
-              hasExams: Math.random() > 0.5, // Random for demo
-              hasTutes: Math.random() > 0.3, // Random for demo
-              currentStudents: 1,
-              forgetCardRequested: false,
-              latePaymentRequested: false
-            };
+      // Add class to My Classes after successful payment
+      if (!data.isStudyPack) {
+        const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
+        // Debug: Log the data received
+        console.log('Invoice - Received data zoom link:', data.zoomLink);
         
-        // Only add if not already in My Classes
-        if (!myClasses.some(c => c.id === classToAdd.id)) {
+        // Calculate actual current student count for this class
+        const currentStudentCount = myClasses.filter(c => 
+          c.classId === data.classId || c.id === data.classId
+        ).length + 1; // +1 for the current student being added
+        
+        const classToAdd = {
+          id: data.classId || Date.now(), // Use classId from data or generate new one
+          className: data.className,
+          subject: data.subject,
+          teacher: data.teacher,
+          stream: data.stream,
+          deliveryMethod: data.deliveryMethod,
+          courseType: data.courseType,
+          schedule: data.schedule,
+          basePrice: data.basePrice, // Store original class fee
+          purchasePrice: data.amount, // Store what student actually paid (discounted + extras)
+          fee: data.amount, // For backward compatibility, use purchasePrice as recurring fee
+          purchaseDate: new Date().toISOString(),
+          paymentStatus: 'paid',
+          paymentMethod: 'online',
+          nextPaymentDate: data.nextPaymentDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          attendance: [],
+          paymentHistory: [{
+            date: new Date().toISOString(),
+            amount: data.amount,
+            method: 'online',
+            status: 'paid',
+            invoiceId: data.invoiceId,
+            basePrice: data.basePrice,
+            theoryStudentDiscount: data.theoryStudentDiscount,
+            speedPostFee: data.speedPostFee,
+            promoDiscount: data.promoDiscount
+          }],
+          // Add payment tracking data
+          paymentTracking: data.paymentTracking || { enabled: false },
+          paymentTrackingFreeDays: data.paymentTrackingFreeDays || 7,
+          // Add zoom link and other important fields
+          zoomLink: data.zoomLink || '',
+          description: data.description || '',
+          // Add additional fields for MyClasses functionality
+          hasExams: Math.random() > 0.5, // Random for demo
+          hasTutes: Math.random() > 0.3, // Random for demo
+          currentStudents: currentStudentCount,
+          maxStudents: data.maxStudents || 50,
+          forgetCardRequested: false,
+          latePaymentRequested: false
+        };
+        
+        // Check if class already exists in My Classes
+        const existingClassIndex = myClasses.findIndex(c => c.id === classToAdd.id);
+        
+        if (existingClassIndex === -1) {
+          // New class - add it
           myClasses.push(classToAdd);
-          localStorage.setItem('myClasses', JSON.stringify(myClasses));
+        } else {
+          // Existing class - update payment history and payment status
+          const existingClass = myClasses[existingClassIndex];
+          existingClass.paymentStatus = 'paid';
+          existingClass.paymentMethod = 'online';
+          existingClass.fee = data.amount; // Update fee to new payment amount
+          existingClass.purchasePrice = data.amount;
+          
+          // Add new payment to existing payment history
+          if (!existingClass.paymentHistory) {
+            existingClass.paymentHistory = [];
+          }
+          existingClass.paymentHistory.push({
+            date: new Date().toISOString(),
+            amount: data.amount,
+            method: 'online',
+            status: 'paid',
+            invoiceId: data.invoiceId,
+            basePrice: data.basePrice,
+            theoryStudentDiscount: data.theoryStudentDiscount,
+            speedPostFee: data.speedPostFee,
+            promoDiscount: data.promoDiscount
+          });
+          
+          // Update next payment date based on new payment
+          const newPaymentDate = new Date();
+          const nextPaymentDate = new Date(newPaymentDate.getFullYear(), newPaymentDate.getMonth() + 1, 1);
+          existingClass.nextPaymentDate = nextPaymentDate.toISOString();
         }
+        
+        // Update current student count for all classes of this type
+        const classGroups = {};
+        myClasses.forEach(c => {
+          const key = c.classId || c.id;
+          if (!classGroups[key]) {
+            classGroups[key] = [];
+          }
+          classGroups[key].push(c);
+        });
+        
+        // Update currentStudents for each class group
+        Object.keys(classGroups).forEach(classKey => {
+          const count = classGroups[classKey].length;
+          classGroups[classKey].forEach(c => {
+            c.currentStudents = count;
+          });
+        });
+        
+        localStorage.setItem('myClasses', JSON.stringify(myClasses));
       } else {
         // Add study pack to My Study Packs
         const myStudyPacks = JSON.parse(localStorage.getItem('myStudyPacks') || '[]');
@@ -118,6 +180,9 @@ const Invoice = () => {
       
       // Mark as paid
       setPaid(true);
+      
+      // Force refresh of My Classes data to show updated payment status
+      window.dispatchEvent(new CustomEvent('refreshMyClasses'));
       
       // Navigate to success page after a short delay
       setTimeout(() => {

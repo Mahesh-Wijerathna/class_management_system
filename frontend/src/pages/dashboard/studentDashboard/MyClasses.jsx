@@ -4,7 +4,7 @@ import BasicCard from '../../../components/BasicCard';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import studentSidebarSections from './StudentDashboardSidebar';
 import SecureZoomMeeting from '../../../components/SecureZoomMeeting';
-import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog } from 'react-icons/fa';
+import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync } from 'react-icons/fa';
 
 const MyClasses = () => {
   const [myClasses, setMyClasses] = useState([]);
@@ -25,7 +25,7 @@ const MyClasses = () => {
   const [testDate, setTestDate] = useState(null); // For testing payment tracking
   const navigate = useNavigate();
 
-  useEffect(() => {
+  const loadMyClasses = () => {
     try {
     const stored = localStorage.getItem('myClasses');
       if (stored) {
@@ -48,14 +48,14 @@ const MyClasses = () => {
           // Handle new payment tracking structure
           paymentTracking: cls.paymentTracking || { enabled: false },
           paymentTrackingFreeDays: cls.paymentTrackingFreeDays || 7,
-                  // Ensure payment tracking is properly structured
-        ...(cls.paymentTracking && typeof cls.paymentTracking === 'object' ? {} : {
-          paymentTracking: {
-            enabled: true, // Enable payment tracking for all classes
-            freeDays: cls.paymentTrackingFreeDays || 7,
-            active: true
-          }
-        }),
+          // Ensure payment tracking is properly structured
+          ...(cls.paymentTracking && typeof cls.paymentTracking === 'object' ? {} : {
+            paymentTracking: {
+              enabled: true, // Enable payment tracking for all classes
+              freeDays: cls.paymentTrackingFreeDays || 7,
+              active: true
+            }
+          }),
           // Add missing fields with defaults
           attendance: cls.attendance || [],
           paymentHistory: cls.paymentHistory || [],
@@ -77,6 +77,20 @@ const MyClasses = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    loadMyClasses();
+  }, []);
+
+  // Listen for payment updates
+  useEffect(() => {
+    const handlePaymentUpdate = () => {
+      loadMyClasses();
+    };
+
+    window.addEventListener('refreshMyClasses', handlePaymentUpdate);
+    return () => window.removeEventListener('refreshMyClasses', handlePaymentUpdate);
   }, []);
 
   // Handle keyboard events for modal
@@ -401,14 +415,14 @@ const MyClasses = () => {
   const filteredAndSortedClasses = myClasses
         .filter(cls => {
       // Tab filtering
-      if (selectedTab === 'all') return true;
+    if (selectedTab === 'all') return true;
       if (selectedTab === 'active') return cls.status === 'active';
       if (selectedTab === 'inactive') return cls.status === 'inactive';
-      if (selectedTab === 'payment-due') {
-        const nextPayment = new Date(cls.nextPaymentDate);
-        const today = new Date();
-        return nextPayment <= today && cls.paymentStatus !== 'paid';
-      }
+    if (selectedTab === 'payment-due') {
+      const nextPayment = new Date(cls.nextPaymentDate);
+      const today = new Date();
+      return nextPayment <= today && cls.paymentStatus !== 'paid';
+    }
       if (selectedTab === 'overdue') return cls.paymentStatus === 'overdue';
       if (selectedTab === 'late-payment') return cls.paymentStatus === 'late_payment';
       if (selectedTab === 'with-exams') return cls.hasExams;
@@ -422,8 +436,8 @@ const MyClasses = () => {
               if (selectedTab === 'payment-tracking') {
           const paymentInfo = getPaymentTrackingInfo(cls);
           return paymentInfo.status !== 'no-tracking';
-        }
-      return cls.schedule?.frequency === selectedTab;
+    }
+    return cls.schedule?.frequency === selectedTab;
     })
     .filter(cls => {
       // Search filtering
@@ -484,13 +498,46 @@ const MyClasses = () => {
 
   // Handle attendance marking
   const handleMarkAttendance = (cls) => {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Get existing attendance records
+    const allAttendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords') || '[]');
+    
+    // Check if attendance already marked for today
+    const existingRecord = allAttendanceRecords.find(record => 
+      record.classId === cls.id && 
+      record.date === today
+    );
+
+    if (existingRecord) {
+      alert('Attendance already marked for today!');
+      return;
+    }
+
+    // Create new attendance record
+    const newAttendanceRecord = {
+      id: Date.now(),
+      classId: cls.id,
+      studentId: 'STUDENT_001', // This would come from logged-in user
+      studentName: 'Current Student', // This would come from logged-in user
+      date: today,
+      time: new Date().toISOString(),
+      status: 'present',
+      method: 'manual',
+      deliveryMethod: cls.deliveryMethod || 'physical'
+    };
+
+    // Save to attendance records
+    const updatedRecords = [...allAttendanceRecords, newAttendanceRecord];
+    localStorage.setItem('attendanceRecords', JSON.stringify(updatedRecords));
+
+    // Also update local attendance for backward compatibility
     const updatedClasses = myClasses.map(c => {
       if (c.id === cls.id) {
-        const today = new Date().toISOString().split('T')[0];
         const attendance = c.attendance || [];
-        const existingRecord = attendance.find(a => a.date === today);
+        const existingLocalRecord = attendance.find(a => a.date === today);
         
-        if (!existingRecord) {
+        if (!existingLocalRecord) {
           attendance.push({
             date: today,
             status: 'present',
@@ -717,6 +764,13 @@ const MyClasses = () => {
             >
               <FaShieldAlt /> Test 7-Day
             </button>
+            <button
+              onClick={loadMyClasses}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+              title="Refresh My Classes Data"
+            >
+              <FaSync /> Refresh Data
+            </button>
             {/* Test Date Selector */}
             <select
               value={testDate ? testDate.toISOString().split('T')[0] : ''}
@@ -802,7 +856,18 @@ const MyClasses = () => {
                       </div>
                     </div>
                   }
-                  price={<span className="text-xs">LKR {parseInt(cls.fee).toLocaleString()}</span>}
+                  price={
+                    <span className="text-xs">
+                      {cls.basePrice && cls.purchasePrice && cls.basePrice !== cls.purchasePrice ? (
+                        <>
+                          <span className="line-through text-gray-400 mr-1">LKR {parseInt(cls.basePrice).toLocaleString()}</span>
+                          <span className="text-green-700 font-bold">LKR {parseInt(cls.purchasePrice).toLocaleString()}</span>
+                        </>
+                      ) : (
+                        <>LKR {parseInt(cls.fee).toLocaleString()}</>
+                      )}
+                    </span>
+                  }
                   image={getClassImage(cls.subject)}
                   description={
                     <div className="text-xs text-gray-600 space-y-2">
@@ -883,6 +948,22 @@ const MyClasses = () => {
                       )}
                       {isInactive && (
                         <div className="text-red-600 font-semibold bg-red-50 p-2 rounded border border-red-200">⚠️ This class has been deactivated by the admin.</div>
+                      )}
+                      {cls.basePrice && cls.purchasePrice && (
+                        <div className="bg-gray-50 rounded p-2 mt-2 text-xs">
+                          <div><strong>Price Breakdown:</strong></div>
+                          <div>Base Price: <span className="line-through text-gray-400">LKR {parseInt(cls.basePrice).toLocaleString()}</span></div>
+                          {cls.theoryStudentDiscount > 0 && (
+                            <div>Theory Student Discount: <span className="text-green-700">- LKR {parseInt(cls.theoryStudentDiscount).toLocaleString()}</span></div>
+                          )}
+                          {cls.speedPostFee > 0 && (
+                            <div>Speed Post Fee: <span className="text-blue-700">+ LKR {parseInt(cls.speedPostFee).toLocaleString()}</span></div>
+                          )}
+                          {cls.promoDiscount > 0 && (
+                            <div>Promo Discount: <span className="text-green-700">- LKR {parseInt(cls.promoDiscount).toLocaleString()}</span></div>
+                          )}
+                          <div className="font-bold">Final Paid: <span className="text-green-700">LKR {parseInt(cls.purchasePrice).toLocaleString()}</span></div>
+                        </div>
                       )}
                     </div>
                   }
@@ -1296,6 +1377,46 @@ const MyClasses = () => {
 
                 {detailsActiveTab === 'payments' && (
                   <div className="space-y-6">
+                    {/* Price Breakdown Section */}
+                    {selectedClassForDetails.basePrice && selectedClassForDetails.purchasePrice && (
+                      <div className="bg-blue-50 p-6 rounded-lg">
+                        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                          <FaMoneyBill /> Price Breakdown
+                        </h3>
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span>Base Price:</span>
+                            <span className="line-through text-gray-500">LKR {parseInt(selectedClassForDetails.basePrice).toLocaleString()}</span>
+                          </div>
+                          {selectedClassForDetails.theoryStudentDiscount > 0 && (
+                            <div className="flex justify-between items-center text-green-700">
+                              <span>Theory Student Discount:</span>
+                              <span>- LKR {parseInt(selectedClassForDetails.theoryStudentDiscount).toLocaleString()}</span>
+                            </div>
+                          )}
+                          {selectedClassForDetails.speedPostFee > 0 && (
+                            <div className="flex justify-between items-center text-blue-700">
+                              <span>Speed Post Fee:</span>
+                              <span>+ LKR {parseInt(selectedClassForDetails.speedPostFee).toLocaleString()}</span>
+                            </div>
+                          )}
+                          {selectedClassForDetails.promoDiscount > 0 && (
+                            <div className="flex justify-between items-center text-green-700">
+                              <span>Promo Discount:</span>
+                              <span>- LKR {parseInt(selectedClassForDetails.promoDiscount).toLocaleString()}</span>
+                            </div>
+                          )}
+                          <div className="border-t pt-2 mt-2">
+                            <div className="flex justify-between items-center font-bold text-lg">
+                              <span>Final Paid:</span>
+                              <span className="text-green-700">LKR {parseInt(selectedClassForDetails.purchasePrice).toLocaleString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Payment Information Section */}
                     <div className="bg-green-50 p-6 rounded-lg">
                       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                         <FaMoneyBill /> Payment Information
@@ -1308,7 +1429,7 @@ const MyClasses = () => {
                               <div><strong>Status:</strong> {paymentInfo.message}</div>
                               <div><strong>Method:</strong> {selectedClassForDetails.paymentMethod}</div>
                               <div><strong>Next Payment:</strong> {paymentInfo.nextPaymentDate?.toLocaleDateString() || 'Not set'}</div>
-                              <div><strong>Amount:</strong> LKR {selectedClassForDetails.fee?.toLocaleString()}</div>
+                              <div><strong>Amount:</strong> LKR {selectedClassForDetails.purchasePrice ? parseInt(selectedClassForDetails.purchasePrice).toLocaleString() : selectedClassForDetails.fee?.toLocaleString()}</div>
                               {paymentInfo.status !== 'no-tracking' && (
                                 <>
                                   <div><strong>Free Days:</strong> {paymentInfo.freeDays} days</div>
@@ -1353,6 +1474,50 @@ const MyClasses = () => {
                           </>
                         );
                       })()}
+                    </div>
+
+                    {/* Payment History Section */}
+                    <div className="bg-gray-50 p-6 rounded-lg">
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <FaHistory /> Payment History
+                      </h3>
+                      {selectedClassForDetails.paymentHistory && selectedClassForDetails.paymentHistory.length > 0 ? (
+                        <div className="space-y-3">
+                          {selectedClassForDetails.paymentHistory.map((payment, index) => (
+                            <div key={index} className="bg-white p-4 rounded-lg border">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <div className="font-semibold">Payment #{index + 1}</div>
+                                  <div className="text-sm text-gray-600">
+                                    {new Date(payment.date).toLocaleDateString()} at {new Date(payment.date).toLocaleTimeString()}
+                                  </div>
+                                  {payment.invoiceId && (
+                                    <div className="text-xs text-gray-500">Invoice: {payment.invoiceId}</div>
+                                  )}
+                                </div>
+                                <div className="text-right">
+                                  <div className="font-bold text-lg">LKR {parseInt(payment.amount).toLocaleString()}</div>
+                                  <div className={`text-sm px-2 py-1 rounded-full inline-block ${
+                                    payment.status === 'paid' ? 'bg-green-100 text-green-700' : 
+                                    payment.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 
+                                    'bg-red-100 text-red-700'
+                                  }`}>
+                                    {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="mt-2 text-sm text-gray-600">
+                                Method: {payment.method === 'online' ? 'Online Payment' : payment.method}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          <FaHistory className="text-4xl mx-auto mb-4 text-gray-300" />
+                          <p>No payment history available.</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

@@ -3,13 +3,15 @@ import BasicAlertBox from '../../../components/BasicAlertBox';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import adminSidebarSections from './AdminDashboardSidebar';
 import CustomButton from '../../../components/CustomButton';
+import CustomButton2 from '../../../components/CustomButton2';
 import BasicTable from '../../../components/BasicTable';
 import BasicForm from '../../../components/BasicForm';
 import { FieldArray } from 'formik';
 import CustomTextField from '../../../components/CustomTextField';
-import { FaEdit, FaTrash, FaUser, FaEnvelope, FaPhone, FaIdCard, FaUserGraduate, FaBook, FaCalendar } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaUser, FaEnvelope, FaPhone, FaIdCard, FaUserGraduate, FaBook, FaCalendar, FaBarcode, FaDownload, FaPrint, FaEye, FaQrcode, FaSync } from 'react-icons/fa';
 import * as Yup from 'yup';
 import CustomSelectField from '../../../components/CustomSelectField';
+import JsBarcode from 'jsbarcode';
 
 // Helper to parse NIC (Sri Lankan)
 function parseNIC(nic) {
@@ -61,7 +63,7 @@ function parseNIC(nic) {
 
 const initialStudents = [
   {
-    studentId: '99985530',
+    studentId: '99985570',
     nic: '200805202345',
     firstName: 'Januli',
     lastName: 'Liyanage',
@@ -218,16 +220,363 @@ const StudentEnrollment = () => {
   // Load from localStorage or fallback to initialStudents
   const [students, setStudents] = useState(() => {
     const stored = localStorage.getItem('students');
-    return stored ? JSON.parse(stored) : initialStudents;
+    const parsedStudents = stored ? JSON.parse(stored) : initialStudents;
+    console.log('Students loaded from localStorage:', parsedStudents);
+    return parsedStudents;
   });
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
   const [editValues, setEditValues] = useState({});
+  
+  // Barcode modal state
+  const [showBarcodeModal, setShowBarcodeModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [barcodeGenerated, setBarcodeGenerated] = useState(false);
 
   // Save to localStorage whenever students changes
   useEffect(() => {
     localStorage.setItem('students', JSON.stringify(students));
   }, [students]);
+
+  // Refresh students data from localStorage
+  const refreshStudents = () => {
+    const stored = localStorage.getItem('students');
+    const parsedStudents = stored ? JSON.parse(stored) : initialStudents;
+    setStudents(parsedStudents);
+    console.log('Students refreshed from localStorage:', parsedStudents);
+    console.log('Number of students:', parsedStudents.length);
+  };
+
+  // Generate barcode when modal opens and student has barcode data
+  useEffect(() => {
+    if (showBarcodeModal && selectedStudent?.barcodeData) {
+      setTimeout(() => {
+        const canvas = document.getElementById('student-barcode-display');
+        if (canvas) {
+          try {
+            JsBarcode('#student-barcode-display', selectedStudent.barcodeData, {
+              format: 'CODE128',
+              width: 2,
+              height: 50,
+              displayValue: true,
+              fontSize: 12,
+              margin: 5,
+              background: '#ffffff',
+              lineColor: '#000000'
+            });
+          } catch (error) {
+            console.error('Error generating barcode:', error);
+          }
+        }
+      }, 300);
+    }
+  }, [showBarcodeModal, selectedStudent]);
+
+  // Generate barcode for student
+  const generateStudentBarcode = (student) => {
+    const studentId = student.studentId || `S${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const barcodeData = `S${student.firstName}${student.lastName}${studentId}`;
+    
+    return {
+      id: studentId,
+      barcodeData: barcodeData,
+      studentName: `${student.firstName} ${student.lastName}`,
+      generatedAt: new Date().toISOString(),
+      studentInfo: student
+    };
+  };
+
+  // Show barcode modal
+  const handleShowBarcode = (student) => {
+    setSelectedStudent(student);
+    setShowBarcodeModal(true);
+    setBarcodeGenerated(false);
+  };
+
+  // Generate and display barcode
+  const handleGenerateBarcode = () => {
+    if (!selectedStudent) return;
+    
+    const barcode = generateStudentBarcode(selectedStudent);
+    
+    // Update student with barcode info
+    const updatedStudent = {
+      ...selectedStudent,
+      studentId: barcode.id,
+      barcodeData: barcode.barcodeData,
+      barcodeGeneratedAt: barcode.generatedAt
+    };
+    
+    // Update students list
+    setStudents(students.map(s => 
+      s.studentId === selectedStudent.studentId ? updatedStudent : s
+    ));
+    
+    setSelectedStudent(updatedStudent);
+    setBarcodeGenerated(true);
+    
+    // Generate barcode on canvas
+    setTimeout(() => {
+      const canvas = document.getElementById('student-barcode-display');
+      if (canvas) {
+        try {
+          JsBarcode('#student-barcode-display', barcode.barcodeData, {
+            format: 'CODE128',
+            width: 2,
+            height: 50,
+            displayValue: true,
+            fontSize: 12,
+            margin: 5,
+            background: '#ffffff',
+            lineColor: '#000000'
+          });
+        } catch (error) {
+          console.error('Error generating barcode:', error);
+        }
+      }
+    }, 200);
+  };
+
+  // Generate ID Card
+  const generateIDCard = () => {
+    if (!selectedStudent?.barcodeData) {
+      alert('Please generate a barcode for this student first!');
+      return;
+    }
+  
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>ID Card - ${selectedStudent.firstName} ${selectedStudent.lastName}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 20px;
+              background: #f5f5f5;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              min-height: 100vh;
+            }
+            .id-card-container {
+              width: 336px; /* 3.375 in */
+              height: 212px; /* 2.125 in */
+              background: linear-gradient(135deg, #1a365d 0%, #3da58a 100%);
+              border-radius: 10px;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+              padding: 12px 15px;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              color: white;
+              position: relative;
+            }
+            .id-header {
+              text-align: center;
+              border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+              padding-bottom: 4px;
+            }
+                          .id-header h1 {
+                font-size: 13px;
+                color: #ffffff;
+                margin: 0;
+                font-weight: bold;
+                letter-spacing: 0.5px;
+                text-transform: uppercase;
+              }
+              .id-header p {
+                font-size: 8px;
+                margin: 3px 0 0 0;
+                color: #e0e0e0;
+              }
+                          .id-content {
+                margin-top: 10px;
+                font-size: 11px;
+                line-height: 1.6;
+              }
+              .id-content p {
+                margin: 6px 0;
+                font-weight: 500;
+              }
+            .barcode-section {
+              background: #ffffff;
+              padding: 5px;
+              border-radius: 6px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              border-top: 1px solid #ddd;
+              color: #000;
+            }
+            .barcode-container svg {
+              width: 100%;
+              max-height: 40px;
+            }
+                          .barcode-text {
+                font-size: 8px;
+                font-family: monospace;
+                margin-top: 3px;
+                text-align: center;
+                color: #333;
+                font-weight: bold;
+                word-break: break-all;
+                line-height: 1.1;
+              }
+            .id-footer {
+              font-size: 9px;
+              text-align: right;
+              color: #f0f0f0;
+              opacity: 0.8;
+              margin-top: 5px;
+            }
+            .print-button {
+              position: fixed;
+              top: 20px;
+              right: 20px;
+              background: #3da58a;
+              color: white;
+              border: none;
+              padding: 8px 16px;
+              border-radius: 5px;
+              cursor: pointer;
+              font-weight: bold;
+              z-index: 1000;
+            }
+            .print-button:hover {
+              background: #2d8a6f;
+            }
+            @media print {
+              .print-button {
+                display: none;
+              }
+              body {
+                background: white;
+                padding: 0;
+              }
+              .id-card-container {
+                box-shadow: none;
+                margin: 0;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <button class="print-button" onclick="window.print()">Print ID Card</button>
+          <div class="id-card-container">
+            <div class="id-header">
+              <h1>TCMS STUDENT ID</h1>
+              <p>Tuition Class Management System</p>
+            </div>
+                          <div class="id-content">
+                <p><strong>Name:</strong> ${selectedStudent.firstName} ${selectedStudent.lastName}</p>
+                <p><strong>ID No:</strong> ${selectedStudent.studentId}</p>
+                <p><strong>Registered On:</strong> ${selectedStudent.barcodeGeneratedAt ? new Date(selectedStudent.barcodeGeneratedAt).toLocaleDateString() : new Date().toLocaleDateString()}</p>
+              </div>
+            <div class="barcode-section">
+              <div class="barcode-container">
+                <svg id="id-card-barcode"></svg>
+              </div>
+              
+            </div>
+            <div class="id-footer">
+              <p>Powered by TCMS | Valid for attendance</p>
+            </div>
+          </div>
+  
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+          <script>
+            setTimeout(() => {
+              try {
+                JsBarcode("#id-card-barcode", "${selectedStudent.barcodeData}", {
+                  format: "CODE128",
+                  width: 1.2,
+                  height: 30,
+                  displayValue: false,
+                  margin: 0,
+                  background: "#ffffff",
+                  lineColor: "#000000"
+                });
+              } catch (error) {
+                console.error('Error generating barcode:', error);
+              }
+            }, 200);
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+  
+  
+
+  // Download barcode as PNG
+  const downloadBarcode = () => {
+    if (!selectedStudent?.barcodeData) return;
+    
+    const canvas = document.getElementById('student-barcode-display');
+    if (canvas) {
+      const link = document.createElement('a');
+      link.download = `barcode_${selectedStudent.firstName}_${selectedStudent.lastName}_${selectedStudent.studentId}.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+    }
+  };
+
+  // Print barcode
+  const printBarcode = () => {
+    if (!selectedStudent?.barcodeData) return;
+    
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Student Barcode - ${selectedStudent.firstName} ${selectedStudent.lastName}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; text-align: center; }
+            .barcode-container { 
+              border: 2px solid #333; 
+              padding: 20px; 
+              max-width: 400px; 
+              margin: 0 auto;
+              page-break-inside: avoid;
+            }
+            .student-info { margin-bottom: 15px; }
+            .barcode-image { margin: 15px 0; }
+            @media print { body { margin: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="barcode-container">
+            <div class="student-info">
+              <h2>${selectedStudent.firstName} ${selectedStudent.lastName}</h2>
+              <p><strong>Student ID:</strong> ${selectedStudent.studentId}</p>
+              <p><strong>Generated:</strong> ${new Date(selectedStudent.barcodeGeneratedAt).toLocaleDateString()}</p>
+            </div>
+            <div class="barcode-image">
+              <canvas id="print-barcode"></canvas>
+            </div>
+          </div>
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+          <script>
+            JsBarcode("#print-barcode", "${selectedStudent.barcodeData}", {
+              format: "CODE128",
+              width: 2,
+              height: 50,
+              displayValue: true,
+              fontSize: 12,
+              margin: 5,
+              background: "#ffffff",
+              lineColor: "#000000"
+            });
+            window.print();
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
 
   // Stylish alert state
   const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: 'OK', cancelText: 'Cancel', type: 'info' });
@@ -300,33 +649,72 @@ const StudentEnrollment = () => {
   return (
     // <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
       <div className="p-6 bg-white rounded-lg shadow">
-        <h1 className="text-2xl font-bold mb-4">Student Enrollment</h1>
-        <p className="mb-6 text-gray-700">View, edit and remove registered students.</p>
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h1 className="text-2xl font-bold">Student Enrollment</h1>
+            <p className="text-gray-700">View, edit and remove registered students.</p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={refreshStudents}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-2"
+            >
+              <FaSync />
+              Refresh Data
+            </button>
+            <button
+              onClick={() => {
+                const stored = localStorage.getItem('students');
+                console.log('Current localStorage data:', stored);
+                console.log('Parsed students:', stored ? JSON.parse(stored) : 'No data');
+                alert(`Current students in localStorage: ${stored ? JSON.parse(stored).length : 0}`);
+              }}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center gap-2"
+            >
+              Debug Data
+            </button>
+          </div>
+        </div>
         <BasicTable
           columns={[
             { key: 'studentId', label: 'Student ID' },
-            { key: 'firstName', label: 'First Name', render: row => (
-                <span className="flex items-center gap-1">
-                  {row.gender === 'female' ? (
-                    <span className="text-pink-500">&#9792;</span>
-                  ) : (
-                    <span className="text-blue-500">&#9794;</span>
-                  )}
-                  {row.firstName}
-                </span>
-              )
-            },
+            { key: 'firstName', label: 'First Name', render: row => row.firstName },
             { key: 'lastName', label: 'Last Name', render: row => row.lastName },
             { key: 'dateOfBirth', label: 'Date of Birth' },
             { key: 'school', label: 'School' },
             { key: 'district', label: 'District' },
             { key: 'dateJoined', label: 'Date Joined' },
             { key: 'stream', label: 'Stream' },
-
+            { 
+              key: 'barcode', 
+              label: 'Barcode Status', 
+              render: row => (
+                <div className="flex items-center gap-2">
+                  {row.barcodeData ? (
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <div className="w-2 h-2 bg-emerald-500 rounded-full mr-2"></div>
+                      Active
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                      <div className="w-2 h-2 bg-amber-500 rounded-full mr-2"></div>
+                      Pending
+                    </span>
+                  )}
+                </div>
+              )
+            },
           ]}
           data={students}
           actions={row => (
             <div className="flex gap-2">
+              <button 
+                className="text-purple-600 hover:text-purple-800 hover:underline" 
+                onClick={() => handleShowBarcode(row)} 
+                title="Barcode"
+              >
+                <FaBarcode />
+              </button>
               <button className="text-blue-600 hover:underline" onClick={() => handleEdit(row)} title="Edit"><FaEdit /></button>
               <button className="text-red-600 hover:underline" onClick={() => showDeleteAlert(row.studentId)} title="Delete"><FaTrash /></button>
             </div>
@@ -684,6 +1072,158 @@ const StudentEnrollment = () => {
           confirmText={saveAlert.confirmText}
           type={saveAlert.type}
         />
+
+        {/* Modern Barcode Modal */}
+        {showBarcodeModal && selectedStudent && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-2xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold text-[#1a365d] flex items-center gap-3">
+                  <FaBarcode className="text-[#3da58a] text-2xl" />
+                  Student Barcode Management
+                </h3>
+                <button
+                  onClick={() => setShowBarcodeModal(false)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                {/* Student Information */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-lg text-[#1a365d] mb-3 flex items-center gap-2">
+                    <FaUser className="text-[#3da58a]" />
+                    Student Information
+                  </h4>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="font-medium text-gray-600">Name:</span>
+                      <span className="text-[#1a365d]">{selectedStudent.firstName} {selectedStudent.lastName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-gray-600">Student ID:</span>
+                      <span className="text-[#1a365d]">{selectedStudent.studentId}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-gray-600">School:</span>
+                      <span className="text-[#1a365d]">{selectedStudent.school}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-gray-600">Stream:</span>
+                      <span className="text-[#1a365d]">{selectedStudent.stream}</span>
+                    </div>
+                    {selectedStudent.barcodeGeneratedAt && (
+                      <div className="flex justify-between">
+                        <span className="font-medium text-gray-600">Barcode Generated:</span>
+                        <span className="text-[#1a365d]">{new Date(selectedStudent.barcodeGeneratedAt).toLocaleDateString()}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Barcode Status */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-lg text-[#1a365d] mb-3 flex items-center gap-2">
+                    <FaBarcode className="text-[#3da58a]" />
+                    Barcode Status
+                  </h4>
+                  <div className="space-y-3">
+                    {selectedStudent.barcodeData ? (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                                          <div className="flex items-center gap-3 text-emerald-800">
+                    <span className="font-semibold text-xs">Barcode Active</span>
+                  </div>
+                        <p className="text-xs text-emerald-700 mt-2">
+                          This student has an active barcode for attendance tracking.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                        <div className="flex items-center gap-3 text-amber-800">
+                          <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
+                          <span className="font-semibold text-lg">Barcode Pending</span>
+                        </div>
+                        <p className="text-sm text-amber-700 mt-2">
+                          Generate a barcode for this student to enable attendance tracking.
+                        </p>
+                      </div>
+                    )}
+                    
+                    {!selectedStudent.barcodeData && (
+                      <CustomButton2
+                        onClick={handleGenerateBarcode}
+                        className="flex items-center justify-center gap-2"
+                      >
+                        <FaBarcode />
+                        Generate Barcode
+                      </CustomButton2>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Barcode Display */}
+              {selectedStudent.barcodeData && (
+                <div className="bg-white border-2 border-gray-200 rounded-lg p-6 text-center">
+                  <h4 className="font-semibold text-lg text-[#1a365d] mb-4 flex items-center justify-center gap-2">
+                    <FaBarcode className="text-[#3da58a]" />
+                    Attendance Barcode
+                  </h4>
+                  
+                  <div className="bg-gray-50 rounded-lg p-4 mb-4 min-h-[80px] flex items-center justify-center">
+                    <canvas 
+                      id="student-barcode-display" 
+                      className="mx-auto"
+                      style={{ minHeight: '60px' }}
+                    ></canvas>
+                  </div>
+                  
+
+                  
+                  <div className="flex gap-3 justify-center">
+                    <CustomButton2
+                      onClick={downloadBarcode}
+                      className="flex items-center justify-center gap-2 text-center"
+                    >
+                      <FaDownload />
+                      Download PNG
+                    </CustomButton2>
+                    <CustomButton2
+                      onClick={printBarcode}
+                      className="flex items-center justify-center gap-2 text-center"
+                    >
+                      <FaPrint />
+                      Print Barcode
+                    </CustomButton2>
+                    <CustomButton2
+                      onClick={generateIDCard}
+                      className="flex items-center justify-center gap-2 text-center"
+                    >
+                      <FaIdCard />
+                      Generate ID Card
+                    </CustomButton2>
+                  </div>
+                </div>
+              )}
+
+              {/* Instructions */}
+              <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
+                  <FaEye className="text-blue-600" />
+                  How to Use
+                </h4>
+                <ul className="text-xs text-blue-700 space-y-1">
+                  <li>• Download or print the barcode for physical attendance tracking</li>
+                  <li>• Use the barcode scanner in the Attendance Overview to mark attendance</li>
+                  <li>• Each barcode is unique to the student and cannot be duplicated</li>
+                  <li>• Barcode contains the student's unique ID for secure tracking</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     /* </DashboardLayout> */
   );
