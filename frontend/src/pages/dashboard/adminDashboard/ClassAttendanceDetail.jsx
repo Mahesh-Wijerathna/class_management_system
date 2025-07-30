@@ -9,7 +9,7 @@ import { FaQrcode, FaBarcode, FaVideo, FaMapMarkerAlt, FaUsers, FaCalendar, FaCl
 // Get attendance records from localStorage
 const getAttendanceRecords = () => {
   try {
-    const stored = localStorage.getItem('attendanceRecords');
+    const stored = localStorage.getItem('myClasses.attendance');
       if (!stored) return [];
       return JSON.parse(stored);
     } catch {
@@ -22,17 +22,7 @@ const getAttendanceRecords = () => {
     try {
       const stored = localStorage.getItem('enrollments');
     if (!stored) {
-      // Initialize with sample data if no enrollments exist
-      const sampleEnrollments = [
-        { classId: '1', studentId: 'STUDENT_001', studentName: 'John Doe' },
-        { classId: '1', studentId: 'STUDENT_002', studentName: 'Jane Smith' },
-        { classId: '1', studentId: 'STUDENT_003', studentName: 'Mike Johnson' },
-        { classId: '2', studentId: 'STUDENT_001', studentName: 'John Doe' },
-        { classId: '2', studentId: 'STUDENT_004', studentName: 'Sarah Wilson' },
-        { classId: '2', studentId: 'STUDENT_005', studentName: 'David Brown' },
-      ];
-      localStorage.setItem('enrollments', JSON.stringify(sampleEnrollments));
-      return sampleEnrollments;
+      return [];
     }
       return JSON.parse(stored);
     } catch {
@@ -46,7 +36,8 @@ const getClassDetails = (classId) => {
     const stored = localStorage.getItem('classes');
     if (!stored) return null;
     const classes = JSON.parse(stored);
-    return classes.find(cls => cls.id === classId);
+    // Fix: Compare both as strings to avoid type mismatch
+    return classes.find(cls => String(cls.id) === String(classId));
   } catch {
     return null;
   }
@@ -116,7 +107,7 @@ const ClassAttendanceDetail = () => {
           studentId = barcodeData; // Fallback to original input
         }
       } else {
-        studentId = barcodeData; // Fallback to original input
+        studentId = barcodeInput; // Fallback to original input
       }
       
       console.log('Extracted student ID:', studentId);
@@ -396,8 +387,8 @@ const ClassAttendanceDetail = () => {
         </div>
 
         {/* Student Attendance Table */}
-          <BasicTable
-            columns={[
+        <BasicTable
+          columns={[
             { key: 'studentName', label: 'Student Name' },
             { key: 'studentId', label: 'Student ID' },
             { key: 'attendanceStatus', label: 'Status', render: row => {

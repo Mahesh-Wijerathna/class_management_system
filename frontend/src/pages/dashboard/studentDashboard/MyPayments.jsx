@@ -29,10 +29,12 @@ const MyPayments = () => {
         ) : (
           <div className="bg-white rounded-2xl shadow-lg p-0 sm:p-4 my-6">
             <BasicTable columns={columns} data={payments.map(p => ({
-              ...p,
-              amount: `LKR ${p.amount?.toLocaleString()}`,
-              method: 'Online',
+              date: p.date || '',
+              className: p.className || '',
+              amount: `LKR ${(p.amount || p.total || 0).toLocaleString()}`,
+              method: p.method || 'Online',
               status: p.status || 'Paid',
+              invoiceId: p.invoiceId || p.id || '',
             }))} />
           </div>
         )}

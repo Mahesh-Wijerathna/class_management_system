@@ -5,7 +5,7 @@ import adminSidebarSections from './AdminDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
 import CustomButton from '../../../components/CustomButton';
 import { FaQrcode, FaBarcode, FaVideo, FaMapMarkerAlt, FaUsers, FaCalendar, FaClock, FaEye, FaEdit, FaDownload } from 'react-icons/fa';
-import RealBarcodeGenerator from '../../../components/RealBarcodeGenerator';
+
 import BarcodeScanner from '../../../components/BarcodeScanner';
 
 // Get all classes from localStorage
@@ -13,44 +13,7 @@ const getClassList = () => {
   try {
     const stored = localStorage.getItem('classes');
     if (!stored) {
-      // Initialize with sample data if no classes exist
-      const sampleClasses = [
-        {
-          id: '1',
-          className: 'Advanced Mathematics',
-          subject: 'Mathematics',
-          teacher: 'Dr. Smith',
-          stream: 'Science',
-          deliveryMethod: 'physical',
-          hall: 'Room 101',
-          schedule: { startTime: '09:00', endTime: '10:30' },
-          status: 'active'
-        },
-        {
-          id: '2',
-          className: 'Physics Fundamentals',
-          subject: 'Physics',
-          teacher: 'Prof. Johnson',
-          stream: 'Science',
-          deliveryMethod: 'online',
-          hall: 'Zoom Meeting',
-          schedule: { startTime: '14:00', endTime: '15:30' },
-          status: 'active'
-        },
-        {
-          id: '3',
-          className: 'Chemistry Lab',
-          subject: 'Chemistry',
-          teacher: 'Dr. Wilson',
-          stream: 'Science',
-          deliveryMethod: 'hybrid',
-          hall: 'Lab 205',
-          schedule: { startTime: '11:00', endTime: '12:30' },
-          status: 'active'
-        }
-      ];
-      localStorage.setItem('classes', JSON.stringify(sampleClasses));
-      return sampleClasses;
+      return [];
     }
     return JSON.parse(stored);
   } catch {
@@ -58,22 +21,12 @@ const getClassList = () => {
   }
 };
 
-// Get enrollments from localStorage (simulate student enrollments)
+// Get enrollments from localStorage
 const getEnrollments = () => {
   try {
     const stored = localStorage.getItem('enrollments');
     if (!stored) {
-      // Initialize with sample data if no enrollments exist
-      const sampleEnrollments = [
-        { classId: '1', studentId: 'STUDENT_001', studentName: 'John Doe' },
-        { classId: '1', studentId: 'STUDENT_002', studentName: 'Jane Smith' },
-        { classId: '1', studentId: 'STUDENT_003', studentName: 'Mike Johnson' },
-        { classId: '2', studentId: 'STUDENT_001', studentName: 'John Doe' },
-        { classId: '2', studentId: 'STUDENT_004', studentName: 'Sarah Wilson' },
-        { classId: '2', studentId: 'STUDENT_005', studentName: 'David Brown' },
-      ];
-      localStorage.setItem('enrollments', JSON.stringify(sampleEnrollments));
-      return sampleEnrollments;
+      return [];
     }
     return JSON.parse(stored);
   } catch {
@@ -107,7 +60,7 @@ const AttendanceOverview = () => {
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState('');
   const [showBarcodeModal, setShowBarcodeModal] = useState(false);
-  const [showBarcodeGenerator, setShowBarcodeGenerator] = useState(false);
+  
   const [selectedClass, setSelectedClass] = useState(null);
   const [barcodeInput, setBarcodeInput] = useState('');
   const [scanningStatus, setScanningStatus] = useState('');
@@ -141,7 +94,6 @@ const AttendanceOverview = () => {
       date: cls.startDate || today,
       from: cls.schedule?.startTime || '',
       to: cls.schedule?.endTime || '',
-      location: cls.hall || '',
       status: cls.status || 'Not Started',
       deliveryMethod: deliveryMethod,
       attendanceRate: enrolledStudents.length > 0 ? Math.round((presentStudents / enrolledStudents.length) * 100) : 0
@@ -230,7 +182,7 @@ const AttendanceOverview = () => {
 
       // Save to localStorage
       const updatedRecords = [...attendanceRecords, newAttendanceRecord];
-      localStorage.setItem('attendanceRecords', JSON.stringify(updatedRecords));
+      localStorage.setItem('myClasses.attendance', JSON.stringify(updatedRecords));
 
       setScanningStatus(`Attendance marked successfully for ${student.studentName || studentId}`);
       setBarcodeInput('');
@@ -344,7 +296,6 @@ const AttendanceOverview = () => {
             { key: 'date', label: 'Date' },
             { key: 'from', label: 'From' },
             { key: 'to', label: 'To' },
-            { key: 'location', label: 'Location' },
             { key: 'deliveryMethod', label: 'Mode', render: row => {
                 const method = row.deliveryMethod || 'physical';
                 if (method === 'online') return <span className="px-2 py-1 rounded bg-blue-100 text-blue-800 font-semibold flex items-center gap-1"><FaVideo /> Online</span>;
@@ -372,39 +323,32 @@ const AttendanceOverview = () => {
                   >
                     <FaEye />
                   </CustomButton>
-                  
-                  {row.deliveryMethod === 'physical' && (
+
+                  {/* Barcode scanning for physical and hybrid classes */}
+                  {(row.deliveryMethod === 'physical' || row.deliveryMethod === 'hybrid') && (
                     <>
                       <CustomButton
                         onClick={() => handleBarcodeScan(row.id)}
                         className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
-                        title="Scan Barcode"
+                        title="Scan Barcode (Physical/Hybrid)"
                       >
                         <FaBarcode />
                       </CustomButton>
-                      <CustomButton
-                        onClick={() => {
-                          setSelectedClass(row);
-                          setShowBarcodeGenerator(true);
-                        }}
-                        className="px-3 py-1 bg-orange-600 text-white rounded hover:bg-orange-700 text-sm"
-                        title="Generate Barcodes"
-                      >
-                        <FaQrcode />
-                      </CustomButton>
+                      
                     </>
                   )}
-                  
+
+                  {/* Online attendance for online and hybrid classes */}
                   {(row.deliveryMethod === 'online' || row.deliveryMethod === 'hybrid') && (
                     <CustomButton
                       onClick={() => handleOnlineAttendance(row.id)}
                       className="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 text-sm"
-                      title="Mark Online Attendance"
+                      title="Mark Online Attendance (Online/Hybrid)"
                     >
                       <FaVideo />
                     </CustomButton>
                   )}
-                  
+
                   <CustomButton
                     onClick={() => downloadAttendanceReport(row.id)}
                     className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm"
@@ -430,26 +374,7 @@ const AttendanceOverview = () => {
           </div>
         )}
 
-        {/* Barcode Generator Modal */}
-        {showBarcodeGenerator && selectedClass && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
-            <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 my-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold">Barcode Generator</h3>
-                <button
-                  onClick={() => setShowBarcodeGenerator(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  ✕
-                </button>
-              </div>
-              <RealBarcodeGenerator 
-                classId={selectedClass.id} 
-                className={selectedClass.className} 
-              />
-            </div>
-          </div>
-        )}
+        
       </div>
     </DashboardLayout>
   );
