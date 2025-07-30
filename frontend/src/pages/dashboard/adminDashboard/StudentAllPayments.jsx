@@ -63,13 +63,14 @@ const StudentAllPayments = () => {
       <div className="p-6 bg-white rounded-lg shadow">
         <h1 className="text-2xl font-bold mb-4">Student All Payments</h1>
         <BasicTable
-          columns={[
+          columns={[ 
             { key: 'className', label: 'Class Name' },
             { key: 'subject', label: 'Subject' },
             { key: 'teacher', label: 'Teacher' },
+            { key: 'courseType', label: 'Course Type' },
             { key: 'totalStudents', label: 'Total Students' },
             { key: 'totalPayment', label: 'Total Payment (LKR)', render: row => (
-                <span className="font-semibold text-green-700">{row.totalPayment.toLocaleString()}</span>
+                <span className="font-semibold text-green-700">{(row.totalPayment ? row.totalPayment : 0).toLocaleString()}</span>
               ) },
             { key: 'actions', label: 'Actions', render: row => (
                 <CustomButton
@@ -80,7 +81,15 @@ const StudentAllPayments = () => {
                 </CustomButton>
               ) },
           ]}
-          data={classPaymentsWithTotal}
+          data={classPaymentsWithTotal.map(cls => ({
+            id: cls.id,
+            className: cls.className || '',
+            subject: cls.subject || '',
+            teacher: cls.teacher || '',
+            courseType: cls.courseType || '',
+            totalStudents: cls.totalStudents || 0,
+            totalPayment: cls.totalPayment || 0,
+          }))}
         />
       </div>
     </DashboardLayout>

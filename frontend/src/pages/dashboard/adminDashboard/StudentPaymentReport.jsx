@@ -77,16 +77,17 @@ const StudentPaymentReport = () => {
     doc.text(`Total Pending: Rs. ${totalPending}`, 80, summaryY);
     // Table headers and rows
     const headers = [
-      'Invoice ID', 'Date', 'Student', 'Class', 'Amount', 'Status', 'Method'
+      'Invoice ID', 'Date', 'Student', 'Class', 'Course Type', 'Amount', 'Status', 'Method'
     ];
     const rows = filteredRecords.map(row => [
-      row.id,
-      row.date,
-      row.student,
-      row.className,
-      row.amount,
-      row.status,
-      row.method
+      row.invoiceId || row.id || '',
+      row.date || '',
+      row.student || row.studentName || '',
+      row.className || '',
+      row.courseType || '',
+      row.amount || 0,
+      row.status || 'Paid',
+      row.method || 'Online'
     ]);
     autoTable(doc, {
       head: [headers],
@@ -109,10 +110,17 @@ const StudentPaymentReport = () => {
   // Export Excel (CSV)
   const handleExportExcel = () => {
     const headers = [
-      'Invoice ID', 'Date', 'Student', 'Class', 'Amount', 'Status', 'Method'
+      'Invoice ID', 'Date', 'Student', 'Class', 'Course Type', 'Amount', 'Status', 'Method'
     ];
     const rows = filteredRecords.map(row => [
-      row.id, row.date, row.student, row.className, row.amount, row.status, row.method
+      row.invoiceId || row.id || '',
+      row.date || '',
+      row.student || row.studentName || '',
+      row.className || '',
+      row.courseType || '',
+      row.amount || 0,
+      row.status || 'Paid',
+      row.method || 'Online'
     ]);
     let csvContent = '';
     csvContent += headers.join(',') + '\n';
@@ -190,11 +198,20 @@ const StudentPaymentReport = () => {
           { key: 'date', label: 'Date' },
           { key: 'student', label: 'Student' },
           { key: 'className', label: 'Class' },
+          { key: 'courseType', label: 'Course Type' },
           { key: 'amount', label: 'Amount' },
           { key: 'status', label: 'Status' },
           { key: 'method', label: 'Method' },
         ]}
-        data={filteredRecords}
+        data={filteredRecords.map(row => ({
+          ...row,
+          invoiceId: row.invoiceId || row.id || '',
+          student: row.student || row.studentName || '',
+          courseType: row.courseType || '',
+          amount: row.amount || 0,
+          status: row.status || 'Paid',
+          method: row.method || 'Online',
+        }))}
       />
     </div>
   );

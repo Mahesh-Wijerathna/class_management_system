@@ -499,6 +499,8 @@ const MyClasses = () => {
   // Handle attendance marking
   const handleMarkAttendance = (cls) => {
     const today = new Date().toISOString().split('T')[0];
+
+    const currentStudent = JSON.parse(localStorage.getItem('currentStudent') || '{}');
     
     // Get existing attendance records
     const allAttendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords') || '[]');
@@ -518,13 +520,13 @@ const MyClasses = () => {
     const newAttendanceRecord = {
       id: Date.now(),
       classId: cls.id,
-      studentId: 'STUDENT_001', // This would come from logged-in user
-      studentName: 'Current Student', // This would come from logged-in user
+      studentId: currentStudent.studentId || '',
+      studentName: currentStudent.firstName || '', // or use fullName if available
       date: today,
       time: new Date().toISOString(),
       status: 'present',
       method: 'manual',
-      deliveryMethod: cls.deliveryMethod || 'physical'
+      deliveryMethod: cls.deliveryMethod || 'online'
     };
 
     // Save to attendance records
