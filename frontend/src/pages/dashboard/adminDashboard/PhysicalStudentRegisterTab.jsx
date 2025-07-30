@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as Yup from 'yup';
-import { Formik } from 'formik';
-import { FaUser, FaLock, FaPhone, FaIdCard, FaCalendarAlt, FaVenusMars, FaGraduationCap } from 'react-icons/fa';
-import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomButton from '../../../components/CustomButton';
+import BasicForm from '../../../components/BasicForm';
+import { FaUser, FaPhone, FaIdCard, FaCalendarAlt, FaVenusMars, FaGraduationCap, FaBarcode, FaDownload } from 'react-icons/fa';
+import { Formik } from 'formik';
+import JsBarcode from 'jsbarcode';
 
 // Helper to parse NIC (Sri Lankan)
 function parseNIC(nic) {
@@ -15,6 +16,7 @@ function parseNIC(nic) {
     let days = parseInt(nicStr.substring(2, 5), 10);
     gender = days > 500 ? 'Female' : 'Male';
     if (days > 500) days -= 500;
+    // Days to month/day
     const months = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
     let m = 0;
     while (days > months[m]) {
@@ -55,16 +57,12 @@ const nicRegex = /^(\d{12}|\d{9}[VXvx])$/;
 const phoneRegex = /^0\d{9}$/;
 const genderRegex = /^(male|female)$/i;
 const nameRegex = /^[A-Za-z ]+$/;
-const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
 const allowedStreams = ['AL-Maths', 'AL-Science', 'AL-Art', 'AL-Tech', 'AL-Common', 'OL', 'Primary'];
 const allowedDistricts = [
   'Ampara', 'Anuradhapura', 'Badulla', 'Batticaloa', 'Colombo', 'Galle', 'Gampaha', 'Hambantota',
   'Jaffna', 'Kalutara', 'Kandy', 'Kegalle', 'Kilinochchi', 'Kurunegala', 'Mannar', 'Matale',
   'Matara', 'Monaragala', 'Mullaitivu', 'Nuwara Eliya', 'Polonnaruwa', 'Puttalam', 'Ratnapura',
   'Trincomalee', 'Vavuniya'
-];
-const streams = [
-  'AL-Maths', 'AL-Science', 'AL-Art', 'AL-Tech', 'AL-Common', 'OL', 'Primary'
 ];
 
 const step1Schema = Yup.object().shape({
@@ -83,34 +81,9 @@ const step1Schema = Yup.object().shape({
   mobile: Yup.string()
     .matches(phoneRegex, 'Invalid phone number (should be 10 digits, start with 0)')
     .required('Mobile number is required'),
-  password: Yup.string()
-    .matches(passwordRegex, 'Password must be at least 8 characters, include uppercase, lowercase, number, and special character')
-    .required('Password is required'),
-  confirmPassword: Yup.string()
-    .oneOf([Yup.ref('password'), null], 'Passwords do not match')
-    .required('Confirm password is required'),
 });
 
-
-
 const PhysicalStudentRegisterTab = () => {
-  const handleRegister = () => {
-    // Combine step1Values and manualFields for full student object
-    const newStudent = { ...step1Values, ...manualFields };
-    // Get existing students from localStorage or use empty array
-    const students = JSON.parse(localStorage.getItem('students')) || [];
-    students.push(newStudent);
-    localStorage.setItem('students', JSON.stringify(students));
-    // Optionally, show a success message or reset form
-    alert('Student registered successfully!');
-    setStep1Values({
-      firstName: '', lastName: '', idNumber: '', mobile: '', password: '', confirmPassword: '',
-    });
-    setManualFields({
-      dob: '', age: '', gender: '', email: '', school: '', stream: '', address: '', district: '', parentName: '', parentMobile: '',
-    });
-    setStep(1);
-  };
   const [step, setStep] = useState(1);
   const [summaryValues, setSummaryValues] = useState({});
   const [nicInfo, setNicInfo] = useState(null);
@@ -119,8 +92,6 @@ const PhysicalStudentRegisterTab = () => {
     lastName: '',
     idNumber: '',
     mobile: '',
-    password: '',
-    confirmPassword: '',
   });
   const [manualFields, setManualFields] = useState({
     dob: '',
@@ -134,6 +105,49 @@ const PhysicalStudentRegisterTab = () => {
     parentName: '',
     parentMobile: '',
   });
+  const [generatedBarcode, setGeneratedBarcode] = useState(null);
+  const [showBarcodeModal, setShowBarcodeModal] = useState(false);
+  const [registeredStudent, setRegisteredStudent] = useState(null);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
+
+  // Generate unique student ID
+  const generateStudentId = () => {
+    // Get existing students to determine next increment number
+    const existingStudents = JSON.parse(localStorage.getItem('students')) || [];
+    const nextNumber = existingStudents.length + 1;
+    
+    return `STD${nextNumber}${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  };
+
+  // Generate student barcode
+  const generateStudentBarcode = (student) => {
+    const studentId = student.studentId || generateStudentId();
+    const barcodeData = studentId; // Use Student ID only
+    
+    return {
+      id: studentId,
+      barcodeData: barcodeData,
+      studentName: `${student.firstName} ${student.lastName}`,
+      generatedAt: new Date().toISOString(),
+      studentInfo: student
+    };
+  };
+
+  // Download barcode as PNG
+  const downloadBarcode = () => {
+    if (!generatedBarcode) return;
+    
+    const canvas = document.getElementById('success-barcode-display');
+    if (canvas) {
+      const link = document.createElement('a');
+      link.download = `barcode_${generatedBarcode.studentName}.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+    }
+  };
+
+
 
   const handleStep1 = (values) => {
     setStep1Values(values);
@@ -141,7 +155,7 @@ const PhysicalStudentRegisterTab = () => {
       const parsed = parseNIC(values.idNumber);
       if (parsed) {
         setNicInfo(parsed);
-        setManualFields(f => ({ ...f, ...parsed }));
+        setManualFields(parsed);
       } else {
         setNicInfo(null);
         setManualFields({ dob: '', age: '', gender: '', email: '', school: '', stream: '', address: '', district: '', parentName: '', parentMobile: '' });
@@ -158,10 +172,128 @@ const PhysicalStudentRegisterTab = () => {
     setStep(3);
   };
 
+  const handleRegister = async () => {
+    setIsRegistering(true);
+    
+    try {
+      // Simulate API call delay for better UX
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Get existing students to check for duplicates
+      const currentStudents = JSON.parse(localStorage.getItem('students')) || [];
+      
+      // Check for duplicate NIC, mobile, and email
+      const duplicateNIC = currentStudents.find(student => 
+        student.nic && student.nic === summaryValues.idNumber
+      );
+      const duplicateMobile = currentStudents.find(student => 
+        student.phone === summaryValues.mobile
+      );
+      const duplicateEmail = currentStudents.find(student => 
+        student.email && student.email === summaryValues.email
+      );
+      
+      if (duplicateNIC) {
+        alert('A student with this NIC number is already registered.');
+        setIsRegistering(false);
+        return;
+      }
+      
+      if (duplicateMobile) {
+        alert('A student with this mobile number is already registered.');
+        setIsRegistering(false);
+        return;
+      }
+      
+      if (duplicateEmail) {
+        alert('A student with this email address is already registered.');
+        setIsRegistering(false);
+        return;
+      }
+      
+      // Always generate unique student ID
+      const studentId = generateStudentId();
+      
+      // Create student object with all required fields
+      const newStudent = {
+        studentId: studentId,
+        firstName: summaryValues.firstName,
+        lastName: summaryValues.lastName,
+        nic: summaryValues.idNumber || '',
+        gender: summaryValues.gender,
+        age: summaryValues.age,
+        email: summaryValues.email,
+        phone: summaryValues.mobile,
+        parentName: summaryValues.parentName,
+        parentPhone: summaryValues.parentMobile,
+        stream: summaryValues.stream,
+        dateOfBirth: summaryValues.dob,
+        school: summaryValues.school,
+        address: summaryValues.address,
+        district: summaryValues.district,
+        dateJoined: new Date().toISOString().split('T')[0],
+        enrolledClasses: [],
+              // Add barcode generation info
+      barcodeData: studentId, // Use Student ID only
+      barcodeGeneratedAt: new Date().toISOString()
+      };
+      
+      // Generate barcode
+      const barcode = generateStudentBarcode(newStudent);
+      
+      // Add new student to the list
+      currentStudents.push(newStudent);
+      
+      // Save back to localStorage
+      localStorage.setItem('students', JSON.stringify(currentStudents));
+      
+      // Debug: Log the saved data
+      console.log('Student saved to localStorage:', newStudent);
+      console.log('Total students in localStorage:', currentStudents.length);
+      
+      // Set success state
+      setRegistrationSuccess(true);
+      setGeneratedBarcode(barcode);
+      setRegisteredStudent(newStudent);
+      
+
+      
+    } catch (error) {
+      console.error('Registration error:', error);
+      alert('Registration failed. Please try again.');
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
+  // Generate barcode on canvas when success state is shown
+  useEffect(() => {
+    if (registrationSuccess && generatedBarcode) {
+      setTimeout(() => {
+        const canvas = document.getElementById('success-barcode-display');
+        if (canvas) {
+          try {
+            JsBarcode('#success-barcode-display', generatedBarcode.barcodeData, {
+              format: 'CODE128',
+              width: 1.5,
+              height: 30,
+              displayValue: true,
+              fontSize: 10,
+              margin: 3,
+              background: '#ffffff',
+              lineColor: '#000000'
+            });
+          } catch (error) {
+            console.error('Error generating barcode:', error);
+          }
+        }
+      }, 300);
+    }
+  }, [registrationSuccess, generatedBarcode]);
 
   return (
-    <div className="w-full flex flex-col items-center min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className='max-w-5xl w-full flex flex-col p-8 items-center'>
+    <div className="w-full flex flex-col justify-center items-center min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className='max-w-md w-full flex flex-col p-8 items-center'>
         <div className='app-log flex flex-col justify-center items-center mb-8'>
           <div className='w-12 h-12 rounded-full bg-[#3da58a] flex items-center justify-center mb-3 shadow-xl backdrop-blur-sm'>
             <FaGraduationCap className='text-white text-2xl' />
@@ -173,7 +305,7 @@ const PhysicalStudentRegisterTab = () => {
             Physical Student Registration
           </span>
         </div>
-        <div className="w-full max-w-5xl">
+        <div className="w-full max-w-md">
           {step === 1 && (
             <BasicForm
               initialValues={step1Values}
@@ -182,7 +314,6 @@ const PhysicalStudentRegisterTab = () => {
             >
               {({ errors, touched, handleChange, values }) => (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <CustomTextField
                       id="firstName"
                       name="firstName"
@@ -209,7 +340,7 @@ const PhysicalStudentRegisterTab = () => {
                       id="idNumber"
                       name="idNumber"
                       type="text"
-                      label="Student ID Number If Available"
+                    label="NIC If Available"
                       value={values.idNumber}
                       onChange={handleChange}
                       error={errors.idNumber}
@@ -227,32 +358,7 @@ const PhysicalStudentRegisterTab = () => {
                       touched={touched.mobile}
                       icon={FaPhone}
                     />
-                    <CustomTextField
-                      id="password"
-                      name="password"
-                      type="password"
-                      label="Password *"
-                      value={values.password}
-                      onChange={handleChange}
-                      error={errors.password}
-                      touched={touched.password}
-                      isPassword
-                      icon={FaLock}
-                    />
-                    <CustomTextField
-                      id="confirmPassword"
-                      name="confirmPassword"
-                      type="password"
-                      label="Confirm Password *"
-                      value={values.confirmPassword}
-                      onChange={handleChange}
-                      error={errors.confirmPassword}
-                      touched={touched.confirmPassword}
-                      isPassword
-                      icon={FaLock}
-                    />
-                  </div>
-                  <div className="flex gap-4 mt-8">
+                  <div className="flex gap-4 mt-2">
                     <CustomButton type="button" onClick={() => setStep(1)}>
                       Back
                     </CustomButton>
@@ -304,7 +410,7 @@ const PhysicalStudentRegisterTab = () => {
               }}
             >
               {({ errors, touched, handleChange, values, handleSubmit, isSubmitting, submitCount }) => (
-                <form className='flex flex-col w-full' onSubmit={e => {
+                <form className='flex flex-col w-full space-y-4' onSubmit={e => {
                   handleSubmit(e);
                   if (Object.keys(errors).length > 0) {
                     const firstErrorField = Object.keys(errors)[0];
@@ -317,7 +423,6 @@ const PhysicalStudentRegisterTab = () => {
                       Please fix the errors below before continuing.
                     </div>
                   )}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <CustomTextField
                       id="dob"
                       name="dob"
@@ -383,7 +488,7 @@ const PhysicalStudentRegisterTab = () => {
                         className="border-2 border-[#1a365d] rounded-md px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a365d]"
                       >
                         <option value="">Select Stream</option>
-                        {streams.map(s => <option key={s} value={s}>{s}</option>)}
+                      {allowedStreams.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                       {errors.stream && <span className='text-red-500 text-[10px] mt-1'>{errors.stream}</span>}
                     </div>
@@ -434,8 +539,7 @@ const PhysicalStudentRegisterTab = () => {
                       touched={touched.parentMobile}
                       icon={FaPhone}
                     />
-                  </div>
-                  <div className="flex gap-4 mt-8">
+                  <div className="flex gap-4 mt-2">
                     <CustomButton type="button" onClick={() => setStep(1)}>
                       Back
                     </CustomButton>
@@ -449,11 +553,75 @@ const PhysicalStudentRegisterTab = () => {
           )}
           {step === 3 && (
             <div className="flex flex-col w-full space-y-4">
-              <h2 className="text-lg font-bold text-[#1a365d] mb-2 flex justify-center">Review Your Details</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {registrationSuccess ? (
+                <div className="bg-white p-6 rounded-lg shadow-md">
+                  <div className="text-center mb-6">
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      </svg>
+                    </div>
+                    <h3 className="text-xl font-bold text-green-800 mb-2">Student Registered Successfully!</h3>
+                    <p className="text-gray-600">Generated Student ID: <span className="font-semibold text-blue-600">{generatedBarcode?.id}</span></p>
+                  </div>
+                  
+                                     {generatedBarcode && (
+                     <div className="bg-gray-50 p-3 rounded-lg mb-6">
+                       <h4 className="font-medium text-gray-800 mb-2 text-center text-sm">Generated Barcode</h4>
+                       <div className="flex justify-center mb-2">
+                         <canvas id="success-barcode-display" className="border border-gray-300 max-w-xs"></canvas>
+                       </div>
+                       <p className="text-xs text-gray-600 text-center break-all">
+                         {generatedBarcode.barcodeData}
+                       </p>
+                      <div className="mt-4">
+                        <CustomButton
+                          onClick={downloadBarcode}
+                        >
+                          Download Barcode
+                        </CustomButton>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="text-center">
+                    <CustomButton
+                      onClick={() => {
+                        setRegistrationSuccess(false);
+                        setGeneratedBarcode(null);
+                        setRegisteredStudent(null);
+                        setStep(1);
+                        setStep1Values({
+                          firstName: '',
+                          lastName: '',
+                          idNumber: '',
+                          mobile: '',
+                        });
+                        setManualFields({
+                          dob: '',
+                          age: '',
+                          gender: '',
+                          email: '',
+                          school: '',
+                          stream: '',
+                          address: '',
+                          district: '',
+                          parentName: '',
+                          parentMobile: '',
+                        });
+                        setSummaryValues({});
+                      }}
+                    >
+                      Register Another Student
+                    </CustomButton>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <h2 className="text-lg font-bold text-[#1a365d] mb-2">Review Your Details</h2>
               <CustomTextField label="First Name" value={summaryValues.firstName} readOnly icon={FaUser} />
               <CustomTextField label="Last Name" value={summaryValues.lastName} readOnly icon={FaUser} />
-              <CustomTextField label="ID Number" value={summaryValues.idNumber} readOnly icon={FaIdCard} />
+                  <CustomTextField label="NIC" value={summaryValues.idNumber} readOnly icon={FaIdCard} />
               <CustomTextField label="Mobile" value={summaryValues.mobile} readOnly icon={FaPhone} />
               <CustomTextField label="Date of Birth" value={summaryValues.dob} readOnly icon={FaCalendarAlt} />
               <CustomTextField label="Age" value={summaryValues.age} readOnly icon={FaCalendarAlt} />
@@ -465,19 +633,33 @@ const PhysicalStudentRegisterTab = () => {
               <CustomTextField label="District" value={summaryValues.district} readOnly icon={FaUser} />
               <CustomTextField label="Parent Name" value={summaryValues.parentName} readOnly icon={FaUser} />
               <CustomTextField label="Parent Mobile Number" value={summaryValues.parentMobile} readOnly icon={FaPhone} />
-              </div>
               <div className="flex gap-4 mt-2">
                 <CustomButton type="button" onClick={() => setStep(2)}>
                   Back
                 </CustomButton>
-                <CustomButton type="button" onClick={handleRegister}>
-                  Register
+                    <CustomButton 
+                      type="button" 
+                      onClick={handleRegister}
+                      disabled={isRegistering}
+                    >
+                      {isRegistering ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Registering...
+                        </div>
+                      ) : (
+                        'Register'
+                      )}
                 </CustomButton>
               </div>
+                </>
+              )}
             </div>
           )}
         </div>
       </div>
+
+
     </div>
   );
 };

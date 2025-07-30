@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import studentSidebarSections from '././StudentDashboardSidebar';
 import Barcode from 'react-barcode';
@@ -48,6 +48,43 @@ function DashboardNavButtons() {
 }
 
 const StudentDashboard = ({ onLogout }) => {
+  const [currentStudent, setCurrentStudent] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Load current student from localStorage
+    const studentData = localStorage.getItem('currentStudent');
+    if (studentData) {
+      const student = JSON.parse(studentData);
+      setCurrentStudent(student);
+    } else {
+      // If no student data, redirect to login
+      navigate('/login');
+    }
+  }, [navigate]);
+
+  // Show loading or redirect if no student data
+  if (!currentStudent) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
+
+  // Get initials for avatar
+  const getInitials = (firstName, lastName) => {
+    return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase();
+  };
+
+  // Get greeting based on time
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
   return (
     <DashboardLayout
       userRole="Student"
@@ -62,7 +99,7 @@ const StudentDashboard = ({ onLogout }) => {
               <div className="flex items-center gap-4">
                 <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=student" alt="avatar" className="w-14 h-14 md:w-20 md:h-20 rounded-full" />
                 <div>
-                  <div className="text-base md:text-lg font-semibold">Good Morning Bawantha !</div>
+                  <div className="text-base md:text-lg font-semibold">{getGreeting()} {currentStudent.firstName} !</div>
                   <div className="text-gray-500 text-xs md:text-sm">Let's Start Learning</div>
                 </div>
               </div>
@@ -81,57 +118,41 @@ const StudentDashboard = ({ onLogout }) => {
               <div className="flex flex-col items-center md:items-center h-full min-h-[540px] lg:min-h-[540px] lg:h-full justify-between w-full">
                 {/* Avatar and Name */}
                 <div className="flex flex-col items-center w-full">
-                  <div className="bg-red-500 w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold text-white mb-6">BR</div>
-                  <div className="text-xl font-semibold mb-1 text-center">Bawantha Rathnayake</div>
+                  <div className="bg-red-500 w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold text-white mb-6">
+                    {getInitials(currentStudent.firstName, currentStudent.lastName)}
+                  </div>
+                  <div className="text-xl font-semibold mb-1 text-center">{currentStudent.firstName} {currentStudent.lastName}</div>
                   <div className="text-md text-blue-700 font-semibold mb-2 text-center">
-                    Student ID <span className="text-black">#<span className="underline">20576340</span></span>
+                    Student ID <span className="text-black">#<span className="underline">{currentStudent.studentId}</span></span>
                   </div>
-                  <div className="flex items-center text-xs text-gray-700 mb-4 text-center">
-                    <span className="mr-1">❗</span>
-                    Student ID එක verify කර නැත. කරුණාකර verify කරන්න.
-                  </div>
+                  
                 </div>
                 {/* Details Section */}
                 <div className="w-full bg-gray-50 rounded-lg p-4 mb-4">
                   <div className="text-xs text-gray-500 font-semibold mb-2">DETAILS</div>
                   <div className="flex items-center justify-between mb-2 text-sm">
                     <span className="flex items-center">
-                      <span className="mr-2 text-green-600">✔</span>Mobile: 0740901827
+                      <span className="mr-2 text-green-600">✔</span>Mobile: {currentStudent.phone}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between mb-2 text-sm">
+                    <span className="flex items-center">
+                      <span className="mr-2 text-green-600">✔</span>School: {currentStudent.school}
                     </span>
                   </div>
                   <div className="flex items-center justify-between mb-2 text-sm">
                     <span className="flex items-center">
-                      <span className="mr-2 text-green-600">✔</span>Email: bawa...ke25@gmail.com
+                      <span className="mr-2 text-green-600">✔</span>Stream: {currentStudent.stream}
                     </span>
-                    <button className="ml-2 px-2 py-1 bg-blue-900 text-white rounded text-xs">Verify</button>
-                  </div>
-                  <div className="flex items-center justify-between mb-2 text-sm">
-                    <span className="flex items-center">
-                      <span className="mr-2 text-red-600">✘</span>Profile Image
-                    </span>
-                    <button className="ml-2 px-2 py-1 bg-blue-900 text-white rounded text-xs">Verify</button>
-                  </div>
-                  <div className="flex items-center justify-between mb-2 text-sm">
-                    <span className="flex items-center">
-                      <span className="mr-2 text-red-600">✘</span>NIC
-                    </span>
-                    <button className="ml-2 px-2 py-1 bg-blue-900 text-white rounded text-xs">Verify</button>
-                  </div>
-                  <div className="flex items-center justify-between mb-2 text-sm">
-                    <span className="flex items-center">
-                      <span className="mr-2 text-red-600">✘</span>Location
-                    </span>
-                    <button className="ml-2 px-2 py-1 bg-blue-900 text-white rounded text-xs">Verify</button>
                   </div>
                 </div>
                 {/* Barcode and Verification Button */}
                 <div className="w-full flex flex-col items-center">
                   <div className="my-2">
-                    <Barcode value="20576340" width={1.5} height={50} fontSize={12} displayValue={true} background="#fff" lineColor="#000" />
+                    <Barcode value={currentStudent.studentId} width={1.5} height={50} fontSize={12} displayValue={true} background="#fff" lineColor="#000" />
                   </div>
-                  <button className="mt-2 px-6 py-2 bg-white border border-red-300 text-red-500 rounded-full shadow text-sm flex items-center gap-2">
-                    <span>Verification Center</span>
-                  </button>
+                  
                 </div>
               </div>
             </BasicCard>

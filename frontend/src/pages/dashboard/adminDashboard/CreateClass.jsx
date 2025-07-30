@@ -229,10 +229,10 @@ const CreateClass = () => {
           teacherId: related.teacherId,
           stream: related.stream,
           deliveryMethod: related.deliveryMethod,
-                  schedule: { ...related.schedule },
-        startDate: related.startDate,
-        endDate: related.endDate,
-        maxStudents: related.maxStudents,
+          schedule: { ...related.schedule },
+          startDate: related.startDate,
+          endDate: related.endDate,
+          maxStudents: related.maxStudents,
           zoomLink: related.zoomLink || submitValues.zoomLink, // Keep user's zoom link if related doesn't have one
           description: related.description,
           relatedTheoryId: related.id,
@@ -923,16 +923,16 @@ const CreateClass = () => {
                 {/* Payment Tracking (for all classes) */}
                 <div className="flex flex-col md:flex-row items-center mb-2 gap-2">
                   <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      name="paymentTracking"
-                      checked={values.paymentTracking}
-                      onChange={handleChange}
-                      className="mr-2"
-                    />
-                    <label className="text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    name="paymentTracking"
+                    checked={values.paymentTracking}
+                    onChange={handleChange}
+                    className="mr-2"
+                  />
+                  <label className="text-sm text-gray-700">
                       Enable Payment Tracking
-                    </label>
+                  </label>
                   </div>
                   {values.paymentTracking && (
                     <div className="flex items-center gap-2">

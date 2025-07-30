@@ -161,11 +161,11 @@ const MyClassDetail = () => {
   const formatTime = (timeStr) => {
     if (!timeStr) return '';
     try {
-      const [hour, minute] = timeStr.split(':');
-      let h = parseInt(hour, 10);
-      const ampm = h >= 12 ? 'PM' : 'AM';
-      h = h % 12 || 12;
-      return `${h}:${minute} ${ampm}`;
+    const [hour, minute] = timeStr.split(':');
+    let h = parseInt(hour, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return `${h}:${minute} ${ampm}`;
     } catch (err) {
       return timeStr;
     }
@@ -389,7 +389,7 @@ const MyClassDetail = () => {
             <div className="flex items-start justify-between mb-2">
               <div>
                 <h1 className="text-2xl font-bold mb-1">{classData.className}</h1>
-                <div className="text-gray-600 mb-2">By {classData.teacher}</div>
+            <div className="text-gray-600 mb-2">By {classData.teacher}</div>
               </div>
               <div className={`px-3 py-1 rounded-full text-sm ${priority.bgColor} ${priority.color} border ${priority.borderColor}`}>
                 {priority.text}
@@ -439,7 +439,7 @@ const MyClassDetail = () => {
               {classData.paymentStatus === 'overdue' && !classData.latePaymentRequested && !isInactive && (
                 <CustomButton onClick={handleLatePaymentRequest} className="bg-red-600 hover:bg-red-700">
                   <FaExclamationCircle className="mr-2" /> Request Late Payment
-                </CustomButton>
+              </CustomButton>
               )}
             </div>
           </div>
@@ -743,8 +743,8 @@ const MyClassDetail = () => {
                 
 
               </div>
-            </div>
-          )}
+                  </div>
+        )}
 
           {activeTab === 'actions' && (
             <div>

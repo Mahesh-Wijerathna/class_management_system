@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import * as Yup from 'yup';
 import CustomTextField from '../../components/CustomTextField';
 import CustomButton from '../../components/CustomButton';
 import BasicForm from '../../components/BasicForm';
-import { FaUser, FaLock, FaPhone, FaIdCard, FaCalendarAlt, FaVenusMars } from 'react-icons/fa';
+import { FaUser, FaLock, FaPhone, FaIdCard, FaCalendarAlt, FaVenusMars, FaBarcode, FaDownload } from 'react-icons/fa';
 import { FaGraduationCap } from 'react-icons/fa';
 import { Formik } from 'formik';
+import JsBarcode from 'jsbarcode';
 
 // Helper to parse NIC (Sri Lankan)
 function parseNIC(nic) {
@@ -127,6 +128,9 @@ export default function NewStudentRegister() {
     parentName: '',
     parentMobile: '',
   });
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [generatedBarcode, setGeneratedBarcode] = useState(null);
+  const [isRegistering, setIsRegistering] = useState(false);
 
   const handleStep1 = (values) => {
     setStep1Values(values);
@@ -151,9 +155,126 @@ export default function NewStudentRegister() {
     setStep(3);
   };
 
-  const handleRegister = () => {
-    // TODO: Connect to backend
-    alert('Registered! ' + JSON.stringify(summaryValues, null, 2));
+  // Generate barcode when registration is successful
+  useEffect(() => {
+    if (registrationSuccess && generatedBarcode) {
+      setTimeout(() => {
+        const canvas = document.getElementById('success-barcode-display');
+        if (canvas) {
+          try {
+            JsBarcode('#success-barcode-display', generatedBarcode.barcodeData, {
+              format: 'CODE128',
+              width: 1.5,
+              height: 30,
+              displayValue: true,
+              fontSize: 10,
+              margin: 3,
+              background: '#ffffff',
+              lineColor: '#000000'
+            });
+          } catch (error) {
+            console.error('Error generating barcode:', error);
+          }
+        }
+      }, 300);
+    }
+  }, [registrationSuccess, generatedBarcode]);
+
+  const downloadBarcode = () => {
+    const canvas = document.getElementById('success-barcode-display');
+    if (canvas) {
+      const link = document.createElement('a');
+      link.download = `barcode_${generatedBarcode.studentName}_${generatedBarcode.id}.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+    }
+  };
+
+  const handleRegister = async () => {
+    setIsRegistering(true);
+    
+    // Get existing students to determine next increment number
+    const currentStudents = JSON.parse(localStorage.getItem('students')) || [];
+    
+    // Check for duplicate NIC, mobile, and email
+    const duplicateNIC = currentStudents.find(student => 
+      student.nic && student.nic === summaryValues.idNumber
+    );
+    const duplicateMobile = currentStudents.find(student => 
+      student.phone === summaryValues.mobile
+    );
+    const duplicateEmail = currentStudents.find(student => 
+      student.email && student.email === summaryValues.email
+    );
+    
+    if (duplicateNIC) {
+      alert('A student with this NIC number is already registered.');
+      setIsRegistering(false);
+      return;
+    }
+    
+    if (duplicateMobile) {
+      alert('A student with this mobile number is already registered.');
+      setIsRegistering(false);
+      return;
+    }
+    
+    if (duplicateEmail) {
+      alert('A student with this email address is already registered.');
+      setIsRegistering(false);
+      return;
+    }
+    
+    const nextNumber = currentStudents.length + 1;
+    
+    // Always generate unique student ID with incrementing number
+    const studentId = `STD${nextNumber}${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    
+    // Create student object with all required fields
+    const newStudent = {
+      studentId: studentId,
+      firstName: summaryValues.firstName,
+      lastName: summaryValues.lastName,
+      nic: summaryValues.idNumber || '',
+      gender: summaryValues.gender,
+      age: summaryValues.age,
+      email: summaryValues.email,
+      phone: summaryValues.mobile,
+      parentName: summaryValues.parentName,
+      parentPhone: summaryValues.parentMobile,
+      stream: summaryValues.stream,
+      dateOfBirth: summaryValues.dob,
+      school: summaryValues.school,
+      address: summaryValues.address,
+      district: summaryValues.district,
+      dateJoined: new Date().toISOString().split('T')[0],
+      enrolledClasses: [],
+      // Add barcode generation info
+      barcodeData: studentId, // Use student ID only for barcode
+      barcodeGeneratedAt: new Date().toISOString()
+    };
+    
+    // Add new student to the list
+    currentStudents.push(newStudent);
+    
+    // Save back to localStorage
+    localStorage.setItem('students', JSON.stringify(currentStudents));
+    
+    // Debug logging
+    console.log('New student saved:', newStudent);
+    console.log('All students in localStorage:', currentStudents);
+    
+    // Create barcode object for display
+    const barcodeObj = {
+      id: studentId,
+      barcodeData: studentId,
+      studentName: `${summaryValues.firstName} ${summaryValues.lastName}`,
+      generatedAt: new Date().toISOString()
+    };
+    
+    setGeneratedBarcode(barcodeObj);
+    setRegistrationSuccess(true);
+    setIsRegistering(false);
   };
 
   return (
@@ -205,7 +326,7 @@ export default function NewStudentRegister() {
                     id="idNumber"
                     name="idNumber"
                     type="text"
-                    label="Student ID Number If Available"
+                    label="NIC If Available"
                     value={values.idNumber}
                     onChange={handleChange}
                     error={errors.idNumber}
@@ -442,29 +563,73 @@ export default function NewStudentRegister() {
           )}
           {step === 3 && (
             <div className="flex flex-col w-full space-y-4">
-              <h2 className="text-lg font-bold text-[#1a365d] mb-2">Review Your Details</h2>
-              <CustomTextField label="First Name" value={summaryValues.firstName} readOnly icon={FaUser} />
-              <CustomTextField label="Last Name" value={summaryValues.lastName} readOnly icon={FaUser} />
-              <CustomTextField label="ID Number" value={summaryValues.idNumber} readOnly icon={FaIdCard} />
-              <CustomTextField label="Mobile" value={summaryValues.mobile} readOnly icon={FaPhone} />
-              <CustomTextField label="Date of Birth" value={summaryValues.dob} readOnly icon={FaCalendarAlt} />
-              <CustomTextField label="Age" value={summaryValues.age} readOnly icon={FaCalendarAlt} />
-              <CustomTextField label="Gender" value={summaryValues.gender} readOnly icon={FaVenusMars} />
-              <CustomTextField label="Email" value={summaryValues.email} readOnly icon={FaUser} />
-              <CustomTextField label="School" value={summaryValues.school} readOnly icon={FaUser} />
-              <CustomTextField label="Stream" value={summaryValues.stream} readOnly icon={FaUser} />
-              <CustomTextField label="Address" value={summaryValues.address} readOnly icon={FaUser} />
-              <CustomTextField label="District" value={summaryValues.district} readOnly icon={FaUser} />
-              <CustomTextField label="Parent Name" value={summaryValues.parentName} readOnly icon={FaUser} />
-              <CustomTextField label="Parent Mobile Number" value={summaryValues.parentMobile} readOnly icon={FaPhone} />
-              <div className="flex gap-4 mt-2">
-                <CustomButton type="button" onClick={() => setStep(2)}>
-                  Back
-                </CustomButton>
-                <CustomButton type="button" onClick={handleRegister}>
-                  Register
-                </CustomButton>
-              </div>
+              {!registrationSuccess ? (
+                <>
+                  <h2 className="text-lg font-bold text-[#1a365d] mb-2">Review Your Details</h2>
+                  <CustomTextField label="First Name" value={summaryValues.firstName} readOnly icon={FaUser} />
+                  <CustomTextField label="Last Name" value={summaryValues.lastName} readOnly icon={FaUser} />
+                  <CustomTextField label="NIC" value={summaryValues.idNumber} readOnly icon={FaIdCard} />
+                  <CustomTextField label="Mobile" value={summaryValues.mobile} readOnly icon={FaPhone} />
+                  <CustomTextField label="Date of Birth" value={summaryValues.dob} readOnly icon={FaCalendarAlt} />
+                  <CustomTextField label="Age" value={summaryValues.age} readOnly icon={FaCalendarAlt} />
+                  <CustomTextField label="Gender" value={summaryValues.gender} readOnly icon={FaVenusMars} />
+                  <CustomTextField label="Email" value={summaryValues.email} readOnly icon={FaUser} />
+                  <CustomTextField label="School" value={summaryValues.school} readOnly icon={FaUser} />
+                  <CustomTextField label="Stream" value={summaryValues.stream} readOnly icon={FaUser} />
+                  <CustomTextField label="Address" value={summaryValues.address} readOnly icon={FaUser} />
+                  <CustomTextField label="District" value={summaryValues.district} readOnly icon={FaUser} />
+                  <CustomTextField label="Parent Name" value={summaryValues.parentName} readOnly icon={FaUser} />
+                  <CustomTextField label="Parent Mobile Number" value={summaryValues.parentMobile} readOnly icon={FaPhone} />
+                  <div className="flex gap-4 mt-2">
+                    <CustomButton type="button" onClick={() => setStep(2)}>
+                      Back
+                    </CustomButton>
+                    <CustomButton 
+                      type="button" 
+                      onClick={handleRegister}
+                      disabled={isRegistering}
+                    >
+                      {isRegistering ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Registering...
+                        </div>
+                      ) : (
+                        'Register'
+                      )}
+                    </CustomButton>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-bold text-green-800 mb-2">Student Registered Successfully!</h3>
+                  <p className="text-gray-600">Generated Student ID: <span className="font-semibold text-blue-600">{generatedBarcode?.id}</span></p>
+                  
+                  {generatedBarcode && (
+                    <div className="bg-gray-50 p-3 rounded-lg mb-6 mt-4">
+                      <h4 className="font-medium text-gray-800 mb-2 text-center text-sm">Generated Barcode</h4>
+                      <div className="flex justify-center mb-2">
+                        <canvas id="success-barcode-display" className="border border-gray-300 max-w-xs"></canvas>
+                      </div>
+                      <p className="text-xs text-gray-600 text-center break-all">
+                        {generatedBarcode.barcodeData}
+                      </p>
+                      <div className="mt-4">
+                        <CustomButton
+                          onClick={downloadBarcode}
+                        >
+                          Download Barcode
+                        </CustomButton>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
           <Link to="/login" className="mt-8 text-[#064e3b] hover:underline text-xs block text-center">Already registered?</Link>

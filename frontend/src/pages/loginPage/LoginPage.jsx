@@ -15,20 +15,15 @@ export default function LoginPage() {
 
   const LoginSchema = Yup.object().shape({
     userID: Yup.string()
-      .required("User ID is required")
-      .min(3, "User ID must be at least 3 characters")
-      .max(20, "User ID must not exceed 20 characters"),
+      .required("Student ID is required")
+      .min(3, "Student ID must be at least 3 characters"),
     password: Yup.string()
-      .required("Password is required")
-      .min(6, "Password must be at least 6 characters")
-      .matches(
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-        "Password must contain at least one uppercase letter, one lowercase letter, and one number"
-      )           
+      .notRequired()
   })
 
   const handleLogin = async (values) => {
     setBackendError("");
+    
     // Store remember me preference in localStorage if checked
     if (rememberMe) {
       localStorage.setItem('rememberedUser', values.userID)
@@ -37,15 +32,34 @@ export default function LoginPage() {
     }
 
     try {
+      // First try to authenticate with backend
       const data = await login({ userID: values.userID, password: values.password });
-      // *** Handle successful login ***
-      console.log("Login successful:", data);
-      // Example: Redirect user, store token, update auth state
-      // navigate('/dashboard'); // You would need to import useHistory or useNavigate from react-router-dom
+      console.log("Backend login successful:", data);
+      // Navigate to appropriate dashboard based on user role
+      // navigate('/dashboard');
     } catch (error) {
-      // *** Handle login errors ***
-      setBackendError(error.message || "Login failed. Please check your credentials.");
-  }
+      // If backend login fails, try localStorage authentication for students
+      console.log("Backend login failed, trying localStorage authentication...");
+      
+      // Get students from localStorage
+      const students = JSON.parse(localStorage.getItem('students')) || [];
+      
+      // Find student by Student ID only
+      const student = students.find(s => 
+        s.studentId === values.userID
+      );
+      
+      if (student) {
+        console.log("Student login successful:", student);
+        // Store student info in session
+        localStorage.setItem('currentStudent', JSON.stringify(student));
+        // Navigate to student dashboard
+        navigate('/studentdashboard');
+      } else {
+        // Both backend and localStorage authentication failed
+        setBackendError("Invalid Student ID. Please check your Student ID.");
+      }
+    }
   }
 
   // Check for remembered user on component mount
@@ -84,7 +98,7 @@ export default function LoginPage() {
                 id='userID'
                 name='userID'
               type='text'
-                label='User ID *'
+                label='Student ID *'
               value={values.userID}
                 onChange={handleChange}
                 error={errors.userID}
@@ -96,7 +110,7 @@ export default function LoginPage() {
                 id='password'
                 name='password'
                 type='password'
-                label='Password *'
+                label='Password (Optional)'
                 value={values.password}
                 onChange={handleChange}
                 error={errors.password}
