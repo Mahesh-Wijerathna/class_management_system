@@ -9,13 +9,43 @@ import { FaQrcode, FaBarcode, FaVideo, FaMapMarkerAlt, FaUsers, FaCalendar, FaCl
 // Get attendance records from localStorage
 const getAttendanceRecords = () => {
   try {
-    const stored = localStorage.getItem('myClasses.attendance');
-      if (!stored) return [];
-      return JSON.parse(stored);
-    } catch {
-      return [];
-    }
-  };
+    const stored = localStorage.getItem('myClasses');
+    if (!stored) return [];
+    const classes = JSON.parse(stored);
+    
+    // Get enrollments to match student information
+    const enrollments = getEnrollments();
+    
+    // Extract attendance records from myClasses
+    const attendanceRecords = [];
+    classes.forEach(cls => {
+      if (cls.attendance && Array.isArray(cls.attendance)) {
+        cls.attendance.forEach((record, index) => {
+          // Find student information from enrollments
+          const studentEnrollment = enrollments.find(e => 
+            e.classId === cls.id && e.studentId === record.studentId
+          );
+          
+          attendanceRecords.push({
+            id: `${cls.id}_${index}`, // Use consistent ID
+            classId: cls.id,
+            studentId: record.studentId || studentEnrollment?.studentId || 'STUDENT_001',
+            studentName: record.studentName || studentEnrollment?.studentName || 'Unknown Student',
+            date: record.date,
+            time: record.timestamp || new Date().toISOString(),
+            status: record.status,
+            method: record.method || 'manual',
+            deliveryMethod: cls.deliveryMethod || 'physical'
+          });
+        });
+      }
+    });
+    
+    return attendanceRecords;
+  } catch {
+    return [];
+  }
+};
 
 // Get enrollments from localStorage
   const getEnrollments = () => {
@@ -73,9 +103,25 @@ const ClassAttendanceDetail = () => {
 
     // Load attendance records for this class and date
     const allAttendanceRecords = getAttendanceRecords();
-    const classAttendance = allAttendanceRecords.filter(record => 
-      record.classId === classId && record.date === selectedDate
-    );
+    console.log('All attendance records:', allAttendanceRecords);
+    console.log('Looking for classId:', classId, 'and date:', selectedDate);
+    
+    const classAttendance = allAttendanceRecords.filter(record => {
+      console.log('Checking record:', record);
+      console.log('Record classId:', record.classId, 'Record date:', record.date);
+      console.log('Match classId:', String(record.classId) === String(classId));
+      console.log('Match date:', record.date === selectedDate);
+      
+      // Normalize date formats for comparison
+      const recordDate = record.date;
+      const selectedDateNormalized = selectedDate;
+      
+      console.log('Date comparison:', recordDate, '===', selectedDateNormalized);
+      
+      return String(record.classId) === String(classId) && recordDate === selectedDateNormalized;
+    });
+    
+    console.log('Filtered class attendance:', classAttendance);
     setAttendanceRecords(classAttendance);
 
     setLoading(false);
@@ -144,10 +190,27 @@ const ClassAttendanceDetail = () => {
         deliveryMethod: classDetails?.deliveryMethod || 'physical'
       };
 
-      // Save to localStorage
-      const allRecords = getAttendanceRecords();
-      const updatedRecords = [...allRecords, newAttendanceRecord];
-      localStorage.setItem('attendanceRecords', JSON.stringify(updatedRecords));
+      // Save to myClasses localStorage
+      const storedClasses = localStorage.getItem('myClasses');
+      if (storedClasses) {
+        const classes = JSON.parse(storedClasses);
+        const updatedClasses = classes.map(cls => {
+          if (cls.id === classId) {
+            const attendance = cls.attendance || [];
+            attendance.push({
+              date: selectedDate,
+              status: 'present',
+              timestamp: new Date().toISOString(),
+              studentId: studentId,
+              studentName: student.studentName || 'Unknown Student',
+              method: 'barcode'
+            });
+            return { ...cls, attendance };
+          }
+          return cls;
+        });
+        localStorage.setItem('myClasses', JSON.stringify(updatedClasses));
+      }
 
       setScanningStatus(`Attendance marked successfully for ${student.studentName || studentId}`);
       setBarcodeInput('');
@@ -170,14 +233,24 @@ const ClassAttendanceDetail = () => {
     );
 
     if (existingRecord) {
-      // Update existing record
-      const allRecords = getAttendanceRecords();
-      const updatedRecords = allRecords.map(record => 
-        record.id === existingRecord.id 
-          ? { ...record, status: status, time: new Date().toISOString() }
-          : record
-      );
-      localStorage.setItem('attendanceRecords', JSON.stringify(updatedRecords));
+      // Update existing record in myClasses
+      const storedClasses = localStorage.getItem('myClasses');
+      if (storedClasses) {
+        const classes = JSON.parse(storedClasses);
+        const updatedClasses = classes.map(cls => {
+          if (cls.id === classId) {
+            const attendance = cls.attendance || [];
+            const updatedAttendance = attendance.map(record => 
+              record.date === selectedDate && record.studentId === studentId
+                ? { ...record, status: status, timestamp: new Date().toISOString() }
+                : record
+            );
+            return { ...cls, attendance: updatedAttendance };
+          }
+          return cls;
+        });
+        localStorage.setItem('myClasses', JSON.stringify(updatedClasses));
+      }
     } else {
       // Create new record
       const newRecord = {
@@ -192,9 +265,27 @@ const ClassAttendanceDetail = () => {
         deliveryMethod: classDetails?.deliveryMethod || 'physical'
       };
 
-      const allRecords = getAttendanceRecords();
-      const updatedRecords = [...allRecords, newRecord];
-      localStorage.setItem('attendanceRecords', JSON.stringify(updatedRecords));
+      // Save to myClasses localStorage
+      const storedClasses = localStorage.getItem('myClasses');
+      if (storedClasses) {
+        const classes = JSON.parse(storedClasses);
+        const updatedClasses = classes.map(cls => {
+          if (cls.id === classId) {
+            const attendance = cls.attendance || [];
+            attendance.push({
+              date: selectedDate,
+              status: status,
+              timestamp: new Date().toISOString(),
+              studentId: studentId,
+              studentName: student.studentName || 'Unknown Student',
+              method: 'manual'
+            });
+            return { ...cls, attendance };
+          }
+          return cls;
+        });
+        localStorage.setItem('myClasses', JSON.stringify(updatedClasses));
+      }
     }
 
     loadClassData();
@@ -202,27 +293,43 @@ const ClassAttendanceDetail = () => {
 
   // Mark all students present (for online classes)
   const markAllPresent = () => {
-    const allRecords = getAttendanceRecords();
-    const newRecords = enrolledStudents.map(student => ({
-      id: Date.now() + Math.random(),
-      classId: classId,
-      studentId: student.studentId,
-      studentName: student.studentName || 'Unknown Student',
-      date: selectedDate,
-      time: new Date().toISOString(),
-      status: 'present',
-      method: 'bulk',
-      deliveryMethod: classDetails?.deliveryMethod || 'online'
-    }));
-
-    const updatedRecords = [...allRecords, ...newRecords];
-    localStorage.setItem('attendanceRecords', JSON.stringify(updatedRecords));
+    // Save to myClasses localStorage
+    const storedClasses = localStorage.getItem('myClasses');
+    if (storedClasses) {
+      const classes = JSON.parse(storedClasses);
+      const updatedClasses = classes.map(cls => {
+        if (cls.id === classId) {
+          const attendance = cls.attendance || [];
+          enrolledStudents.forEach(student => {
+            attendance.push({
+              date: selectedDate,
+              status: 'present',
+              timestamp: new Date().toISOString(),
+              studentId: student.studentId,
+              studentName: student.studentName || 'Unknown Student',
+              method: 'bulk'
+            });
+          });
+          return { ...cls, attendance };
+        }
+        return cls;
+      });
+      localStorage.setItem('myClasses', JSON.stringify(updatedClasses));
+    }
     loadClassData();
   };
 
   // Download attendance report
   const downloadReport = () => {
-    const classAttendance = getAttendanceRecords().filter(record => record.classId === classId);
+    const storedClasses = localStorage.getItem('myClasses');
+    if (!storedClasses) {
+      alert('No class data found');
+      return;
+    }
+    
+    const classes = JSON.parse(storedClasses);
+    const classData = classes.find(cls => cls.id === classId);
+    const classAttendance = classData?.attendance || [];
     
     if (classAttendance.length === 0) {
       alert('No attendance records found for this class');
@@ -234,11 +341,11 @@ const ClassAttendanceDetail = () => {
       ['Date', 'Student ID', 'Student Name', 'Status', 'Method', 'Time'],
       ...classAttendance.map(record => [
         record.date,
-        record.studentId,
-        record.studentName,
+        record.studentId || 'Unknown',
+        record.studentName || 'Unknown Student',
         record.status,
-        record.method,
-        new Date(record.time).toLocaleString()
+        record.method || 'manual',
+        new Date(record.timestamp || record.time || new Date()).toLocaleString()
       ])
     ].map(row => row.join(',')).join('\n');
 
@@ -275,19 +382,38 @@ const ClassAttendanceDetail = () => {
   // Calculate attendance statistics
   const presentCount = attendanceRecords.filter(r => r.status === 'present').length;
   const absentCount = attendanceRecords.filter(r => r.status === 'absent').length;
-  const totalEnrolled = enrolledStudents.length;
+  const totalEnrolled = enrolledStudents.length > 0 ? enrolledStudents.length : attendanceRecords.length;
   const attendanceRate = totalEnrolled > 0 ? Math.round((presentCount / totalEnrolled) * 100) : 0;
 
   // Create student attendance data for table
-  const studentAttendanceData = enrolledStudents.map(student => {
-    const attendanceRecord = attendanceRecords.find(r => r.studentId === student.studentId);
-    return {
-      ...student,
-      attendanceStatus: attendanceRecord?.status || 'not_marked',
-      attendanceTime: attendanceRecord?.time || null,
-      attendanceMethod: attendanceRecord?.method || null
-    };
-  });
+  let studentAttendanceData = [];
+  
+  console.log('Enrolled students:', enrolledStudents);
+  console.log('Attendance records:', attendanceRecords);
+  
+  if (enrolledStudents.length > 0) {
+    // If we have enrolled students, show them with their attendance
+    studentAttendanceData = enrolledStudents.map(student => {
+      const attendanceRecord = attendanceRecords.find(r => r.studentId === student.studentId);
+      return {
+        ...student,
+        attendanceStatus: attendanceRecord?.status || 'not_marked',
+        attendanceTime: attendanceRecord?.time || null,
+        attendanceMethod: attendanceRecord?.method || null
+      };
+    });
+  } else {
+    // If no enrolled students, show attendance records directly
+    studentAttendanceData = attendanceRecords.map(record => ({
+      studentId: record.studentId,
+      studentName: record.studentName,
+      attendanceStatus: record.status,
+      attendanceTime: record.time,
+      attendanceMethod: record.method
+    }));
+  }
+  
+  console.log('Final student attendance data:', studentAttendanceData);
 
   return (
     <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>

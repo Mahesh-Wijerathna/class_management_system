@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import BasicCard from '../../../components/BasicCard';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import studentSidebarSections from './StudentDashboardSidebar';
-import { FaCalendar, FaClock, FaMoneyBill, FaUser, FaBook, FaVideo, FaMapMarkerAlt, FaUsers, FaGraduationCap, FaCheckCircle, FaExclamationTriangle, FaTimesCircle } from 'react-icons/fa';
+import { getStudentCard, getCardTypeInfo, getCardStatus, isCardValid, calculateFeeWithCard } from '../../../utils/cardUtils';
+import { FaCalendar, FaClock, FaMoneyBill, FaUser, FaBook, FaVideo, FaMapMarkerAlt, FaUsers, FaGraduationCap, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaTicketAlt } from 'react-icons/fa';
 
 const PurchaseClasses = () => {
   const [search, setSearch] = useState('');
@@ -21,32 +22,53 @@ const PurchaseClasses = () => {
       const savedClasses = localStorage.getItem('classes');
       if (savedClasses) {
         const allClasses = JSON.parse(savedClasses);
+        const currentStudent = JSON.parse(localStorage.getItem('currentStudent') || '{}');
+        
         // Ensure all classes have the required structure (like in CreateClass.jsx)
-        const validatedClasses = allClasses.map(cls => ({
-          ...cls,
-          schedule: cls.schedule || { day: '', startTime: '', endTime: '', frequency: 'weekly' },
-          fee: cls.fee || 0,
-          maxStudents: cls.maxStudents || 50,
-          status: cls.status || 'active',
-          currentStudents: cls.currentStudents || 0,
-          className: cls.className || 'Unnamed Class',
-          subject: cls.subject || 'Unknown Subject',
-          teacher: cls.teacher || 'Unknown Teacher',
-          stream: cls.stream || 'Unknown Stream',
-          deliveryMethod: cls.deliveryMethod || 'online',
-          courseType: cls.courseType || 'theory',
-          // Handle new payment tracking structure
-          paymentTracking: cls.paymentTracking || { enabled: false },
-          paymentTrackingFreeDays: cls.paymentTrackingFreeDays || 7,
-          // Ensure payment tracking is properly structured
-          ...(cls.paymentTracking && typeof cls.paymentTracking === 'object' ? {} : {
-            paymentTracking: {
-              enabled: cls.paymentTracking || false,
-              freeDays: cls.paymentTrackingFreeDays || 7,
-              active: cls.paymentTracking || false
-            }
-          })
-        }));
+        const validatedClasses = allClasses.map(cls => {
+          // Get student's card for this class
+          const studentCard = getStudentCard(currentStudent.studentId || 'STUDENT_001', cls.id);
+          const cardInfo = studentCard ? getCardTypeInfo(studentCard.cardType) : null;
+          const cardStatus = getCardStatus(studentCard);
+          const cardValidity = isCardValid(studentCard);
+          
+          // Calculate fee with card discount
+          const originalFee = cls.fee || 0;
+          const discountedFee = studentCard && cardValidity.isValid ? 
+            calculateFeeWithCard(originalFee, studentCard.cardType) : originalFee;
+          
+          return {
+            ...cls,
+            schedule: cls.schedule || { day: '', startTime: '', endTime: '', frequency: 'weekly' },
+            fee: originalFee,
+            discountedFee: discountedFee,
+            maxStudents: cls.maxStudents || 50,
+            status: cls.status || 'active',
+            currentStudents: cls.currentStudents || 0,
+            className: cls.className || 'Unnamed Class',
+            subject: cls.subject || 'Unknown Subject',
+            teacher: cls.teacher || 'Unknown Teacher',
+            stream: cls.stream || 'Unknown Stream',
+            deliveryMethod: cls.deliveryMethod || 'online',
+            courseType: cls.courseType || 'theory',
+            // Handle new payment tracking structure
+            paymentTracking: cls.paymentTracking || { enabled: false },
+            paymentTrackingFreeDays: cls.paymentTrackingFreeDays || 7,
+            // Ensure payment tracking is properly structured
+            ...(cls.paymentTracking && typeof cls.paymentTracking === 'object' ? {} : {
+              paymentTracking: {
+                enabled: cls.paymentTracking || false,
+                freeDays: cls.paymentTrackingFreeDays || 7,
+                active: cls.paymentTracking || false
+              }
+            }),
+            // Add card information
+            studentCard,
+            cardInfo,
+            cardStatus,
+            cardValidity
+          };
+        });
         
         // Filter only active classes for purchase
         const activeClasses = validatedClasses.filter(cls => cls.status === 'active');
@@ -322,6 +344,14 @@ const PurchaseClasses = () => {
                 finalFee = Math.max(0, displayFee - discount);
                 discountInfo = `(Theory student: Rs. ${finalFee.toLocaleString()})`;
               }
+              
+              // Apply card discount if available
+              if (cls.studentCard && cls.cardValidity.isValid) {
+                finalFee = cls.discountedFee;
+                if (cls.discountedFee < cls.fee) {
+                  discountInfo = `(Card discount: Rs. ${finalFee.toLocaleString()})`;
+                }
+              }
 
               return (
                 <BasicCard
@@ -390,6 +420,42 @@ const PurchaseClasses = () => {
                           </span>
                         </div>
                       )}
+                      
+                      {/* Student Card Information */}
+                      {cls.studentCard && (
+                        <div className="mt-2 p-2 rounded border">
+                          <div className="flex items-center gap-2 mb-1">
+                            <FaTicketAlt className="text-blue-500" />
+                            <span className="text-xs font-semibold">Student Card</span>
+                          </div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${cls.cardInfo.color}`}>
+                              {cls.cardInfo.label}
+                            </span>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${cls.cardStatus.color}`}>
+                              {cls.cardStatus.label}
+                            </span>
+                          </div>
+                          {cls.cardValidity.isValid ? (
+                            <div className="text-xs text-green-600">
+                              ✓ {cls.cardValidity.reason}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-red-600">
+                              ✗ {cls.cardValidity.reason}
+                            </div>
+                          )}
+                          {cls.studentCard.reason && (
+                            <div className="text-xs text-gray-600 mt-1">
+                              <strong>Reason:</strong> {cls.studentCard.reason}
+                            </div>
+                          )}
+                          <div className="text-xs text-gray-600">
+                            <strong>Valid:</strong> {new Date(cls.studentCard.validFrom).toLocaleDateString()} - {new Date(cls.studentCard.validUntil).toLocaleDateString()}
+                          </div>
+                        </div>
+                      )}
+                      
                       {/* Purchase Status */}
                       <div className="flex items-center gap-1 mt-2 p-2 bg-gray-50 rounded">
                         <span className={purchaseStatus.color}>{purchaseStatus.icon}</span>

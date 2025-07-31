@@ -4,7 +4,8 @@ import BasicCard from '../../../components/BasicCard';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import studentSidebarSections from './StudentDashboardSidebar';
 import SecureZoomMeeting from '../../../components/SecureZoomMeeting';
-import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync } from 'react-icons/fa';
+import { getStudentCard, getCardTypeInfo, getCardStatus, isCardValid } from '../../../utils/cardUtils';
+import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt } from 'react-icons/fa';
 
 const MyClasses = () => {
   const [myClasses, setMyClasses] = useState([]);
@@ -30,42 +31,57 @@ const MyClasses = () => {
     const stored = localStorage.getItem('myClasses');
       if (stored) {
         const classes = JSON.parse(stored);
+        const currentStudent = JSON.parse(localStorage.getItem('currentStudent') || '{}');
+        
         // Validate and normalize class data
-        const validatedClasses = classes.map(cls => ({
-          ...cls,
-          schedule: cls.schedule || { day: '', startTime: '', endTime: '', frequency: 'weekly' },
-          fee: cls.fee || 0,
-          maxStudents: cls.maxStudents || 50,
-          status: cls.status || 'active',
-          currentStudents: cls.currentStudents || 0,
-          className: cls.className || 'Unnamed Class',
-          subject: cls.subject || 'Unknown Subject',
-          teacher: cls.teacher || 'Unknown Teacher',
-          stream: cls.stream || 'Unknown Stream',
-          deliveryMethod: cls.deliveryMethod || 'online',
-          courseType: cls.courseType || 'theory',
-          paymentStatus: cls.paymentStatus || 'pending',
-          // Handle new payment tracking structure
-          paymentTracking: cls.paymentTracking || { enabled: false },
-          paymentTrackingFreeDays: cls.paymentTrackingFreeDays || 7,
-          // Ensure payment tracking is properly structured
-          ...(cls.paymentTracking && typeof cls.paymentTracking === 'object' ? {} : {
-            paymentTracking: {
-              enabled: true, // Enable payment tracking for all classes
-              freeDays: cls.paymentTrackingFreeDays || 7,
-              active: true
-            }
-          }),
-          // Add missing fields with defaults
-          attendance: cls.attendance || [],
-          paymentHistory: cls.paymentHistory || [],
-          hasExams: cls.hasExams || false,
-          hasTutes: cls.hasTutes || false,
-          forgetCardRequested: cls.forgetCardRequested || false,
-          latePaymentRequested: cls.latePaymentRequested || false,
-          purchaseDate: cls.purchaseDate || new Date().toISOString(),
-          nextPaymentDate: cls.nextPaymentDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-        }));
+        const validatedClasses = classes.map(cls => {
+          // Get student's card for this class
+          const studentCard = getStudentCard(currentStudent.studentId || 'STUDENT_001', cls.id);
+          const cardInfo = studentCard ? getCardTypeInfo(studentCard.cardType) : null;
+          const cardStatus = getCardStatus(studentCard);
+          const cardValidity = isCardValid(studentCard);
+          
+          return {
+            ...cls,
+            schedule: cls.schedule || { day: '', startTime: '', endTime: '', frequency: 'weekly' },
+            fee: cls.fee || 0,
+            maxStudents: cls.maxStudents || 50,
+            status: cls.status || 'active',
+            currentStudents: cls.currentStudents || 0,
+            className: cls.className || 'Unnamed Class',
+            subject: cls.subject || 'Unknown Subject',
+            teacher: cls.teacher || 'Unknown Teacher',
+            stream: cls.stream || 'Unknown Stream',
+            deliveryMethod: cls.deliveryMethod || 'online',
+            courseType: cls.courseType || 'theory',
+            paymentStatus: cls.paymentStatus || 'pending',
+            // Handle new payment tracking structure
+            paymentTracking: cls.paymentTracking || { enabled: false },
+            paymentTrackingFreeDays: cls.paymentTrackingFreeDays || 7,
+            // Ensure payment tracking is properly structured
+            ...(cls.paymentTracking && typeof cls.paymentTracking === 'object' ? {} : {
+              paymentTracking: {
+                enabled: true, // Enable payment tracking for all classes
+                freeDays: cls.paymentTrackingFreeDays || 7,
+                active: true
+              }
+            }),
+            // Add missing fields with defaults
+            attendance: cls.attendance || [],
+            paymentHistory: cls.paymentHistory || [],
+            hasExams: cls.hasExams || false,
+            hasTutes: cls.hasTutes || false,
+            forgetCardRequested: cls.forgetCardRequested || false,
+            latePaymentRequested: cls.latePaymentRequested || false,
+            purchaseDate: cls.purchaseDate || new Date().toISOString(),
+            nextPaymentDate: cls.nextPaymentDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            // Add card information
+            studentCard,
+            cardInfo,
+            cardStatus,
+            cardValidity
+          };
+        });
         setMyClasses(validatedClasses);
       } else {
         setMyClasses([]);
@@ -79,8 +95,66 @@ const MyClasses = () => {
     }
   };
 
+  // Create enrollment records for each class
+  const createEnrollmentRecords = () => {
+    try {
+      const stored = localStorage.getItem('myClasses');
+      if (!stored) return;
+      
+      const classes = JSON.parse(stored);
+      const currentStudent = JSON.parse(localStorage.getItem('currentStudent') || '{}');
+      
+      // Get existing enrollments
+      const existingEnrollments = JSON.parse(localStorage.getItem('enrollments') || '[]');
+      
+      // Create enrollment records for each class
+      const newEnrollments = classes.map(cls => {
+        // Check if enrollment already exists for this class and student
+        const existingEnrollment = existingEnrollments.find(e => 
+          e.classId === cls.id && e.studentId === currentStudent.studentId
+        );
+        
+        if (existingEnrollment) {
+          return existingEnrollment; // Keep existing enrollment
+        }
+        
+        // Create new enrollment record
+        return {
+          id: Date.now() + Math.random(),
+          classId: cls.id,
+          studentId: currentStudent.studentId || 'STUDENT_001',
+          studentName: currentStudent.firstName || currentStudent.fullName || 'Unknown Student',
+          enrollmentDate: new Date().toISOString(),
+          status: 'enrolled',
+          className: cls.className,
+          subject: cls.subject,
+          teacher: cls.teacher
+        };
+      });
+      
+      // Merge with existing enrollments, avoiding duplicates
+      const allEnrollments = [...existingEnrollments];
+      newEnrollments.forEach(newEnrollment => {
+        const exists = allEnrollments.find(e => 
+          e.classId === newEnrollment.classId && e.studentId === newEnrollment.studentId
+        );
+        if (!exists) {
+          allEnrollments.push(newEnrollment);
+        }
+      });
+      
+      // Save to localStorage
+      localStorage.setItem('enrollments', JSON.stringify(allEnrollments));
+      console.log('Created enrollment records:', allEnrollments);
+      
+    } catch (err) {
+      console.error('Error creating enrollment records:', err);
+    }
+  };
+
   useEffect(() => {
     loadMyClasses();
+    createEnrollmentRecords(); // Create enrollment records for each class
   }, []);
 
   // Listen for payment updates
@@ -502,6 +576,9 @@ const MyClasses = () => {
 
     const currentStudent = JSON.parse(localStorage.getItem('currentStudent') || '{}');
     
+    // Ensure enrollment record exists
+    createEnrollmentRecords();
+    
     // Get existing attendance records
     const allAttendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords') || '[]');
     
@@ -516,12 +593,12 @@ const MyClasses = () => {
       return;
     }
 
-    // Create new attendance record
+    // Create new attendance record with proper student information
     const newAttendanceRecord = {
       id: Date.now(),
       classId: cls.id,
-      studentId: currentStudent.studentId || '',
-      studentName: currentStudent.firstName || '', // or use fullName if available
+      studentId: currentStudent.studentId || 'STUDENT_001',
+      studentName: currentStudent.firstName || currentStudent.fullName || 'Unknown Student',
       date: today,
       time: new Date().toISOString(),
       status: 'present',
@@ -543,7 +620,10 @@ const MyClasses = () => {
           attendance.push({
             date: today,
             status: 'present',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            studentId: currentStudent.studentId || 'STUDENT_001',
+            studentName: currentStudent.firstName || currentStudent.fullName || 'Unknown Student',
+            method: 'manual'
           });
         }
         
@@ -934,6 +1014,41 @@ const MyClasses = () => {
                         </span>
                       )}
                         {cls.theoryRevisionDiscount && cls.courseType === 'both' && <span className="text-purple-600 text-xs bg-purple-50 px-2 py-1 rounded"><FaMoneyBill className="inline mr-1" />Discount</span>}
+                      
+                      {/* Student Card Information */}
+                      {cls.studentCard && (
+                        <div className="mt-2 p-2 rounded border">
+                          <div className="flex items-center gap-2 mb-1">
+                            <FaTicketAlt className="text-blue-500" />
+                            <span className="text-xs font-semibold">Student Card</span>
+                          </div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${cls.cardInfo.color}`}>
+                              {cls.cardInfo.label}
+                            </span>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${cls.cardStatus.color}`}>
+                              {cls.cardStatus.label}
+                            </span>
+                          </div>
+                          {cls.cardValidity.isValid ? (
+                            <div className="text-xs text-green-600">
+                              ✓ {cls.cardValidity.reason}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-red-600">
+                              ✗ {cls.cardValidity.reason}
+                            </div>
+                          )}
+                          {cls.studentCard.reason && (
+                            <div className="text-xs text-gray-600 mt-1">
+                              <strong>Reason:</strong> {cls.studentCard.reason}
+                            </div>
+                          )}
+                          <div className="text-xs text-gray-600">
+                            <strong>Valid:</strong> {new Date(cls.studentCard.validFrom).toLocaleDateString()} - {new Date(cls.studentCard.validUntil).toLocaleDateString()}
+                          </div>
+                        </div>
+                      )}
                       </div>
                       {!paymentTrackingInfo.canAccess && paymentTrackingInfo.status !== 'no-tracking' && (
                         <div className="text-red-600 font-semibold bg-red-50 p-2 rounded border border-red-200">
