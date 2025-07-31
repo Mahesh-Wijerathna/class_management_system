@@ -4,37 +4,45 @@ import BasicCard from '../../../components/BasicCard';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import studentSidebarSections from './StudentDashboardSidebar';
 import { getStudentCard, getCardTypeInfo, getCardStatus, isCardValid, calculateFeeWithCard } from '../../../utils/cardUtils';
-import { FaCalendar, FaClock, FaMoneyBill, FaUser, FaBook, FaVideo, FaMapMarkerAlt, FaUsers, FaGraduationCap, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaTicketAlt } from 'react-icons/fa';
+import { FaCalendar, FaClock, FaMoneyBill, FaUser, FaBook, FaVideo, FaMapMarkerAlt, FaUsers, FaGraduationCap, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaSync, FaTicketAlt } from 'react-icons/fa';
+import { getActiveClasses } from '../../../api/classes';
 
-const PurchaseClasses = () => {
+const PurchaseClasses = ({ onLogout }) => {
   const [search, setSearch] = useState('');
   const [selectedTab, setSelectedTab] = useState('all');
   const [classes, setClasses] = useState([]);
   const [myClasses, setMyClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const navigate = useNavigate();
 
-  // Load classes and student's purchased classes from localStorage
-  useEffect(() => {
+  // Load classes from backend API
+  const loadClasses = async () => {
     try {
-      // Load available classes
-      const savedClasses = localStorage.getItem('classes');
-      if (savedClasses) {
-        const allClasses = JSON.parse(savedClasses);
+      console.log('Loading classes...');
+      setLoading(true);
+      setError(null);
+      
+      const response = await getActiveClasses();
+      console.log('API Response:', response);
+      
+      if (response.success) {
+        console.log('Classes loaded successfully:', response.data?.length || 0, 'classes');
+        
+        // Process classes with student card information
         const currentStudent = JSON.parse(localStorage.getItem('currentStudent') || '{}');
         
-        // Ensure all classes have the required structure (like in CreateClass.jsx)
-        const validatedClasses = allClasses.map(cls => {
+        const processedClasses = (response.data || []).map(cls => {
           // Get student's card for this class
           const studentCard = getStudentCard(currentStudent.studentId || 'STUDENT_001', cls.id);
           const cardInfo = studentCard ? getCardTypeInfo(studentCard.cardType) : null;
-          const cardStatus = getCardStatus(studentCard);
-          const cardValidity = isCardValid(studentCard);
+          const cardStatus = getStudentCard ? getCardStatus(studentCard) : null;
+          const cardValidity = getStudentCard ? isCardValid(studentCard) : null;
           
           // Calculate fee with card discount
           const originalFee = cls.fee || 0;
-          const discountedFee = studentCard && cardValidity.isValid ? 
+          const discountedFee = studentCard && cardValidity?.isValid ? 
             calculateFeeWithCard(originalFee, studentCard.cardType) : originalFee;
           
           return {
@@ -70,14 +78,27 @@ const PurchaseClasses = () => {
           };
         });
         
-        // Filter only active classes for purchase
-        const activeClasses = validatedClasses.filter(cls => cls.status === 'active');
-        setClasses(activeClasses);
+        setClasses(processedClasses);
       } else {
+        console.error('API returned error:', response);
+        setError('Failed to load classes from server');
         setClasses([]);
       }
+    } catch (err) {
+      console.error('Error loading classes:', err);
+      setError('Failed to load classes. Please check your connection and try again.');
+      setClasses([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      // Load student's purchased classes
+  // Load classes on component mount
+  useEffect(() => {
+    loadClasses();
+
+    // Load student's purchased classes from localStorage
+    try {
       const savedMyClasses = localStorage.getItem('myClasses');
       if (savedMyClasses) {
         setMyClasses(JSON.parse(savedMyClasses));
@@ -85,14 +106,17 @@ const PurchaseClasses = () => {
         setMyClasses([]);
       }
     } catch (err) {
-      console.error('Error loading classes:', err);
-      setError('Failed to load classes. Please refresh the page.');
-      setClasses([]);
+      console.error('Error loading my classes:', err);
       setMyClasses([]);
-    } finally {
-      setLoading(false);
     }
   }, []);
+
+  // Refresh classes
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadClasses();
+    setRefreshing(false);
+  };
 
   // Check if student already owns a class
   const checkStudentOwnership = (classId) => {
@@ -293,9 +317,23 @@ const PurchaseClasses = () => {
   }
 
   return (
-    <DashboardLayout userRole="Student" sidebarItems={studentSidebarSections}>
+    <DashboardLayout
+      userRole="Student"
+      sidebarItems={studentSidebarSections}
+      onLogout={onLogout}
+    >
       <div className="p-2 sm:p-4 md:p-6">
-        <h1 className="text-lg font-bold mb-6 text-center">Available Classes</h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-lg font-bold">Available Classes</h1>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+          >
+            <FaSync className={`${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
         
         {/* Tab Navigation */}
         <div className="flex justify-center gap-2 mb-6 flex-wrap">

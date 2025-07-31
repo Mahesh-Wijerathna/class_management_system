@@ -8,6 +8,12 @@ import BasicCard from '../../../components/BasicCard';
 import { useNavigate } from 'react-router-dom';
 import { LuMonitorSmartphone, LuCreditCard, LuMonitorPlay, LuBookOpen } from 'react-icons/lu';
 
+// Helper function to get the appropriate storage
+const getStorage = () => {
+  const usePersistentStorage = sessionStorage.getItem('usePersistentStorage');
+  return usePersistentStorage === 'true' ? localStorage : sessionStorage;
+};
+
 function DashboardNavButtons() {
   const navigate = useNavigate();
   return (
@@ -49,25 +55,51 @@ function DashboardNavButtons() {
 
 const StudentDashboard = ({ onLogout }) => {
   const [currentStudent, setCurrentStudent] = useState(null);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Load current student from localStorage
-    const studentData = localStorage.getItem('currentStudent');
-    if (studentData) {
-      const student = JSON.parse(studentData);
-      setCurrentStudent(student);
+    // Load authenticated user data from appropriate storage
+    const storage = getStorage();
+    const userData = storage.getItem('userData');
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        
+        // Check if user is a student
+        if (user.role === 'student') {
+          setCurrentStudent(user);
+        } else {
+          // If not a student, redirect to appropriate dashboard
+          console.log("User is not a student, redirecting...");
+          navigate('/login');
+        }
+      } catch (error) {
+        console.error("Error parsing user data:", error);
+        navigate('/login');
+      }
     } else {
-      // If no student data, redirect to login
+      // If no user data, redirect to login
+      console.log("No user data found, redirecting to login");
       navigate('/login');
     }
+    setLoading(false);
   }, [navigate]);
+
+  // Show loading while checking authentication
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
 
   // Show loading or redirect if no student data
   if (!currentStudent) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
+        <div className="text-lg">Redirecting to login...</div>
       </div>
     );
   }
@@ -123,7 +155,7 @@ const StudentDashboard = ({ onLogout }) => {
                   </div>
                   <div className="text-xl font-semibold mb-1 text-center">{currentStudent.firstName} {currentStudent.lastName}</div>
                   <div className="text-md text-blue-700 font-semibold mb-2 text-center">
-                    Student ID <span className="text-black">#<span className="underline">{currentStudent.studentId}</span></span>
+                    Student ID <span className="text-black">#<span className="underline">{currentStudent.userid}</span></span>
                   </div>
                   
                 </div>
@@ -132,7 +164,7 @@ const StudentDashboard = ({ onLogout }) => {
                   <div className="text-xs text-gray-500 font-semibold mb-2">DETAILS</div>
                   <div className="flex items-center justify-between mb-2 text-sm">
                     <span className="flex items-center">
-                      <span className="mr-2 text-green-600">✔</span>Mobile: {currentStudent.phone}
+                      <span className="mr-2 text-green-600">✔</span>Mobile: {currentStudent.mobile}
                     </span>
                   </div>
 
@@ -150,7 +182,7 @@ const StudentDashboard = ({ onLogout }) => {
                 {/* Barcode and Verification Button */}
                 <div className="w-full flex flex-col items-center">
                   <div className="my-2">
-                    <Barcode value={currentStudent.studentId} width={1.5} height={50} fontSize={12} displayValue={true} background="#fff" lineColor="#000" />
+                    <Barcode value={currentStudent.userid} width={1.5} height={50} fontSize={12} displayValue={true} background="#fff" lineColor="#000" />
                   </div>
                   
                 </div>

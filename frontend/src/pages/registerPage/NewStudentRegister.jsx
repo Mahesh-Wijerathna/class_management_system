@@ -8,6 +8,8 @@ import { FaUser, FaLock, FaPhone, FaIdCard, FaCalendarAlt, FaVenusMars, FaBarcod
 import { FaGraduationCap } from 'react-icons/fa';
 import { Formik } from 'formik';
 import JsBarcode from 'jsbarcode';
+import { register } from '../../api/auth';
+import { saveBarcode } from '../../api/auth';
 
 // Helper to parse NIC (Sri Lankan)
 function parseNIC(nic) {
@@ -180,101 +182,124 @@ export default function NewStudentRegister() {
     }
   }, [registrationSuccess, generatedBarcode]);
 
-  const downloadBarcode = () => {
-    const canvas = document.getElementById('success-barcode-display');
-    if (canvas) {
-      const link = document.createElement('a');
-      link.download = `barcode_${generatedBarcode.studentName}_${generatedBarcode.id}.png`;
-      link.href = canvas.toDataURL();
-      link.click();
-    }
-  };
-
   const handleRegister = async () => {
     setIsRegistering(true);
     
-    // Get existing students to determine next increment number
-    const currentStudents = JSON.parse(localStorage.getItem('students')) || [];
-    
-    // Check for duplicate NIC, mobile, and email
-    const duplicateNIC = currentStudents.find(student => 
-      student.nic && student.nic === summaryValues.idNumber
-    );
-    const duplicateMobile = currentStudents.find(student => 
-      student.phone === summaryValues.mobile
-    );
-    const duplicateEmail = currentStudents.find(student => 
-      student.email && student.email === summaryValues.email
-    );
-    
-    if (duplicateNIC) {
-      alert('A student with this NIC number is already registered.');
-      setIsRegistering(false);
-      return;
-    }
-    
-    if (duplicateMobile) {
-      alert('A student with this mobile number is already registered.');
-      setIsRegistering(false);
-      return;
-    }
-    
-    if (duplicateEmail) {
-      alert('A student with this email address is already registered.');
-      setIsRegistering(false);
-      return;
-    }
-    
-    const nextNumber = currentStudents.length + 1;
-    
-    // Always generate unique student ID with incrementing number
-    const studentId = `STD${nextNumber}${Date.now()}${Math.floor(Math.random() * 1000)}`;
-    
-    // Create student object with all required fields
-    const newStudent = {
-      studentId: studentId,
+    try {
+      // Prepare user data for backend registration
+      const userData = {
+        role: 'student',
+        password: summaryValues.password,
+        // Additional student data
       firstName: summaryValues.firstName,
       lastName: summaryValues.lastName,
       nic: summaryValues.idNumber || '',
       gender: summaryValues.gender,
       age: summaryValues.age,
       email: summaryValues.email,
-      phone: summaryValues.mobile,
+        mobile: summaryValues.mobile,
       parentName: summaryValues.parentName,
-      parentPhone: summaryValues.parentMobile,
+        parentMobile: summaryValues.parentMobile,
       stream: summaryValues.stream,
       dateOfBirth: summaryValues.dob,
       school: summaryValues.school,
       address: summaryValues.address,
-      district: summaryValues.district,
-      dateJoined: new Date().toISOString().split('T')[0],
-      enrolledClasses: [],
-      // Add barcode generation info
-      barcodeData: studentId, // Use student ID only for barcode
-      barcodeGeneratedAt: new Date().toISOString()
-    };
-    
-    // Add new student to the list
-    currentStudents.push(newStudent);
-    
-    // Save back to localStorage
-    localStorage.setItem('students', JSON.stringify(currentStudents));
-    
-    // Debug logging
-    console.log('New student saved:', newStudent);
-    console.log('All students in localStorage:', currentStudents);
-    
-    // Create barcode object for display
+        district: summaryValues.district
+      };
+
+      console.log('Sending registration data:', userData);
+
+      // Call backend registration API
+      const response = await register(userData);
+      
+      console.log('Registration response:', response);
+      
+      if (response.success) {
+        // Create barcode object for display using the generated userid
     const barcodeObj = {
-      id: studentId,
-      barcodeData: studentId,
+          id: response.userid,
+          barcodeData: response.userid,
       studentName: `${summaryValues.firstName} ${summaryValues.lastName}`,
       generatedAt: new Date().toISOString()
     };
     
     setGeneratedBarcode(barcodeObj);
     setRegistrationSuccess(true);
+        
+        // Save barcode data to backend
+        try {
+          await saveBarcode(response.userid, response.userid, `${summaryValues.firstName} ${summaryValues.lastName}`);
+          console.log('Barcode data saved to backend');
+        } catch (error) {
+          console.error('Failed to save barcode data:', error);
+          // Don't fail the registration if barcode save fails
+        }
+        
+        // Generate barcode on canvas after a short delay to ensure DOM is ready
+        setTimeout(() => {
+          generateBarcodeOnCanvas(response.userid, 'success-barcode-display');
+        }, 100);
+        
+        console.log('Registration successful! Student ID:', response.userid);
+      } else {
+        console.error('Registration failed:', response.message);
+        alert('Registration failed: ' + (response.message || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      alert('Registration failed: ' + (error.message || 'Network error occurred'));
+    } finally {
     setIsRegistering(false);
+    }
+  };
+
+  // Function to generate barcode on canvas
+  const generateBarcodeOnCanvas = (text, canvasId) => {
+    try {
+      const canvas = document.getElementById(canvasId);
+      if (canvas) {
+        JsBarcode(canvas, text, {
+          format: "CODE128",
+          width: 2,
+          height: 50,
+          displayValue: true,
+          fontSize: 12,
+          margin: 5,
+          background: "#ffffff",
+          lineColor: "#000000"
+        });
+      }
+    } catch (error) {
+      console.error('Barcode generation error:', error);
+    }
+  };
+
+  // useEffect to generate barcode when registration is successful
+  useEffect(() => {
+    if (registrationSuccess && generatedBarcode) {
+      // Small delay to ensure DOM is ready
+      const timer = setTimeout(() => {
+        generateBarcodeOnCanvas(generatedBarcode.id, 'success-barcode-display');
+      }, 200);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [registrationSuccess, generatedBarcode]);
+
+  // Function to download barcode
+  const downloadBarcode = () => {
+    try {
+      const canvas = document.getElementById('success-barcode-display');
+      if (canvas) {
+        const link = document.createElement('a');
+        link.download = `barcode_${generatedBarcode?.id}.png`;
+        link.href = canvas.toDataURL();
+        link.click();
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      alert('Failed to download barcode');
+    }
   };
 
   return (
@@ -608,7 +633,8 @@ export default function NewStudentRegister() {
                     </svg>
                   </div>
                   <h3 className="text-xl font-bold text-green-800 mb-2">Student Registered Successfully!</h3>
-                  <p className="text-gray-600">Generated Student ID: <span className="font-semibold text-blue-600">{generatedBarcode?.id}</span></p>
+                  <p className="text-gray-600 mb-2">Generated Student ID: <span className="font-semibold text-blue-600">{generatedBarcode?.id}</span></p>
+                  <p className="text-gray-600 mb-4">Student Name: <span className="font-semibold">{generatedBarcode?.studentName}</span></p>
                   
                   {generatedBarcode && (
                     <div className="bg-gray-50 p-3 rounded-lg mb-6 mt-4">
@@ -619,11 +645,16 @@ export default function NewStudentRegister() {
                       <p className="text-xs text-gray-600 text-center break-all">
                         {generatedBarcode.barcodeData}
                       </p>
-                      <div className="mt-4">
+                      <div className="mt-4 flex gap-3 justify-center">
                         <CustomButton
                           onClick={downloadBarcode}
                         >
                           Download Barcode
+                        </CustomButton>
+                        <CustomButton
+                          onClick={() => navigate('/login')}
+                        >
+                          Login Now
                         </CustomButton>
                       </div>
                     </div>

@@ -16,7 +16,6 @@ import ClassStudents from '../../pages/dashboard/adminDashboard/ClassStudents';
 import AllRoles from '../../pages/dashboard/adminDashboard/AllRoles';
 import RolesWithPermission from '../../pages/dashboard/adminDashboard/RolesWithPermission';
 
-
 export const adminDashboardRoutes = [
   { path: "/admindashboard", element: <AdminDashboard/> },
   { path: "/admin/class-halls", element: <ClassHalls/> },

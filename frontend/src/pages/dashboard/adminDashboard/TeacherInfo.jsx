@@ -11,6 +11,7 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import BasicAlertBox from '../../../components/BasicAlertBox';
+import { getAllTeachers, updateTeacher, deleteTeacher } from '../../../api/teachers';
 
 // Dummy initial data (replace with API data in production)
 const initialTeachers = [
@@ -35,16 +36,8 @@ const initialTeachers = [
 ];
 
 const TeacherInfo = () => {
-  // Load from localStorage or fallback to initialTeachers
-  const [teachers, setTeachers] = useState(() => {
-    const stored = localStorage.getItem('teachers');
-    return stored ? JSON.parse(stored) : initialTeachers;
-  });
-
-  // Save to localStorage whenever teachers changes
-  useEffect(() => {
-    localStorage.setItem('teachers', JSON.stringify(teachers));
-  }, [teachers]);
+  const [teachers, setTeachers] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [editValues, setEditValues] = useState({});
   const [showEditModal, setShowEditModal] = useState(false);
@@ -53,16 +46,71 @@ const TeacherInfo = () => {
   // For save notification
   const [saveAlert, setSaveAlert] = useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
 
+  // Load teachers from backend
+  const loadTeachers = async () => {
+    try {
+      setLoading(true);
+      const response = await getAllTeachers();
+      if (response.success) {
+        setTeachers(response.data || []);
+      } else {
+        console.error('Failed to load teachers:', response.message);
+        setTeachers([]);
+      }
+    } catch (error) {
+      console.error('Error loading teachers:', error);
+      setTeachers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load teachers on component mount
+  useEffect(() => {
+    loadTeachers();
+  }, []);
+
   // Only one set of delete/confirm/cancel functions
   const handleDelete = (teacherId) => {
     setAlertTeacherId(teacherId);
     setShowAlert(true);
   };
-  const confirmDelete = () => {
-    setTeachers(teachers.filter(t => t.teacherId !== alertTeacherId));
+  
+  const confirmDelete = async () => {
+    try {
+      const response = await deleteTeacher(alertTeacherId);
+      if (response.success) {
+        // Reload teachers from backend
+        await loadTeachers();
+        setSaveAlert({
+          open: true,
+          message: 'Teacher deleted successfully!',
+          onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+          confirmText: 'OK',
+          type: 'success'
+        });
+      } else {
+        setSaveAlert({
+          open: true,
+          message: response.message || 'Failed to delete teacher',
+          onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+          confirmText: 'OK',
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      setSaveAlert({
+        open: true,
+        message: 'Error deleting teacher. Please try again.',
+        onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'error'
+      });
+    }
     setShowAlert(false);
     setAlertTeacherId(null);
   };
+  
   const cancelDelete = () => {
     setShowAlert(false);
     setAlertTeacherId(null);
@@ -100,17 +148,39 @@ const TeacherInfo = () => {
   });
 
   // Handle save (submit)
-  const handleEditSubmit = (values) => {
-    setTeachers(teachers.map(t => t.teacherId === values.teacherId ? values : t));
-    setEditingTeacher(null);
-    setShowEditModal(false);
-    setSaveAlert({
-      open: true,
-      message: 'Teacher details saved successfully!',
-      onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
-      confirmText: 'OK',
-      type: 'success',
-    });
+  const handleEditSubmit = async (values) => {
+    try {
+      const response = await updateTeacher(values.teacherId, values);
+      if (response.success) {
+        // Reload teachers from backend
+        await loadTeachers();
+        setEditingTeacher(null);
+        setShowEditModal(false);
+        setSaveAlert({
+          open: true,
+          message: 'Teacher details updated successfully!',
+          onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+          confirmText: 'OK',
+          type: 'success'
+        });
+      } else {
+        setSaveAlert({
+          open: true,
+          message: response.message || 'Failed to update teacher',
+          onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+          confirmText: 'OK',
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      setSaveAlert({
+        open: true,
+        message: 'Error updating teacher. Please try again.',
+        onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'error'
+      });
+    }
   };
 
   // Handle cancel

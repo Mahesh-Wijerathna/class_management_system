@@ -12,8 +12,9 @@ const columns = [
   { key: 'invoiceId', label: 'Invoice ID' },
 ];
 
-const MyPayments = () => {
+const MyPayments = ({ onLogout }) => {
   const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const data = JSON.parse(localStorage.getItem('payments') || '[]');
@@ -21,7 +22,11 @@ const MyPayments = () => {
   }, []);
 
   return (
-    <DashboardLayout userRole="Student" sidebarItems={studentSidebarSections}>
+    <DashboardLayout
+      userRole="Student"
+      sidebarItems={studentSidebarSections}
+      onLogout={onLogout}
+    >
       <div className="max-w-6xl mx-auto p-6">
         <h1 className="text-2xl font-bold mb-4">My Payments</h1>
         {payments.length === 0 ? (
