@@ -5,85 +5,6 @@ import adminSidebarSections from './AdminDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
 import CustomButton from '../../../components/CustomButton';
 
-// Dummy payment data for demonstration (with time and category)
-const dummyClassList = [
-  {
-    id: 'class1',
-    className: 'Advanced Mathematics',
-  },
-  {
-    id: 'class2',
-    className: 'Physics Fundamentals',
-  },
-  {
-    id: 'class3',
-    className: '2025 Theory [I]',
-  },
-];
-
-const paymentData = {
-  class1: [
-    {
-      id: 'inv001',
-      student: 'Vishwa Senadhi',
-      method: 'Online',
-      status: 'Paid',
-      amount: 4000,
-      date: '2025-07-01',
-      time: '09:10',
-      invoiceId: 'INV-001',
-      category: 'Tuition Fee',
-    },
-    {
-      id: 'inv002',
-      student: 'Shashini Devindi',
-      method: 'Online',
-      status: 'Pending',
-      amount: 4000,
-      date: '2025-07-01',
-      time: '10:15',
-      invoiceId: 'INV-002',
-      category: 'Revision Fee',
-    },
-    {
-      id: 'inv003',
-      student: 'Tharushika Hansamali',
-      method: 'Physical',
-      status: 'Paid',
-      amount: 4000,
-      date: '2025-07-01',
-      time: '11:00',
-      invoiceId: 'INV-003',
-      category: 'Exam Fee',
-    },
-  ],
-  class2: [
-    {
-      id: 'inv004',
-      student: 'Nimesha Nimandi',
-      method: 'Online',
-      status: 'Paid',
-      amount: 3500,
-      date: '2025-07-01',
-      time: '09:30',
-      invoiceId: 'INV-004',
-      category: 'Tuition Fee',
-    },
-  ],
-  class3: [
-    {
-      id: 'inv005',
-      student: 'Ashidhi Nethma',
-      method: 'Physical',
-      status: 'Paid',
-      amount: 3500,
-      date: '2025-07-01',
-      time: '08:45',
-      invoiceId: 'INV-005',
-      category: 'Tuition Fee',
-    },
-  ],
-};
 
 const paymentStatusColor = {
   Paid: 'text-green-700 font-bold',
@@ -95,9 +16,20 @@ const StudentClassPayments = () => {
   const { classId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const payments = paymentData[classId] || [];
+  // Get payments from localStorage
+  const payments = (() => {
+    try {
+      const stored = localStorage.getItem('payments');
+      if (!stored) return [];
+      const allPayments = JSON.parse(stored);
+      // Filter by classId
+      return allPayments.filter(p => String(p.classId) === String(classId));
+    } catch {
+      return [];
+    }
+  })();
 
-  // Prefer className from route state, fallback to localStorage/dummy
+  // Prefer className from route state, fallback to localStorage
   let className = location.state && location.state.className;
   if (!className) {
     try {
@@ -108,10 +40,6 @@ const StudentClassPayments = () => {
         if (found && found.className) className = found.className;
       }
     } catch {}
-    if (!className) {
-      const dummy = dummyClassList.find(c => c.id === classId);
-      if (dummy && dummy.className) className = dummy.className;
-    }
   }
 
   // Payment summary
@@ -174,10 +102,19 @@ const StudentClassPayments = () => {
                   <span className={paymentStatusColor[row.status] || ''}>{row.status}</span>
                 ) },
               { key: 'amount', label: 'Amount (LKR)', render: row => (
-                  <span className="font-semibold text-green-700">{row.amount.toLocaleString()}</span>
+                  <span className="font-semibold text-green-700">{(row.amount ? row.amount : 0).toLocaleString()}</span>
                 ) },
             ]}
-            data={filteredPayments}
+            data={filteredPayments.map(p => ({
+              invoiceId: p.invoiceId || p.id || '',
+              student: p.student || p.studentName || '',
+              method: p.method || 'Online',
+              category: p.category || '',
+              date: p.date || '',
+              time: p.time || '',
+              status: p.status || 'Paid',
+              amount: p.amount || p.total || 0,
+            }))}
           />
         </div>
       </div>
