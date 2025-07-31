@@ -5,6 +5,7 @@ import CustomTextField from '../../components/CustomTextField';
 import CustomButton from '../../components/CustomButton';
 import BasicForm from '../../components/BasicForm';
 import { FaPhone, FaLock, FaGraduationCap, FaKey } from 'react-icons/fa';
+import { sendOtp, forgotPasswordReset } from '../../api/auth';
 
 const mobileSchema = Yup.object().shape({
   mobile: Yup.number().required('Required'),
@@ -22,17 +23,53 @@ export default function ForgotPassword() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [mobile, setMobile] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  const handleSendOtp = (values) => {
-    setMobile(values.mobile);
-    // TODO: Send OTP to backend
-    setStep(2);
+  const handleSendOtp = async (values) => {
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    
+    try {
+      const response = await sendOtp(values.mobile);
+      if (response.success) {
+        setMobile(values.mobile);
+        setSuccess('OTP sent successfully! Check your phone for the code.');
+        setStep(2);
+        // For testing purposes, show OTP in console
+        console.log('OTP for testing:', response.otp);
+      } else {
+        setError(response.message || 'Failed to send OTP');
+      }
+    } catch (error) {
+      setError(error.message || 'Failed to send OTP');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleReset = (values) => {
-    // TODO: Reset password via backend
-    alert('Password reset successful!');
-    navigate('/login');
+  const handleReset = async (values) => {
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    
+    try {
+      const response = await forgotPasswordReset(mobile, values.otp, values.password);
+      if (response.success) {
+        setSuccess('Password reset successfully!');
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
+      } else {
+        setError(response.message || 'Failed to reset password');
+      }
+    } catch (error) {
+      setError(error.message || 'Failed to reset password');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -50,6 +87,16 @@ export default function ForgotPassword() {
           </span>
         </div>
         <div className="w-full max-w-md">
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              {error}
+            </div>
+          )}
+          {success && (
+            <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+              {success}
+            </div>
+          )}
           {step === 1 && (
             <BasicForm
               initialValues={{ mobile: '' }}
@@ -69,7 +116,9 @@ export default function ForgotPassword() {
                     touched={touched.mobile}
                     icon={FaPhone}
                   />
-                  <CustomButton type="submit">Send OTP</CustomButton>
+                  <CustomButton type="submit" disabled={loading}>
+                    {loading ? 'Sending OTP...' : 'Send OTP'}
+                  </CustomButton>
                 </>
               )}
             </BasicForm>
@@ -82,6 +131,9 @@ export default function ForgotPassword() {
             >
               {({ errors, touched, handleChange, values }) => (
                 <>
+                  <div className="mb-4 p-3 bg-blue-100 border border-blue-400 text-blue-700 rounded text-sm">
+                    OTP sent to: {mobile}
+                  </div>
                   <CustomTextField
                     id="otp"
                     name="otp"
@@ -117,7 +169,9 @@ export default function ForgotPassword() {
                     isPassword
                     icon={FaLock}
                   />
-                  <CustomButton type="submit">Reset Password</CustomButton>
+                  <CustomButton type="submit" disabled={loading}>
+                    {loading ? 'Resetting Password...' : 'Reset Password'}
+                  </CustomButton>
                 </>
               )}
             </BasicForm>

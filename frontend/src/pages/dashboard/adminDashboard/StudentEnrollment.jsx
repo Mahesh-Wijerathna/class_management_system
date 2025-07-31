@@ -12,6 +12,8 @@ import { FaEdit, FaTrash, FaUser, FaEnvelope, FaPhone, FaIdCard, FaUserGraduate,
 import * as Yup from 'yup';
 import CustomSelectField from '../../../components/CustomSelectField';
 import JsBarcode from 'jsbarcode';
+import { getAllBarcodes, getBarcode } from '../../../api/auth';
+import { getAllStudents } from '../../../api/auth';
 
 // Helper to parse NIC (Sri Lankan)
 function parseNIC(nic) {
@@ -217,13 +219,9 @@ const validationSchema = Yup.object().shape({
 
 
 const StudentEnrollment = () => {
-  // Load from localStorage or fallback to initialStudents
-  const [students, setStudents] = useState(() => {
-    const stored = localStorage.getItem('students');
-    const parsedStudents = stored ? JSON.parse(stored) : initialStudents;
-    console.log('Students loaded from localStorage:', parsedStudents);
-    return parsedStudents;
-  });
+  // Load students from backend database
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
   const [editValues, setEditValues] = useState({});
@@ -233,71 +231,121 @@ const StudentEnrollment = () => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [barcodeGenerated, setBarcodeGenerated] = useState(false);
 
-  // Save to localStorage whenever students changes
-  useEffect(() => {
-    localStorage.setItem('students', JSON.stringify(students));
-  }, [students]);
-
-  // Refresh students data from localStorage
-  const refreshStudents = () => {
-    const stored = localStorage.getItem('students');
-    const parsedStudents = stored ? JSON.parse(stored) : initialStudents;
-    setStudents(parsedStudents);
-    console.log('Students refreshed from localStorage:', parsedStudents);
-    console.log('Number of students:', parsedStudents.length);
-  };
-
-  // Generate barcode when modal opens and student has barcode data
-  useEffect(() => {
-    if (showBarcodeModal && selectedStudent?.barcodeData) {
-      setTimeout(() => {
-        const canvas = document.getElementById('student-barcode-display');
-        if (canvas) {
-          try {
-            JsBarcode('#student-barcode-display', selectedStudent.barcodeData, {
-              format: 'CODE128',
-              width: 2,
-              height: 50,
-              displayValue: true,
-              fontSize: 12,
-              margin: 5,
-              background: '#ffffff',
-              lineColor: '#000000'
-            });
-          } catch (error) {
-            console.error('Error generating barcode:', error);
-          }
-        }
-      }, 300);
+  // Fetch students from backend
+  const fetchStudents = async () => {
+    try {
+      setLoading(true);
+      const response = await getAllStudents();
+      if (response.success) {
+        // Transform student data to match the expected format
+        const studentData = response.students.map(student => ({
+          studentId: student.userid,
+          firstName: student.firstName || '',
+          lastName: student.lastName || '',
+          email: student.email || '',
+          phone: student.mobile || '', // Using mobile as phone
+          nic: student.nic || '',
+          gender: student.gender || '',
+          age: student.age || '',
+          parentName: student.parentName || '',
+          parentPhone: student.parentMobile || '',
+          stream: student.stream || '',
+          dateOfBirth: student.dateOfBirth || '',
+          school: student.school || '',
+          address: student.address || '',
+          district: student.district || '',
+          dateJoined: student.dateJoined || student.barcodeCreatedAt?.split(' ')[0] || '',
+          barcodeData: student.barcodeData || '',
+          created_at: student.barcodeCreatedAt || '',
+          enrolledClasses: []
+        }));
+        setStudents(studentData);
+        console.log('Students loaded from backend:', studentData);
+      } else {
+        console.error('Failed to fetch students:', response.message);
+        setStudents([]);
+      }
+    } catch (error) {
+      console.error('Error fetching students:', error);
+      setStudents([]);
+    } finally {
+      setLoading(false);
     }
-  }, [showBarcodeModal, selectedStudent]);
-
-  // Generate barcode for student
-  const generateStudentBarcode = (student) => {
-    const studentId = student.studentId || `S${Date.now()}${Math.floor(Math.random() * 1000)}`;
-    const barcodeData = `S${student.firstName}${student.lastName}${studentId}`;
-    
-    return {
-      id: studentId,
-      barcodeData: barcodeData,
-      studentName: `${student.firstName} ${student.lastName}`,
-      generatedAt: new Date().toISOString(),
-      studentInfo: student
-    };
   };
 
-  // Show barcode modal
-  const handleShowBarcode = (student) => {
+  // Load students on component mount
+  useEffect(() => {
+    fetchStudents();
+  }, []);
+
+  // Refresh students data from backend
+  const refreshStudents = () => {
+    fetchStudents();
+  };
+
+  // Generate barcode on canvas
+  const generateBarcodeOnCanvas = (barcodeData, canvasId) => {
+    try {
+      const canvas = document.getElementById(canvasId);
+      if (canvas) {
+        JsBarcode(`#${canvasId}`, barcodeData, {
+          format: 'CODE128',
+          width: 2,
+          height: 100,
+          displayValue: true,
+          fontSize: 16,
+          margin: 10
+        });
+      }
+    } catch (error) {
+      console.error('Error generating barcode on canvas:', error);
+    }
+  };
+
+  // Download barcode as PNG
+  const downloadBarcode = (student) => {
+    console.log('downloadBarcode called with student:', student);
+    const canvas = document.getElementById('student-barcode-display');
+    console.log('Canvas element found:', canvas);
+    if (canvas) {
+      const link = document.createElement('a');
+      link.download = `barcode_${student.firstName}_${student.lastName}.png`;
+      link.href = canvas.toDataURL();
+      console.log('Download link created:', link.href);
+      link.click();
+    } else {
+      console.error('Canvas element not found for barcode download');
+    }
+  };
+
+  // Show barcode modal for a student
+  const showBarcode = (student) => {
+    console.log('showBarcode called with student:', student);
     setSelectedStudent(student);
     setShowBarcodeModal(true);
     setBarcodeGenerated(false);
+    
+    // Generate barcode after modal is shown
+    setTimeout(() => {
+      const barcodeData = student.studentId || student.barcodeData;
+      console.log('Generating barcode with data:', barcodeData);
+      generateBarcodeOnCanvas(barcodeData, 'student-barcode-display');
+      setBarcodeGenerated(true);
+    }, 100);
   };
 
-  // Generate and display barcode
+  // Generate barcode for student
   const handleGenerateBarcode = () => {
     if (!selectedStudent) return;
     
-    const barcode = generateStudentBarcode(selectedStudent);
+    // Generate barcode data
+    const barcodeData = selectedStudent.studentId || selectedStudent.barcodeData;
+    const barcode = {
+      id: barcodeData,
+      barcodeData: barcodeData,
+      studentName: `${selectedStudent.firstName} ${selectedStudent.lastName}`,
+      generatedAt: new Date().toISOString()
+    };
     
     // Update student with barcode info
     const updatedStudent = {
@@ -511,19 +559,6 @@ const StudentEnrollment = () => {
   
   
 
-  // Download barcode as PNG
-  const downloadBarcode = () => {
-    if (!selectedStudent?.barcodeData) return;
-    
-    const canvas = document.getElementById('student-barcode-display');
-    if (canvas) {
-      const link = document.createElement('a');
-      link.download = `barcode_${selectedStudent.firstName}_${selectedStudent.lastName}_${selectedStudent.studentId}.png`;
-      link.href = canvas.toDataURL();
-      link.click();
-    }
-  };
-
   // Print barcode
   const printBarcode = () => {
     if (!selectedStudent?.barcodeData) return;
@@ -652,22 +687,27 @@ const StudentEnrollment = () => {
         <div className="flex justify-between items-center mb-4">
           <div>
             <h1 className="text-2xl font-bold">Student Enrollment</h1>
-            <p className="text-gray-700">View, edit and remove registered students.</p>
+            <p className="text-gray-700">
+              {loading ? 'Loading students from database...' : `View, edit and remove registered students. (${students.length} students)`}
+            </p>
           </div>
           <div className="flex gap-3">
             <button
               onClick={refreshStudents}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-2"
+              disabled={loading}
+              className={`px-4 py-2 text-white rounded transition-colors flex items-center gap-2 ${
+                loading 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
             >
-              <FaSync />
-              Refresh Data
+              <FaSync className={loading ? 'animate-spin' : ''} />
+              {loading ? 'Loading...' : 'Refresh Data'}
             </button>
             <button
               onClick={() => {
-                const stored = localStorage.getItem('students');
-                console.log('Current localStorage data:', stored);
-                console.log('Parsed students:', stored ? JSON.parse(stored) : 'No data');
-                alert(`Current students in localStorage: ${stored ? JSON.parse(stored).length : 0}`);
+                console.log('Current students from backend:', students);
+                alert(`Current students from database: ${students.length}`);
               }}
               className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center gap-2"
             >
@@ -705,12 +745,12 @@ const StudentEnrollment = () => {
               )
             },
           ]}
-          data={students}
+          data={loading ? [] : students}
           actions={row => (
             <div className="flex gap-2">
               <button 
                 className="text-purple-600 hover:text-purple-800 hover:underline" 
-                onClick={() => handleShowBarcode(row)} 
+                onClick={() => showBarcode(row)} 
                 title="Barcode"
               >
                 <FaBarcode />
@@ -720,6 +760,8 @@ const StudentEnrollment = () => {
             </div>
           )}
           className="mb-6"
+          loading={loading}
+          emptyMessage={loading ? "Loading students from database..." : "No students found. Register some students first."}
         />
 
         {/* Edit Modal */}
@@ -1184,7 +1226,7 @@ const StudentEnrollment = () => {
                   
                   <div className="flex gap-3 justify-center">
                     <CustomButton2
-                      onClick={downloadBarcode}
+                      onClick={() => downloadBarcode(selectedStudent)}
                       className="flex items-center justify-center gap-2 text-center"
                     >
                       <FaDownload />

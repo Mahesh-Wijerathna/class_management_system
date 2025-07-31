@@ -2,23 +2,42 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { authRoutes, adminRoutes, adminDashboardRoutes, teacherRoutes, studentRoutes } from './routes';
 
+import AuthGuard from './components/AuthGuard';
+import PublicRoute from './components/PublicRoute';
+import LogoutSync from './components/LogoutSync';
+
 function App() {
   return (
     <BrowserRouter>
+      <LogoutSync />
       <Routes>
-        {/* Auth Routes */}
+        
+        
+        {/* Auth Routes - Public (redirect if authenticated) */}
         {authRoutes.map((route, index) => (
-          <Route key={index} path={route.path} element={route.element} />
+          <Route 
+            key={index} 
+            path={route.path} 
+            element={<PublicRoute>{route.element}</PublicRoute>} 
+          />
         ))}
 
-        {/* Admin Dashboard Routes */}
+        {/* Admin Dashboard Routes - Protected */}
         {adminDashboardRoutes.map((route, index) => (
-          <Route key={index} path={route.path} element={route.element} />
+          <Route 
+            key={index} 
+            path={route.path} 
+            element={<AuthGuard requiredRole="admin">{route.element}</AuthGuard>} 
+          />
         ))}
 
-        {/* Admin Nested Routes */}
+        {/* Admin Nested Routes - Protected */}
         {adminRoutes.map((route, index) => (
-          <Route key={index} path={route.path} element={route.element}>
+          <Route 
+            key={index} 
+            path={route.path} 
+            element={<AuthGuard requiredRole="admin">{route.element}</AuthGuard>}
+          >
             {route.children?.map((child, childIndex) => (
               <Route 
                 key={childIndex} 
@@ -30,14 +49,22 @@ function App() {
           </Route>
         ))}
 
-        {/* Teacher Routes */}
+        {/* Teacher Routes - Protected */}
         {teacherRoutes.map((route, index) => (
-          <Route key={index} path={route.path} element={route.element} />
+          <Route 
+            key={index} 
+            path={route.path} 
+            element={<AuthGuard requiredRole="teacher">{route.element}</AuthGuard>} 
+          />
         ))}
 
-        {/* Student Routes */}
+        {/* Student Routes - Protected */}
         {studentRoutes.map((route, index) => (
-          <Route key={index} path={route.path} element={route.element} />
+          <Route 
+            key={index} 
+            path={route.path} 
+            element={<AuthGuard requiredRole="student">{route.element}</AuthGuard>} 
+          />
         ))}
       </Routes>
     </BrowserRouter>

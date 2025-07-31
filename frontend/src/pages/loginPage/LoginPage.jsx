@@ -15,60 +15,191 @@ export default function LoginPage() {
 
   const LoginSchema = Yup.object().shape({
     userID: Yup.string()
-      .required("Student ID is required")
-      .min(3, "Student ID must be at least 3 characters"),
+      .required("User ID is required")
+      .min(3, "User ID must be at least 3 characters")
+      .max(20, "User ID must not exceed 20 characters"),
     password: Yup.string()
-      .notRequired()
+      .required("Password is required")
+      .min(6, "Password must be at least 6 characters")
+      .matches(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+        "Password must contain at least one uppercase letter, one lowercase letter, and one number"
+      )           
   })
 
   const handleLogin = async (values) => {
     setBackendError("");
     
-    // Store remember me preference in localStorage if checked
+    // Store remember me preference
     if (rememberMe) {
-      localStorage.setItem('rememberedUser', values.userID)
+      localStorage.setItem('rememberMe', 'true');
+      localStorage.setItem('rememberedUser', values.userID);
+      // Use sessionStorage for tokens when remember me is false
+      sessionStorage.setItem('usePersistentStorage', 'true');
     } else {
-      localStorage.removeItem('rememberedUser')
+      localStorage.removeItem('rememberMe');
+      localStorage.removeItem('rememberedUser');
+      sessionStorage.removeItem('usePersistentStorage');
     }
 
     try {
-      // First try to authenticate with backend
-      const data = await login({ userID: values.userID, password: values.password });
-      console.log("Backend login successful:", data);
-      // Navigate to appropriate dashboard based on user role
-      // navigate('/dashboard');
-    } catch (error) {
-      // If backend login fails, try localStorage authentication for students
-      console.log("Backend login failed, trying localStorage authentication...");
+      console.log("Attempting login with:", { userid: values.userID, password: values.password });
+      const data = await login({ userid: values.userID, password: values.password });
       
-      // Get students from localStorage
-      const students = JSON.parse(localStorage.getItem('students')) || [];
-      
-      // Find student by Student ID only
-      const student = students.find(s => 
-        s.studentId === values.userID
-      );
-      
-      if (student) {
-        console.log("Student login successful:", student);
-        // Store student info in session
-        localStorage.setItem('currentStudent', JSON.stringify(student));
-        // Navigate to student dashboard
-        navigate('/studentdashboard');
+      // Check if login was successful
+      if (data.success) {
+        // Handle successful login
+        console.log("Login successful:", data);
+        
+        // Store tokens and user data based on remember me preference
+        if (data.accessToken) {
+          if (rememberMe) {
+            // Store in localStorage for persistent login
+            localStorage.setItem('authToken', data.accessToken);
+            localStorage.setItem('refreshToken', data.refreshToken);
+            localStorage.setItem('userData', JSON.stringify(data.user));
+            localStorage.setItem('tokenExpiry', new Date(Date.now() + 15 * 60 * 1000).toISOString()); // 15 minutes
+          } else {
+            // Store in sessionStorage for session-only login
+            sessionStorage.setItem('authToken', data.accessToken);
+            sessionStorage.setItem('refreshToken', data.refreshToken);
+            sessionStorage.setItem('userData', JSON.stringify(data.user));
+            sessionStorage.setItem('tokenExpiry', new Date(Date.now() + 15 * 60 * 1000).toISOString()); // 15 minutes
+          }
+        }
+        
+        // Redirect based on user role
+        if (data.user && data.user.role) {
+          console.log("User role:", data.user.role);
+          switch (data.user.role.toLowerCase()) {
+            case 'admin':
+              console.log("Redirecting to admin dashboard");
+              navigate('/admindashboard');
+              break;
+            case 'teacher':
+              console.log("Redirecting to teacher dashboard");
+              navigate('/teacherdashboard');
+              break;
+            case 'student':
+              console.log("Redirecting to student dashboard");
+              navigate('/studentdashboard');
+              break;
+            default:
+              console.log("Unknown role, redirecting to default dashboard");
+              navigate('/dashboard');
+          }
+        } else {
+          console.log("No user role found, redirecting to default dashboard");
+          navigate('/dashboard');
+        }
       } else {
-        // Both backend and localStorage authentication failed
-        setBackendError("Invalid Student ID. Please check your Student ID.");
+        // Login failed but didn't throw an error (backend returned success: false)
+        console.log("Login failed:", data.message);
+        setBackendError(data.message || "Login failed. Please check your credentials.");
       }
+    } catch (error) {
+      // Handle network errors or other exceptions
+      console.log("Login error:", error);
+      setBackendError(error.message || "Login failed. Please check your credentials.");
     }
   }
 
-  // Check for remembered user on component mount
+  // Check for remembered user and auto-login on component mount
   React.useEffect(() => {
-    const rememberedUser = localStorage.getItem('rememberedUser')
-    if (rememberedUser) {
-      setRememberMe(true)
+    const rememberedUser = localStorage.getItem('rememberedUser');
+    const rememberMePreference = localStorage.getItem('rememberMe');
+    const usePersistentStorage = sessionStorage.getItem('usePersistentStorage');
+    
+    if (rememberedUser && rememberMePreference === 'true') {
+      setRememberMe(true);
+      
+      // Check if we have valid tokens for auto-login
+      const authToken = localStorage.getItem('authToken');
+      const refreshToken = localStorage.getItem('refreshToken');
+      const userData = localStorage.getItem('userData');
+      const tokenExpiry = localStorage.getItem('tokenExpiry');
+      
+      if (authToken && refreshToken && userData && tokenExpiry) {
+        const expiryTime = new Date(tokenExpiry).getTime();
+        const currentTime = Date.now();
+        
+        // If token is still valid (with 5 minute buffer), auto-login
+        if (currentTime < expiryTime - (5 * 60 * 1000)) {
+          try {
+            const user = JSON.parse(userData);
+            console.log("Auto-login with remembered user:", user);
+            
+            // Redirect based on user role
+            switch (user.role.toLowerCase()) {
+              case 'admin':
+                navigate('/admindashboard');
+                break;
+              case 'teacher':
+                navigate('/teacherdashboard');
+                break;
+              case 'student':
+                navigate('/studentdashboard');
+                break;
+              default:
+                navigate('/dashboard');
+            }
+          } catch (error) {
+            console.log("Error parsing remembered user data:", error);
+            // Clear invalid data
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('userData');
+            localStorage.removeItem('tokenExpiry');
+          }
+        } else {
+          console.log("Remembered token expired, user needs to login again");
+          // Clear expired tokens
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('userData');
+          localStorage.removeItem('tokenExpiry');
+        }
+      }
+    } else if (usePersistentStorage === 'true') {
+      // Check sessionStorage for session-only login
+      const authToken = sessionStorage.getItem('authToken');
+      const refreshToken = sessionStorage.getItem('refreshToken');
+      const userData = sessionStorage.getItem('userData');
+      const tokenExpiry = sessionStorage.getItem('tokenExpiry');
+      
+      if (authToken && refreshToken && userData && tokenExpiry) {
+        const expiryTime = new Date(tokenExpiry).getTime();
+        const currentTime = Date.now();
+        
+        if (currentTime < expiryTime - (5 * 60 * 1000)) {
+          try {
+            const user = JSON.parse(userData);
+            console.log("Auto-login with session user:", user);
+            
+            switch (user.role.toLowerCase()) {
+              case 'admin':
+                navigate('/admindashboard');
+                break;
+              case 'teacher':
+                navigate('/teacherdashboard');
+                break;
+              case 'student':
+                navigate('/studentdashboard');
+                break;
+              default:
+                navigate('/dashboard');
+            }
+          } catch (error) {
+            console.log("Error parsing session user data:", error);
+            sessionStorage.removeItem('authToken');
+            sessionStorage.removeItem('refreshToken');
+            sessionStorage.removeItem('userData');
+            sessionStorage.removeItem('tokenExpiry');
+          }
+        }
+      }
     }
-  }, [])
+  }, [navigate]);
 
   return (
     <div className='w-full flex flex-col justify-center items-center min-h-screen bg-gradient-to-br from-gray-50 to-gray-100'>
@@ -98,7 +229,7 @@ export default function LoginPage() {
                 id='userID'
                 name='userID'
               type='text'
-                label='Student ID *'
+                label='User ID *'
               value={values.userID}
                 onChange={handleChange}
                 error={errors.userID}
@@ -110,7 +241,7 @@ export default function LoginPage() {
                 id='password'
                 name='password'
                 type='password'
-                label='Password (Optional)'
+                label='Password *'
                 value={values.password}
                 onChange={handleChange}
                 error={errors.password}
@@ -119,23 +250,40 @@ export default function LoginPage() {
                 isPassword
               />
                <div className='flex items-center justify-between'>
-                <label className='flex items-center space-x-2 cursor-pointer'>
-            <input
-                    type='checkbox'
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className='form-checkbox h-3.5 w-3.5 text-[#064e3b] rounded border-gray-300 focus:ring-[#064e3b]'
-                  />
-                  <span className='text-[#1a365d] text-[10px]'>Remember me</span>
+                <label className='flex items-center space-x-2 cursor-pointer group'>
+                  <div className='relative'>
+                    <input
+                      type='checkbox'
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className='form-checkbox h-4 w-4 text-[#064e3b] rounded border-gray-300 focus:ring-[#064e3b] focus:ring-2 focus:ring-offset-2 transition-all duration-200'
+                    />
+                    {rememberMe && (
+                      <div className='absolute inset-0 flex items-center justify-center'>
+                        <svg className='w-3 h-3 text-white' fill='currentColor' viewBox='0 0 20 20'>
+                          <path fillRule='evenodd' d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z' clipRule='evenodd' />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                  <span className='text-[#1a365d] text-sm font-medium group-hover:text-[#064e3b] transition-colors duration-200'>
+                    Remember me
+                  </span>
                 </label>
                 <button
                   type='button'
                   onClick={() => navigate('/forgotpassword')}
-                  className='text-xs text-[#064e3b] hover:underline transition-colors duration-200 underline'
+                  className='text-sm text-[#064e3b] hover:text-[#1a365d] hover:underline transition-all duration-200 font-medium'
                 >
                   Forgot password?
                 </button>
               </div>
+
+              {backendError && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 text-sm">
+                  {backendError}
+                </div>
+              )}
 
               <CustomButton type='submit'>Sign In</CustomButton>
 

@@ -16,24 +16,25 @@ import MyStudyPacks from '../../pages/dashboard/studentDashboard/MyStudyPacks';
 import StudyPackDetail from '../../pages/dashboard/studentDashboard/StudyPackDetail';
 import LiveClasses from '../../pages/dashboard/studentDashboard/LiveClasses';
 import AttendanceMarking from '../../pages/dashboard/studentDashboard/AttendanceMarking';
+import LogoutHandler from '../../components/LogoutHandler';
 
 export const studentRoutes = [
-  { path: "/studentdashboard", element: <StudentDashboard/> },
-  { path: "/student/profile", element: <MyProfile/> },
-  { path: "/student/purchase-classes", element: <PurchaseClasses/> },
-  { path: "/student/my-classes", element: <MyClasses/> },
-  { path: "/student/my-classes/:id", element: <MyClassDetail/> },
-  { path: "/student/checkout/:id", element: <Checkout/> },
-  { path: "/student/invoice", element: <Invoice/> },
-  { path: "/payment-success", element: <PaymentSuccess/> },
-  { path: "/payment-cancel", element: <PaymentCancel/> },
-  { path: "/student/receipt", element: <Receipt /> },
+  { path: "/studentdashboard", element: <LogoutHandler><StudentDashboard/></LogoutHandler> },
+  { path: "/student/profile", element: <LogoutHandler><MyProfile/></LogoutHandler> },
+  { path: "/student/purchase-classes", element: <LogoutHandler><PurchaseClasses/></LogoutHandler> },
+  { path: "/student/my-classes", element: <LogoutHandler><MyClasses/></LogoutHandler> },
+  { path: "/student/my-classes/:id", element: <LogoutHandler><MyClassDetail/></LogoutHandler> },
+  { path: "/student/checkout/:id", element: <LogoutHandler><Checkout/></LogoutHandler> },
+  { path: "/student/invoice", element: <LogoutHandler><Invoice/></LogoutHandler> },
+  { path: "/payment-success", element: <LogoutHandler><PaymentSuccess/></LogoutHandler> },
+  { path: "/payment-cancel", element: <LogoutHandler><PaymentCancel/></LogoutHandler> },
+  { path: "/student/receipt", element: <LogoutHandler><Receipt /></LogoutHandler> },
 
-  { path: "/student/my-payments", element: <MyPayments/> },
+  { path: "/student/my-payments", element: <LogoutHandler><MyPayments/></LogoutHandler> },
 
-  { path: "/student/purchasestudypack", element: <PurchaseStudyPack /> },
-  { path: "/student/studypacks", element: <MyStudyPacks /> },
-  { path: "/student/studypacks/:id", element: <StudyPackDetail /> },
-  { path: "/student/liveclasses", element: <LiveClasses /> },
+  { path: "/student/purchasestudypack", element: <LogoutHandler><PurchaseStudyPack /></LogoutHandler> },
+  { path: "/student/studypacks", element: <LogoutHandler><MyStudyPacks /></LogoutHandler> },
+  { path: "/student/studypacks/:id", element: <LogoutHandler><StudyPackDetail /></LogoutHandler> },
+  { path: "/student/liveclasses", element: <LogoutHandler><LiveClasses /></LogoutHandler> },
  
 ]; 

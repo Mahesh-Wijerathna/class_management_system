@@ -8,6 +8,7 @@ import CustomSelectField from '../../../components/CustomSelectField';
 import { FaEdit, FaTrash, FaPlus, FaCalendar, FaBook, FaUser, FaClock, FaMoneyBill, FaVideo, FaUsers, FaGraduationCap, FaSync } from 'react-icons/fa';
 import * as Yup from 'yup';
 import BasicTable from '../../../components/BasicTable';
+import { getAllClasses, createClass, updateClass, deleteClass } from '../../../api/classes';
 
 
 const streamOptions = [
@@ -102,18 +103,8 @@ function formatDay(day) {
 }
 
 const CreateClass = () => {
-  const [classes, setClasses] = useState(() => {
-    const stored = localStorage.getItem('classes');
-    const parsed = stored ? JSON.parse(stored) : [];
-    // Ensure all classes have the required structure
-    return parsed.map(cls => ({
-      ...cls,
-      schedule: cls.schedule || { day: '', startTime: '', endTime: '', frequency: 'weekly' },
-      fee: cls.fee || 0,
-      maxStudents: cls.maxStudents || 50,
-      status: cls.status || 'active'
-    }));
-  });
+  const [classes, setClasses] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [formValues, setFormValues] = useState(initialValues);
   const [submitKey, setSubmitKey] = useState(0);
@@ -121,10 +112,29 @@ const CreateClass = () => {
   const [zoomLoading, setZoomLoading] = useState(false);
   const [zoomError, setZoomError] = useState('');
 
-  // Save to localStorage whenever classes changes
+  // Load classes from backend
+  const loadClasses = async () => {
+    try {
+      setLoading(true);
+      const response = await getAllClasses();
+      if (response.success) {
+        setClasses(response.data || []);
+      } else {
+        console.error('Failed to load classes:', response.error);
+        setClasses([]);
+      }
+    } catch (error) {
+      console.error('Error loading classes:', error);
+      setClasses([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load classes on component mount
   useEffect(() => {
-    localStorage.setItem('classes', JSON.stringify(classes));
-  }, [classes]);
+    loadClasses();
+  }, []);
 
   // Auto-sync myClasses with admin classes on component mount
   useEffect(() => {
@@ -211,7 +221,7 @@ const CreateClass = () => {
     ...teacherList.map(t => ({ value: `${t.designation} ${t.name}`, label: `${t.designation} ${t.name}` }))
   ];
 
-  const handleSubmit = (values, { resetForm }) => {
+  const handleSubmit = async (values, { resetForm }) => {
     let submitValues = { ...values };
     // If revision+related, always use related theory class values for main fields
     if (
@@ -287,65 +297,120 @@ const CreateClass = () => {
     console.log('Saving class with zoom link:', normalizedSubmitValues.zoomLink);
     
     if (editingId) {
-      // Update the class in admin's classes list
-      setClasses(classes.map(cls => cls.id === editingId ? { ...normalizedSubmitValues, id: editingId } : cls));
-      
-      // Also update the class in students' myClasses if it exists
+      // Update the class using API
       try {
-        const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
-        const updatedMyClasses = myClasses.map(studentClass => {
-          if (studentClass.classId === editingId || studentClass.id === editingId) {
-            // Update the class data while preserving student-specific data
-            return {
-              ...studentClass,
-              className: normalizedSubmitValues.className,
-              subject: normalizedSubmitValues.subject,
-              teacher: normalizedSubmitValues.teacher,
-              stream: normalizedSubmitValues.stream,
-              deliveryMethod: normalizedSubmitValues.deliveryMethod,
-              schedule: normalizedSubmitValues.schedule,
-              fee: normalizedSubmitValues.fee,
-              maxStudents: normalizedSubmitValues.maxStudents,
-              zoomLink: normalizedSubmitValues.zoomLink, // Update zoom link
-              description: normalizedSubmitValues.description,
-              courseType: normalizedSubmitValues.courseType,
-              status: normalizedSubmitValues.status, // Update status (active/inactive)
-              paymentTracking: normalizedSubmitValues.paymentTracking,
-              paymentTrackingFreeDays: normalizedSubmitValues.paymentTrackingFreeDays,
-              // Preserve student-specific data
-              // paymentStatus, paymentMethod, purchaseDate, attendance, etc. remain unchanged
-            };
+        const response = await updateClass(editingId, normalizedSubmitValues);
+        if (response.success) {
+          // Reload classes from backend
+          await loadClasses();
+          
+          // Also update the class in students' myClasses if it exists
+          try {
+            const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
+            const updatedMyClasses = myClasses.map(studentClass => {
+              if (studentClass.classId === editingId || studentClass.id === editingId) {
+                // Update the class data while preserving student-specific data
+                return {
+                  ...studentClass,
+                  className: normalizedSubmitValues.className,
+                  subject: normalizedSubmitValues.subject,
+                  teacher: normalizedSubmitValues.teacher,
+                  stream: normalizedSubmitValues.stream,
+                  deliveryMethod: normalizedSubmitValues.deliveryMethod,
+                  schedule: normalizedSubmitValues.schedule,
+                  fee: normalizedSubmitValues.fee,
+                  maxStudents: normalizedSubmitValues.maxStudents,
+                  zoomLink: normalizedSubmitValues.zoomLink, // Update zoom link
+                  description: normalizedSubmitValues.description,
+                  courseType: normalizedSubmitValues.courseType,
+                  status: normalizedSubmitValues.status, // Update status (active/inactive)
+                  paymentTracking: normalizedSubmitValues.paymentTracking,
+                  paymentTrackingFreeDays: normalizedSubmitValues.paymentTrackingFreeDays,
+                  // Preserve student-specific data
+                  // paymentStatus, paymentMethod, purchaseDate, attendance, etc. remain unchanged
+                };
+              }
+              return studentClass;
+            });
+            
+            localStorage.setItem('myClasses', JSON.stringify(updatedMyClasses));
+            console.log('Updated class in myClasses localStorage for existing students');
+          } catch (error) {
+            console.error('Error updating myClasses localStorage:', error);
           }
-          return studentClass;
-        });
-        
-        localStorage.setItem('myClasses', JSON.stringify(updatedMyClasses));
-        console.log('Updated class in myClasses localStorage for existing students');
+          
+          setEditingId(null);
+          setAlertBox({
+            open: true,
+            message: 'Class updated successfully! All enrolled students will see the updated information.',
+            onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+            onCancel: null,
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'success',
+          });
+        } else {
+          setAlertBox({
+            open: true,
+            message: 'Failed to update class. Please try again.',
+            onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+            onCancel: null,
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'danger',
+          });
+        }
       } catch (error) {
-        console.error('Error updating myClasses localStorage:', error);
+        console.error('Error updating class:', error);
+        setAlertBox({
+          open: true,
+          message: 'Failed to update class. Please try again.',
+          onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+          onCancel: null,
+          confirmText: 'OK',
+          cancelText: '',
+          type: 'danger',
+        });
       }
-      
-      setEditingId(null);
-      setAlertBox({
-        open: true,
-        message: 'Class updated successfully! All enrolled students will see the updated information.',
-        onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
-        onCancel: null,
-        confirmText: 'OK',
-        cancelText: '',
-        type: 'success',
-      });
     } else {
-      setClasses([...classes, { ...normalizedSubmitValues, id: Date.now(), status: 'active' }]);
-      setAlertBox({
-        open: true,
-        message: 'Class created successfully!',
-        onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
-        onCancel: null,
-        confirmText: 'OK',
-        cancelText: '',
-        type: 'success',
-      });
+      // Create new class using API
+      try {
+        const response = await createClass(normalizedSubmitValues);
+        if (response.success) {
+          // Reload classes from backend
+          await loadClasses();
+          setAlertBox({
+            open: true,
+            message: 'Class created successfully!',
+            onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+            onCancel: null,
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'success',
+          });
+        } else {
+          setAlertBox({
+            open: true,
+            message: 'Failed to create class. Please try again.',
+            onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+            onCancel: null,
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'danger',
+          });
+        }
+      } catch (error) {
+        console.error('Error creating class:', error);
+        setAlertBox({
+          open: true,
+          message: 'Failed to create class. Please try again.',
+          onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+          onCancel: null,
+          confirmText: 'OK',
+          cancelText: '',
+          type: 'danger',
+        });
+      }
     }
     // Reset form but preserve zoom link if it was generated
     const currentZoomLink = values.zoomLink;
@@ -370,29 +435,64 @@ const CreateClass = () => {
     setAlertBox({
       open: true,
       message: 'Are you sure you want to delete this class? This will also remove it from all enrolled students.',
-      onConfirm: () => {
-        // Remove from admin's classes list
-        setClasses(classes.filter(c => c.id !== id));
-        
-        // Also remove from students' myClasses if it exists
+      onConfirm: async () => {
         try {
-          const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
-          const updatedMyClasses = myClasses.filter(studentClass => 
-            studentClass.classId !== id && studentClass.id !== id
-          );
-          
-          localStorage.setItem('myClasses', JSON.stringify(updatedMyClasses));
-          console.log('Removed class from myClasses localStorage for all students');
+          const response = await deleteClass(id);
+          if (response.success) {
+            // Reload classes from backend
+            await loadClasses();
+            
+            // Also remove from students' myClasses if it exists
+            try {
+              const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
+              const updatedMyClasses = myClasses.filter(studentClass => 
+                studentClass.classId !== id && studentClass.id !== id
+              );
+              
+              localStorage.setItem('myClasses', JSON.stringify(updatedMyClasses));
+              console.log('Removed class from myClasses localStorage for all students');
+            } catch (error) {
+              console.error('Error removing class from myClasses localStorage:', error);
+            }
+            
+            if (editingId === id) {
+              setEditingId(null);
+              setFormValues(initialValues);
+              setSubmitKey(prev => prev + 1);
+            }
+            
+            setAlertBox({
+              open: true,
+              message: 'Class deleted successfully!',
+              onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+              onCancel: null,
+              confirmText: 'OK',
+              cancelText: '',
+              type: 'success',
+            });
+          } else {
+            setAlertBox({
+              open: true,
+              message: 'Failed to delete class. Please try again.',
+              onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+              onCancel: null,
+              confirmText: 'OK',
+              cancelText: '',
+              type: 'danger',
+            });
+          }
         } catch (error) {
-          console.error('Error removing class from myClasses localStorage:', error);
+          console.error('Error deleting class:', error);
+          setAlertBox({
+            open: true,
+            message: 'Failed to delete class. Please try again.',
+            onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+            onCancel: null,
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'danger',
+          });
         }
-        
-        if (editingId === id) {
-          setEditingId(null);
-          setFormValues(initialValues);
-          setSubmitKey(prev => prev + 1);
-        }
-        setAlertBox(a => ({ ...a, open: false }));
       },
       onCancel: () => setAlertBox(a => ({ ...a, open: false })),
       confirmText: 'Delete',
@@ -1022,20 +1122,36 @@ const CreateClass = () => {
         <div className="border-t-2 pt-4">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">All Classes</h2>
-            <CustomButton
-              onClick={() => {
-                const hasUpdates = syncMyClassesWithAdminClasses();
-                if (hasUpdates) {
-                  alert('Successfully synced all enrolled students with the latest class information!');
-                } else {
-                  alert('No updates needed. All enrolled students already have the latest information.');
-                }
-              }}
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2"
-            >
-              <FaSync className="mr-1" /> Sync Student Data
-            </CustomButton>
+            <div className="flex gap-2">
+              <CustomButton
+                onClick={loadClasses}
+                disabled={loading}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
+              >
+                <FaSync className={`mr-1 ${loading ? 'animate-spin' : ''}`} /> 
+                {loading ? 'Loading...' : 'Refresh'}
+              </CustomButton>
+              <CustomButton
+                onClick={() => {
+                  const hasUpdates = syncMyClassesWithAdminClasses();
+                  if (hasUpdates) {
+                    alert('Successfully synced all enrolled students with the latest class information!');
+                  } else {
+                    alert('No updates needed. All enrolled students already have the latest information.');
+                  }
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2"
+              >
+                <FaSync className="mr-1" /> Sync Student Data
+              </CustomButton>
+            </div>
           </div>
+          
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="text-gray-500">Loading classes...</div>
+            </div>
+          ) : (
           <BasicTable
             columns={[
               { key: 'className', label: 'Class Name', render: row => {
@@ -1108,6 +1224,7 @@ const CreateClass = () => {
               </div>
             )}
           />
+          )}
         </div>
       </div>
     </>
