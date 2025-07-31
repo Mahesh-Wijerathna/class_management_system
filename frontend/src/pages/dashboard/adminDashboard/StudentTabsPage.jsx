@@ -29,6 +29,16 @@ const StudentTabsPage = () => {
           >
             Physical Student Registration
           </NavLink>
+          <NavLink
+            to="/admin/students/purchased-classes"
+            className={({ isActive }) => 
+              `px-4 py-2 font-bold text-base focus:outline-none border-b-2 transition-colors ${
+                isActive ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-600'
+              }`
+            }
+          >
+            Purchased Classes
+          </NavLink>
         </div>
         <div>
           <Outlet />
