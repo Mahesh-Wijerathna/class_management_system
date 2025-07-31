@@ -8,6 +8,8 @@ import CustomSelectField from '../../../components/CustomSelectField';
 import { FaEdit, FaTrash, FaPlus, FaCalendar, FaBook, FaUser, FaClock, FaMoneyBill, FaVideo, FaUsers, FaGraduationCap, FaSync } from 'react-icons/fa';
 import * as Yup from 'yup';
 import BasicTable from '../../../components/BasicTable';
+import { getAllClasses, createClass, updateClass, deleteClass } from '../../../api/classes';
+import { getActiveTeachers } from '../../../api/teachers';
 
 
 const streamOptions = [
@@ -76,15 +78,15 @@ const initialValues = {
   },
   startDate: '',
   endDate: '',
-  maxStudents: 0,
-  fee: '',
+  maxStudents: 30, // Changed from 0 to 30 (default class size)
+  fee: 0, // Changed from '' to 0 (default fee)
   paymentTracking: false,
   paymentTrackingFreeDays: 7,
   zoomLink: '',
   description: '',
   courseType: 'theory',
   revisionDiscountPrice: '', 
-  status: ''
+  status: 'active' // Changed from '' to 'active' (default status)
 };
 
 function formatTime(timeStr) {
@@ -101,30 +103,74 @@ function formatDay(day) {
   return day.charAt(0).toUpperCase() + day.slice(1);
 }
 
-const CreateClass = () => {
-  const [classes, setClasses] = useState(() => {
-    const stored = localStorage.getItem('classes');
-    const parsed = stored ? JSON.parse(stored) : [];
-    // Ensure all classes have the required structure
-    return parsed.map(cls => ({
-      ...cls,
-      schedule: cls.schedule || { day: '', startTime: '', endTime: '', frequency: 'weekly' },
-      fee: cls.fee || 0,
-      maxStudents: cls.maxStudents || 50,
-      status: cls.status || 'active'
-    }));
-  });
+const CreateClass = ({ onLogout }) => {
+  const [classes, setClasses] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [formValues, setFormValues] = useState(initialValues);
   const [submitKey, setSubmitKey] = useState(0);
   const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: 'Delete', cancelText: 'Cancel', type: 'danger' });
   const [zoomLoading, setZoomLoading] = useState(false);
   const [zoomError, setZoomError] = useState('');
+  // State for revision relation (must be at top level, not inside render callback)
+  const [revisionRelation, setRevisionRelation] = React.useState('none'); // 'none' | 'related' | 'unrelated'
+  // State for selected theory class id (for autofill)
+  const [selectedTheoryId, setSelectedTheoryId] = React.useState('');
+  // State for teachers
+  const [teacherList, setTeacherList] = useState([]);
+  const [loadingTeachers, setLoadingTeachers] = useState(false);
 
-  // Save to localStorage whenever classes changes
+  // Load classes from backend
+  const loadClasses = async () => {
+    try {
+      setLoading(true);
+      const response = await getAllClasses();
+      if (response.success) {
+        setClasses(response.data || []);
+      } else {
+        console.error('Failed to load classes:', response.message);
+        setClasses([]);
+      }
+    } catch (error) {
+      console.error('Error loading classes:', error);
+      setClasses([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load teachers from backend
+  const loadTeachers = async () => {
+    try {
+      setLoadingTeachers(true);
+      console.log('Loading teachers...');
+      const response = await getActiveTeachers();
+      console.log('Teachers response:', response);
+      if (response.success) {
+        console.log('Teachers loaded successfully:', response.data?.length || 0, 'teachers');
+        // Remove duplicates based on teacherId
+        const uniqueTeachers = response.data?.filter((teacher, index, self) => 
+          index === self.findIndex(t => t.teacherId === teacher.teacherId)
+        ) || [];
+        console.log('Unique teachers after filtering:', uniqueTeachers.length);
+        setTeacherList(uniqueTeachers);
+      } else {
+        console.error('Failed to load teachers:', response.message);
+        setTeacherList([]);
+      }
+    } catch (error) {
+      console.error('Error loading teachers:', error);
+      setTeacherList([]);
+    } finally {
+      setLoadingTeachers(false);
+    }
+  };
+
+  // Load data on component mount
   useEffect(() => {
-    localStorage.setItem('classes', JSON.stringify(classes));
-  }, [classes]);
+    loadClasses();
+    loadTeachers();
+  }, []);
 
   // Auto-sync myClasses with admin classes on component mount
   useEffect(() => {
@@ -196,22 +242,20 @@ const CreateClass = () => {
   };
 
   // Get teacher list from localStorage (from TeacherInfo.jsx)
-  const teacherList = React.useMemo(() => {
-    const stored = localStorage.getItem('teachers');
-    if (!stored) return [];
-    try {
-      return JSON.parse(stored);
-    } catch {
-      return [];
-    }
-  }, []);
-
   const teacherOptions = [
-    { value: '', label: 'Select Teacher' },
-    ...teacherList.map(t => ({ value: `${t.designation} ${t.name}`, label: `${t.designation} ${t.name}` }))
+    { value: '', label: 'Select Teacher', key: 'select-teacher' },
+    ...teacherList.map(t => ({ 
+      value: `${t.designation} ${t.name}`, 
+      label: `${t.designation} ${t.name}`,
+      key: `teacher-${t.teacherId}` // Use teacherId as unique key
+    }))
   ];
+  
+  console.log('Teacher list:', teacherList);
+  console.log('Teacher options:', teacherOptions);
 
-  const handleSubmit = (values, { resetForm }) => {
+  const handleSubmit = async (values, { resetForm }) => {
+    console.log('Form submitted with values:', values);
     let submitValues = { ...values };
     // If revision+related, always use related theory class values for main fields
     if (
@@ -240,20 +284,25 @@ const CreateClass = () => {
       }
     } else if (submitValues.courseType === 'revision' && revisionRelation === 'unrelated') {
       // For revision+unrelated, ensure relatedTheoryId is not set
-      submitValues.relatedTheoryId = '';
+      submitValues.relatedTheoryId = null; // Changed from '' to null
     } else if (submitValues.courseType === 'theory') {
       // For theory, ensure relatedTheoryId is not set
-      submitValues.relatedTheoryId = '';
+      submitValues.relatedTheoryId = null; // Changed from '' to null
     }
     // Always ensure teacherId is set if teacher is selected
     if (!submitValues.teacherId && submitValues.teacher) {
+      console.log('Looking for teacher:', submitValues.teacher);
+      console.log('Available teachers:', teacherList);
       const found = teacherList.find(t => `${t.designation} ${t.name}` === submitValues.teacher);
+      console.log('Found teacher:', found);
       if (found) submitValues.teacherId = found.teacherId;
     }
     // Always ensure fee and revisionDiscountPrice are numbers
     submitValues.fee = submitValues.fee ? Number(submitValues.fee) : 0;
     if (submitValues.revisionDiscountPrice) {
       submitValues.revisionDiscountPrice = Number(submitValues.revisionDiscountPrice);
+    } else {
+      submitValues.revisionDiscountPrice = null; // Convert empty string to null
     }
     // Add payment tracking logic
     let paymentTrackingObj = { enabled: false };
@@ -287,8 +336,12 @@ const CreateClass = () => {
     console.log('Saving class with zoom link:', normalizedSubmitValues.zoomLink);
     
     if (editingId) {
-      // Update the class in admin's classes list
-      setClasses(classes.map(cls => cls.id === editingId ? { ...normalizedSubmitValues, id: editingId } : cls));
+      // Update the class using API
+      try {
+        const response = await updateClass(editingId, normalizedSubmitValues);
+        if (response.success) {
+          // Reload classes from backend
+          await loadClasses();
       
       // Also update the class in students' myClasses if it exists
       try {
@@ -336,7 +389,37 @@ const CreateClass = () => {
         type: 'success',
       });
     } else {
-      setClasses([...classes, { ...normalizedSubmitValues, id: Date.now(), status: 'active' }]);
+          setAlertBox({
+            open: true,
+            message: 'Failed to update class. Please try again.',
+            onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+            onCancel: null,
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'danger',
+          });
+        }
+      } catch (error) {
+        console.error('Error updating class:', error);
+        setAlertBox({
+          open: true,
+          message: 'Failed to update class. Please try again.',
+          onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+          onCancel: null,
+          confirmText: 'OK',
+          cancelText: '',
+          type: 'danger',
+        });
+      }
+    } else {
+      // Create new class using API
+      try {
+        console.log('Creating class with data:', normalizedSubmitValues);
+        const response = await createClass(normalizedSubmitValues);
+        console.log('Create class response:', response);
+        if (response.success) {
+          // Reload classes from backend
+          await loadClasses();
       setAlertBox({
         open: true,
         message: 'Class created successfully!',
@@ -346,6 +429,30 @@ const CreateClass = () => {
         cancelText: '',
         type: 'success',
       });
+        } else {
+          console.error('Create class failed:', response);
+          setAlertBox({
+            open: true,
+            message: response.message || 'Failed to create class. Please try again.',
+            onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+            onCancel: null,
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'danger',
+          });
+        }
+      } catch (error) {
+        console.error('Error creating class:', error);
+        setAlertBox({
+          open: true,
+          message: `Error creating class: ${error.message}`,
+          onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+          onCancel: null,
+          confirmText: 'OK',
+          cancelText: '',
+          type: 'danger',
+        });
+      }
     }
     // Reset form but preserve zoom link if it was generated
     const currentZoomLink = values.zoomLink;
@@ -370,9 +477,12 @@ const CreateClass = () => {
     setAlertBox({
       open: true,
       message: 'Are you sure you want to delete this class? This will also remove it from all enrolled students.',
-      onConfirm: () => {
-        // Remove from admin's classes list
-        setClasses(classes.filter(c => c.id !== id));
+      onConfirm: async () => {
+        try {
+          const response = await deleteClass(id);
+          if (response.success) {
+            // Reload classes from backend
+            await loadClasses();
         
         // Also remove from students' myClasses if it exists
         try {
@@ -392,7 +502,39 @@ const CreateClass = () => {
           setFormValues(initialValues);
           setSubmitKey(prev => prev + 1);
         }
-        setAlertBox(a => ({ ...a, open: false }));
+            
+            setAlertBox({
+              open: true,
+              message: 'Class deleted successfully!',
+              onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+              onCancel: null,
+              confirmText: 'OK',
+              cancelText: '',
+              type: 'success',
+            });
+          } else {
+            setAlertBox({
+              open: true,
+              message: 'Failed to delete class. Please try again.',
+              onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+              onCancel: null,
+              confirmText: 'OK',
+              cancelText: '',
+              type: 'danger',
+            });
+          }
+        } catch (error) {
+          console.error('Error deleting class:', error);
+          setAlertBox({
+            open: true,
+            message: 'Failed to delete class. Please try again.',
+            onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+            onCancel: null,
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'danger',
+          });
+        }
       },
       onCancel: () => setAlertBox(a => ({ ...a, open: false })),
       confirmText: 'Delete',
@@ -400,12 +542,6 @@ const CreateClass = () => {
       type: 'danger',
     });
   };
-
-  // State for revision relation (must be at top level, not inside render callback)
-  const [revisionRelation, setRevisionRelation] = React.useState('none'); // 'none' | 'related' | 'unrelated'
-  // State for selected theory class id (for autofill)
-  const [selectedTheoryId, setSelectedTheoryId] = React.useState('');
-
 
   // Sync formValues with related theory class when selectedTheoryId changes (for revision+related)
   useEffect(() => {
@@ -1022,6 +1158,15 @@ const CreateClass = () => {
         <div className="border-t-2 pt-4">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">All Classes</h2>
+            <div className="flex gap-2">
+              <CustomButton
+                onClick={loadClasses}
+                disabled={loading}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
+              >
+                <FaSync className={`mr-1 ${loading ? 'animate-spin' : ''}`} /> 
+                {loading ? 'Loading...' : 'Refresh'}
+              </CustomButton>
             <CustomButton
               onClick={() => {
                 const hasUpdates = syncMyClassesWithAdminClasses();
@@ -1036,6 +1181,13 @@ const CreateClass = () => {
               <FaSync className="mr-1" /> Sync Student Data
             </CustomButton>
           </div>
+          </div>
+          
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="text-gray-500">Loading classes...</div>
+            </div>
+          ) : (
           <BasicTable
             columns={[
               { key: 'className', label: 'Class Name', render: row => {
@@ -1108,6 +1260,7 @@ const CreateClass = () => {
               </div>
             )}
           />
+          )}
         </div>
       </div>
     </>

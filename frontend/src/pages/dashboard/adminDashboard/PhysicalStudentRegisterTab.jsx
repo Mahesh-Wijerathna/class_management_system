@@ -6,6 +6,7 @@ import BasicForm from '../../../components/BasicForm';
 import { FaUser, FaPhone, FaIdCard, FaCalendarAlt, FaVenusMars, FaGraduationCap, FaBarcode, FaDownload } from 'react-icons/fa';
 import { Formik } from 'formik';
 import JsBarcode from 'jsbarcode';
+import { register, saveBarcode } from '../../../api/auth';
 
 // Helper to parse NIC (Sri Lankan)
 function parseNIC(nic) {
@@ -147,6 +148,25 @@ const PhysicalStudentRegisterTab = () => {
     }
   };
 
+  // Generate barcode on canvas
+  const generateBarcodeOnCanvas = (barcodeData, canvasId) => {
+    try {
+      const canvas = document.getElementById(canvasId);
+      if (canvas) {
+        JsBarcode(`#${canvasId}`, barcodeData, {
+          format: 'CODE128',
+          width: 2,
+          height: 100,
+          displayValue: true,
+          fontSize: 16,
+          margin: 10
+        });
+      }
+    } catch (error) {
+      console.error('Error generating barcode on canvas:', error);
+    }
+  };
+
 
 
   const handleStep1 = (values) => {
@@ -176,47 +196,43 @@ const PhysicalStudentRegisterTab = () => {
     setIsRegistering(true);
     
     try {
-      // Simulate API call delay for better UX
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Prepare registration data for backend
+      const registrationData = {
+        firstName: summaryValues.firstName,
+        lastName: summaryValues.lastName,
+        email: summaryValues.email,
+        mobile: summaryValues.mobile,
+        password: 'Tsms@1234', // Default password for physical registration
+        role: 'student',
+        // Additional fields for physical registration
+        nic: summaryValues.idNumber || '',
+        gender: summaryValues.gender,
+        age: summaryValues.age,
+        parentName: summaryValues.parentName,
+        parentMobile: summaryValues.parentMobile,
+        stream: summaryValues.stream,
+        dateOfBirth: summaryValues.dob,
+        school: summaryValues.school,
+        address: summaryValues.address,
+        district: summaryValues.district
+      };
+
+      // Call backend registration API
+      const response = await register(registrationData);
       
-      // Get existing students to check for duplicates
-      const currentStudents = JSON.parse(localStorage.getItem('students')) || [];
-      
-      // Check for duplicate NIC, mobile, and email
-      const duplicateNIC = currentStudents.find(student => 
-        student.nic && student.nic === summaryValues.idNumber
-      );
-      const duplicateMobile = currentStudents.find(student => 
-        student.phone === summaryValues.mobile
-      );
-      const duplicateEmail = currentStudents.find(student => 
-        student.email && student.email === summaryValues.email
-      );
-      
-      if (duplicateNIC) {
-        alert('A student with this NIC number is already registered.');
-        setIsRegistering(false);
-        return;
-      }
-      
-      if (duplicateMobile) {
-        alert('A student with this mobile number is already registered.');
-        setIsRegistering(false);
-        return;
-      }
-      
-      if (duplicateEmail) {
-        alert('A student with this email address is already registered.');
-        setIsRegistering(false);
-        return;
-      }
-      
-      // Always generate unique student ID
-      const studentId = generateStudentId();
-      
-      // Create student object with all required fields
-      const newStudent = {
-        studentId: studentId,
+      if (response.success) {
+        // Create barcode object for display using the generated userid
+        const barcodeObj = {
+          id: response.userid,
+          barcodeData: response.userid,
+          studentName: `${summaryValues.firstName} ${summaryValues.lastName}`,
+          generatedAt: new Date().toISOString()
+        };
+        
+        setGeneratedBarcode(barcodeObj);
+        setRegistrationSuccess(true);
+        setRegisteredStudent({
+          studentId: response.userid,
         firstName: summaryValues.firstName,
         lastName: summaryValues.lastName,
         nic: summaryValues.idNumber || '',
@@ -232,31 +248,27 @@ const PhysicalStudentRegisterTab = () => {
         address: summaryValues.address,
         district: summaryValues.district,
         dateJoined: new Date().toISOString().split('T')[0],
-        enrolledClasses: [],
-              // Add barcode generation info
-      barcodeData: studentId, // Use Student ID only
-      barcodeGeneratedAt: new Date().toISOString()
-      };
-      
-      // Generate barcode
-      const barcode = generateStudentBarcode(newStudent);
-      
-      // Add new student to the list
-      currentStudents.push(newStudent);
-      
-      // Save back to localStorage
-      localStorage.setItem('students', JSON.stringify(currentStudents));
-      
-      // Debug: Log the saved data
-      console.log('Student saved to localStorage:', newStudent);
-      console.log('Total students in localStorage:', currentStudents.length);
-      
-      // Set success state
-      setRegistrationSuccess(true);
-      setGeneratedBarcode(barcode);
-      setRegisteredStudent(newStudent);
-      
-
+          enrolledClasses: []
+        });
+        
+        // Save barcode data to backend
+        try {
+          await saveBarcode(response.userid, response.userid, `${summaryValues.firstName} ${summaryValues.lastName}`);
+          console.log('Barcode data saved to backend');
+        } catch (error) {
+          console.error('Failed to save barcode data:', error);
+          // Don't fail the registration if barcode save fails
+        }
+        
+        // Generate barcode on canvas after a short delay to ensure DOM is ready
+        setTimeout(() => {
+          generateBarcodeOnCanvas(response.userid, 'success-barcode-display');
+        }, 100);
+        
+        console.log('Physical registration successful! Student ID:', response.userid);
+      } else {
+        alert(response.message || 'Registration failed. Please try again.');
+      }
       
     } catch (error) {
       console.error('Registration error:', error);

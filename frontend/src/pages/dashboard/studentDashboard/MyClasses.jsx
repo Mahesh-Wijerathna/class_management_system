@@ -7,7 +7,7 @@ import SecureZoomMeeting from '../../../components/SecureZoomMeeting';
 import { getStudentCard, getCardTypeInfo, getCardStatus, isCardValid } from '../../../utils/cardUtils';
 import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt } from 'react-icons/fa';
 
-const MyClasses = () => {
+const MyClasses = ({ onLogout }) => {
   const [myClasses, setMyClasses] = useState([]);
   const [selectedTab, setSelectedTab] = useState('all');
   const [showForgetCardModal, setShowForgetCardModal] = useState(false);
@@ -746,7 +746,11 @@ const MyClasses = () => {
 
   if (loading) {
     return (
-      <DashboardLayout userRole="Student" sidebarItems={studentSidebarSections}>
+      <DashboardLayout
+        userRole="Student"
+        sidebarItems={studentSidebarSections}
+        onLogout={onLogout}
+      >
         <div className="p-6 text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading your classes...</p>
@@ -757,7 +761,11 @@ const MyClasses = () => {
 
   if (error) {
     return (
-      <DashboardLayout userRole="Student" sidebarItems={studentSidebarSections}>
+      <DashboardLayout
+        userRole="Student"
+        sidebarItems={studentSidebarSections}
+        onLogout={onLogout}
+      >
         <div className="p-6 text-center">
           <div className="text-red-600 mb-4">
             <FaExclamationCircle className="text-4xl mx-auto mb-2" />
@@ -775,7 +783,11 @@ const MyClasses = () => {
   }
 
   return (
-    <DashboardLayout userRole="Student" sidebarItems={studentSidebarSections}>
+    <DashboardLayout
+      userRole="Student"
+      sidebarItems={studentSidebarSections}
+      onLogout={onLogout}
+    >
       <div className="p-2 sm:p-4 md:p-6">
         {/* Header with Stats */}
         <div className="mb-6">
