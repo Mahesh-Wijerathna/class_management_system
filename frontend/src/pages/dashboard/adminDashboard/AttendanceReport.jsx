@@ -9,9 +9,42 @@ import autoTable from 'jspdf-autotable';
 // Helper to get attendance data from localStorage
 const getAttendanceData = () => {
   try {
-    const stored = localStorage.getItem('attendanceReports');
+    const stored = localStorage.getItem('myClasses');
     if (!stored) return [];
-    return JSON.parse(stored);
+    const classes = JSON.parse(stored);
+    
+    // Get enrollments to match student information
+    const enrollments = JSON.parse(localStorage.getItem('enrollments') || '[]');
+    
+    // Extract attendance records from myClasses
+    const attendanceRecords = [];
+    classes.forEach(cls => {
+      if (cls.attendance && Array.isArray(cls.attendance)) {
+        cls.attendance.forEach((record, index) => {
+          // Find student information from enrollments
+          const studentEnrollment = enrollments.find(e => 
+            e.classId === cls.id && e.studentId === record.studentId
+          );
+          
+          attendanceRecords.push({
+            id: `${cls.id}_${index}`,
+            studentId: record.studentId || studentEnrollment?.studentId || 'STUDENT_001',
+            name: record.studentName || studentEnrollment?.studentName || 'Unknown Student',
+            className: cls.className || 'Unknown Class',
+            date: record.date,
+            status: record.status,
+            in: record.timestamp || record.time || new Date().toISOString(),
+            out: record.outTime || '-',
+            month: record.date ? record.date.substring(0, 7) : '', // Extract YYYY-MM for monthly reports
+            classId: cls.id,
+            subject: cls.subject,
+            teacher: cls.teacher
+          });
+        });
+      }
+    });
+    
+    return attendanceRecords;
   } catch {
     return [];
   }
@@ -30,7 +63,9 @@ const AttendanceReport = () => {
       return rec.date === selectedDate;
     } else {
       if (!selectedMonth) return true;
-      return rec.month === selectedMonth;
+      // For monthly reports, compare YYYY-MM format
+      const recordMonth = rec.date ? rec.date.substring(0, 7) : '';
+      return recordMonth === selectedMonth;
     }
   });
 
@@ -80,15 +115,17 @@ const AttendanceReport = () => {
     doc.text(`Total: ${total}`, 14, summaryY + 8);
     // Table headers and rows
     const headers = [
-      'Student ID', 'Name', 'Class', 'Date', 'Status', 'In', 'Out'
+      'Student ID', 'Name', 'Class', 'Subject', 'Teacher', 'Date', 'Status', 'In', 'Out'
     ];
     const rows = filteredRecords.map(row => [
       row.studentId,
       row.name,
       row.className,
+      row.subject || 'N/A',
+      row.teacher || 'N/A',
       row.date,
       row.status,
-      row.in,
+      new Date(row.in).toLocaleString(),
       row.out
     ]);
     autoTable(doc, {
@@ -112,10 +149,18 @@ const AttendanceReport = () => {
   // Export Excel (CSV)
   const handleExportExcel = () => {
     const headers = [
-      'Student ID', 'Name', 'Class', 'Date', 'Status', 'In', 'Out'
+      'Student ID', 'Name', 'Class', 'Subject', 'Teacher', 'Date', 'Status', 'In', 'Out'
     ];
     const rows = filteredRecords.map(row => [
-      row.studentId, row.name, row.className, row.date, row.status, row.in, row.out
+      row.studentId, 
+      row.name, 
+      row.className, 
+      row.subject || 'N/A',
+      row.teacher || 'N/A',
+      row.date, 
+      row.status, 
+      new Date(row.in).toLocaleString(), 
+      row.out
     ]);
     let csvContent = '';
     csvContent += headers.join(',') + '\n';
@@ -195,10 +240,18 @@ const AttendanceReport = () => {
           { key: 'studentId', label: 'Student ID' },
           { key: 'name', label: 'Name' },
           { key: 'className', label: 'Class' },
+          { key: 'subject', label: 'Subject' },
+          { key: 'teacher', label: 'Teacher' },
           { key: 'date', label: 'Date' },
-          { key: 'status', label: 'Status' },
-          { key: 'in', label: 'In' },
-          { key: 'out', label: 'Out' },
+          { key: 'status', label: 'Status', render: row => {
+              const status = row.status;
+              if (status === 'present') return <span className="px-2 py-1 rounded bg-green-100 text-green-800 font-semibold">Present</span>;
+              if (status === 'absent') return <span className="px-2 py-1 rounded bg-red-100 text-red-800 font-semibold">Absent</span>;
+              if (status === 'late') return <span className="px-2 py-1 rounded bg-yellow-100 text-yellow-800 font-semibold">Late</span>;
+              return <span className="px-2 py-1 rounded bg-gray-100 text-gray-800 font-semibold">{status}</span>;
+            } },
+          { key: 'in', label: 'In', render: row => new Date(row.in).toLocaleString() },
+          { key: 'out', label: 'Out', render: row => row.out === '-' ? '-' : new Date(row.out).toLocaleString() },
         ]}
         data={filteredRecords}
       />
