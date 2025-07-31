@@ -11,9 +11,9 @@ The Twilio credentials are currently configured in the `docker-compose.yml` file
 ```yaml
 environment:
   # Twilio Configuration
-  - TWILIO_ACCOUNT_SID=AC95f3a77e76ca75172239b03fac7b2e91
-  - TWILIO_AUTH_TOKEN=8d0ec591ce35abd960ce816389bc1c70
-  - TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+  - TWILIO_ACCOUNT_SID=your_twilio_account_sid_here
+  - TWILIO_AUTH_TOKEN=your_twilio_auth_token_here
+  - TWILIO_WHATSAPP_FROM=whatsapp:+your_twilio_whatsapp_number_here
 ```
 
 ### 2. Alternative: Using .env File
@@ -22,9 +22,9 @@ You can also create a `.env` file in the `backend/` directory:
 ```env
 # Twilio Configuration
 # Get these from: https://console.twilio.com/
-TWILIO_ACCOUNT_SID=AC95f3a77e76ca75172239b03fac7b2e91
-TWILIO_AUTH_TOKEN=8d0ec591ce35abd960ce816389bc1c70
-TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+TWILIO_ACCOUNT_SID=your_twilio_account_sid_here
+TWILIO_AUTH_TOKEN=your_twilio_auth_token_here
+TWILIO_WHATSAPP_FROM=whatsapp:+your_twilio_whatsapp_number_here
 ```
 
 Then update `docker-compose.yml` to use environment variables:
@@ -90,9 +90,9 @@ docker exec auth-backend env | grep TWILIO
 
 Expected output:
 ```
-TWILIO_ACCOUNT_SID=AC95f3a77e76ca75172239b03fac7b2e91
-TWILIO_AUTH_TOKEN=8d0ec591ce35abd960ce816389bc1c70
-TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+TWILIO_ACCOUNT_SID=your_twilio_account_sid_here
+TWILIO_AUTH_TOKEN=your_twilio_auth_token_here
+TWILIO_WHATSAPP_FROM=whatsapp:+your_twilio_whatsapp_number_here
 ```
 
 ### Test WhatsApp Integration

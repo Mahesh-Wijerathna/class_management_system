@@ -24,9 +24,9 @@ Create a `.env` file in the `backend/` directory:
 ```env
 # Twilio Configuration
 # Get these from: https://console.twilio.com/
-TWILIO_ACCOUNT_SID=AC95f3a77e76ca75172239b03fac7b2e91
-TWILIO_AUTH_TOKEN=8d0ec591ce35abd960ce816389bc1c70
-TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+TWILIO_ACCOUNT_SID=your_twilio_account_sid_here
+TWILIO_AUTH_TOKEN=your_twilio_auth_token_here
+TWILIO_WHATSAPP_FROM=whatsapp:+your_twilio_whatsapp_number_here
 
 # WhatsApp Business API Configuration (Optional)
 WHATSAPP_ACCESS_TOKEN=your_whatsapp_access_token
@@ -257,9 +257,9 @@ docker exec auth-backend env | grep TWILIO
 ### Backend (.env)
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `TWILIO_ACCOUNT_SID` | Twilio Account SID | `AC95f3a77e76ca75172239b03fac7b2e91` |
-| `TWILIO_AUTH_TOKEN` | Twilio Auth Token | `8d0ec591ce35abd960ce816389bc1c70` |
-| `TWILIO_WHATSAPP_FROM` | Twilio WhatsApp number | `whatsapp:+14155238886` |
+| `TWILIO_ACCOUNT_SID` | Twilio Account SID | `your_twilio_account_sid_here` |
+| `TWILIO_AUTH_TOKEN` | Twilio Auth Token | `your_twilio_auth_token_here` |
+| `TWILIO_WHATSAPP_FROM` | Twilio WhatsApp number | `whatsapp:+your_twilio_whatsapp_number_here` |
 
 ### Frontend (.env)
 | Variable | Description | Example |

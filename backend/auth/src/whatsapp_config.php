@@ -17,7 +17,7 @@ return [
         'twilio' => [
             'account_sid' => getenv('TWILIO_ACCOUNT_SID') ?: 'YOUR_ACCOUNT_SID_HERE',
             'auth_token' => getenv('TWILIO_AUTH_TOKEN') ?: 'YOUR_AUTH_TOKEN_HERE',
-            'whatsapp_from' => getenv('TWILIO_WHATSAPP_FROM') ?: 'whatsapp:+14155238886',
+            'whatsapp_from' => getenv('TWILIO_WHATSAPP_FROM') ?: 'whatsapp:+your_twilio_whatsapp_number_here',
             'enabled' => true,
         ],
         'messagebird' => [
