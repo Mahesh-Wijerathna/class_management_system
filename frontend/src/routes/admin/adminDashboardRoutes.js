@@ -15,26 +15,24 @@ import AllClasses from '../../pages/dashboard/adminDashboard/AllClasses';
 import ClassStudents from '../../pages/dashboard/adminDashboard/ClassStudents';
 import AllRoles from '../../pages/dashboard/adminDashboard/AllRoles';
 import RolesWithPermission from '../../pages/dashboard/adminDashboard/RolesWithPermission';
-import LogoutHandler from '../../components/LogoutHandler';
-
 
 export const adminDashboardRoutes = [
-  { path: "/admindashboard", element: <LogoutHandler><AdminDashboard/></LogoutHandler> },
-  { path: "/admin/class-halls", element: <LogoutHandler><ClassHalls/></LogoutHandler> },
-  { path: "/admin/schedule", element: <LogoutHandler><ClassScheduling/></LogoutHandler> },
-  { path: "/admin/core-admins",element: <LogoutHandler><CoreAdminInfo/></LogoutHandler> },
-  { path: "admin/cashiers", element: <LogoutHandler><CashiersInfo/></LogoutHandler> },
-  { path: "/admin/teachers", element: <LogoutHandler><TeacherInfo/></LogoutHandler> },
-  { path: "/admin/students", element: <LogoutHandler><StudentEnrollment/></LogoutHandler> },
-  { path: "/admin/financial", element: <LogoutHandler><FinancialRecordsOverview /></LogoutHandler> },
-  { path: "/admin/reports", element: <LogoutHandler><Reports /></LogoutHandler> },
-  { path: "/admin/attendance", element: <LogoutHandler><AttendanceOverview /></LogoutHandler> },
-  { path: "/admin/attendance/:classId", element: <LogoutHandler><ClassAttendanceDetail /></LogoutHandler> },
-  { path: "/admin/students-payments", element: <LogoutHandler><StudentAllPayments /></LogoutHandler> },
-  { path: "/admin/students-payments/:classId", element: <LogoutHandler><StudentClassPayments /></LogoutHandler> },
-  { path: "/admin/classes/all", element: <LogoutHandler><AllClasses /></LogoutHandler> },
-  { path: "/admin/classes/all/:classId", element: <LogoutHandler><ClassStudents /></LogoutHandler> },
-  { path: "/admin/roles", element: <LogoutHandler><AllRoles /></LogoutHandler> },
-  { path: "/admin/roles/permissions", element: <LogoutHandler><RolesWithPermission /></LogoutHandler> }, 
+  { path: "/admindashboard", element: <AdminDashboard/> },
+  { path: "/admin/class-halls", element: <ClassHalls/> },
+  { path: "/admin/schedule", element: <ClassScheduling/> },
+  { path: "/admin/core-admins",element: <CoreAdminInfo/> },
+  { path: "admin/cashiers", element: <CashiersInfo/> },
+  { path: "/admin/teachers", element: <TeacherInfo/> },
+  { path: "/admin/students", element: <StudentEnrollment/> },
+  { path: "/admin/financial", element: <FinancialRecordsOverview /> },
+  { path: "/admin/reports", element: <Reports /> },
+  { path: "/admin/attendance", element: <AttendanceOverview /> },
+  { path: "/admin/attendance/:classId", element: <ClassAttendanceDetail /> },
+  { path: "/admin/students-payments", element: <StudentAllPayments /> },
+  { path: "/admin/students-payments/:classId", element: <StudentClassPayments /> },
+  { path: "/admin/classes/all", element: <AllClasses /> },
+  { path: "/admin/classes/all/:classId", element: <ClassStudents /> },
+  { path: "/admin/roles", element: <AllRoles /> },
+  { path: "/admin/roles/permissions", element: <RolesWithPermission /> }, 
   
 ]; 

@@ -4,11 +4,19 @@ const LogoutSync = () => {
   useEffect(() => {
     const handleStorageChange = (e) => {
       if (e.key === 'logout' && e.newValue === 'true') {
-        // Clear all auth data
+        // Clear all auth data from both storages
         localStorage.removeItem('authToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('userData');
         localStorage.removeItem('rememberedUser');
+        localStorage.removeItem('rememberMe');
+        localStorage.removeItem('tokenExpiry');
+        
+        sessionStorage.removeItem('authToken');
+        sessionStorage.removeItem('refreshToken');
+        sessionStorage.removeItem('userData');
+        sessionStorage.removeItem('usePersistentStorage');
+        sessionStorage.removeItem('tokenExpiry');
         
         // Redirect to login
         window.location.href = '/login';

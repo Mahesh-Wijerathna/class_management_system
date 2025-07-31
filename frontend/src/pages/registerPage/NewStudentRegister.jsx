@@ -191,19 +191,19 @@ export default function NewStudentRegister() {
         role: 'student',
         password: summaryValues.password,
         // Additional student data
-        firstName: summaryValues.firstName,
-        lastName: summaryValues.lastName,
-        nic: summaryValues.idNumber || '',
-        gender: summaryValues.gender,
-        age: summaryValues.age,
-        email: summaryValues.email,
+      firstName: summaryValues.firstName,
+      lastName: summaryValues.lastName,
+      nic: summaryValues.idNumber || '',
+      gender: summaryValues.gender,
+      age: summaryValues.age,
+      email: summaryValues.email,
         mobile: summaryValues.mobile,
-        parentName: summaryValues.parentName,
+      parentName: summaryValues.parentName,
         parentMobile: summaryValues.parentMobile,
-        stream: summaryValues.stream,
-        dateOfBirth: summaryValues.dob,
-        school: summaryValues.school,
-        address: summaryValues.address,
+      stream: summaryValues.stream,
+      dateOfBirth: summaryValues.dob,
+      school: summaryValues.school,
+      address: summaryValues.address,
         district: summaryValues.district
       };
 
@@ -216,15 +216,15 @@ export default function NewStudentRegister() {
       
       if (response.success) {
         // Create barcode object for display using the generated userid
-        const barcodeObj = {
+    const barcodeObj = {
           id: response.userid,
           barcodeData: response.userid,
-          studentName: `${summaryValues.firstName} ${summaryValues.lastName}`,
-          generatedAt: new Date().toISOString()
-        };
-        
-        setGeneratedBarcode(barcodeObj);
-        setRegistrationSuccess(true);
+      studentName: `${summaryValues.firstName} ${summaryValues.lastName}`,
+      generatedAt: new Date().toISOString()
+    };
+    
+    setGeneratedBarcode(barcodeObj);
+    setRegistrationSuccess(true);
         
         // Save barcode data to backend
         try {
@@ -249,7 +249,7 @@ export default function NewStudentRegister() {
       console.error('Registration error:', error);
       alert('Registration failed: ' + (error.message || 'Network error occurred'));
     } finally {
-      setIsRegistering(false);
+    setIsRegistering(false);
     }
   };
 

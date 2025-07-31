@@ -5,6 +5,7 @@ import { authRoutes, adminRoutes, adminDashboardRoutes, teacherRoutes, studentRo
 import AuthGuard from './components/AuthGuard';
 import PublicRoute from './components/PublicRoute';
 import LogoutSync from './components/LogoutSync';
+import LogoutHandler from './components/LogoutHandler';
 
 function App() {
   return (
@@ -27,7 +28,7 @@ function App() {
           <Route 
             key={index} 
             path={route.path} 
-            element={<AuthGuard requiredRole="admin">{route.element}</AuthGuard>} 
+            element={<AuthGuard requiredRole="admin"><LogoutHandler>{route.element}</LogoutHandler></AuthGuard>} 
           />
         ))}
 
@@ -36,13 +37,13 @@ function App() {
           <Route 
             key={index} 
             path={route.path} 
-            element={<AuthGuard requiredRole="admin">{route.element}</AuthGuard>}
+            element={<AuthGuard requiredRole="admin"><LogoutHandler>{route.element}</LogoutHandler></AuthGuard>}
           >
             {route.children?.map((child, childIndex) => (
               <Route 
                 key={childIndex} 
                 path={child.path} 
-                element={child.element} 
+                element={<LogoutHandler>{child.element}</LogoutHandler>} 
                 index={child.index}
               />
             ))}
@@ -54,7 +55,7 @@ function App() {
           <Route 
             key={index} 
             path={route.path} 
-            element={<AuthGuard requiredRole="teacher">{route.element}</AuthGuard>} 
+            element={<AuthGuard requiredRole="teacher"><LogoutHandler>{route.element}</LogoutHandler></AuthGuard>} 
           />
         ))}
 
@@ -63,7 +64,7 @@ function App() {
           <Route 
             key={index} 
             path={route.path} 
-            element={<AuthGuard requiredRole="student">{route.element}</AuthGuard>} 
+            element={<AuthGuard requiredRole="student"><LogoutHandler>{route.element}</LogoutHandler></AuthGuard>} 
           />
         ))}
       </Routes>

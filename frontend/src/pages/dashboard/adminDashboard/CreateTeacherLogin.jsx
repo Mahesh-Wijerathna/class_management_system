@@ -1,14 +1,13 @@
 import React from 'react';
 import BasicAlertBox from '../../../components/BasicAlertBox';
-import DashboardLayout from '../../../components/layout/DashboardLayout';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomButton from '../../../components/CustomButton';
 import CustomSelectField from '../../../components/CustomSelectField';
 import BasicForm from '../../../components/BasicForm';
-import adminSidebarSections from '././AdminDashboardSidebar';
 import { useNavigate } from 'react-router-dom';
 import * as Yup from 'yup';
-import { FaUser, FaLock, FaPhone, FaIdCard, FaChalkboardTeacher, FaEnvelope } from 'react-icons/fa';
+import { FaUser, FaLock, FaPhone, FaIdCard, FaEnvelope } from 'react-icons/fa';
+import { createTeacher, getNextTeacherId } from '../../../api/teachers';
 
 const streamOptions = [
   'O/L',
@@ -24,7 +23,6 @@ const phoneRegex = /^0\d{9}$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
 
 const validationSchema = Yup.object().shape({
-  teacherId: Yup.string().required('Teacher ID is required'),
   designation: Yup.string().required('Designation is required'),
   name: Yup.string().min(2, "Name must be at least 2 characters").required("Teacher's Name is required"),
   stream: Yup.string().oneOf(streamOptions, 'Invalid stream').required('Stream is required'),
@@ -36,7 +34,6 @@ const validationSchema = Yup.object().shape({
 });
 
 const initialValues = {
-  teacherId: '',
   designation: '',
   name: '',
   stream: '',
@@ -49,22 +46,66 @@ const CreateTeacherLogin = () => {
   const navigate = useNavigate();
   const [submitCount, setSubmitCount] = React.useState(0);
   const [alertBox, setAlertBox] = React.useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
+  const [nextTeacherId, setNextTeacherId] = React.useState('');
+  const [loadingId, setLoadingId] = React.useState(false);
 
-  const handleSubmit = (values) => {
-    // Save teacher to localStorage
-    const teachers = JSON.parse(localStorage.getItem('teachers')) || [];
-    teachers.push(values);
-    localStorage.setItem('teachers', JSON.stringify(teachers));
-    setAlertBox({
-      open: true,
-      message: 'Teacher account created!',
-      onConfirm: () => {
-        setAlertBox(a => ({ ...a, open: false }));
-        navigate('/admin/teachers/info');
-      },
-      confirmText: 'OK',
-      type: 'success'
-    });
+  // Load next teacher ID on component mount
+  React.useEffect(() => {
+    const loadNextTeacherId = async () => {
+      try {
+        setLoadingId(true);
+        const response = await getNextTeacherId();
+        if (response.success) {
+          setNextTeacherId(response.data);
+        } else {
+          console.error('Failed to load next teacher ID:', response.message);
+        }
+      } catch (error) {
+        console.error('Error loading next teacher ID:', error);
+      } finally {
+        setLoadingId(false);
+      }
+    };
+    
+    loadNextTeacherId();
+  }, []);
+
+  const handleSubmit = async (values) => {
+    try {
+      const response = await createTeacher(values);
+      if (response.success) {
+        setAlertBox({
+          open: true,
+          message: 'Teacher account created successfully!',
+          onConfirm: () => {
+            setAlertBox(a => ({ ...a, open: false }));
+            navigate('/admin/teachers/info');
+          },
+          confirmText: 'OK',
+          type: 'success'
+        });
+      } else {
+        setAlertBox({
+          open: true,
+          message: response.message || 'Failed to create teacher account',
+          onConfirm: () => {
+            setAlertBox(a => ({ ...a, open: false }));
+          },
+          confirmText: 'OK',
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      setAlertBox({
+        open: true,
+        message: 'Error creating teacher account. Please try again.',
+        onConfirm: () => {
+          setAlertBox(a => ({ ...a, open: false }));
+        },
+        confirmText: 'OK',
+        type: 'error'
+      });
+    }
   };
 
   return (
@@ -96,13 +137,13 @@ const CreateTeacherLogin = () => {
               name="teacherId"
               type="text"
               label="Teacher ID *"
-              value={values.teacherId}
-              onChange={handleChange}
-              error={errors.teacherId}
-              touched={touched.teacherId}
+              value={nextTeacherId}
+              onChange={() => {}} // Read-only
+              disabled={true}
               icon={FaIdCard}
+              placeholder={loadingId ? "Loading..." : "Auto-generated"}
             />
-             <CustomTextField
+            <CustomTextField
               id="email"
               name="email"
               type="email"

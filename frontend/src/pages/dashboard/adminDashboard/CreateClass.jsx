@@ -9,6 +9,7 @@ import { FaEdit, FaTrash, FaPlus, FaCalendar, FaBook, FaUser, FaClock, FaMoneyBi
 import * as Yup from 'yup';
 import BasicTable from '../../../components/BasicTable';
 import { getAllClasses, createClass, updateClass, deleteClass } from '../../../api/classes';
+import { getActiveTeachers } from '../../../api/teachers';
 
 
 const streamOptions = [
@@ -77,15 +78,15 @@ const initialValues = {
   },
   startDate: '',
   endDate: '',
-  maxStudents: 0,
-  fee: '',
+  maxStudents: 30, // Changed from 0 to 30 (default class size)
+  fee: 0, // Changed from '' to 0 (default fee)
   paymentTracking: false,
   paymentTrackingFreeDays: 7,
   zoomLink: '',
   description: '',
   courseType: 'theory',
   revisionDiscountPrice: '', 
-  status: ''
+  status: 'active' // Changed from '' to 'active' (default status)
 };
 
 function formatTime(timeStr) {
@@ -102,7 +103,7 @@ function formatDay(day) {
   return day.charAt(0).toUpperCase() + day.slice(1);
 }
 
-const CreateClass = () => {
+const CreateClass = ({ onLogout }) => {
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
@@ -111,6 +112,13 @@ const CreateClass = () => {
   const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: 'Delete', cancelText: 'Cancel', type: 'danger' });
   const [zoomLoading, setZoomLoading] = useState(false);
   const [zoomError, setZoomError] = useState('');
+  // State for revision relation (must be at top level, not inside render callback)
+  const [revisionRelation, setRevisionRelation] = React.useState('none'); // 'none' | 'related' | 'unrelated'
+  // State for selected theory class id (for autofill)
+  const [selectedTheoryId, setSelectedTheoryId] = React.useState('');
+  // State for teachers
+  const [teacherList, setTeacherList] = useState([]);
+  const [loadingTeachers, setLoadingTeachers] = useState(false);
 
   // Load classes from backend
   const loadClasses = async () => {
@@ -120,7 +128,7 @@ const CreateClass = () => {
       if (response.success) {
         setClasses(response.data || []);
       } else {
-        console.error('Failed to load classes:', response.error);
+        console.error('Failed to load classes:', response.message);
         setClasses([]);
       }
     } catch (error) {
@@ -131,9 +139,37 @@ const CreateClass = () => {
     }
   };
 
-  // Load classes on component mount
+  // Load teachers from backend
+  const loadTeachers = async () => {
+    try {
+      setLoadingTeachers(true);
+      console.log('Loading teachers...');
+      const response = await getActiveTeachers();
+      console.log('Teachers response:', response);
+      if (response.success) {
+        console.log('Teachers loaded successfully:', response.data?.length || 0, 'teachers');
+        // Remove duplicates based on teacherId
+        const uniqueTeachers = response.data?.filter((teacher, index, self) => 
+          index === self.findIndex(t => t.teacherId === teacher.teacherId)
+        ) || [];
+        console.log('Unique teachers after filtering:', uniqueTeachers.length);
+        setTeacherList(uniqueTeachers);
+      } else {
+        console.error('Failed to load teachers:', response.message);
+        setTeacherList([]);
+      }
+    } catch (error) {
+      console.error('Error loading teachers:', error);
+      setTeacherList([]);
+    } finally {
+      setLoadingTeachers(false);
+    }
+  };
+
+  // Load data on component mount
   useEffect(() => {
     loadClasses();
+    loadTeachers();
   }, []);
 
   // Auto-sync myClasses with admin classes on component mount
@@ -206,22 +242,20 @@ const CreateClass = () => {
   };
 
   // Get teacher list from localStorage (from TeacherInfo.jsx)
-  const teacherList = React.useMemo(() => {
-    const stored = localStorage.getItem('teachers');
-    if (!stored) return [];
-    try {
-      return JSON.parse(stored);
-    } catch {
-      return [];
-    }
-  }, []);
-
   const teacherOptions = [
-    { value: '', label: 'Select Teacher' },
-    ...teacherList.map(t => ({ value: `${t.designation} ${t.name}`, label: `${t.designation} ${t.name}` }))
+    { value: '', label: 'Select Teacher', key: 'select-teacher' },
+    ...teacherList.map(t => ({ 
+      value: `${t.designation} ${t.name}`, 
+      label: `${t.designation} ${t.name}`,
+      key: `teacher-${t.teacherId}` // Use teacherId as unique key
+    }))
   ];
+  
+  console.log('Teacher list:', teacherList);
+  console.log('Teacher options:', teacherOptions);
 
   const handleSubmit = async (values, { resetForm }) => {
+    console.log('Form submitted with values:', values);
     let submitValues = { ...values };
     // If revision+related, always use related theory class values for main fields
     if (
@@ -250,20 +284,25 @@ const CreateClass = () => {
       }
     } else if (submitValues.courseType === 'revision' && revisionRelation === 'unrelated') {
       // For revision+unrelated, ensure relatedTheoryId is not set
-      submitValues.relatedTheoryId = '';
+      submitValues.relatedTheoryId = null; // Changed from '' to null
     } else if (submitValues.courseType === 'theory') {
       // For theory, ensure relatedTheoryId is not set
-      submitValues.relatedTheoryId = '';
+      submitValues.relatedTheoryId = null; // Changed from '' to null
     }
     // Always ensure teacherId is set if teacher is selected
     if (!submitValues.teacherId && submitValues.teacher) {
+      console.log('Looking for teacher:', submitValues.teacher);
+      console.log('Available teachers:', teacherList);
       const found = teacherList.find(t => `${t.designation} ${t.name}` === submitValues.teacher);
+      console.log('Found teacher:', found);
       if (found) submitValues.teacherId = found.teacherId;
     }
     // Always ensure fee and revisionDiscountPrice are numbers
     submitValues.fee = submitValues.fee ? Number(submitValues.fee) : 0;
     if (submitValues.revisionDiscountPrice) {
       submitValues.revisionDiscountPrice = Number(submitValues.revisionDiscountPrice);
+    } else {
+      submitValues.revisionDiscountPrice = null; // Convert empty string to null
     }
     // Add payment tracking logic
     let paymentTrackingObj = { enabled: false };
@@ -303,53 +342,53 @@ const CreateClass = () => {
         if (response.success) {
           // Reload classes from backend
           await loadClasses();
-          
-          // Also update the class in students' myClasses if it exists
-          try {
-            const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
-            const updatedMyClasses = myClasses.map(studentClass => {
-              if (studentClass.classId === editingId || studentClass.id === editingId) {
-                // Update the class data while preserving student-specific data
-                return {
-                  ...studentClass,
-                  className: normalizedSubmitValues.className,
-                  subject: normalizedSubmitValues.subject,
-                  teacher: normalizedSubmitValues.teacher,
-                  stream: normalizedSubmitValues.stream,
-                  deliveryMethod: normalizedSubmitValues.deliveryMethod,
-                  schedule: normalizedSubmitValues.schedule,
-                  fee: normalizedSubmitValues.fee,
-                  maxStudents: normalizedSubmitValues.maxStudents,
-                  zoomLink: normalizedSubmitValues.zoomLink, // Update zoom link
-                  description: normalizedSubmitValues.description,
-                  courseType: normalizedSubmitValues.courseType,
-                  status: normalizedSubmitValues.status, // Update status (active/inactive)
-                  paymentTracking: normalizedSubmitValues.paymentTracking,
-                  paymentTrackingFreeDays: normalizedSubmitValues.paymentTrackingFreeDays,
-                  // Preserve student-specific data
-                  // paymentStatus, paymentMethod, purchaseDate, attendance, etc. remain unchanged
-                };
-              }
-              return studentClass;
-            });
-            
-            localStorage.setItem('myClasses', JSON.stringify(updatedMyClasses));
-            console.log('Updated class in myClasses localStorage for existing students');
-          } catch (error) {
-            console.error('Error updating myClasses localStorage:', error);
+      
+      // Also update the class in students' myClasses if it exists
+      try {
+        const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
+        const updatedMyClasses = myClasses.map(studentClass => {
+          if (studentClass.classId === editingId || studentClass.id === editingId) {
+            // Update the class data while preserving student-specific data
+            return {
+              ...studentClass,
+              className: normalizedSubmitValues.className,
+              subject: normalizedSubmitValues.subject,
+              teacher: normalizedSubmitValues.teacher,
+              stream: normalizedSubmitValues.stream,
+              deliveryMethod: normalizedSubmitValues.deliveryMethod,
+              schedule: normalizedSubmitValues.schedule,
+              fee: normalizedSubmitValues.fee,
+              maxStudents: normalizedSubmitValues.maxStudents,
+              zoomLink: normalizedSubmitValues.zoomLink, // Update zoom link
+              description: normalizedSubmitValues.description,
+              courseType: normalizedSubmitValues.courseType,
+              status: normalizedSubmitValues.status, // Update status (active/inactive)
+              paymentTracking: normalizedSubmitValues.paymentTracking,
+              paymentTrackingFreeDays: normalizedSubmitValues.paymentTrackingFreeDays,
+              // Preserve student-specific data
+              // paymentStatus, paymentMethod, purchaseDate, attendance, etc. remain unchanged
+            };
           }
-          
-          setEditingId(null);
-          setAlertBox({
-            open: true,
-            message: 'Class updated successfully! All enrolled students will see the updated information.',
-            onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
-            onCancel: null,
-            confirmText: 'OK',
-            cancelText: '',
-            type: 'success',
-          });
-        } else {
+          return studentClass;
+        });
+        
+        localStorage.setItem('myClasses', JSON.stringify(updatedMyClasses));
+        console.log('Updated class in myClasses localStorage for existing students');
+      } catch (error) {
+        console.error('Error updating myClasses localStorage:', error);
+      }
+      
+      setEditingId(null);
+      setAlertBox({
+        open: true,
+        message: 'Class updated successfully! All enrolled students will see the updated information.',
+        onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+        onCancel: null,
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'success',
+      });
+    } else {
           setAlertBox({
             open: true,
             message: 'Failed to update class. Please try again.',
@@ -375,23 +414,26 @@ const CreateClass = () => {
     } else {
       // Create new class using API
       try {
+        console.log('Creating class with data:', normalizedSubmitValues);
         const response = await createClass(normalizedSubmitValues);
+        console.log('Create class response:', response);
         if (response.success) {
           // Reload classes from backend
           await loadClasses();
-          setAlertBox({
-            open: true,
-            message: 'Class created successfully!',
-            onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
-            onCancel: null,
-            confirmText: 'OK',
-            cancelText: '',
-            type: 'success',
-          });
+      setAlertBox({
+        open: true,
+        message: 'Class created successfully!',
+        onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+        onCancel: null,
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'success',
+      });
         } else {
+          console.error('Create class failed:', response);
           setAlertBox({
             open: true,
-            message: 'Failed to create class. Please try again.',
+            message: response.message || 'Failed to create class. Please try again.',
             onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
             onCancel: null,
             confirmText: 'OK',
@@ -403,7 +445,7 @@ const CreateClass = () => {
         console.error('Error creating class:', error);
         setAlertBox({
           open: true,
-          message: 'Failed to create class. Please try again.',
+          message: `Error creating class: ${error.message}`,
           onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
           onCancel: null,
           confirmText: 'OK',
@@ -441,25 +483,25 @@ const CreateClass = () => {
           if (response.success) {
             // Reload classes from backend
             await loadClasses();
-            
-            // Also remove from students' myClasses if it exists
-            try {
-              const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
-              const updatedMyClasses = myClasses.filter(studentClass => 
-                studentClass.classId !== id && studentClass.id !== id
-              );
-              
-              localStorage.setItem('myClasses', JSON.stringify(updatedMyClasses));
-              console.log('Removed class from myClasses localStorage for all students');
-            } catch (error) {
-              console.error('Error removing class from myClasses localStorage:', error);
-            }
-            
-            if (editingId === id) {
-              setEditingId(null);
-              setFormValues(initialValues);
-              setSubmitKey(prev => prev + 1);
-            }
+        
+        // Also remove from students' myClasses if it exists
+        try {
+          const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
+          const updatedMyClasses = myClasses.filter(studentClass => 
+            studentClass.classId !== id && studentClass.id !== id
+          );
+          
+          localStorage.setItem('myClasses', JSON.stringify(updatedMyClasses));
+          console.log('Removed class from myClasses localStorage for all students');
+        } catch (error) {
+          console.error('Error removing class from myClasses localStorage:', error);
+        }
+        
+        if (editingId === id) {
+          setEditingId(null);
+          setFormValues(initialValues);
+          setSubmitKey(prev => prev + 1);
+        }
             
             setAlertBox({
               open: true,
@@ -500,12 +542,6 @@ const CreateClass = () => {
       type: 'danger',
     });
   };
-
-  // State for revision relation (must be at top level, not inside render callback)
-  const [revisionRelation, setRevisionRelation] = React.useState('none'); // 'none' | 'related' | 'unrelated'
-  // State for selected theory class id (for autofill)
-  const [selectedTheoryId, setSelectedTheoryId] = React.useState('');
-
 
   // Sync formValues with related theory class when selectedTheoryId changes (for revision+related)
   useEffect(() => {
@@ -1131,20 +1167,20 @@ const CreateClass = () => {
                 <FaSync className={`mr-1 ${loading ? 'animate-spin' : ''}`} /> 
                 {loading ? 'Loading...' : 'Refresh'}
               </CustomButton>
-              <CustomButton
-                onClick={() => {
-                  const hasUpdates = syncMyClassesWithAdminClasses();
-                  if (hasUpdates) {
-                    alert('Successfully synced all enrolled students with the latest class information!');
-                  } else {
-                    alert('No updates needed. All enrolled students already have the latest information.');
-                  }
-                }}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2"
-              >
-                <FaSync className="mr-1" /> Sync Student Data
-              </CustomButton>
-            </div>
+            <CustomButton
+              onClick={() => {
+                const hasUpdates = syncMyClassesWithAdminClasses();
+                if (hasUpdates) {
+                  alert('Successfully synced all enrolled students with the latest class information!');
+                } else {
+                  alert('No updates needed. All enrolled students already have the latest information.');
+                }
+              }}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2"
+            >
+              <FaSync className="mr-1" /> Sync Student Data
+            </CustomButton>
+          </div>
           </div>
           
           {loading ? (

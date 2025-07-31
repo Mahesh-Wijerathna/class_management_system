@@ -6,7 +6,7 @@ import studentSidebarSections from './StudentDashboardSidebar';
 import { FaCalendar, FaClock, FaMoneyBill, FaUser, FaBook, FaVideo, FaMapMarkerAlt, FaUsers, FaGraduationCap, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaSync } from 'react-icons/fa';
 import { getActiveClasses } from '../../../api/classes';
 
-const PurchaseClasses = () => {
+const PurchaseClasses = ({ onLogout }) => {
   const [search, setSearch] = useState('');
   const [selectedTab, setSelectedTab] = useState('all');
   const [classes, setClasses] = useState([]);
@@ -19,13 +19,18 @@ const PurchaseClasses = () => {
   // Load classes from backend API
   const loadClasses = async () => {
     try {
+      console.log('Loading classes...');
       setLoading(true);
       setError(null);
       
       const response = await getActiveClasses();
+      console.log('API Response:', response);
+      
       if (response.success) {
+        console.log('Classes loaded successfully:', response.data?.length || 0, 'classes');
         setClasses(response.data || []);
       } else {
+        console.error('API returned error:', response);
         setError('Failed to load classes from server');
         setClasses([]);
       }
@@ -41,7 +46,7 @@ const PurchaseClasses = () => {
   // Load classes on component mount
   useEffect(() => {
     loadClasses();
-    
+
     // Load student's purchased classes from localStorage
     try {
       const savedMyClasses = localStorage.getItem('myClasses');
@@ -262,7 +267,11 @@ const PurchaseClasses = () => {
   }
 
   return (
-    <DashboardLayout userRole="Student" sidebarItems={studentSidebarSections}>
+    <DashboardLayout
+      userRole="Student"
+      sidebarItems={studentSidebarSections}
+      onLogout={onLogout}
+    >
       <div className="p-2 sm:p-4 md:p-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-lg font-bold">Available Classes</h1>
@@ -431,6 +440,6 @@ const PurchaseClasses = () => {
       </div>
     </DashboardLayout>
   );
-  };
-  
-  export default PurchaseClasses; 
+};
+
+export default PurchaseClasses; 

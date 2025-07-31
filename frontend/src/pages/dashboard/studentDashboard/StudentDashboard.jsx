@@ -8,6 +8,12 @@ import BasicCard from '../../../components/BasicCard';
 import { useNavigate } from 'react-router-dom';
 import { LuMonitorSmartphone, LuCreditCard, LuMonitorPlay, LuBookOpen } from 'react-icons/lu';
 
+// Helper function to get the appropriate storage
+const getStorage = () => {
+  const usePersistentStorage = sessionStorage.getItem('usePersistentStorage');
+  return usePersistentStorage === 'true' ? localStorage : sessionStorage;
+};
+
 function DashboardNavButtons() {
   const navigate = useNavigate();
   return (
@@ -53,8 +59,9 @@ const StudentDashboard = ({ onLogout }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Load authenticated user data from localStorage
-    const userData = localStorage.getItem('userData');
+    // Load authenticated user data from appropriate storage
+    const storage = getStorage();
+    const userData = storage.getItem('userData');
     if (userData) {
       try {
         const user = JSON.parse(userData);

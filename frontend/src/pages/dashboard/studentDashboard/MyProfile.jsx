@@ -10,6 +10,12 @@ import studentSidebarSections from './StudentDashboardSidebar';
 import { useNavigate } from 'react-router-dom';
 import { changePassword, updateStudentProfile } from '../../../api/auth';
 
+// Helper function to get the appropriate storage
+const getStorage = () => {
+  const usePersistentStorage = sessionStorage.getItem('usePersistentStorage');
+  return usePersistentStorage === 'true' ? localStorage : sessionStorage;
+};
+
 const profileSchema = Yup.object().shape({
   firstName: Yup.string()
     .required('First name is required')
@@ -131,7 +137,7 @@ const districts = [
 
 const genders = ['Male', 'Female', 'Other'];
 
-const MyProfile = () => {
+const MyProfile = ({ onLogout }) => {
   const [currentStudent, setCurrentStudent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
@@ -140,8 +146,9 @@ const MyProfile = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Load authenticated user data from localStorage
-    const userData = localStorage.getItem('userData');
+    // Load authenticated user data from appropriate storage
+    const storage = getStorage();
+    const userData = storage.getItem('userData');
     if (userData) {
       try {
         const user = JSON.parse(userData);
@@ -321,7 +328,11 @@ const MyProfile = () => {
   };
 
   return (
-    <DashboardLayout userRole="Student" sidebarItems={studentSidebarSections}>
+    <DashboardLayout
+      userRole="Student"
+      sidebarItems={studentSidebarSections}
+      onLogout={onLogout}
+    >
       {/* Modern Alert Box */}
       <BasicAlertBox
         open={alertBox.open}
@@ -523,10 +534,10 @@ const MyProfile = () => {
                       Gender *
                     </label>
                     <select
-                      id="gender"
-                      name="gender"
-                      value={values.gender}
-                      onChange={handleChange}
+                    id="gender"
+                    name="gender"
+                    value={values.gender}
+                    onChange={handleChange}
                       className={`border-2 rounded-md px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#1a365d] focus:ring-opacity-50 transition-all duration-200 ${
                         errors.gender && touched.gender 
                           ? 'border-red-500 focus:ring-red-500' 

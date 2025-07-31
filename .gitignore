@@ -1,0 +1,41 @@
+# Environment Variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+*.env
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+build/
+dist/
+*.log
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Database
+*.sqlite
+*.db
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/ 

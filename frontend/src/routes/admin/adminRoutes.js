@@ -13,12 +13,11 @@ import CoreAdminTabsPage from '../../pages/dashboard/adminDashboard/CoreAdminTab
 import CashiersTabsPage from '../../pages/dashboard/adminDashboard/CashiersTabsPage';
 import CashiersInfo from '../../pages/dashboard/adminDashboard/CashiersInfo';
 import CreateCashierLogin from '../../pages/dashboard/adminDashboard/CreateCashierLogin';
-import LogoutHandler from '../../components/LogoutHandler';
 
 export const adminRoutes = [
   {
     path: "/admin/classes",
-    element: <LogoutHandler><ClassTabsPage/></LogoutHandler>,
+    element: <ClassTabsPage/>,
     children: [
       { path: "create", element: <CreateClass /> },
       { path: "schedule", element: <ClassScheduling /> },
@@ -27,7 +26,7 @@ export const adminRoutes = [
   },
   {
     path: "/admin/students",
-    element: <LogoutHandler><StudentTabsPage/></LogoutHandler>,
+    element: <StudentTabsPage/>,
     children: [
       { index: true, element: <StudentEnrollment /> },
       { path: "enrollment", element: <StudentEnrollment /> },
@@ -36,7 +35,7 @@ export const adminRoutes = [
   },
   {
     path: "/admin/teachers/",
-    element: <LogoutHandler><TeacherTabsPage/></LogoutHandler>,
+    element: <TeacherTabsPage/>,
     children: [
       { index: true, element: <TeacherInfo /> },
       { path: "info", element: <TeacherInfo /> },
@@ -45,7 +44,7 @@ export const adminRoutes = [
   },
   {
     path: "/admin/core-admins/",
-    element: <LogoutHandler><CoreAdminTabsPage /></LogoutHandler>, 
+    element: <CoreAdminTabsPage />, 
     children: [
       { index: true, element: <CoreAdminInfo /> },  
       { path: "info", element: <CoreAdminInfo /> },
@@ -54,7 +53,7 @@ export const adminRoutes = [
   },
   {
     path: "/admin/cashiers",
-    element: <LogoutHandler><CashiersTabsPage /></LogoutHandler>,
+    element: <CashiersTabsPage />,
     children: [
       { index: true, element: <CashiersInfo /> },
       { path: "info", element: <CashiersInfo /> },

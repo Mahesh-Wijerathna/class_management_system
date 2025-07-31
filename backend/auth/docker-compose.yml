@@ -41,10 +41,27 @@ services:
     depends_on:
       - mysql
     environment:
+      # Database Configuration
       - DB_HOST=mysql
       - DB_NAME=auth-db
       - DB_USER=devuser
       - DB_PASSWORD=devpass
+      
+      # Twilio Configuration
+      - TWILIO_ACCOUNT_SID=AC95f3a77e76ca75172239b03fac7b2e91
+      - TWILIO_AUTH_TOKEN=8d0ec591ce35abd960ce816389bc1c70
+      - TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+      
+      # WhatsApp Business API Configuration
+      - WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN:-}
+      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID:-}
+      - WHATSAPP_API_VERSION=${WHATSAPP_API_VERSION:-v17.0}
+      - WHATSAPP_BUSINESS_ACCOUNT_ID=${WHATSAPP_BUSINESS_ACCOUNT_ID:-}
+      - WHATSAPP_WEBHOOK_VERIFY_TOKEN=${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-}
+      
+      # MessageBird Configuration
+      - MESSAGEBIRD_ACCESS_KEY=${MESSAGEBIRD_ACCESS_KEY:-}
+      - MESSAGEBIRD_CHANNEL_ID=${MESSAGEBIRD_CHANNEL_ID:-}
     networks:
       - app-network
 

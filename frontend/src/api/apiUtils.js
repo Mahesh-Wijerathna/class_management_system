@@ -67,6 +67,7 @@ export const getUserData = () => {
 
 export const logout = async () => {
   const refreshToken = getRefreshToken();
+  
   if (refreshToken) {
     try {
       const { logout: logoutApi } = await import('./auth');

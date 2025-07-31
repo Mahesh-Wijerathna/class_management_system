@@ -49,7 +49,7 @@ export default function LoginPage() {
       // Check if login was successful
       if (data.success) {
         // Handle successful login
-        console.log("Login successful:", data);
+      console.log("Login successful:", data);
         
         // Store tokens and user data based on remember me preference
         if (data.accessToken) {
@@ -101,7 +101,7 @@ export default function LoginPage() {
       // Handle network errors or other exceptions
       console.log("Login error:", error);
       setBackendError(error.message || "Login failed. Please check your credentials.");
-    }
+  }
   }
 
   // Check for remembered user and auto-login on component mount
@@ -252,12 +252,12 @@ export default function LoginPage() {
                <div className='flex items-center justify-between'>
                 <label className='flex items-center space-x-2 cursor-pointer group'>
                   <div className='relative'>
-                    <input
-                      type='checkbox'
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
+            <input
+                    type='checkbox'
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
                       className='form-checkbox h-4 w-4 text-[#064e3b] rounded border-gray-300 focus:ring-[#064e3b] focus:ring-2 focus:ring-offset-2 transition-all duration-200'
-                    />
+                  />
                     {rememberMe && (
                       <div className='absolute inset-0 flex items-center justify-center'>
                         <svg className='w-3 h-3 text-white' fill='currentColor' viewBox='0 0 20 20'>

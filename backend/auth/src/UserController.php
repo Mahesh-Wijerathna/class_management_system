@@ -12,7 +12,7 @@ use Firebase\JWT\Key;
 class UserController {
     private $db;
     private $rateLimiter;
-    
+
     public function __construct($db) {
         $this->db = $db;
         $this->rateLimiter = new RateLimiter($db);
@@ -219,7 +219,7 @@ class UserController {
         $stmt->execute();
         
         return json_encode(['success' => true, 'message' => 'Logged out successfully']);
-    }
+        }
     
     private function generateRefreshToken() {
         return bin2hex(random_bytes(32));

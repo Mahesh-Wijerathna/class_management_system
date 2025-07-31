@@ -287,19 +287,19 @@ const StudentEnrollment = () => {
   const generateBarcodeOnCanvas = (barcodeData, canvasId) => {
     try {
       const canvas = document.getElementById(canvasId);
-      if (canvas) {
+        if (canvas) {
         JsBarcode(`#${canvasId}`, barcodeData, {
-          format: 'CODE128',
-          width: 2,
+              format: 'CODE128',
+              width: 2,
           height: 100,
-          displayValue: true,
+              displayValue: true,
           fontSize: 16,
           margin: 10
-        });
+            });
       }
-    } catch (error) {
+          } catch (error) {
       console.error('Error generating barcode on canvas:', error);
-    }
+          }
   };
 
   // Download barcode as PNG

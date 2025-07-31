@@ -1,10 +1,8 @@
-import { apiGet, apiPost, apiPut, apiDelete, handleApiError } from './apiUtils';
-
-// Create a separate axios instance for class API calls
+import { handleApiError } from './apiUtils';
 import axios from 'axios';
 
 const classApi = axios.create({
-  baseURL: 'http://localhost:8087',
+  baseURL: process.env.REACT_APP_CLASS_API_BASE_URL || 'http://localhost:8087',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -13,13 +11,12 @@ const classApi = axios.create({
   withCredentials: false,
 });
 
-// Wrapper functions for class API calls
 const classApiGet = async (endpoint) => {
   try {
     const response = await classApi.get(endpoint);
     return response.data;
   } catch (error) {
-    throw new Error(error.response?.data?.message || error.message || 'Request failed');
+    throw handleApiError(error);
   }
 };
 
@@ -28,7 +25,7 @@ const classApiPost = async (endpoint, data) => {
     const response = await classApi.post(endpoint, data);
     return response.data;
   } catch (error) {
-    throw new Error(error.response?.data?.message || error.message || 'Request failed');
+    throw handleApiError(error);
   }
 };
 
@@ -37,7 +34,7 @@ const classApiPut = async (endpoint, data) => {
     const response = await classApi.put(endpoint, data);
     return response.data;
   } catch (error) {
-    throw new Error(error.response?.data?.message || error.message || 'Request failed');
+    throw handleApiError(error);
   }
 };
 
@@ -46,86 +43,38 @@ const classApiDelete = async (endpoint) => {
     const response = await classApi.delete(endpoint);
     return response.data;
   } catch (error) {
-    throw new Error(error.response?.data?.message || error.message || 'Request failed');
+    throw handleApiError(error);
   }
 };
 
-// Get all classes
 export const getAllClasses = async () => {
-  try {
-    const response = await classApiGet('/routes.php/get_all_classes');
-    return response;
-  } catch (error) {
-    throw handleApiError(error);
-  }
+  return await classApiGet('/routes.php/get_all_classes');
 };
 
-// Get active classes only
 export const getActiveClasses = async () => {
-  try {
-    const response = await classApiGet('/routes.php/get_active_classes');
-    return response;
-  } catch (error) {
-    throw handleApiError(error);
-  }
+  return await classApiGet('/routes.php/get_active_classes');
 };
 
-// Get class by ID
 export const getClassById = async (id) => {
-  try {
-    const response = await classApiGet(`/routes.php/get_class_by_id?id=${id}`);
-    return response;
-  } catch (error) {
-    throw handleApiError(error);
-  }
+  return await classApiGet(`/routes.php/get_class_by_id?id=${id}`);
 };
 
-// Get classes by course type
 export const getClassesByType = async (courseType) => {
-  try {
-    const response = await classApiGet(`/routes.php/get_classes_by_type?type=${courseType}`);
-    return response;
-  } catch (error) {
-    throw handleApiError(error);
-  }
+  return await classApiGet(`/routes.php/get_classes_by_type?courseType=${courseType}`);
 };
 
-// Get classes by delivery method
 export const getClassesByDeliveryMethod = async (deliveryMethod) => {
-  try {
-    const response = await classApiGet(`/routes.php/get_classes_by_delivery?method=${deliveryMethod}`);
-    return response;
-  } catch (error) {
-    throw handleApiError(error);
-  }
+  return await classApiGet(`/routes.php/get_classes_by_delivery?deliveryMethod=${deliveryMethod}`);
 };
 
-// Create new class
 export const createClass = async (classData) => {
-  try {
-    const response = await classApiPost('/routes.php/', classData);
-    return response;
-  } catch (error) {
-    throw handleApiError(error);
-  }
+  return await classApiPost('/routes.php/', classData);
 };
 
-// Update class
 export const updateClass = async (id, classData) => {
-  try {
-    const response = await classApiPut(`/routes.php/classes/${id}`, classData);
-    return response;
-  } catch (error) {
-    throw handleApiError(error);
-  }
+  return await classApiPut(`/routes.php/classes/${id}`, classData);
 };
 
-// Delete class
 export const deleteClass = async (id) => {
-  try {
-    const response = await classApiDelete(`/routes.php/classes/${id}`);
-    return response;
-  } catch (error) {
-    throw handleApiError(error);
-  }
+  return await classApiDelete(`/routes.php/classes/${id}`);
 }; 

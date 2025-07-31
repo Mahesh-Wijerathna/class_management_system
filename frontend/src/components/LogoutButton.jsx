@@ -9,11 +9,24 @@ const LogoutButton = ({ className = "" }) => {
       } catch (error) {
         console.error('Logout failed:', error);
         // Fallback: force logout even if API call fails
+        // Clear both storages to be safe
         localStorage.removeItem('authToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('userData');
         localStorage.removeItem('rememberedUser');
+        localStorage.removeItem('rememberMe');
+        localStorage.removeItem('tokenExpiry');
+        
+        sessionStorage.removeItem('authToken');
+        sessionStorage.removeItem('refreshToken');
+        sessionStorage.removeItem('userData');
+        sessionStorage.removeItem('usePersistentStorage');
+        sessionStorage.removeItem('tokenExpiry');
+        
+        // Signal logout to other tabs
         localStorage.setItem('logout', 'true');
+        
+        // Redirect to login
         window.location.href = '/login';
       }
     }

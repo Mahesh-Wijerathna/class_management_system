@@ -10,12 +10,7 @@ class ClassModel {
         // Prepare payment tracking JSON
         $paymentTracking = null;
         if (isset($data['paymentTracking']) && $data['paymentTracking']) {
-            $paymentTracking = json_encode([
-                'enabled' => true,
-                'startDate' => $data['startDate'] ?? null,
-                'freeDays' => $data['paymentTrackingFreeDays'] ?? 7,
-                'active' => true
-            ]);
+            $paymentTracking = json_encode($data['paymentTracking']);
         }
 
         $stmt = $this->conn->prepare("
@@ -27,30 +22,64 @@ class ClassModel {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
+        // Ensure all variables are properly defined
+        $className = $data['className'] ?? '';
+        $subject = $data['subject'] ?? '';
+        $teacher = $data['teacher'] ?? '';
+        $teacherId = $data['teacherId'] ?? '';
+        $stream = $data['stream'] ?? '';
+        $deliveryMethod = $data['deliveryMethod'] ?? '';
+        $deliveryOther = $data['deliveryOther'] ?? null;
+        $scheduleDay = $data['schedule']['day'] ?? '';
+        $scheduleStartTime = $data['schedule']['startTime'] ?? '';
+        $scheduleEndTime = $data['schedule']['endTime'] ?? '';
+        $scheduleFrequency = $data['schedule']['frequency'] ?? 'weekly';
+        $startDate = $data['startDate'] ?? '';
+        $endDate = $data['endDate'] ?? '';
+        $maxStudents = $data['maxStudents'] ?? 0;
+        $fee = $data['fee'] ?? 0;
+        $paymentTrackingFreeDays = $data['paymentTrackingFreeDays'] ?? 7;
+        $zoomLink = $data['zoomLink'] ?? null;
+        $description = $data['description'] ?? null;
+        $courseType = $data['courseType'] ?? 'theory';
+        $revisionDiscountPrice = $data['revisionDiscountPrice'] ?? 0;
+        // Convert empty string to 0 for revision_discount_price
+        if ($revisionDiscountPrice === '' || $revisionDiscountPrice === null) {
+            $revisionDiscountPrice = 0;
+        } else {
+            $revisionDiscountPrice = floatval($revisionDiscountPrice);
+        }
+        $relatedTheoryId = $data['relatedTheoryId'] ?? null;
+        // Convert empty string to null for related_theory_id
+        if ($relatedTheoryId === '') {
+            $relatedTheoryId = null;
+        }
+        $status = $data['status'] ?? 'active';
+
         $stmt->bind_param("sssssssssssssssssssssss", 
-            $data['className'],
-            $data['subject'],
-            $data['teacher'],
-            $data['teacherId'],
-            $data['stream'],
-            $data['deliveryMethod'],
-            $data['deliveryOther'] ?? null,
-            $data['schedule']['day'],
-            $data['schedule']['startTime'],
-            $data['schedule']['endTime'],
-            $data['schedule']['frequency'],
-            $data['startDate'],
-            $data['endDate'],
-            $data['maxStudents'],
-            $data['fee'],
+            $className,
+            $subject,
+            $teacher,
+            $teacherId,
+            $stream,
+            $deliveryMethod,
+            $deliveryOther,
+            $scheduleDay,
+            $scheduleStartTime,
+            $scheduleEndTime,
+            $scheduleFrequency,
+            $startDate,
+            $endDate,
+            $maxStudents,
+            $fee,
             $paymentTracking,
-            $data['paymentTrackingFreeDays'] ?? 7,
-            $data['zoomLink'] ?? null,
-            $data['description'] ?? null,
-            $data['courseType'],
-            $data['revisionDiscountPrice'] ?? 0,
-            $data['relatedTheoryId'] ?? null,
-            $data['status'] ?? 'active'
+            $paymentTrackingFreeDays,
+            $zoomLink,
+            $description,
+            $courseType,
+            $revisionDiscountPrice,
+            $relatedTheoryId,
+            $status
         );
 
         return $stmt->execute();
@@ -73,12 +102,7 @@ class ClassModel {
         // Prepare payment tracking JSON
         $paymentTracking = null;
         if (isset($data['paymentTracking']) && $data['paymentTracking']) {
-            $paymentTracking = json_encode([
-                'enabled' => true,
-                'startDate' => $data['startDate'] ?? null,
-                'freeDays' => $data['paymentTrackingFreeDays'] ?? 7,
-                'active' => true
-            ]);
+            $paymentTracking = json_encode($data['paymentTracking']);
         }
 
         $stmt = $this->conn->prepare("
@@ -92,30 +116,64 @@ class ClassModel {
             WHERE id = ?
         ");
 
+        // Ensure all variables are properly defined
+        $className = $data['className'] ?? '';
+        $subject = $data['subject'] ?? '';
+        $teacher = $data['teacher'] ?? '';
+        $teacherId = $data['teacherId'] ?? '';
+        $stream = $data['stream'] ?? '';
+        $deliveryMethod = $data['deliveryMethod'] ?? '';
+        $deliveryOther = $data['deliveryOther'] ?? null;
+        $scheduleDay = $data['schedule']['day'] ?? '';
+        $scheduleStartTime = $data['schedule']['startTime'] ?? '';
+        $scheduleEndTime = $data['schedule']['endTime'] ?? '';
+        $scheduleFrequency = $data['schedule']['frequency'] ?? 'weekly';
+        $startDate = $data['startDate'] ?? '';
+        $endDate = $data['endDate'] ?? '';
+        $maxStudents = $data['maxStudents'] ?? 0;
+        $fee = $data['fee'] ?? 0;
+        $paymentTrackingFreeDays = $data['paymentTrackingFreeDays'] ?? 7;
+        $zoomLink = $data['zoomLink'] ?? null;
+        $description = $data['description'] ?? null;
+        $courseType = $data['courseType'] ?? 'theory';
+        $revisionDiscountPrice = $data['revisionDiscountPrice'] ?? 0;
+        // Convert empty string to 0 for revision_discount_price
+        if ($revisionDiscountPrice === '' || $revisionDiscountPrice === null) {
+            $revisionDiscountPrice = 0;
+        } else {
+            $revisionDiscountPrice = floatval($revisionDiscountPrice);
+        }
+        $relatedTheoryId = $data['relatedTheoryId'] ?? null;
+        // Convert empty string to null for related_theory_id
+        if ($relatedTheoryId === '') {
+            $relatedTheoryId = null;
+        }
+        $status = $data['status'] ?? 'active';
+
         $stmt->bind_param("sssssssssssssssssssssssi", 
-            $data['className'],
-            $data['subject'],
-            $data['teacher'],
-            $data['teacherId'],
-            $data['stream'],
-            $data['deliveryMethod'],
-            $data['deliveryOther'] ?? null,
-            $data['schedule']['day'],
-            $data['schedule']['startTime'],
-            $data['schedule']['endTime'],
-            $data['schedule']['frequency'],
-            $data['startDate'],
-            $data['endDate'],
-            $data['maxStudents'],
-            $data['fee'],
+            $className,
+            $subject,
+            $teacher,
+            $teacherId,
+            $stream,
+            $deliveryMethod,
+            $deliveryOther,
+            $scheduleDay,
+            $scheduleStartTime,
+            $scheduleEndTime,
+            $scheduleFrequency,
+            $startDate,
+            $endDate,
+            $maxStudents,
+            $fee,
             $paymentTracking,
-            $data['paymentTrackingFreeDays'] ?? 7,
-            $data['zoomLink'] ?? null,
-            $data['description'] ?? null,
-            $data['courseType'],
-            $data['revisionDiscountPrice'] ?? 0,
-            $data['relatedTheoryId'] ?? null,
-            $data['status'] ?? 'active',
+            $paymentTrackingFreeDays,
+            $zoomLink,
+            $description,
+            $courseType,
+            $revisionDiscountPrice,
+            $relatedTheoryId,
+            $status,
             $id
         );
 
