@@ -6,36 +6,13 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomButton from '../../../components/CustomButton';
 import CustomSelectField from '../../../components/CustomSelectField';
-import { FaEdit, FaTrash, FaPlus, FaCalendar, FaBook, FaUser, FaClock, FaDoorOpen } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaPlus, FaCalendar, FaBook, FaUser, FaClock, FaDoorOpen, FaVideo } from 'react-icons/fa';
 import * as Yup from 'yup';
 import BasicTable from '../../../components/BasicTable';
+import { getAllSessionSchedules, createSessionSchedule, updateSessionSchedule, deleteSessionSchedule, getAllClasses } from '../../../api/classes';
+import { getActiveTeachers } from '../../../api/teachers';
 
-const initialSchedules = [
-  {
-    id: 1,
-    subject: 'Physics',
-    className: '11B',
-    teacher: 'Mr. Silva',
-    teacherId: 'T001',
-    date: '2025-07-23',
-    startTime: '09:00',
-    endTime: '10:30',
-    classType: 'Online',
-    hall: '101',
-  },
-  {
-    id: 2,
-    subject: 'Mathematics',
-    className: '10A',
-    teacher: 'Ms. Perera',
-    teacherId: 'T002',
-    date: '2025-07-23',
-    startTime: '11:00',
-    endTime: '12:30',
-    classType: 'Physical',
-    hall: '203',
-  },
-];
+
 
 const deliveryMethodOptions = [
   { value: 'online', label: 'Online' },
@@ -44,9 +21,14 @@ const deliveryMethodOptions = [
   { value: 'other', label: 'Other' },
 ];
 
+const statusOptions = [
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+];
+
 const validationSchema = Yup.object().shape({
-  subject: Yup.string().required('Subject is required'),
   className: Yup.string().required('Class Name is required'),
+  subject: Yup.string().required('Subject is required'),
   teacher: Yup.string().required('Teacher is required'),
   teacherId: Yup.string().required('Teacher ID is required'),
   date: Yup.string().required('Date is required'),
@@ -63,12 +45,14 @@ const validationSchema = Yup.object().shape({
     then: (schema) => schema.required('Zoom Link is required'),
     otherwise: (schema) => schema.notRequired(), // Optional for 'other' and 'physical'
   }),
-  hall: Yup.string(),
+
+  status: Yup.string().oneOf(['active', 'inactive'], 'Invalid status').required('Status is required'),
+  description: Yup.string(),
 });
 
 const initialValues = {
-  subject: '',
   className: '',
+  subject: '',
   teacher: '',
   teacherId: '',
   date: '',
@@ -77,7 +61,9 @@ const initialValues = {
   deliveryMethod: 'online',
   deliveryOther: '',
   zoomLink: '',
-  hall: '',
+
+  status: 'active',
+  description: '',
 };
 
 
@@ -92,66 +78,185 @@ function formatTime(timeStr) {
 
 
 function ClassScheduling() {
-  // Load from localStorage or fallback to initialSchedules
-  const [schedules, setSchedules] = useState(() => {
-    const stored = localStorage.getItem('schedules');
-    return stored ? JSON.parse(stored) : initialSchedules;
-  });
+  const [schedules, setSchedules] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [formValues, setFormValues] = useState(initialValues);
   const [submitKey, setSubmitKey] = useState(0);
   const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: 'Delete', cancelText: 'Cancel', type: 'danger' });
   const [zoomLoading, setZoomLoading] = useState(false);
   const [zoomError, setZoomError] = useState('');
+  const [teacherList, setTeacherList] = useState([]);
+  const [loadingTeachers, setLoadingTeachers] = useState(false);
+  const [classList, setClassList] = useState([]);
+  const [loadingClasses, setLoadingClasses] = useState(false);
 
-  // Save to localStorage whenever schedules changes
+  // Load teachers from backend
+  const loadTeachers = async () => {
+    try {
+      setLoadingTeachers(true);
+      const response = await getActiveTeachers();
+      if (response.success) {
+        // Remove duplicates based on teacherId
+        const uniqueTeachers = response.data?.filter((teacher, index, self) => 
+          index === self.findIndex(t => t.teacherId === teacher.teacherId)
+        ) || [];
+        setTeacherList(uniqueTeachers);
+      } else {
+        console.error('Failed to load teachers:', response.message);
+        setTeacherList([]);
+      }
+    } catch (error) {
+      console.error('Error loading teachers:', error);
+      setTeacherList([]);
+    } finally {
+      setLoadingTeachers(false);
+    }
+  };
+
+  // Load classes from backend
+  const loadClasses = async () => {
+    try {
+      setLoadingClasses(true);
+      const response = await getAllClasses();
+      if (response.success) {
+        setClassList(response.data || []);
+      } else {
+        console.error('Failed to load classes:', response.message);
+        setClassList([]);
+      }
+    } catch (error) {
+      console.error('Error loading classes:', error);
+      setClassList([]);
+    } finally {
+      setLoadingClasses(false);
+    }
+  };
+
+  // Fetch all session schedules from API
   useEffect(() => {
-    localStorage.setItem('schedules', JSON.stringify(schedules));
-  }, [schedules]);
+    const fetchSchedules = async () => {
+      try {
+        setLoading(true);
+        const response = await getAllSessionSchedules();
+        if (response.success) {
+          setSchedules(response.data || []);
+        } else {
+          setError(response.message || 'Failed to load session schedules');
+        }
+      } catch (error) {
+        console.error('Error fetching session schedules:', error);
+        setError('Failed to load session schedules. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // Dummy teacher list for select fields
-  const teacherList = [
-    { id: 'T001', name: 'Mr. Silva' },
-    { id: 'T002', name: 'Ms. Perera' },
-    // Add more as needed
-  ];
+    fetchSchedules();
+    loadTeachers();
+    loadClasses();
+  }, []);
+
+  // Get teacher options from loaded teachers
   const teacherOptions = [
-    { value: '', label: 'Select Teacher' },
-    ...teacherList.map(t => ({ value: t.name, label: t.name }))
-  ];
-  const teacherIdOptions = [
-    { value: '', label: 'Select Teacher ID' },
-    ...teacherList.map(t => ({ value: t.id, label: t.id }))
+    { value: '', label: 'Select Teacher', key: 'select-teacher' },
+    ...teacherList.map(t => ({ 
+      value: `${t.designation} ${t.name}`, 
+      label: `${t.designation} ${t.name}`,
+      key: `teacher-${t.teacherId}` // Use teacherId as unique key
+    }))
   ];
 
-  const handleSubmit = (values, { resetForm }) => {
-    if (editingId) {
-      setSchedules(schedules.map(sch => sch.id === editingId ? { ...values, id: editingId } : sch));
-      setEditingId(null);
+  // Get class options from loaded classes
+  const classOptions = [
+    { value: '', label: 'Select Class', key: 'select-class' },
+    ...classList.map(c => ({ 
+      value: c.className, 
+      label: c.className,
+      key: `class-${c.id}`,
+      subject: c.subject,
+      teacher: c.teacher,
+      teacherId: c.teacherId
+    }))
+  ];
+
+  // Get unique subjects from loaded classes
+  const subjectOptions = [
+    { value: '', label: 'Select Subject', key: 'select-subject' },
+    ...Array.from(new Set(classList.map(c => c.subject))).map(subject => ({ 
+      value: subject, 
+      label: subject,
+      key: `subject-${subject}`
+    }))
+  ];
+  
+
+
+    const handleSubmit = async (values, { resetForm }) => {
+    try {
+      // Always ensure teacherId is set if teacher is selected
+      let submitValues = { ...values };
+      if (!submitValues.teacherId && submitValues.teacher) {
+        const found = teacherList.find(t => `${t.designation} ${t.name}` === submitValues.teacher);
+        if (found) submitValues.teacherId = found.teacherId;
+      }
+      
+      if (editingId) {
+        // Update existing session schedule
+        const response = await updateSessionSchedule(editingId, submitValues);
+        if (response.success) {
+          // Refresh schedules
+          const schedulesResponse = await getAllSessionSchedules();
+          if (schedulesResponse.success) {
+            setSchedules(schedulesResponse.data || []);
+          }
+          setEditingId(null);
+          setAlertBox({
+            open: true,
+            message: 'Session schedule updated successfully!',
+            onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+            onCancel: null,
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'success',
+          });
+        }
+      } else {
+        // Create new session schedule
+        const response = await createSessionSchedule(submitValues);
+        if (response.success) {
+          // Refresh schedules
+          const schedulesResponse = await getAllSessionSchedules();
+          if (schedulesResponse.success) {
+            setSchedules(schedulesResponse.data || []);
+          }
+          setAlertBox({
+            open: true,
+            message: 'Session schedule created successfully!',
+            onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+            onCancel: null,
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'success',
+          });
+        }
+      }
+      resetForm();
+      setFormValues(initialValues);
+      setSubmitKey(prev => prev + 1);
+    } catch (error) {
+      console.error('Error saving session schedule:', error);
       setAlertBox({
         open: true,
-        message: 'Schedule updated successfully!',
+        message: 'Failed to save session schedule. Please try again.',
         onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
         onCancel: null,
         confirmText: 'OK',
         cancelText: '',
-        type: 'success',
-      });
-    } else {
-      setSchedules([...schedules, { ...values, id: Date.now() }]);
-      setAlertBox({
-        open: true,
-        message: 'Schedule added successfully!',
-        onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
-        onCancel: null,
-        confirmText: 'OK',
-        cancelText: '',
-        type: 'success',
+        type: 'danger',
       });
     }
-    resetForm();
-    setFormValues(initialValues);
-    setSubmitKey(prev => prev + 1);
   };
 
   const handleEdit = (id) => {
@@ -163,18 +268,46 @@ function ClassScheduling() {
     }
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     setAlertBox({
       open: true,
-      message: 'Are you sure you want to delete this schedule?',
-      onConfirm: () => {
-        setSchedules(schedules.filter(s => s.id !== id));
-        if (editingId === id) {
-          setEditingId(null);
-          setFormValues(initialValues);
-          setSubmitKey(prev => prev + 1);
+      message: 'Are you sure you want to delete this session schedule?',
+      onConfirm: async () => {
+        try {
+          const response = await deleteSessionSchedule(id);
+          if (response.success) {
+            // Refresh schedules
+            const schedulesResponse = await getAllSessionSchedules();
+            if (schedulesResponse.success) {
+              setSchedules(schedulesResponse.data || []);
+            }
+            if (editingId === id) {
+              setEditingId(null);
+              setFormValues(initialValues);
+              setSubmitKey(prev => prev + 1);
+            }
+            setAlertBox({
+              open: true,
+              message: 'Session schedule deleted successfully!',
+              onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+              onCancel: null,
+              confirmText: 'OK',
+              cancelText: '',
+              type: 'success',
+            });
+          }
+        } catch (error) {
+          console.error('Error deleting session schedule:', error);
+          setAlertBox({
+            open: true,
+            message: 'Failed to delete session schedule. Please try again.',
+            onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+            onCancel: null,
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'danger',
+          });
         }
-        setAlertBox(a => ({ ...a, open: false }));
       },
       onCancel: () => setAlertBox(a => ({ ...a, open: false })),
       confirmText: 'Delete',
@@ -183,19 +316,46 @@ function ClassScheduling() {
     });
   };
 
-  return (
-    <>
-      <BasicAlertBox
-        open={alertBox.open}
-        message={alertBox.message}
-        onConfirm={alertBox.onConfirm}
-        onCancel={alertBox.onCancel}
-        confirmText={alertBox.confirmText}
-        cancelText={alertBox.cancelText}
-        type={alertBox.type}
-      />
+  if (loading) {
+    return (
         <div className="p-6 bg-white rounded-lg shadow">
-        <h1 className="text-2xl font-bold mb-4">Class Schedules</h1>
+          <div className="flex items-center justify-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3da58a]"></div>
+            <span className="ml-2 text-gray-600">Loading session schedules...</span>
+          </div>
+        </div>
+    );
+  }
+
+  if (error) {
+    return (
+        <div className="p-6 bg-white rounded-lg shadow">
+          <div className="text-center text-red-600">
+            <p>{error}</p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+    );
+  }
+
+  return (
+      <>
+        <BasicAlertBox
+          open={alertBox.open}
+          message={alertBox.message}
+          onConfirm={alertBox.onConfirm}
+          onCancel={alertBox.onCancel}
+          confirmText={alertBox.confirmText}
+          cancelText={alertBox.cancelText}
+          type={alertBox.type}
+        />
+        <div className="p-6 bg-white rounded-lg shadow">
+        <h1 className="text-2xl font-bold mb-4">Class Session Schedules</h1>
         <p className="mb-6 text-gray-700">Create, update, and delete class schedules for all teachers.</p>
 
       <BasicForm
@@ -206,19 +366,30 @@ function ClassScheduling() {
       >
         {(props) => {
           const { errors, touched, handleChange, values, setFieldValue } = props;
-          // Auto-fill Teacher ID when teacher is selected
+          // Link teacher and teacherId
           const handleTeacherChange = (e) => {
             const selectedName = e.target.value;
             handleChange(e);
-            const found = teacherList.find(t => t.name === selectedName);
-            if (found && setFieldValue) setFieldValue('teacherId', found.id);
+            const found = teacherList.find(t => `${t.designation} ${t.name}` === selectedName);
+            if (found && setFieldValue) {
+              setFieldValue('teacher', `${found.designation} ${found.name}`);
+              setFieldValue('teacherId', found.teacherId); // Store TeacherId for display
+            } else if (setFieldValue) {
+              setFieldValue('teacherId', '');
+            }
           };
-          // Auto-fill Teacher when Teacher ID is selected
-          const handleTeacherIdChange = (e) => {
-            const selectedId = e.target.value;
+
+          // Auto-fill class details when class is selected
+          const handleClassChange = (e) => {
+            const selectedClassName = e.target.value;
             handleChange(e);
-            const found = teacherList.find(t => t.id === selectedId);
-            if (found && setFieldValue) setFieldValue('teacher', found.name);
+            const found = classList.find(c => c.className === selectedClassName);
+            if (found && setFieldValue) {
+              setFieldValue('className', found.className);
+              setFieldValue('subject', found.subject);
+              setFieldValue('teacher', found.teacher);
+              setFieldValue('teacherId', found.teacherId);
+            }
           };
           // Move handleGenerateZoomLink here so setFieldValue is in scope
           const handleGenerateZoomLink = async () => {
@@ -238,27 +409,27 @@ function ClassScheduling() {
 
           return (
             <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <CustomTextField
+              <CustomSelectField
+                id="className"
+                name="className"
+                label="Class Name *"
+                value={values.className}
+                onChange={handleClassChange}
+                options={classOptions}
+                error={errors.className}
+                touched={touched.className}
+                required
+              />
+              <CustomSelectField
                 id="subject"
                 name="subject"
-                type="text"
                 label="Subject *"
                 value={values.subject}
                 onChange={handleChange}
+                options={subjectOptions}
                 error={errors.subject}
                 touched={touched.subject}
-                icon={FaBook}
-              />
-              <CustomTextField
-                id="className"
-                name="className"
-                type="text"
-                label="Class Name *"
-                value={values.className}
-                onChange={handleChange}
-                error={errors.className}
-                touched={touched.className}
-                icon={FaUser}
+                required
               />
               <CustomSelectField
                 id="teacher"
@@ -271,17 +442,16 @@ function ClassScheduling() {
                 touched={touched.teacher}
                 required
               />
-              <CustomSelectField
-                id="teacherId"
-                name="teacherId"
-                label="Teacher ID *"
-                value={values.teacherId}
-                onChange={handleTeacherIdChange}
-                options={teacherIdOptions}
-                error={errors.teacherId}
-                touched={touched.teacherId}
-                required
-              />
+              {/* Show Teacher ID after selecting Teacher Name */}
+              {values.teacher && (
+                <div className="flex flex-col justify-end">
+                  <label className="text-xs font-medium text-gray-700 mb-1">Teacher ID</label>
+                  <div className="px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 text-base font-normal">
+                    {teacherList.find(t => `${t.designation} ${t.name}` === values.teacher)?.teacherId || ''}
+                  </div>
+                </div>
+              )}
+
               <CustomTextField
                 id="date"
                 name="date"
@@ -315,65 +485,148 @@ function ClassScheduling() {
                 touched={touched.endTime}
                 icon={FaClock}
               />
-              <CustomSelectField
-                id="deliveryMethod"
-                name="deliveryMethod"
-                label="Delivery Method *"
-                value={values.deliveryMethod}
-                onChange={handleChange}
-                options={deliveryMethodOptions}
-                error={errors.deliveryMethod}
-                touched={touched.deliveryMethod}
-                required
-              />
-              {values.deliveryMethod === 'other' && (
-                <CustomTextField
-                  id="deliveryOther"
-                  name="deliveryOther"
-                  type="text"
-                  label="Describe Delivery Method *"
-                  value={values.deliveryOther}
-                  onChange={handleChange}
-                  error={errors.deliveryOther}
-                  touched={touched.deliveryOther}
-                />
-              )}
-              {(values.deliveryMethod === 'online' || values.deliveryMethod === 'hybrid' || values.deliveryMethod === 'other') && (
-                <div className="flex items-center gap-2 col-span-2">
+              {/* Delivery Method */}
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-3">Delivery Method *</label>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="deliveryMethod"
+                      value="online"
+                      checked={values.deliveryMethod === 'online'}
+                      onChange={handleChange}
+                      className="mr-2"
+                    />
+                    <div>
+                      <div className="font-medium">Online Only</div>
+                      <div className="text-sm text-gray-500">Live streaming classes</div>
+                    </div>
+                  </label>
+                  <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="deliveryMethod"
+                      value="physical"
+                      checked={values.deliveryMethod === 'physical'}
+                      onChange={handleChange}
+                      className="mr-2"
+                    />
+                    <div>
+                      <div className="font-medium">Physical Only</div>
+                      <div className="text-sm text-gray-500">In-person classes</div>
+                    </div>
+                  </label>
+                  <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="deliveryMethod"
+                      value="hybrid"
+                      checked={values.deliveryMethod === 'hybrid'}
+                      onChange={handleChange}
+                      className="mr-2"
+                    />
+                    <div>
+                      <div className="font-medium">Hybrid</div>
+                      <div className="text-sm text-gray-500">Alternating weeks</div>
+                    </div>
+                  </label>
+                  <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="radio"
+                      name="deliveryMethod"
+                      value="other"
+                      checked={values.deliveryMethod === 'other'}
+                      onChange={handleChange}
+                      className="mr-2"
+                    />
+                    <div>
+                      <div className="font-medium">Other</div>
+                      <div className="text-sm text-gray-500">Custom (describe below)</div>
+                    </div>
+                  </label>
+                </div>
+                {values.deliveryMethod === 'other' && (
                   <CustomTextField
-                    id="zoomLink"
-                    name="zoomLink"
-                    type="url"
-                    label={values.deliveryMethod === 'other' ? "Zoom Link (Optional)" : "Zoom Link"}
-                    value={values.zoomLink}
+                    id="deliveryOther"
+                    name="deliveryOther"
+                    type="text"
+                    label="Describe Delivery Method *"
+                    value={values.deliveryOther}
                     onChange={handleChange}
-                    error={errors.zoomLink}
-                    touched={touched.zoomLink}
-                    icon={FaCalendar}
-                    placeholder="https://zoom.us/j/..."
+                    error={errors.deliveryOther}
+                    touched={touched.deliveryOther}
                   />
-                  <CustomButton
-                    type="button"
-                    onClick={handleGenerateZoomLink}
-                    className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
-                    disabled={zoomLoading}
-                  >
-                    {zoomLoading ? 'Generating...' : 'Create Zoom Link'}
-                  </CustomButton>
+                )}
+                {errors.deliveryMethod && touched.deliveryMethod && (
+                  <div className="text-red-600 text-sm mt-1">{errors.deliveryMethod}</div>
+                )}
+              </div>
+              {/* Zoom Link for online, hybrid, and other */}
+              {(values.deliveryMethod === 'online' || values.deliveryMethod === 'hybrid' || values.deliveryMethod === 'other') && (
+                <div className="col-span-2">
+                  <div className="mb-2">
+                    <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded border border-blue-200">
+                      <FaVideo className="inline mr-1" />
+                      <strong>Zoom Link Required:</strong> For online and hybrid classes, you must provide a zoom link. You can either enter one manually or click "Create Zoom Link" to generate one automatically.
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CustomTextField
+                      id="zoomLink"
+                      name="zoomLink"
+                      type="url"
+                      label={values.deliveryMethod === 'other' ? "Zoom Link (Optional)" : "Zoom Link *"}
+                      value={values.zoomLink}
+                      onChange={handleChange}
+                      error={errors.zoomLink}
+                      touched={touched.zoomLink}
+                      icon={FaVideo}
+                      placeholder="https://zoom.us/j/..."
+                    />
+                    <CustomButton
+                      type="button"
+                      onClick={handleGenerateZoomLink}
+                      className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
+                      disabled={zoomLoading}
+                    >
+                      {zoomLoading ? 'Generating...' : 'Create Zoom Link'}
+                    </CustomButton>
+                  </div>
                   {zoomError && <div className="text-red-600 text-sm mt-1">{zoomError}</div>}
+                  {!values.zoomLink && (values.deliveryMethod === 'online' || values.deliveryMethod === 'hybrid') && (
+                    <div className="text-orange-600 text-sm mt-1">
+                      ⚠️ Please enter a zoom link or click "Create Zoom Link" to generate one.
+                    </div>
+                  )}
                 </div>
               )}
-              <CustomTextField
-                id="hall"
-                name="hall"
-                type="text"
-                label="Hall (optional)"
-                value={values.hall}
+              
+
+              <CustomSelectField
+                id="status"
+                name="status"
+                label="Status *"
+                value={values.status}
                 onChange={handleChange}
-                error={errors.hall}
-                touched={touched.hall}
-                icon={FaDoorOpen}
+                options={statusOptions}
+                error={errors.status}
+                touched={touched.status}
+                required
               />
+              
+              {/* Description */}
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                <textarea
+                  name="description"
+                  value={values.description}
+                  onChange={handleChange}
+                  rows="3"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter session description..."
+                />
+              </div>
               <div className="col-span-1 md:col-span-2 flex justify-center">
                 <CustomButton
                   type="submit"
@@ -390,43 +643,54 @@ function ClassScheduling() {
 
       {/* Schedule List */}
       <div className="border-t-2 pt-4">
-        <h2 className="text-lg font-semibold mb-2">All Class Schedules</h2>
-        <BasicTable
-          columns={[
-            { key: 'subject', label: 'Subject' },
-            { key: 'className', label: 'Class' },
-            { key: 'teacher', label: 'Teacher' },
-            { key: 'teacherId', label: 'Teacher ID' },
-            { key: 'date', label: 'Date' },
-            { key: 'startTime', label: 'Start Time', render: row => formatTime(row.startTime) },
-            { key: 'endTime', label: 'End Time', render: row => formatTime(row.endTime) },
-            { key: 'classType', label: 'Type' },
-            { key: 'hall', label: 'Hall' },
-          ]}
-          data={schedules}
-          actions={row => (
-            <div className="flex gap-2">
-              <button
-                className="text-blue-600 hover:underline"
-                onClick={() => handleEdit(row.id)}
-                title="Edit"
-              >
-                <FaEdit />
-              </button>
-              <button
-                className="text-red-600 hover:underline"
-                onClick={() => handleDelete(row.id)}
-                title="Delete"
-              >
-                <FaTrash />
-              </button>
-            </div>
-          )}
-        />
+        <h2 className="text-lg font-semibold mb-2">All Class Session Schedules</h2>
+        {schedules.length === 0 ? (
+          <div className="text-center py-8 text-gray-600">
+            <p>No session schedules found. Create your first session schedule to get started.</p>
+          </div>
+        ) : (
+          <BasicTable
+            columns={[
+              { key: 'className', label: 'Class' },
+              { key: 'subject', label: 'Subject' },
+              { key: 'teacher', label: 'Teacher' },
+              { key: 'date', label: 'Date' },
+              { key: 'startTime', label: 'Start Time', render: row => formatTime(row.startTime) },
+              { key: 'endTime', label: 'End Time', render: row => formatTime(row.endTime) },
+              { key: 'deliveryMethod', label: 'Type' },
+
+              { key: 'description', label: 'Description', render: row => row.description ? (row.description.length > 50 ? row.description.substring(0, 50) + '...' : row.description) : '-' },
+              { key: 'status', label: 'Status', render: row => {
+                  if (row.status === 'active') return <span className="px-2 py-1 rounded bg-green-100 text-green-800 font-semibold">Active</span>;
+                  if (row.status === 'inactive') return <span className="px-2 py-1 rounded bg-red-100 text-red-800 font-semibold">Inactive</span>;
+                  return row.status;
+                } },
+            ]}
+            data={schedules}
+            actions={row => (
+              <div className="flex gap-2">
+                <button
+                  className="text-blue-600 hover:underline"
+                  onClick={() => handleEdit(row.id)}
+                  title="Edit"
+                >
+                  <FaEdit />
+                </button>
+                <button
+                  className="text-red-600 hover:underline"
+                  onClick={() => handleDelete(row.id)}
+                  title="Delete"
+                >
+                  <FaTrash />
+                </button>
+              </div>
+            )}
+          />
+        )}
       </div>
 
       </div>  
-    </>
+      </>
   );
 }
 

@@ -8,7 +8,7 @@ services:
       MYSQL_USER: devuser
       MYSQL_PASSWORD: devpass
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -22,7 +22,7 @@ services:
       PMA_HOST: mysql
       PMA_PORT: 3306
     ports:
-      - "8082:80"
+      - "8083:80"
     depends_on:
       - mysql
     networks:

@@ -26,7 +26,7 @@ const ClassTabsPage = () => {
               }`
             }
           >
-            Class Scheduling
+            Class Session Scheduling
           </NavLink>
         </div>
         <div>

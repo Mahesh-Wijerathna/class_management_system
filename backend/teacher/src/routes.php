@@ -37,6 +37,9 @@ try {
             } elseif (preg_match('/^\/get_teacher_by_id\?teacherId=(.+)$/', $path, $matches)) {
                 $teacherId = $matches[1];
                 $response = $controller->getTeacherById($teacherId);
+            } elseif (preg_match('/^\/get_teacher_for_edit\?teacherId=(.+)$/', $path, $matches)) {
+                $teacherId = $matches[1];
+                $response = $controller->getTeacherByIdForEdit($teacherId);
             } elseif (preg_match('/^\/get_teachers_by_stream\?stream=(.+)$/', $path, $matches)) {
                 $stream = $matches[1];
                 $response = $controller->getTeachersByStream($stream);
@@ -58,6 +61,10 @@ try {
                 $email = $input['email'] ?? '';
                 $password = $input['password'] ?? '';
                 $response = $controller->login($email, $password);
+            } elseif ($path === '/login_with_teacher_id') {
+                $teacherId = $input['teacherId'] ?? '';
+                $password = $input['password'] ?? '';
+                $response = $controller->loginWithTeacherId($teacherId, $password);
             } elseif ($path === '/change_password') {
                 $teacherId = $input['teacherId'] ?? '';
                 $currentPassword = $input['currentPassword'] ?? '';

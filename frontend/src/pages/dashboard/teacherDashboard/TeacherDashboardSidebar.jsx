@@ -13,15 +13,15 @@ const teacherSidebarSections = [
   {
     section: 'Class Schedules',
     items: [
+      { name: 'My Classes', path: '/teacher/my-classes', icon: <FaBook className="h-5 w-5" /> },
       { name: 'Class Session Schedules', path: '/teacher/schedules', icon: <FaCalendar className="h-5 w-5" /> },
       { name: 'Hall Availability', path: '/teacher/halls', icon: <FaDatabase className="h-5 w-5" /> },
-      { name: 'Online Class Link', path: '/teacher/online-link', icon: <FaUserShield className="h-5 w-5" /> },
     ]
   },
   {
     section: 'Attendance',
     items: [
-      { name: 'Track Attendance', path: '/teacher/attendance', icon: <FaUsersCog className="h-5 w-5" /> },
+      { name: 'Student Attendance', path: '/teacher/attendance', icon: <FaUsersCog className="h-5 w-5" /> },
     ]
   },
   {

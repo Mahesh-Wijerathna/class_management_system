@@ -49,4 +49,30 @@ class ClassController {
     public function getClassesByDeliveryMethod($deliveryMethod) {
         return $this->model->getClassesByDeliveryMethod($deliveryMethod);
     }
+
+    // Get classes by teacher
+    public function getClassesByTeacher($teacherId) {
+        return $this->model->getClassesByTeacher($teacherId);
+    }
+
+    // Session Schedule Methods
+    public function createSessionSchedule($data) {
+        return $this->model->createSessionSchedule($data);
+    }
+
+    public function getSessionSchedulesByTeacher($teacherId) {
+        return $this->model->getSessionSchedulesByTeacher($teacherId);
+    }
+
+    public function getAllSessionSchedules() {
+        return $this->model->getAllSessionSchedules();
+    }
+
+    public function updateSessionSchedule($id, $data) {
+        return $this->model->updateSessionSchedule($id, $data);
+    }
+
+    public function deleteSessionSchedule($id) {
+        return $this->model->deleteSessionSchedule($id);
+    }
 }

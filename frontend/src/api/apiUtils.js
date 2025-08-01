@@ -104,12 +104,27 @@ export const isTokenExpired = () => {
   const token = storage.getItem('authToken');
   if (!token) return true;
   
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    const currentTime = Date.now() / 1000;
-    return payload.exp < currentTime;
-  } catch (error) {
-    return true;
+  // Check if it's a JWT token (contains dots)
+  if (token.includes('.')) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const currentTime = Date.now() / 1000;
+      return payload.exp < currentTime;
+    } catch (error) {
+      return true;
+    }
+  } else {
+    // For simple hex tokens (like from teacher backend), check token expiry from storage
+    const tokenExpiry = storage.getItem('tokenExpiry');
+    if (!tokenExpiry) return true;
+    
+    try {
+      const expiryTime = new Date(tokenExpiry).getTime();
+      const currentTime = Date.now();
+      return currentTime >= expiryTime;
+    } catch (error) {
+      return true;
+    }
   }
 };
 
