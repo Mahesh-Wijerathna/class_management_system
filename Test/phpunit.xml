@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/12.0/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         stopOnFailure="false"
+         cacheDirectory=".phpunit.cache">
+    
+    <testsuites>
+        <testsuite name="Auth Tests">
+            <directory>backend/auth</directory>
+        </testsuite>
+        <testsuite name="Student Tests">
+            <directory>backend/student</directory>
+        </testsuite>
+        <testsuite name="Teacher Tests">
+            <directory>backend/teacher</directory>
+        </testsuite>
+        <testsuite name="Class Tests">
+            <directory>backend/class</directory>
+        </testsuite>
+    </testsuites>
+
+
+
+
+
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <env name="DB_HOST" value="localhost"/>
+        <env name="DB_USER" value="test_user"/>
+        <env name="DB_PASSWORD" value="test_password"/>
+        <env name="DB_NAME" value="test_db"/>
+        <env name="TWILIO_ACCOUNT_SID" value="test_account_sid"/>
+        <env name="TWILIO_AUTH_TOKEN" value="test_auth_token"/>
+        <env name="TWILIO_WHATSAPP_FROM" value="whatsapp:+1234567890"/>
+    </php>
+
+</phpunit> 
