@@ -2,6 +2,7 @@
 
 require_once 'TeacherModel.php';
 require_once 'config.php';
+require_once 'WhatsAppService.php';
 
 class TeacherController {
     private $model;
@@ -77,6 +78,29 @@ class TeacherController {
             }
             
             $result = $this->model->createTeacher($data);
+            
+            // If teacher creation was successful, send WhatsApp message
+            if ($result['success']) {
+                try {
+                    $whatsappService = new WhatsAppService();
+                    $whatsappResult = $whatsappService->sendTeacherCredentials(
+                        $data['phone'],
+                        $data['teacherId'],
+                        $data['name'],
+                        $data['password']
+                    );
+                    
+                    // Add WhatsApp result to the response
+                    $result['whatsapp_sent'] = $whatsappResult['success'];
+                    $result['whatsapp_message'] = $whatsappResult['message'];
+                    
+                } catch (Exception $e) {
+                    // WhatsApp sending failed, but teacher was created successfully
+                    $result['whatsapp_sent'] = false;
+                    $result['whatsapp_message'] = 'Failed to send WhatsApp message: ' . $e->getMessage();
+                }
+            }
+            
             return $result;
             
         } catch (Exception $e) {
@@ -153,7 +177,39 @@ class TeacherController {
         }
     }
     
-    // Teacher login
+    // Get teacher by ID for editing (includes password placeholder)
+    public function getTeacherByIdForEdit($teacherId) {
+        try {
+            if (empty($teacherId)) {
+                return [
+                    'success' => false,
+                    'message' => 'Teacher ID is required'
+                ];
+            }
+            
+            $teacher = $this->model->getTeacherByIdForEdit($teacherId);
+            
+            if (!$teacher) {
+                return [
+                    'success' => false,
+                    'message' => 'Teacher not found'
+                ];
+            }
+            
+            return [
+                'success' => true,
+                'data' => $teacher,
+                'message' => 'Teacher retrieved successfully for editing'
+            ];
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Error retrieving teacher: ' . $e->getMessage()
+            ];
+        }
+    }
+    
+    // Teacher login with email
     public function login($email, $password) {
         try {
             if (empty($email) || empty($password)) {
@@ -192,6 +248,64 @@ class TeacherController {
             return [
                 'success' => true,
                 'data' => $teacher,
+                'message' => 'Login successful'
+            ];
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Error during login: ' . $e->getMessage()
+            ];
+        }
+    }
+    
+    // Teacher login with Teacher ID
+    public function loginWithTeacherId($teacherId, $password) {
+        try {
+            if (empty($teacherId) || empty($password)) {
+                return [
+                    'success' => false,
+                    'message' => 'Teacher ID and password are required'
+                ];
+            }
+            
+            $teacher = $this->model->getTeacherByIdWithPassword($teacherId);
+            
+            if (!$teacher) {
+                return [
+                    'success' => false,
+                    'message' => 'Invalid Teacher ID or password'
+                ];
+            }
+            
+            if ($teacher['status'] !== 'active') {
+                return [
+                    'success' => false,
+                    'message' => 'Account is inactive'
+                ];
+            }
+            
+            if (!password_verify($password, $teacher['password'])) {
+                return [
+                    'success' => false,
+                    'message' => 'Invalid Teacher ID or password'
+                ];
+            }
+            
+            // Remove password from response
+            unset($teacher['password']);
+            
+            // Generate simple tokens for frontend compatibility
+            $accessToken = bin2hex(random_bytes(32));
+            $refreshToken = bin2hex(random_bytes(32));
+            
+            // Add role and tokens to response
+            $teacher['role'] = 'teacher';
+            
+            return [
+                'success' => true,
+                'accessToken' => $accessToken,
+                'refreshToken' => $refreshToken,
+                'user' => $teacher,
                 'message' => 'Login successful'
             ];
         } catch (Exception $e) {
@@ -245,6 +359,16 @@ class TeacherController {
                     return [
                         'success' => false,
                         'message' => 'Invalid phone number format (should be 10 digits starting with 0)'
+                    ];
+                }
+            }
+            
+            // Validate password if provided
+            if (!empty($data['password'])) {
+                if (strlen($data['password']) < 8) {
+                    return [
+                        'success' => false,
+                        'message' => 'Password must be at least 8 characters long'
                     ];
                 }
             }

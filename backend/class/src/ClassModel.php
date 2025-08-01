@@ -237,6 +237,140 @@ class ClassModel {
         return $classes;
     }
 
+    public function getClassesByTeacher($teacherId) {
+        $stmt = $this->conn->prepare("SELECT * FROM classes WHERE teacher_id = ? AND status = 'active' ORDER BY created_at DESC");
+        $stmt->bind_param("s", $teacherId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        $classes = [];
+        while ($row = $result->fetch_assoc()) {
+            $classes[] = $this->formatClassData($row);
+        }
+        return $classes;
+    }
+
+    // Session Schedule Methods
+    public function createSessionSchedule($data) {
+        $stmt = $this->conn->prepare("
+            INSERT INTO session_schedules (
+                class_id, subject, class_name, teacher, teacher_id, session_date, 
+                start_time, end_time, delivery_method, delivery_other, zoom_link, hall, description, status, created_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+
+        // For session schedules, we don't need a class_id since we're creating individual sessions
+        // We'll use a default value of 1 or find the class by name
+        $classId = $data['classId'] ?? 1; // Default to 1 for now
+        $subject = $data['subject'] ?? '';
+        $className = $data['className'] ?? '';
+        $teacher = $data['teacher'] ?? '';
+        $teacherId = $data['teacherId'] ?? '';
+        $sessionDate = $data['date'] ?? '';
+        $startTime = $data['startTime'] ?? '';
+        $endTime = $data['endTime'] ?? '';
+        $deliveryMethod = $data['deliveryMethod'] ?? '';
+        $deliveryOther = $data['deliveryOther'] ?? null;
+        $zoomLink = $data['zoomLink'] ?? null;
+        $hall = $data['hall'] ?? null;
+        $description = $data['description'] ?? null;
+        $status = $data['status'] ?? 'active';
+        $createdBy = $data['teacherId'] ?? '';
+
+        $stmt->bind_param("issssssssssssss", 
+            $classId, $subject, $className, $teacher, $teacherId, $sessionDate,
+            $startTime, $endTime, $deliveryMethod, $deliveryOther, $zoomLink, $hall, $description, $status, $createdBy
+        );
+
+        return $stmt->execute();
+    }
+
+    public function getSessionSchedulesByTeacher($teacherId) {
+        $stmt = $this->conn->prepare("SELECT * FROM session_schedules WHERE teacher_id = ? ORDER BY session_date DESC, start_time ASC");
+        $stmt->bind_param("s", $teacherId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        $schedules = [];
+        while ($row = $result->fetch_assoc()) {
+            $schedules[] = $this->formatSessionScheduleData($row);
+        }
+        return $schedules;
+    }
+
+    public function getAllSessionSchedules() {
+        $result = $this->conn->query("SELECT * FROM session_schedules ORDER BY session_date DESC, start_time ASC");
+        if (!$result) {
+            return [];
+        }
+        
+        $schedules = [];
+        while ($row = $result->fetch_assoc()) {
+            $schedules[] = $this->formatSessionScheduleData($row);
+        }
+        return $schedules;
+    }
+
+    public function updateSessionSchedule($id, $data) {
+        $stmt = $this->conn->prepare("
+            UPDATE session_schedules SET 
+                subject = ?, class_name = ?, teacher = ?, teacher_id = ?, session_date = ?,
+                start_time = ?, end_time = ?, delivery_method = ?, delivery_other = ?, 
+                zoom_link = ?, hall = ?, description = ?, status = ?
+            WHERE id = ?
+        ");
+
+        $subject = $data['subject'] ?? '';
+        $className = $data['className'] ?? '';
+        $teacher = $data['teacher'] ?? '';
+        $teacherId = $data['teacherId'] ?? '';
+        $sessionDate = $data['date'] ?? '';
+        $startTime = $data['startTime'] ?? '';
+        $endTime = $data['endTime'] ?? '';
+        $deliveryMethod = $data['deliveryMethod'] ?? '';
+        $deliveryOther = $data['deliveryOther'] ?? null;
+        $zoomLink = $data['zoomLink'] ?? null;
+        $hall = $data['hall'] ?? null;
+        $description = $data['description'] ?? null;
+        $status = $data['status'] ?? 'active';
+
+        $stmt->bind_param("sssssssssssssi", 
+            $subject, $className, $teacher, $teacherId, $sessionDate,
+            $startTime, $endTime, $deliveryMethod, $deliveryOther, $zoomLink, $hall, $description, $status, $id
+        );
+
+        return $stmt->execute();
+    }
+
+    public function deleteSessionSchedule($id) {
+        $stmt = $this->conn->prepare("DELETE FROM session_schedules WHERE id = ?");
+        $stmt->bind_param("i", $id);
+        return $stmt->execute();
+    }
+
+    private function formatSessionScheduleData($row) {
+        return [
+            'id' => $row['id'],
+            'classId' => $row['class_id'],
+            'subject' => $row['subject'],
+            'className' => $row['class_name'],
+            'teacher' => $row['teacher'],
+            'teacherId' => $row['teacher_id'],
+            'date' => $row['session_date'],
+            'startTime' => $row['start_time'],
+            'endTime' => $row['end_time'],
+            'deliveryMethod' => $row['delivery_method'],
+            'deliveryOther' => $row['delivery_other'],
+            'zoomLink' => $row['zoom_link'],
+            'hall' => $row['hall'],
+            'description' => $row['description'],
+            'status' => $row['status'],
+            'createdBy' => $row['created_by'],
+            'createdAt' => $row['created_at'],
+            'updatedAt' => $row['updated_at']
+        ];
+    }
+
     private function formatClassData($row) {
         // Parse payment tracking JSON
         $paymentTracking = null;

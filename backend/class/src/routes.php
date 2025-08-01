@@ -53,6 +53,21 @@ switch ($method) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Invalid input data']);
             }
+        } else if ($path === '/create_session_schedule') {
+            $data = json_decode(file_get_contents('php://input'), true);
+            if ($data) {
+                $result = $controller->createSessionSchedule($data);
+                if ($result) {
+                    http_response_code(201);
+                    echo json_encode(['success' => true, 'message' => 'Session schedule created successfully']);
+                } else {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => 'Failed to create session schedule']);
+                }
+            } else {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid input data']);
+            }
         }
         break;
 
@@ -80,6 +95,17 @@ switch ($method) {
             $deliveryMethod = $_GET['method'];
             $classes = $controller->getClassesByDeliveryMethod($deliveryMethod);
             echo json_encode(['success' => true, 'data' => $classes]);
+        } else if ($path === '/get_classes_by_teacher' && isset($_GET['teacherId'])) {
+            $teacherId = $_GET['teacherId'];
+            $classes = $controller->getClassesByTeacher($teacherId);
+            echo json_encode(['success' => true, 'data' => $classes]);
+        } else if ($path === '/get_session_schedules_by_teacher' && isset($_GET['teacherId'])) {
+            $teacherId = $_GET['teacherId'];
+            $schedules = $controller->getSessionSchedulesByTeacher($teacherId);
+            echo json_encode(['success' => true, 'data' => $schedules]);
+        } else if ($path === '/get_all_session_schedules') {
+            $schedules = $controller->getAllSessionSchedules();
+            echo json_encode(['success' => true, 'data' => $schedules]);
         } else {
             http_response_code(404);
             echo json_encode(['success' => false, 'error' => 'Not found', 'path' => $path]);
@@ -96,6 +122,15 @@ switch ($method) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Failed to update class']);
             }
+        } else if (preg_match('/\/session_schedules\/(\d+)/', $path, $matches)) {
+            $data = json_decode(file_get_contents('php://input'), true);
+            $result = $controller->updateSessionSchedule($matches[1], $data);
+            if ($result) {
+                echo json_encode(['success' => true, 'message' => 'Session schedule updated successfully']);
+            } else {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Failed to update session schedule']);
+            }
         }
         break;
 
@@ -107,6 +142,14 @@ switch ($method) {
             } else {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'error' => 'Failed to delete class']);
+            }
+        } else if (preg_match('/\/session_schedules\/(\d+)/', $path, $matches)) {
+            $result = $controller->deleteSessionSchedule($matches[1]);
+            if ($result) {
+                echo json_encode(['success' => true, 'message' => 'Session schedule deleted successfully']);
+            } else {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Failed to delete session schedule']);
             }
         }
         break;

@@ -11,29 +11,8 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import BasicAlertBox from '../../../components/BasicAlertBox';
-import { getAllTeachers, updateTeacher, deleteTeacher } from '../../../api/teachers';
+import { getAllTeachers, updateTeacher, deleteTeacher, getTeacherForEdit } from '../../../api/teachers';
 
-// Dummy initial data (replace with API data in production)
-const initialTeachers = [
-  {
-    teacherId: 'T001',
-    designation: 'Mr.',
-    name: 'John Doe',
-    stream: 'A/L-Maths',
-    email: 'john.doe@example.com',
-    phone: '0771234567',
-    password: '********',
-  },
-  {
-    teacherId: 'T002',
-    designation: 'Mrs.',
-    name: 'Jane Smith',
-    stream: 'O/L',
-    email: 'jane.smith@example.com',
-    phone: '0719876543',
-    password: '********',
-  },
-];
 
 const TeacherInfo = () => {
   const [teachers, setTeachers] = useState([]);
@@ -117,10 +96,34 @@ const TeacherInfo = () => {
   };
 
   // Handle edit
-  const handleEdit = (teacher) => {
-    setEditingTeacher(teacher.teacherId);
-    setEditValues({ ...teacher });
-    setShowEditModal(true);
+  const handleEdit = async (teacher) => {
+    try {
+      setEditingTeacher(teacher.teacherId);
+      
+      // Fetch teacher data with password placeholder for editing
+      const response = await getTeacherForEdit(teacher.teacherId);
+      if (response.success) {
+        const editData = response.data;
+        // The backend returns '********' as password placeholder
+        // We keep this to show that a password exists
+        setEditValues(editData);
+        setShowEditModal(true);
+      } else {
+        console.error('Failed to get teacher for editing:', response.message);
+        // Fallback to current data if API fails
+        const editData = { ...teacher };
+        editData.password = '********';
+        setEditValues(editData);
+        setShowEditModal(true);
+      }
+    } catch (error) {
+      console.error('Error getting teacher for editing:', error);
+      // Fallback to current data if API fails
+      const editData = { ...teacher };
+      editData.password = '********';
+      setEditValues(editData);
+      setShowEditModal(true);
+    }
   };
 
   // Validation schema for edit form
@@ -141,8 +144,13 @@ const TeacherInfo = () => {
     name: Yup.string().min(2, "Name must be at least 2 characters").required("Teacher's Name is required"),
     stream: Yup.string().oneOf(streamOptions, 'Invalid stream').required('Stream is required'),
     password: Yup.string()
-      .matches(passwordRegex, 'Password must be at least 8 characters, include uppercase, lowercase, number, and special character')
-      .required('Password is required'),
+      .test('password-optional', 'Password must be at least 8 characters if provided', function(value) {
+        // Password is optional - if provided, it must meet requirements
+        if (!value || value.length === 0 || value === '********') {
+          return true; // Empty password or placeholder is allowed
+        }
+        return passwordRegex.test(value);
+      }),
     email: Yup.string().email('Invalid email address').required('Email is required'),
     phone: Yup.string().matches(phoneRegex, 'Invalid phone number (should be 10 digits, start with 0)').required('Phone number is required'),
   });
@@ -150,7 +158,13 @@ const TeacherInfo = () => {
   // Handle save (submit)
   const handleEditSubmit = async (values) => {
     try {
-      const response = await updateTeacher(values.teacherId, values);
+      // If password is empty or placeholder, remove it from the update data (don't change password)
+      const updateData = { ...values };
+      if (!updateData.password || updateData.password.trim() === '' || updateData.password === '********') {
+        delete updateData.password;
+      }
+      
+      const response = await updateTeacher(values.teacherId, updateData);
       if (response.success) {
         // Reload teachers from backend
         await loadTeachers();
@@ -335,9 +349,17 @@ const TeacherInfo = () => {
                       id="password"
                       name="password"
                       type="password"
-                      label="Password *"
-                      value={values.password}
-                      onChange={handleChange}
+                      label="Password"
+                      placeholder={values.password === '********' ? 'Current password (click to change)' : 'Enter new password or leave empty'}
+                      value={values.password === '********' ? '' : values.password}
+                      onChange={(e) => {
+                        // If current value is placeholder, clear it when user starts typing
+                        if (values.password === '********') {
+                          handleChange({ target: { name: 'password', value: e.target.value } });
+                        } else {
+                          handleChange(e);
+                        }
+                      }}
                       error={errors.password}
                       touched={touched.password}
                       isPassword

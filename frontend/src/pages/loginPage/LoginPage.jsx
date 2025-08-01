@@ -49,7 +49,9 @@ export default function LoginPage() {
       // Check if login was successful
       if (data.success) {
         // Handle successful login
-      console.log("Login successful:", data);
+        console.log("Login successful:", data);
+        console.log("User data:", data.user);
+        console.log("User role:", data.user?.role);
         
         // Store tokens and user data based on remember me preference
         if (data.accessToken) {

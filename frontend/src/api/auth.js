@@ -2,7 +2,17 @@ import { apiPost, apiGet, apiPut, handleApiError } from './apiUtils';
 
 export const login = async (credentials) => {
   try {
-    return await apiPost('/routes.php/login', credentials);
+    // Check if the userid looks like a Teacher ID (starts with 'T' followed by numbers)
+    const isTeacherId = /^T\d+$/.test(credentials.userid);
+    
+    if (isTeacherId) {
+      // Use teacher login endpoint
+      const { teacherLoginWithId } = await import('./teachers');
+      return await teacherLoginWithId(credentials.userid, credentials.password);
+    } else {
+      // Use regular login endpoint (for students/admins)
+      return await apiPost('/routes.php/login', credentials);
+    }
   } catch (error) {
     throw new Error(handleApiError(error, 'Login failed'));
   }

@@ -74,15 +74,29 @@ const CreateTeacherLogin = () => {
     try {
       const response = await createTeacher(values);
       if (response.success) {
+        let message = 'Teacher account created successfully!';
+        
+        // Add WhatsApp status to the message
+        if (response.whatsapp_sent !== undefined) {
+          if (response.whatsapp_sent) {
+            message += '\n\n📱 WhatsApp message sent successfully with login credentials.';
+          } else {
+            message += '\n\n⚠️ Teacher account created but WhatsApp message failed to send.';
+            if (response.whatsapp_message) {
+              message += `\nError: ${response.whatsapp_message}`;
+            }
+          }
+        }
+        
         setAlertBox({
           open: true,
-          message: 'Teacher account created successfully!',
+          message: message,
           onConfirm: () => {
             setAlertBox(a => ({ ...a, open: false }));
             navigate('/admin/teachers/info');
           },
           confirmText: 'OK',
-          type: 'success'
+          type: response.whatsapp_sent ? 'success' : 'warning'
         });
       } else {
         setAlertBox({
@@ -118,6 +132,9 @@ const CreateTeacherLogin = () => {
           type={alertBox.type}
         />
         <h2 className="text-2xl font-bold mb-6 text-center">Create Teacher Login</h2>
+        <p className="text-center text-gray-600 mb-6">
+          Teacher login credentials will be automatically sent via WhatsApp after successful creation.
+        </p>
         <BasicForm
           initialValues={initialValues}
           validationSchema={validationSchema}

@@ -280,7 +280,7 @@ const validationSchema = Yup.object().shape({
   }
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-6">
+    <div className="w-full max-w-25xl p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-800 mb-2">Student Purchased Classes</h1>
         <p className="text-gray-600">Manage and track student class purchases</p>

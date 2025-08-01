@@ -106,6 +106,58 @@ class TeacherModel {
         return $result->fetch_assoc();
     }
     
+    // Get teacher by ID with password for editing (admin only)
+    public function getTeacherByIdForEdit($teacherId) {
+        $sql = "SELECT id, teacherId, designation, name, stream, email, phone, password, status, created_at 
+                FROM teachers 
+                WHERE teacherId = ?";
+        
+        $stmt = $this->conn->prepare($sql);
+        
+        if (!$stmt) {
+            throw new Exception("Prepare failed: " . $this->conn->error);
+        }
+        
+        $stmt->bind_param("s", $teacherId);
+        
+        if (!$stmt->execute()) {
+            throw new Exception("Execute failed: " . $stmt->error);
+        }
+        
+        $result = $stmt->get_result();
+        $teacher = $result->fetch_assoc();
+        
+        // For security, we don't return the actual password hash
+        // Instead, we return a placeholder that indicates the password exists
+        if ($teacher) {
+            $teacher['password'] = '********'; // Placeholder for existing password
+        }
+        
+        return $teacher;
+    }
+    
+    // Get teacher by ID with password for login
+    public function getTeacherByIdWithPassword($teacherId) {
+        $sql = "SELECT id, teacherId, designation, name, stream, email, phone, password, status, created_at 
+                FROM teachers 
+                WHERE teacherId = ?";
+        
+        $stmt = $this->conn->prepare($sql);
+        
+        if (!$stmt) {
+            throw new Exception("Prepare failed: " . $this->conn->error);
+        }
+        
+        $stmt->bind_param("s", $teacherId);
+        
+        if (!$stmt->execute()) {
+            throw new Exception("Execute failed: " . $stmt->error);
+        }
+        
+        $result = $stmt->get_result();
+        return $result->fetch_assoc();
+    }
+    
     // Get teacher by email (for login)
     public function getTeacherByEmail($email) {
         $sql = "SELECT id, teacherId, designation, name, stream, email, phone, password, status 
@@ -130,30 +182,67 @@ class TeacherModel {
     
     // Update teacher
     public function updateTeacher($teacherId, $data) {
-        $sql = "UPDATE teachers 
-                SET designation = ?, name = ?, stream = ?, email = ?, phone = ?, status = ? 
-                WHERE teacherId = ?";
+        // Check if password is being updated
+        $updatePassword = !empty($data['password']);
         
-        $stmt = $this->conn->prepare($sql);
-        
-        if (!$stmt) {
-            throw new Exception("Prepare failed: " . $this->conn->error);
+        if ($updatePassword) {
+            // Update including password
+            $sql = "UPDATE teachers 
+                    SET designation = ?, name = ?, stream = ?, email = ?, phone = ?, password = ?, status = ? 
+                    WHERE teacherId = ?";
+            
+            $stmt = $this->conn->prepare($sql);
+            
+            if (!$stmt) {
+                throw new Exception("Prepare failed: " . $this->conn->error);
+            }
+            
+            $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
+            $status = $data['status'] ?? 'active';
+            
+            $stmt->bind_param("ssssssss", 
+                $data['designation'],
+                $data['name'],
+                $data['stream'],
+                $data['email'],
+                $data['phone'],
+                $hashedPassword,
+                $status,
+                $teacherId
+            );
+        } else {
+            // Update without password
+            $sql = "UPDATE teachers 
+                    SET designation = ?, name = ?, stream = ?, email = ?, phone = ?, status = ? 
+                    WHERE teacherId = ?";
+            
+            $stmt = $this->conn->prepare($sql);
+            
+            if (!$stmt) {
+                throw new Exception("Prepare failed: " . $this->conn->error);
+            }
+            
+            $status = $data['status'] ?? 'active';
+            
+            $stmt->bind_param("sssssss", 
+                $data['designation'],
+                $data['name'],
+                $data['stream'],
+                $data['email'],
+                $data['phone'],
+                $status,
+                $teacherId
+            );
         }
         
-        $stmt->bind_param("sssssss", 
-            $data['designation'],
-            $data['name'],
-            $data['stream'],
-            $data['email'],
-            $data['phone'],
-            $data['status'],
-            $teacherId
-        );
-        
         if ($stmt->execute()) {
+            $message = 'Teacher updated successfully';
+            if ($updatePassword) {
+                $message .= ' (including password)';
+            }
             return [
                 'success' => true,
-                'message' => 'Teacher updated successfully'
+                'message' => $message
             ];
         } else {
             throw new Exception("Execute failed: " . $stmt->error);

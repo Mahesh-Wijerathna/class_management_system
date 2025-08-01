@@ -60,6 +60,10 @@ export const getTeacherById = async (teacherId) => {
   return await teacherApiGet(`/routes.php/get_teacher_by_id?teacherId=${teacherId}`);
 };
 
+export const getTeacherForEdit = async (teacherId) => {
+  return await teacherApiGet(`/routes.php/get_teacher_for_edit?teacherId=${teacherId}`);
+};
+
 export const getTeachersByStream = async (stream) => {
   return await teacherApiGet(`/routes.php/get_teachers_by_stream?stream=${stream}`);
 };
@@ -82,6 +86,10 @@ export const deleteTeacher = async (teacherId) => {
 
 export const teacherLogin = async (email, password) => {
   return await teacherApiPost('/routes.php/login', { email, password });
+};
+
+export const teacherLoginWithId = async (teacherId, password) => {
+  return await teacherApiPost('/routes.php/login_with_teacher_id', { teacherId, password });
 };
 
 export const changeTeacherPassword = async (teacherId, currentPassword, newPassword) => {
