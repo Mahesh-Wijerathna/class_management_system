@@ -48,9 +48,9 @@ services:
       - DB_PASSWORD=devpass
       
       # Twilio Configuration
-      - TWILIO_ACCOUNT_SID=your_twilio_account_sid_here
-      - TWILIO_AUTH_TOKEN=your_twilio_auth_token_here
-      - TWILIO_WHATSAPP_FROM=whatsapp:+your_twilio_whatsapp_number_here
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-your_twilio_account_sid_here}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-your_twilio_auth_token_here}
+      - TWILIO_WHATSAPP_FROM=${TWILIO_WHATSAPP_FROM:-whatsapp:+your_twilio_whatsapp_number_here}
       
       # WhatsApp Business API Configuration
       - WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN:-}

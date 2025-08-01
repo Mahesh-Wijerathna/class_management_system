@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import * as Yup from "yup"
 import { FaUser, FaLock, FaEye, FaEyeSlash, FaGraduationCap } from 'react-icons/fa'
 import { Link, useNavigate } from 'react-router-dom'
@@ -11,6 +11,7 @@ export default function LoginPage() {
   
   const [rememberMe, setRememberMe] = useState(false)
   const [backendError, setBackendError] = useState("");
+  const [rememberedUser, setRememberedUser] = useState("");
   const navigate = useNavigate();
 
   const LoginSchema = Yup.object().shape({
@@ -107,13 +108,15 @@ export default function LoginPage() {
   }
 
   // Check for remembered user and auto-login on component mount
-  React.useEffect(() => {
+  useEffect(() => {
     const rememberedUser = localStorage.getItem('rememberedUser');
     const rememberMePreference = localStorage.getItem('rememberMe');
     const usePersistentStorage = sessionStorage.getItem('usePersistentStorage');
     
+    // Set remembered user and checkbox state regardless of tokens
     if (rememberedUser && rememberMePreference === 'true') {
       setRememberMe(true);
+      setRememberedUser(rememberedUser);
       
       // Check if we have valid tokens for auto-login
       const authToken = localStorage.getItem('authToken');
@@ -155,12 +158,15 @@ export default function LoginPage() {
           }
         } else {
           console.log("Remembered token expired, user needs to login again");
-          // Clear expired tokens
+          // Clear expired tokens but keep remembered user
           localStorage.removeItem('authToken');
           localStorage.removeItem('refreshToken');
           localStorage.removeItem('userData');
           localStorage.removeItem('tokenExpiry');
         }
+      } else {
+        console.log("No valid tokens found, but remembered user exists");
+        // User is remembered but needs to login again
       }
     } else if (usePersistentStorage === 'true') {
       // Check sessionStorage for session-only login
@@ -185,9 +191,9 @@ export default function LoginPage() {
               case 'teacher':
                 navigate('/teacherdashboard');
                 break;
-              case 'student':
-                navigate('/studentdashboard');
-                break;
+                              case 'student':
+                  navigate('/studentdashboard');
+                  break;
               default:
                 navigate('/dashboard');
             }
@@ -199,6 +205,13 @@ export default function LoginPage() {
             sessionStorage.removeItem('tokenExpiry');
           }
         }
+      }
+    } else {
+      // No remembered user or session, check if there are any stored credentials
+      const rememberedUser = localStorage.getItem('rememberedUser');
+      if (rememberedUser) {
+        setRememberedUser(rememberedUser);
+        setRememberMe(true);
       }
     }
   }, [navigate]);
@@ -218,8 +231,9 @@ export default function LoginPage() {
           </span>
         </div>
         <BasicForm
+          key={rememberedUser} // Force re-render when remembered user changes
           initialValues={{
-            userID: localStorage.getItem('rememberedUser') || "",
+            userID: rememberedUser || "",
             password: "" 
           }} 
           validationSchema={LoginSchema}

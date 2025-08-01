@@ -28,7 +28,7 @@ function App() {
           <Route 
             key={index} 
             path={route.path} 
-            element={<AuthGuard requiredRole="admin"><LogoutHandler>{route.element}</LogoutHandler></AuthGuard>} 
+            element={<AuthGuard requiredRole="admin">{route.element}</AuthGuard>} 
           />
         ))}
 
@@ -37,13 +37,13 @@ function App() {
           <Route 
             key={index} 
             path={route.path} 
-            element={<AuthGuard requiredRole="admin"><LogoutHandler>{route.element}</LogoutHandler></AuthGuard>}
+            element={<AuthGuard requiredRole="admin">{route.element}</AuthGuard>}
           >
             {route.children?.map((child, childIndex) => (
               <Route 
                 key={childIndex} 
                 path={child.path} 
-                element={<LogoutHandler>{child.element}</LogoutHandler>} 
+                element={child.element} 
                 index={child.index}
               />
             ))}
@@ -55,7 +55,7 @@ function App() {
           <Route 
             key={index} 
             path={route.path} 
-            element={<AuthGuard requiredRole="teacher"><LogoutHandler>{route.element}</LogoutHandler></AuthGuard>} 
+            element={<AuthGuard requiredRole="teacher">{route.element}</AuthGuard>} 
           />
         ))}
 
@@ -64,7 +64,7 @@ function App() {
           <Route 
             key={index} 
             path={route.path} 
-            element={<AuthGuard requiredRole="student"><LogoutHandler>{route.element}</LogoutHandler></AuthGuard>} 
+            element={<AuthGuard requiredRole="student">{route.element}</AuthGuard>} 
           />
         ))}
       </Routes>

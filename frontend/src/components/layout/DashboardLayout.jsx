@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import Navbar from './Navbar';
+import NavbarWithAlert from './Navbar';
 import Sidebar from './Sidebar';
 
 const DashboardLayout = ({ 
   children, 
   userRole, 
-  sidebarItems, 
-  onLogout 
+  sidebarItems
 }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -16,9 +15,8 @@ const DashboardLayout = ({
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <Navbar 
+      <NavbarWithAlert 
         userRole={userRole} 
-        onLogout={onLogout} 
         isSidebarOpen={isSidebarOpen}
       />
       <Sidebar 

@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { logout } from '../api/apiUtils';
+import BasicAlertBox from './BasicAlertBox';
 
 const LogoutHandler = ({ children }) => {
+  const [showLogoutAlert, setShowLogoutAlert] = useState(false);
+
   const handleLogout = async () => {
-    if (window.confirm('Are you sure you want to logout?')) {
       try {
         await logout();
       } catch (error) {
@@ -29,11 +31,29 @@ const LogoutHandler = ({ children }) => {
         // Redirect to login
         window.location.href = '/login';
       }
-    }
+  };
+
+  const openLogoutAlert = () => {
+    setShowLogoutAlert(true);
   };
 
   // Clone children and pass the logout handler
-  return React.cloneElement(children, { onLogout: handleLogout });
+  return (
+    <>
+      {React.cloneElement(children, { onLogout: openLogoutAlert })}
+      
+      <BasicAlertBox
+        open={showLogoutAlert}
+        title="Confirm Logout"
+        message="Are you sure you want to logout? You will need to login again to access your account."
+        type="warning"
+        onConfirm={handleLogout}
+        onCancel={() => setShowLogoutAlert(false)}
+        confirmText="Logout"
+        cancelText="Cancel"
+      />
+    </>
+  );
 };
 
 export default LogoutHandler; 

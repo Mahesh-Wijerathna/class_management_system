@@ -43,7 +43,6 @@ export default function ForgotPassword() {
     setSuccess('');
     
     try {
-      console.log('Sending OTP for mobile:', values.mobile);
       const response = await sendOtp(values.mobile);
       console.log('OTP response:', response);
       
@@ -51,13 +50,10 @@ export default function ForgotPassword() {
         setMobile(values.mobile);
         setSuccess('OTP sent successfully! Check your phone for the code.');
         setStep(2);
-        // For testing purposes, show OTP in console
-        console.log('OTP for testing:', response.otp);
       } else {
         setError(response.message || 'Failed to send OTP');
       }
     } catch (error) {
-      console.error('OTP send error:', error);
       setError(error.message || 'Failed to send OTP');
     } finally {
       setLoading(false);
@@ -70,9 +66,7 @@ export default function ForgotPassword() {
     setSuccess('');
     
     try {
-      console.log('Resetting password for mobile:', mobile, 'OTP:', values.otp);
       const response = await forgotPasswordReset(mobile, values.otp, values.password);
-      console.log('Reset response:', response);
       
       if (response.success) {
         setSuccess('Password reset successfully!');
@@ -83,7 +77,6 @@ export default function ForgotPassword() {
         setError(response.message || 'Failed to reset password');
       }
     } catch (error) {
-      console.error('Password reset error:', error);
       setError(error.message || 'Failed to reset password');
     } finally {
       setLoading(false);
@@ -137,25 +130,6 @@ export default function ForgotPassword() {
                   />
                   <CustomButton type="submit" disabled={loading}>
                     {loading ? 'Sending OTP...' : 'Send OTP'}
-                  </CustomButton>
-                  
-                  {/* Test button for debugging */}
-                  <CustomButton 
-                    type="button" 
-                    onClick={async () => {
-                      try {
-                        console.log('Testing API call...');
-                        const response = await sendOtp('0710901846');
-                        console.log('Test response:', response);
-                        alert(`Test successful! OTP: ${response.otp}`);
-                      } catch (error) {
-                        console.error('Test error:', error);
-                        alert(`Test failed: ${error.message}`);
-                      }
-                    }}
-                    className="mt-2 bg-blue-500 hover:bg-blue-600"
-                  >
-                    Test API (Debug)
                   </CustomButton>
                 </>
               )}
@@ -222,14 +196,6 @@ export default function ForgotPassword() {
                   />
                   <CustomButton type="submit" disabled={loading}>
                     {loading ? 'Resetting Password...' : 'Reset Password'}
-                  </CustomButton>
-                  
-                  <CustomButton 
-                    type="button" 
-                    onClick={() => setStep(1)}
-                    className="mt-2 bg-gray-500 hover:bg-gray-600"
-                  >
-                    Back to Mobile Number
                   </CustomButton>
                 </>
               )}

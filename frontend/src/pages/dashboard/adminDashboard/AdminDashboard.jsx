@@ -2,12 +2,11 @@ import React from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import adminSidebarSections from '././AdminDashboardSidebar';
 
-const AdminDashboard = ({ onLogout }) => {
+const AdminDashboard = () => {
   return (
     <DashboardLayout
       userRole="Administrator"
       sidebarItems={adminSidebarSections}
-      onLogout={onLogout}
     >
       <div className="space-y-6">
         {/* Stats Overview */}
