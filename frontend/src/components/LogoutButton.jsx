@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { logout } from '../api/apiUtils';
+import BasicAlertBox from './BasicAlertBox';
 
 const LogoutButton = ({ className = "" }) => {
+  const [showLogoutAlert, setShowLogoutAlert] = useState(false);
+
   const handleLogout = async () => {
-    if (window.confirm('Are you sure you want to logout?')) {
       try {
         await logout();
       } catch (error) {
@@ -29,16 +31,32 @@ const LogoutButton = ({ className = "" }) => {
         // Redirect to login
         window.location.href = '/login';
       }
-    }
+  };
+
+  const openLogoutAlert = () => {
+    setShowLogoutAlert(true);
   };
 
   return (
+    <>
     <button
-      onClick={handleLogout}
+        onClick={openLogoutAlert}
       className={`px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors ${className}`}
     >
-      Logout
+        Logout
     </button>
+
+      <BasicAlertBox
+        open={showLogoutAlert}
+        title="Confirm Logout"
+        message="Are you sure you want to logout? You will need to login again to access your account."
+        type="warning"
+        onConfirm={handleLogout}
+        onCancel={() => setShowLogoutAlert(false)}
+        confirmText="Logout"
+        cancelText="Cancel"
+      />
+    </>
   );
 };
 
