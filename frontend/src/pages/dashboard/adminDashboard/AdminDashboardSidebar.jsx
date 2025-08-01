@@ -36,6 +36,7 @@ const adminSidebarSections = [
       { name: 'Student Enrollment', path: '/admin/students/enrollment', icon: <FaGraduationCap className="h-5 w-5" /> },
       { name: 'Student Cards', path: '/admin/students/cards', icon: <FaTicketAlt className="h-5 w-5" /> },
       { name: 'Attendance', path: '/admin/attendance', icon: <FaClipboardList className="h-5 w-5" /> },
+      { name: 'Purchased Classes', path: '/admin/students/purchased-classes', icon: <FaBook className="h-5 w-5" /> },
     ]
   },
   {

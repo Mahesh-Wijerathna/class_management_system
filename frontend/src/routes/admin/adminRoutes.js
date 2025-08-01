@@ -4,6 +4,7 @@ import ClassScheduling from '../../pages/dashboard/adminDashboard/ClassSchedulin
 import StudentTabsPage from '../../pages/dashboard/adminDashboard/StudentTabsPage';
 import StudentEnrollment from '../../pages/dashboard/adminDashboard/StudentEnrollment';
 import PhysicalStudentRegisterTab from '../../pages/dashboard/adminDashboard/PhysicalStudentRegisterTab';
+import StudentsPurchasedClasses from '../../pages/dashboard/adminDashboard/StudentsPurchasedClasses';
 import StudentCardManagement from '../../pages/dashboard/adminDashboard/StudentCardManagement';
 import TeacherTabsPage from '../../pages/dashboard/adminDashboard/TeacherTabsPage';
 import TeacherInfo from '../../pages/dashboard/adminDashboard/TeacherInfo';
@@ -31,7 +32,8 @@ export const adminRoutes = [
     children: [
       { index: true, element: <StudentEnrollment /> },
       { path: "enrollment", element: <StudentEnrollment /> },
-      { path: "physical", element: <PhysicalStudentRegisterTab /> }
+      { path: "physical", element: <PhysicalStudentRegisterTab /> },
+      { path: "purchased-classes", element: <StudentsPurchasedClasses /> }
     ]
   },
   {
