@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS students (
     FOREIGN KEY (userid) REFERENCES users(userid) ON DELETE CASCADE
 );
 
+
+
 -- Create refresh_tokens table for secure token management
 CREATE TABLE IF NOT EXISTS refresh_tokens (
     id INT AUTO_INCREMENT PRIMARY KEY,

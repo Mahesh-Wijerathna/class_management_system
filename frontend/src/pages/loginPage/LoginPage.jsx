@@ -87,6 +87,10 @@ export default function LoginPage() {
               console.log("Redirecting to student dashboard");
               navigate('/studentdashboard');
               break;
+            case 'cashier':
+              console.log("Redirecting to cashier dashboard");
+              navigate('/cashierdashboard');
+              break;
             default:
               console.log("Unknown role, redirecting to default dashboard");
               navigate('/dashboard');
@@ -145,6 +149,9 @@ export default function LoginPage() {
               case 'student':
                 navigate('/studentdashboard');
                 break;
+              case 'cashier':
+                navigate('/cashierdashboard');
+                break;
               default:
                 navigate('/dashboard');
             }
@@ -191,9 +198,12 @@ export default function LoginPage() {
               case 'teacher':
                 navigate('/teacherdashboard');
                 break;
-                              case 'student':
-                  navigate('/studentdashboard');
-                  break;
+              case 'student':
+                navigate('/studentdashboard');
+                break;
+              case 'cashier':
+                navigate('/cashierdashboard');
+                break;
               default:
                 navigate('/dashboard');
             }

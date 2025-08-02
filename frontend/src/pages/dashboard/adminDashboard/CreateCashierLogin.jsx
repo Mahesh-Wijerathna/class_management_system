@@ -8,12 +8,12 @@ import adminSidebarSections from './AdminDashboardSidebar';
 import { useNavigate } from 'react-router-dom';
 import * as Yup from 'yup';
 import { FaUser, FaLock, FaPhone, FaIdCard, FaEnvelope } from 'react-icons/fa';
+import { createCashier, getNextCashierId } from '../../../api/cashier';
 
 const phoneRegex = /^0\d{9}$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
 
 const validationSchema = Yup.object().shape({
-  cashierId: Yup.string().required('Cashier ID is required'),
   name: Yup.string().min(2, "Name must be at least 2 characters").required("Name is required"),
   password: Yup.string()
     .matches(passwordRegex, 'Password must be at least 8 characters, include uppercase, lowercase, number, and special character')
@@ -23,7 +23,6 @@ const validationSchema = Yup.object().shape({
 });
 
 const initialValues = {
-  cashierId: '',
   name: '',
   password: '',
   email: '',
@@ -33,22 +32,89 @@ const initialValues = {
 const CreateCashierLogin = () => {
   const navigate = useNavigate();
   const [submitCount, setSubmitCount] = React.useState(0);
+  const [loading, setLoading] = React.useState(false);
   const [alertBox, setAlertBox] = React.useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
+  const [nextCashierId, setNextCashierId] = React.useState('');
+  const [loadingId, setLoadingId] = React.useState(false);
 
-  const handleSubmit = (values) => {
-    const cashiers = JSON.parse(localStorage.getItem('cashiers')) || [];
-    cashiers.push(values);
-    localStorage.setItem('cashiers', JSON.stringify(cashiers));
-    setAlertBox({
-      open: true,
-      message: 'Cashier account created!',
-      onConfirm: () => {
-        setAlertBox(a => ({ ...a, open: false }));
-        navigate('/admin/cashiers/info');
-      },
-      confirmText: 'OK',
-      type: 'success'
-    });
+  // Load next cashier ID on component mount
+  React.useEffect(() => {
+    const loadNextCashierId = async () => {
+      try {
+        setLoadingId(true);
+        const response = await getNextCashierId();
+        if (response.success) {
+          setNextCashierId(response.data);
+        } else {
+          console.error('Failed to load next cashier ID:', response.message);
+        }
+      } catch (error) {
+        console.error('Error loading next cashier ID:', error);
+      } finally {
+        setLoadingId(false);
+      }
+    };
+    
+    loadNextCashierId();
+  }, []);
+
+  const handleSubmit = async (values) => {
+    setLoading(true);
+    
+    try {
+      const response = await createCashier({
+        name: values.name,
+        password: values.password,
+        email: values.email,
+        phone: values.phone
+      });
+
+      if (response.success) {
+        let message = 'Cashier account created successfully!';
+        
+        // Add WhatsApp status to the message
+        if (response.whatsapp_sent !== undefined) {
+          if (response.whatsapp_sent) {
+            message += '\n\n📱 WhatsApp message sent successfully with login credentials.';
+          } else {
+            message += '\n\n⚠️ Cashier account created but WhatsApp message failed to send.';
+            if (response.whatsapp_message) {
+              message += `\nError: ${response.whatsapp_message}`;
+            }
+          }
+        }
+        
+        setAlertBox({
+          open: true,
+          message: message,
+          onConfirm: () => {
+            setAlertBox(a => ({ ...a, open: false }));
+            navigate('/admin/cashiers/info');
+          },
+          confirmText: 'OK',
+          type: response.whatsapp_sent ? 'success' : 'warning'
+        });
+      } else {
+        setAlertBox({
+          open: true,
+          message: response.message || 'Failed to create cashier account',
+          onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+          confirmText: 'OK',
+          type: 'error'
+        });
+      }
+    } catch (error) {
+      console.error('Error creating cashier account:', error);
+      setAlertBox({
+        open: true,
+        message: 'Error creating cashier account. Please try again.',
+        onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -61,6 +127,9 @@ const CreateCashierLogin = () => {
         type={alertBox.type}
       />
       <h2 className="text-2xl font-bold mb-6 text-center">Create Cashier Login</h2>
+      <p className="text-gray-600 text-center mb-6">
+        Create a new cashier account. Credentials will be sent via WhatsApp to the provided phone number.
+      </p>
       <BasicForm
         initialValues={initialValues}
         validationSchema={validationSchema}
@@ -74,17 +143,20 @@ const CreateCashierLogin = () => {
               </div>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <CustomTextField
-                id="cashierId"
-                name="cashierId"
-                type="text"
-                label="Cashier ID *"
-                value={values.cashierId}
-                onChange={handleChange}
-                error={errors.cashierId}
-                touched={touched.cashierId}
-                icon={FaIdCard}
-              />
+              <div className="md:col-span-2">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-center">
+                    <FaIdCard className="text-blue-600 mr-2" />
+                    <span className="text-blue-800 font-medium">Next Cashier ID: </span>
+                    <span className="text-blue-900 font-bold ml-2">
+                      {loadingId ? 'Loading...' : nextCashierId || 'C001'}
+                    </span>
+                  </div>
+                  <p className="text-blue-700 text-sm mt-1">
+                    This ID will be automatically assigned to the new cashier account.
+                  </p>
+                </div>
+              </div>
               <CustomTextField
                 id="email"
                 name="email"
@@ -137,6 +209,7 @@ const CreateCashierLogin = () => {
                 type="button"
                 onClick={() => navigate(-1)}
                 className="w-1/2 py-2.5 px-4 bg-gray-200 text-gray-700 text-xs font-bold rounded-lg hover:bg-gray-300"
+                disabled={loading}
               >
                 Cancel
               </CustomButton>
@@ -144,8 +217,9 @@ const CreateCashierLogin = () => {
                 type="submit"
                 onClick={() => setSubmitCount((c) => c + 1)}
                 className="w-1/2 py-2.5 px-4 bg-[#1a365d] text-white text-xs font-bold rounded-lg hover:bg-[#13294b] active:bg-[#0f2038]"
+                loading={loading}
               >
-                Create
+                {loading ? 'Creating...' : 'Create Cashier Account'}
               </CustomButton>
             </div>
           </>
