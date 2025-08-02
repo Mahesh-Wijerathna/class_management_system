@@ -42,6 +42,10 @@ class UserController {
             return json_encode(['success' => false, 'message' => 'User creation failed']);
         }
     }
+
+
+    
+
     // Read user by ID
     public function getUser($userid) {
         $user = new UserModel($this->db);
@@ -137,6 +141,8 @@ class UserController {
                     $userData = $result->fetch_assoc();
                 }
             }
+            
+
             
             // Generate access token (short-lived: 15 minutes)
             $secretKey = 'your_secret_key_here';
@@ -686,6 +692,8 @@ public function resetPassword($userid, $otp, $newPassword) {
             'students' => $students
         ]);
     }
+
+
 
     // Get all barcodes
     public function getAllBarcodes() {

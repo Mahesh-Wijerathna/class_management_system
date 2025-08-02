@@ -39,6 +39,22 @@ class WhatsAppService {
         // Fallback to WhatsApp Business API
         return $this->sendViaWhatsAppBusiness($mobile, $otp);
     }
+
+    /**
+     * Send custom message via WhatsApp
+     */
+    public function sendCustomMessage($mobile, $message) {
+        // Check if Twilio is enabled and configured
+        $twilioConfig = $this->config['alternatives']['twilio'];
+        
+        if ($twilioConfig['enabled'] && $twilioConfig['account_sid'] !== 'YOUR_TWILIO_ACCOUNT_SID' && $this->twilioClient) {
+            // Use Twilio WhatsApp (easier setup)
+            return $this->sendCustomViaTwilio($mobile, $message);
+        }
+        
+        // Fallback to WhatsApp Business API
+        return $this->sendCustomViaWhatsAppBusiness($mobile, $message);
+    }
     
     /**
      * Send via WhatsApp Business API
@@ -58,6 +74,24 @@ class WhatsAppService {
             'type' => 'text',
             'text' => [
                 'body' => $message
+            ]
+        ];
+        
+        return $this->makeApiCall($apiUrl, $data);
+    }
+
+    /**
+     * Send custom message via WhatsApp Business API
+     */
+    private function sendCustomViaWhatsAppBusiness($mobile, $customMessage) {
+        $apiUrl = "https://graph.facebook.com/{$this->apiVersion}/{$this->phoneNumberId}/messages";
+        
+        $data = [
+            'messaging_product' => 'whatsapp',
+            'to' => $this->formatPhoneNumber($mobile),
+            'type' => 'text',
+            'text' => [
+                'body' => $customMessage
             ]
         ];
         
@@ -84,6 +118,43 @@ class WhatsAppService {
                     array(
                         "from" => $twilioConfig['whatsapp_from'],
                         "body" => "🔐 TCMS Verification Code\n\nYour verification code is: {$otp}\n\n⏰ This code will expire in 15 minutes.\n🔒 Do not share this code with anyone."
+                    )
+                );
+            
+            return [
+                'success' => true, 
+                'message' => 'WhatsApp message sent via Twilio',
+                'message_sid' => $message->sid
+            ];
+            
+        } catch (Exception $e) {
+            return [
+                'success' => false, 
+                'message' => 'Twilio API error: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Send custom message via Twilio WhatsApp
+     */
+    private function sendCustomViaTwilio($mobile, $customMessage) {
+        $twilioConfig = $this->config['alternatives']['twilio'];
+        
+        if (!$this->twilioClient) {
+            return ['success' => false, 'message' => 'Twilio client not initialized'];
+        }
+        
+        try {
+            // Format the phone number for WhatsApp
+            $whatsappNumber = 'whatsapp:' . $this->formatPhoneNumber($mobile);
+            
+            // Create the message using Twilio SDK
+            $message = $this->twilioClient->messages
+                ->create($whatsappNumber, // to
+                    array(
+                        "from" => $twilioConfig['whatsapp_from'],
+                        "body" => $customMessage
                     )
                 );
             

@@ -10,7 +10,7 @@ export const login = async (credentials) => {
       const { teacherLoginWithId } = await import('./teachers');
       return await teacherLoginWithId(credentials.userid, credentials.password);
     } else {
-      // Use regular login endpoint (for students/admins)
+      // Use regular login endpoint (for students/admins/cashiers)
       return await apiPost('/routes.php/login', credentials);
     }
   } catch (error) {

@@ -70,6 +70,8 @@ if ($method === 'POST' && $path === '/routes.php/user') {
     exit;
 }
 
+
+
 // LOGIN user
 if ($method === 'POST' && $path === '/routes.php/login') {
     $data = json_decode(file_get_contents('php://input'), true);
@@ -144,6 +146,8 @@ if ($method === 'GET' && $path === '/routes.php/students') {
     echo $controller->getAllStudents();
     exit;
 }
+
+
 
 // SEND OTP FOR FORGOT PASSWORD
 if ($method === 'POST' && $path === '/routes.php/forgot-password/send-otp') {
