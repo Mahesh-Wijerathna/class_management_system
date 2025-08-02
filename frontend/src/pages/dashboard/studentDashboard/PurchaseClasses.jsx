@@ -419,7 +419,7 @@ const PurchaseClasses = ({ onLogout }) => {
               const scheduleText = cls.schedule && cls.schedule.frequency === 'no-schedule' ? 
                 'No Schedule' :
                 cls.schedule && cls.schedule.day && cls.schedule.startTime && cls.schedule.endTime ?
-                `${formatDay(cls.schedule.day)} ${formatTime(cls.schedule.startTime)}-${formatTime(cls.schedule.endTime)}` :
+                `${formatDay(cls.schedule.day)} ${formatTime(cls.schedule.startTime)}-${formatTime(cls.schedule.endTime)}` : 
                 'Schedule not set';
 
               // Calculate fee with discount for revision classes
