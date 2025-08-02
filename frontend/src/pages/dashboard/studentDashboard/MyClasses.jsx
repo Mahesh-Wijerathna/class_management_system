@@ -5,6 +5,8 @@ import DashboardLayout from '../../../components/layout/DashboardLayout';
 import studentSidebarSections from './StudentDashboardSidebar';
 import SecureZoomMeeting from '../../../components/SecureZoomMeeting';
 import { getStudentCard, getCardTypeInfo, getCardStatus, isCardValid } from '../../../utils/cardUtils';
+import { getStudentEnrollments, markAttendance, requestForgetCard, requestLatePayment, convertEnrollmentToMyClass } from '../../../api/enrollments';
+import { getUserData } from '../../../api/apiUtils';
 import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt } from 'react-icons/fa';
 
 const MyClasses = ({ onLogout }) => {
@@ -26,68 +28,71 @@ const MyClasses = ({ onLogout }) => {
   const [testDate, setTestDate] = useState(null); // For testing payment tracking
   const navigate = useNavigate();
 
-  const loadMyClasses = () => {
+  const loadMyClasses = async () => {
     try {
-    const stored = localStorage.getItem('myClasses');
-      if (stored) {
-        const classes = JSON.parse(stored);
-        const currentStudent = JSON.parse(localStorage.getItem('currentStudent') || '{}');
-        
-        // Validate and normalize class data
-        const validatedClasses = classes.map(cls => {
+      setLoading(true);
+      setError(null);
+      
+      // Get logged-in user data
+      const userData = getUserData();
+      if (!userData || !userData.userid) {
+        setError('No logged-in user found. Please login again.');
+        setMyClasses([]);
+        return;
+      }
+      
+      const studentId = userData.userid;
+      
+      // Fetch enrollments from backend API
+      const response = await getStudentEnrollments(studentId);
+      
+      if (response.success && response.data) {
+        // Convert enrollments to MyClasses format
+        const convertedClasses = response.data.map(enrollment => {
+          const myClass = convertEnrollmentToMyClass(enrollment);
+          
           // Get student's card for this class
-          const studentCard = getStudentCard(currentStudent.studentId || 'STUDENT_001', cls.id);
+          const studentCard = getStudentCard(studentId, myClass.id);
           const cardInfo = studentCard ? getCardTypeInfo(studentCard.cardType) : null;
           const cardStatus = getCardStatus(studentCard);
           const cardValidity = isCardValid(studentCard);
           
-          return {
-            ...cls,
-            schedule: cls.schedule || { day: '', startTime: '', endTime: '', frequency: 'weekly' },
-            fee: cls.fee || 0,
-            maxStudents: cls.maxStudents || 50,
-            status: cls.status || 'active',
-            currentStudents: cls.currentStudents || 0,
-            className: cls.className || 'Unnamed Class',
-            subject: cls.subject || 'Unknown Subject',
-            teacher: cls.teacher || 'Unknown Teacher',
-            stream: cls.stream || 'Unknown Stream',
-            deliveryMethod: cls.deliveryMethod || 'online',
-            courseType: cls.courseType || 'theory',
-            paymentStatus: cls.paymentStatus || 'pending',
-            // Handle new payment tracking structure
-            paymentTracking: cls.paymentTracking || { enabled: false },
-            paymentTrackingFreeDays: cls.paymentTrackingFreeDays || 7,
-            // Ensure payment tracking is properly structured
-            ...(cls.paymentTracking && typeof cls.paymentTracking === 'object' ? {} : {
-              paymentTracking: {
-                enabled: true, // Enable payment tracking for all classes
-                freeDays: cls.paymentTrackingFreeDays || 7,
-                active: true
-              }
-            }),
-            // Add missing fields with defaults
-            attendance: cls.attendance || [],
-            paymentHistory: cls.paymentHistory || [],
-            hasExams: cls.hasExams || false,
-            hasTutes: cls.hasTutes || false,
-            forgetCardRequested: cls.forgetCardRequested || false,
-            latePaymentRequested: cls.latePaymentRequested || false,
-            purchaseDate: cls.purchaseDate || new Date().toISOString(),
-            nextPaymentDate: cls.nextPaymentDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-            // Add card information
-            studentCard,
-            cardInfo,
-            cardStatus,
-            cardValidity
-          };
+          // Add card information
+          myClass.studentCard = studentCard;
+          myClass.cardInfo = cardInfo;
+          myClass.cardStatus = cardStatus;
+          myClass.cardValidity = cardValidity;
+          
+          // Add missing fields with defaults
+          myClass.schedule = myClass.schedule || { day: '', startTime: '', endTime: '', frequency: 'weekly' };
+          myClass.fee = myClass.fee || 0;
+          myClass.maxStudents = myClass.maxStudents || 50;
+          myClass.status = myClass.status || 'active';
+          myClass.currentStudents = myClass.currentStudents || 0;
+          myClass.className = myClass.className || 'Unnamed Class';
+          myClass.subject = myClass.subject || 'Unknown Subject';
+          myClass.teacher = myClass.teacher || 'Unknown Teacher';
+          myClass.stream = myClass.stream || 'Unknown Stream';
+          myClass.deliveryMethod = myClass.deliveryMethod || 'online';
+          myClass.courseType = myClass.courseType || 'theory';
+          myClass.paymentStatus = myClass.paymentStatus || 'pending';
+
+          // Use actual payment tracking data from database (already set by convertEnrollmentToMyClass)
+          // The paymentTracking object is now properly populated from the database
+          // No need to override it here
+
+          myClass.attendance = myClass.attendance || [];
+          myClass.paymentHistory = myClass.paymentHistory || [];
+          
+          return myClass;
         });
-        setMyClasses(validatedClasses);
+        
+        setMyClasses(convertedClasses);
       } else {
+        setError(response.message || 'Failed to load classes from server');
         setMyClasses([]);
       }
     } catch (err) {
-      console.error('Error loading classes:', err);
       setError('Failed to load classes. Please refresh the page.');
       setMyClasses([]);
     } finally {
@@ -95,60 +100,27 @@ const MyClasses = ({ onLogout }) => {
     }
   };
 
-  // Create enrollment records for each class
-  const createEnrollmentRecords = () => {
+  // Create enrollment records for each class (now handled by backend)
+  const createEnrollmentRecords = async () => {
     try {
-      const stored = localStorage.getItem('myClasses');
-      if (!stored) return;
+      // Get logged-in user data
+      const userData = getUserData();
+      if (!userData || !userData.userid) {
+        return;
+      }
       
-      const classes = JSON.parse(stored);
-      const currentStudent = JSON.parse(localStorage.getItem('currentStudent') || '{}');
+      const studentId = userData.userid;
       
-      // Get existing enrollments
-      const existingEnrollments = JSON.parse(localStorage.getItem('enrollments') || '[]');
+      // Get existing enrollments from backend
+      const response = await getStudentEnrollments(studentId);
       
-      // Create enrollment records for each class
-      const newEnrollments = classes.map(cls => {
-        // Check if enrollment already exists for this class and student
-        const existingEnrollment = existingEnrollments.find(e => 
-          e.classId === cls.id && e.studentId === currentStudent.studentId
-        );
-        
-        if (existingEnrollment) {
-          return existingEnrollment; // Keep existing enrollment
-        }
-        
-        // Create new enrollment record
-        return {
-          id: Date.now() + Math.random(),
-          classId: cls.id,
-          studentId: currentStudent.studentId || 'STUDENT_001',
-          studentName: currentStudent.firstName || currentStudent.fullName || 'Unknown Student',
-          enrollmentDate: new Date().toISOString(),
-          status: 'enrolled',
-          className: cls.className,
-          subject: cls.subject,
-          teacher: cls.teacher
-        };
-      });
-      
-      // Merge with existing enrollments, avoiding duplicates
-      const allEnrollments = [...existingEnrollments];
-      newEnrollments.forEach(newEnrollment => {
-        const exists = allEnrollments.find(e => 
-          e.classId === newEnrollment.classId && e.studentId === newEnrollment.studentId
-        );
-        if (!exists) {
-          allEnrollments.push(newEnrollment);
-        }
-      });
-      
-      // Save to localStorage
-      localStorage.setItem('enrollments', JSON.stringify(allEnrollments));
-      console.log('Created enrollment records:', allEnrollments);
-      
+      if (response.success && response.data) {
+        // Enrollments are already created in backend when payment is processed
+        // This function is kept for backward compatibility but doesn't need to do anything
+        return;
+      }
     } catch (err) {
-      console.error('Error creating enrollment records:', err);
+      // Silent fail - enrollments are created automatically during payment
     }
   };
 
@@ -181,22 +153,64 @@ const MyClasses = ({ onLogout }) => {
 
   // Payment Tracking Utility Functions
   const getPaymentTrackingStatus = (cls) => {
-    // For demonstration purposes, let's enable payment tracking for all classes
-    // In a real scenario, this would be based on the class configuration
+    // Check if payment tracking is enabled for this class
     const hasPaymentTracking = cls.paymentTracking || cls.paymentTracking === true || cls.paymentTracking?.enabled;
     
-    if (!hasPaymentTracking) {
-      return { canAccess: true, status: 'no-tracking', message: 'No payment tracking enabled' };
-    }
-
+    // Both enabled and disabled payment tracking have monthly payments, but different grace periods
     const today = testDate || new Date(); // Use test date if available
+    
+    // If payment status is 'paid' but no payment history, create a basic payment record
+    if (cls.paymentStatus === 'paid' && (!cls.paymentHistory || cls.paymentHistory.length === 0)) {
+      // Get free days from class configuration
+      const freeDays = cls.paymentTrackingFreeDays || 7;
+      
+      // Create a default payment date (1 month ago from today)
+      const defaultPaymentDate = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+      const nextPaymentDate = new Date(defaultPaymentDate.getFullYear(), defaultPaymentDate.getMonth() + 1, 1);
+      
+      if (hasPaymentTracking) {
+        // Payment tracking enabled: has grace period
+        const gracePeriodEndDate = new Date(nextPaymentDate);
+        gracePeriodEndDate.setDate(gracePeriodEndDate.getDate() + freeDays);
+        
+        if (today <= gracePeriodEndDate) {
+          const daysRemaining = Math.ceil((gracePeriodEndDate - today) / (1000 * 60 * 60 * 24));
+          return { 
+            canAccess: true, 
+            status: 'paid', 
+            message: `Payment completed (${daysRemaining} days remaining in grace period)${testDate ? ` [TEST: ${testDate.toDateString()}]` : ''}`,
+            daysRemaining: daysRemaining,
+            nextPaymentDate: nextPaymentDate,
+            gracePeriodEndDate: gracePeriodEndDate,
+            freeDays: freeDays,
+            paymentTrackingEnabled: true
+          };
+        }
+      } else {
+        // Payment tracking disabled: no grace period, payment due immediately on next payment date
+        if (today < nextPaymentDate) {
+          const daysRemaining = Math.ceil((nextPaymentDate - today) / (1000 * 60 * 60 * 24));
+          return { 
+            canAccess: true, 
+            status: 'paid', 
+            message: `Payment completed (${daysRemaining} days until next payment)${testDate ? ` [TEST: ${testDate.toDateString()}]` : ''}`,
+            daysRemaining: daysRemaining,
+            nextPaymentDate: nextPaymentDate,
+            gracePeriodEndDate: nextPaymentDate,
+            freeDays: 0,
+            paymentTrackingEnabled: false
+          };
+        }
+      }
+    }
     
     // Check if there's a payment history
     if (!cls.paymentHistory || cls.paymentHistory.length === 0) {
       return { 
         canAccess: false, 
         status: 'no-payment', 
-        message: 'No payment history - payment required' 
+        message: 'No payment history - payment required',
+        paymentTrackingEnabled: hasPaymentTracking
       };
     }
 
@@ -204,12 +218,31 @@ const MyClasses = ({ onLogout }) => {
     const latestPayment = cls.paymentHistory[cls.paymentHistory.length - 1];
     const paymentDate = new Date(latestPayment.date);
     
-    // Calculate next payment date: 1st day of next month from payment date
-    const nextPaymentDate = new Date(paymentDate.getFullYear(), paymentDate.getMonth() + 1, 1);
+    // Check if payment tracking is enabled in the payment record
+    const paymentTrackingEnabled = latestPayment.paymentTrackingEnabled !== undefined ? latestPayment.paymentTrackingEnabled : hasPaymentTracking;
     
-    // Calculate grace period end date: next payment date + 7 days
-    const gracePeriodEndDate = new Date(nextPaymentDate);
-    gracePeriodEndDate.setDate(gracePeriodEndDate.getDate() + 7);
+    // Get free days from payment history or class configuration
+    const freeDays = latestPayment.freeDays || cls.paymentTrackingFreeDays || 7;
+    
+    // Use next payment date from payment history or calculate it
+    let nextPaymentDate;
+    if (latestPayment.nextPaymentDate) {
+      nextPaymentDate = new Date(latestPayment.nextPaymentDate);
+    } else {
+      // Calculate next payment date: 1st day of next month from payment date
+      nextPaymentDate = new Date(paymentDate.getFullYear(), paymentDate.getMonth() + 1, 1);
+    }
+    
+    // Calculate grace period end date based on payment tracking setting
+    let gracePeriodEndDate;
+    if (paymentTrackingEnabled) {
+      // Payment tracking enabled: next payment date + free days
+      gracePeriodEndDate = new Date(nextPaymentDate);
+      gracePeriodEndDate.setDate(gracePeriodEndDate.getDate() + freeDays);
+    } else {
+      // Payment tracking disabled: no grace period (payment due immediately on next payment date)
+      gracePeriodEndDate = new Date(nextPaymentDate);
+    }
     
     // Check if today is within the grace period
     if (today <= gracePeriodEndDate) {
@@ -217,29 +250,61 @@ const MyClasses = ({ onLogout }) => {
       const nextPaymentDay = nextPaymentDate.getDate();
       const nextPaymentMonth = nextPaymentDate.toLocaleDateString('en-US', { month: 'long' });
       
-      return { 
-        canAccess: true, 
-        status: 'paid', 
-        message: `Payment completed (${daysRemaining} days remaining in grace period)${testDate ? ` [TEST: ${testDate.toDateString()}]` : ''}`,
-        daysRemaining: daysRemaining,
-        nextPaymentDate: nextPaymentDate,
-        gracePeriodEndDate: gracePeriodEndDate
-      };
+      if (paymentTrackingEnabled) {
+        return { 
+          canAccess: true, 
+          status: 'paid', 
+          message: `Payment completed (${daysRemaining} days remaining in grace period)${testDate ? ` [TEST: ${testDate.toDateString()}]` : ''}`,
+          daysRemaining: daysRemaining,
+          nextPaymentDate: nextPaymentDate,
+          gracePeriodEndDate: gracePeriodEndDate,
+          freeDays: freeDays,
+          paymentTrackingEnabled: true
+        };
+      } else {
+        return { 
+          canAccess: true, 
+          status: 'paid', 
+          message: `Payment completed (${daysRemaining} days until next payment)${testDate ? ` [TEST: ${testDate.toDateString()}]` : ''}`,
+          daysRemaining: daysRemaining,
+          nextPaymentDate: nextPaymentDate,
+          gracePeriodEndDate: gracePeriodEndDate,
+          freeDays: 0,
+          paymentTrackingEnabled: false
+        };
+      }
     }
 
     // If we're past the grace period, payment is required
     return { 
       canAccess: false, 
       status: 'payment-required', 
-      message: 'Payment required - grace period expired' 
+      message: 'Payment required - grace period expired',
+      paymentTrackingEnabled: paymentTrackingEnabled
     };
   };
 
   const getPaymentTrackingInfo = (cls) => {
     const trackingStatus = getPaymentTrackingStatus(cls);
-    const freeDays = cls.paymentTracking?.freeDays || 7;
+    const freeDays = trackingStatus.freeDays || cls.paymentTrackingFreeDays || 7;
     const today = testDate || new Date(); // Use test date if available
     const currentDay = today.getDate();
+    
+    // If payment tracking is disabled, return simplified info
+    if (!trackingStatus.paymentTrackingEnabled) {
+      return {
+        ...trackingStatus,
+        freeDays: 0,
+        currentDay,
+        isFreePeriod: true,
+        daysRemaining: 0,
+        nextPaymentDate: null,
+        lastPaymentDate: cls.paymentHistory && cls.paymentHistory.length > 0 
+          ? new Date(cls.paymentHistory[cls.paymentHistory.length - 1].date) 
+          : null,
+        testDate: testDate ? testDate.toDateString() : null
+      };
+    }
     
     return {
       ...trackingStatus,
@@ -247,7 +312,7 @@ const MyClasses = ({ onLogout }) => {
       currentDay,
       isFreePeriod: currentDay <= freeDays,
       daysRemaining: Math.max(0, freeDays - currentDay + 1),
-      nextPaymentDate: cls.nextPaymentDate ? new Date(cls.nextPaymentDate) : null,
+      nextPaymentDate: cls.nextPaymentDate ? new Date(cls.nextPaymentDate) : trackingStatus.nextPaymentDate,
       lastPaymentDate: cls.paymentHistory && cls.paymentHistory.length > 0 
         ? new Date(cls.paymentHistory[cls.paymentHistory.length - 1].date) 
         : null,
@@ -571,70 +636,42 @@ const MyClasses = ({ onLogout }) => {
   };
 
   // Handle attendance marking
-  const handleMarkAttendance = (cls) => {
-    const today = new Date().toISOString().split('T')[0];
-
-    const currentStudent = JSON.parse(localStorage.getItem('currentStudent') || '{}');
-    
-    // Ensure enrollment record exists
-    createEnrollmentRecords();
-    
-    // Get existing attendance records
-    const allAttendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords') || '[]');
-    
-    // Check if attendance already marked for today
-    const existingRecord = allAttendanceRecords.find(record => 
-      record.classId === cls.id && 
-      record.date === today
-    );
-
-    if (existingRecord) {
-      alert('Attendance already marked for today!');
-      return;
-    }
-
-    // Create new attendance record with proper student information
-    const newAttendanceRecord = {
-      id: Date.now(),
-      classId: cls.id,
-      studentId: currentStudent.studentId || 'STUDENT_001',
-      studentName: currentStudent.firstName || currentStudent.fullName || 'Unknown Student',
-      date: today,
-      time: new Date().toISOString(),
-      status: 'present',
-      method: 'manual',
-      deliveryMethod: cls.deliveryMethod || 'online'
-    };
-
-    // Save to attendance records
-    const updatedRecords = [...allAttendanceRecords, newAttendanceRecord];
-    localStorage.setItem('attendanceRecords', JSON.stringify(updatedRecords));
-
-    // Also update local attendance for backward compatibility
-    const updatedClasses = myClasses.map(c => {
-      if (c.id === cls.id) {
-        const attendance = c.attendance || [];
-        const existingLocalRecord = attendance.find(a => a.date === today);
-        
-        if (!existingLocalRecord) {
-          attendance.push({
-            date: today,
-            status: 'present',
-            timestamp: new Date().toISOString(),
-            studentId: currentStudent.studentId || 'STUDENT_001',
-            studentName: currentStudent.firstName || currentStudent.fullName || 'Unknown Student',
-            method: 'manual'
-          });
-        }
-        
-        return { ...c, attendance };
+  const handleMarkAttendance = async (cls) => {
+    try {
+      // Get logged-in user data
+      const userData = getUserData();
+      if (!userData || !userData.userid) {
+        alert('No logged-in user found. Please login again.');
+        return;
       }
-      return c;
-    });
-    
-    setMyClasses(updatedClasses);
-    localStorage.setItem('myClasses', JSON.stringify(updatedClasses));
-    alert('Attendance marked successfully!');
+      
+      const studentId = userData.userid;
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Create attendance data
+      const attendanceData = {
+        date: today,
+        time: new Date().toISOString(),
+        status: 'present',
+        method: 'manual',
+        deliveryMethod: cls.deliveryMethod || 'online',
+        studentId: studentId,
+        studentName: userData.firstName || userData.fullName || 'Unknown Student'
+      };
+      
+      // Mark attendance using backend API
+      const response = await markAttendance(cls.id, studentId, attendanceData);
+      
+      if (response.success) {
+        // Refresh the classes data to show updated attendance
+        await loadMyClasses();
+        alert('Attendance marked successfully!');
+      } else {
+        alert(response.message || 'Failed to mark attendance');
+      }
+    } catch (error) {
+      alert('Error marking attendance. Please try again.');
+    }
   };
 
   // Handle forget card request
@@ -644,24 +681,33 @@ const MyClasses = ({ onLogout }) => {
   };
 
   // Submit forget card request
-  const submitForgetCardRequest = () => {
+  const submitForgetCardRequest = async () => {
     if (selectedClassForForgetCard) {
-      const updatedClasses = myClasses.map(c => {
-        if (c.id === selectedClassForForgetCard.id) {
-          return {
-            ...c,
-            forgetCardRequested: true,
-            forgetCardRequestDate: new Date().toISOString()
-          };
+      try {
+        // Get logged-in user data
+        const userData = getUserData();
+        if (!userData || !userData.userid) {
+          alert('No logged-in user found. Please login again.');
+          return;
         }
-        return c;
-      });
-      
-      setMyClasses(updatedClasses);
-      localStorage.setItem('myClasses', JSON.stringify(updatedClasses));
-      setShowForgetCardModal(false);
-      setSelectedClassForForgetCard(null);
-      alert('Forget card request submitted successfully!');
+        
+        const studentId = userData.userid;
+        
+        // Request forget card using backend API
+        const response = await requestForgetCard(selectedClassForForgetCard.id, studentId);
+        
+        if (response.success) {
+          // Refresh the classes data to show updated status
+          await loadMyClasses();
+          setShowForgetCardModal(false);
+          setSelectedClassForForgetCard(null);
+          alert('Forget card request submitted successfully!');
+        } else {
+          alert(response.message || 'Failed to submit forget card request');
+        }
+      } catch (error) {
+        alert('Error submitting forget card request. Please try again.');
+      }
     }
   };
 
@@ -672,25 +718,33 @@ const MyClasses = ({ onLogout }) => {
   };
 
   // Submit late payment request
-  const submitLatePaymentRequest = () => {
+  const submitLatePaymentRequest = async () => {
     if (selectedClassForLatePayment) {
-      const updatedClasses = myClasses.map(c => {
-        if (c.id === selectedClassForLatePayment.id) {
-          return {
-            ...c,
-            paymentStatus: 'late_payment',
-            latePaymentRequested: true,
-            latePaymentRequestDate: new Date().toISOString()
-          };
+      try {
+        // Get logged-in user data
+        const userData = getUserData();
+        if (!userData || !userData.userid) {
+          alert('No logged-in user found. Please login again.');
+          return;
         }
-        return c;
-      });
-      
-      setMyClasses(updatedClasses);
-      localStorage.setItem('myClasses', JSON.stringify(updatedClasses));
-      setShowLatePaymentModal(false);
-      setSelectedClassForLatePayment(null);
-      alert('Late payment request submitted successfully! You can attend today\'s class.');
+        
+        const studentId = userData.userid;
+        
+        // Request late payment using backend API
+        const response = await requestLatePayment(selectedClassForLatePayment.id, studentId);
+        
+        if (response.success) {
+          // Refresh the classes data to show updated status
+          await loadMyClasses();
+          setShowLatePaymentModal(false);
+          setSelectedClassForLatePayment(null);
+          alert('Late payment request submitted successfully! You can attend today\'s class.');
+        } else {
+          alert(response.message || 'Failed to submit late payment request');
+        }
+      } catch (error) {
+        alert('Error submitting late payment request. Please try again.');
+      }
     }
   };
 
@@ -743,6 +797,10 @@ const MyClasses = ({ onLogout }) => {
     { key: 'with-exams', label: 'With Exams', icon: <FaGraduationCap />, count: myClasses.filter(c => c.hasExams).length },
     { key: 'with-tutes', label: 'With Tutes', icon: <FaBook />, count: myClasses.filter(c => c.hasTutes).length }
   ];
+
+  const handleRefresh = async () => {
+    await loadMyClasses();
+  };
 
   if (loading) {
     return (
@@ -859,7 +917,7 @@ const MyClasses = ({ onLogout }) => {
               <FaShieldAlt /> Test 7-Day
             </button>
             <button
-              onClick={loadMyClasses}
+              onClick={handleRefresh}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
               title="Refresh My Classes Data"
             >
@@ -926,14 +984,16 @@ const MyClasses = ({ onLogout }) => {
               const classStatus = getClassStatusInfo(cls.status);
               const priority = getClassPriority(cls);
               const paymentTrackingInfo = getPaymentTrackingInfo(cls);
-              const nextPaymentDate = new Date(cls.nextPaymentDate);
+              const nextPaymentDate = cls.nextPaymentDate ? new Date(cls.nextPaymentDate) : null;
               const today = new Date();
-              const isPaymentDue = nextPaymentDate <= today && cls.paymentStatus !== 'paid';
+              const isPaymentDue = nextPaymentDate && nextPaymentDate <= today && cls.paymentStatus !== 'paid';
               const canAttendToday = paymentTrackingInfo.canAccess && cls.status === 'active';
               const isInactive = cls.status === 'inactive';
               
-              const scheduleText = cls.schedule ? 
-                `${formatDay(cls.schedule.day)} ${formatTime(cls.schedule.startTime)}-${formatTime(cls.schedule.endTime)}` : 
+              const scheduleText = cls.schedule && cls.schedule.frequency === 'no-schedule' ? 
+                'No Schedule' :
+                cls.schedule && cls.schedule.day && cls.schedule.startTime && cls.schedule.endTime ?
+                `${formatDay(cls.schedule.day)} ${formatTime(cls.schedule.startTime)}-${formatTime(cls.schedule.endTime)}` :
                 'Schedule not set';
 
               return (
@@ -986,7 +1046,7 @@ const MyClasses = ({ onLogout }) => {
                         <span className={classStatus.color}>{classStatus.icon}</span>
                         <span className={classStatus.color}>{classStatus.text}</span>
                       </div>
-                      <div><strong>Next Payment:</strong> {nextPaymentDate.toLocaleDateString()}</div>
+                      <div><strong>Next Payment:</strong> {nextPaymentDate ? nextPaymentDate.toLocaleDateString() : 'Not set'}</div>
                       <div><strong>Students:</strong> {cls.currentStudents || 0}/{cls.maxStudents}</div>
                       {cls.attendance && cls.attendance.length > 0 && (
                         <div><strong>Attendance:</strong> {cls.attendance.filter(a => a.status === 'present').length}/{cls.attendance.length}</div>
@@ -1371,7 +1431,10 @@ const MyClasses = ({ onLogout }) => {
                            <FaCalendar /> <span className="font-semibold">Next Class</span>
                          </div>
                          <p className="text-lg font-bold">
-                           {formatDay(selectedClassForDetails.schedule?.day)} {formatTime(selectedClassForDetails.schedule?.startTime)}
+                           {selectedClassForDetails.schedule?.frequency === 'no-schedule' ? 
+                             'No Schedule' :
+                             `${formatDay(selectedClassForDetails.schedule?.day)} ${formatTime(selectedClassForDetails.schedule?.startTime)}`
+                           }
                          </p>
                        </div>
                        <div className="bg-green-50 p-4 rounded-lg">
@@ -1618,7 +1681,7 @@ const MyClasses = ({ onLogout }) => {
                                 <div>
                                   <div className="font-semibold">Payment #{index + 1}</div>
                                   <div className="text-sm text-gray-600">
-                                    {new Date(payment.date).toLocaleDateString()} at {new Date(payment.date).toLocaleTimeString()}
+                                    {new Date(payment.date).toLocaleDateString()} 
                                   </div>
                                   {payment.invoiceId && (
                                     <div className="text-xs text-gray-500">Invoice: {payment.invoiceId}</div>

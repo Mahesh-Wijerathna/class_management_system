@@ -22,8 +22,9 @@ const deliveryMethodOptions = [
 ];
 
 const statusOptions = [
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'cancelled', label: 'Cancelled' },
 ];
 
 const validationSchema = Yup.object().shape({
@@ -46,7 +47,7 @@ const validationSchema = Yup.object().shape({
     otherwise: (schema) => schema.notRequired(), // Optional for 'other' and 'physical'
   }),
 
-  status: Yup.string().oneOf(['active', 'inactive'], 'Invalid status').required('Status is required'),
+  status: Yup.string().oneOf(['scheduled', 'completed', 'cancelled'], 'Invalid status').required('Status is required'),
   description: Yup.string(),
 });
 
@@ -61,8 +62,8 @@ const initialValues = {
   deliveryMethod: 'online',
   deliveryOther: '',
   zoomLink: '',
-
-  status: 'active',
+  hall: '',
+  status: 'scheduled',
   description: '',
 };
 
@@ -195,15 +196,25 @@ function ClassScheduling() {
 
     const handleSubmit = async (values, { resetForm }) => {
     try {
+      console.log('Form values submitted:', values);
       // Always ensure teacherId is set if teacher is selected
       let submitValues = { ...values };
       if (!submitValues.teacherId && submitValues.teacher) {
         const found = teacherList.find(t => `${t.designation} ${t.name}` === submitValues.teacher);
         if (found) submitValues.teacherId = found.teacherId;
       }
+      console.log('Submit values after processing:', submitValues);
+      
+      // Ensure no null values are sent to backend
+      Object.keys(submitValues).forEach(key => {
+        if (submitValues[key] === null) {
+          submitValues[key] = '';
+        }
+      });
       
       if (editingId) {
         // Update existing session schedule
+        console.log('Updating session schedule:', editingId, submitValues);
         const response = await updateSessionSchedule(editingId, submitValues);
         if (response.success) {
           // Refresh schedules
@@ -261,8 +272,18 @@ function ClassScheduling() {
 
   const handleEdit = (id) => {
     const sch = schedules.find(s => s.id === id);
+    console.log('Editing session schedule:', id, sch);
     if (sch) {
-      setFormValues(sch);
+      console.log('Setting form values to:', sch);
+      // Ensure no null values are passed to form
+      const cleanFormValues = {
+        ...sch,
+        description: sch.description || '',
+        zoomLink: sch.zoomLink || '',
+        deliveryOther: sch.deliveryOther || '',
+        hall: sch.hall || ''
+      };
+      setFormValues(cleanFormValues);
       setEditingId(id);
       setSubmitKey(prev => prev + 1);
     }
@@ -552,7 +573,7 @@ function ClassScheduling() {
                     name="deliveryOther"
                     type="text"
                     label="Describe Delivery Method *"
-                    value={values.deliveryOther}
+                    value={values.deliveryOther || ''}
                     onChange={handleChange}
                     error={errors.deliveryOther}
                     touched={touched.deliveryOther}
@@ -577,7 +598,7 @@ function ClassScheduling() {
                       name="zoomLink"
                       type="url"
                       label={values.deliveryMethod === 'other' ? "Zoom Link (Optional)" : "Zoom Link *"}
-                      value={values.zoomLink}
+                      value={values.zoomLink || ''}
                       onChange={handleChange}
                       error={errors.zoomLink}
                       touched={touched.zoomLink}
@@ -620,20 +641,33 @@ function ClassScheduling() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                 <textarea
                   name="description"
-                  value={values.description}
+                  value={values.description || ''}
                   onChange={handleChange}
                   rows="3"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Enter session description..."
                 />
               </div>
-              <div className="col-span-1 md:col-span-2 flex justify-center">
+              <div className="col-span-1 md:col-span-2 flex justify-center gap-4">
                 <CustomButton
                   type="submit"
                   className="w-2/3 max-w-xs py-2 px-4 bg-[#1a365d] text-white hover:bg-[#13294b] active:bg-[#0f2038]  rounded flex items-center justify-center gap-2"
                 >
                   {editingId ? <FaEdit /> : <FaPlus />} {editingId ? 'Update Schedule' : 'Add Schedule'}
                 </CustomButton>
+                {editingId && (
+                  <CustomButton
+                    type="button"
+                    onClick={() => {
+                      setEditingId(null);
+                      setFormValues(initialValues);
+                      setSubmitKey(prev => prev + 1);
+                    }}
+                    className="px-4 py-2 bg-gray-500 text-white hover:bg-gray-600 rounded flex items-center gap-2"
+                  >
+                    Cancel Edit
+                  </CustomButton>
+                )}
               </div>
             </div>
           );
@@ -661,8 +695,9 @@ function ClassScheduling() {
 
               { key: 'description', label: 'Description', render: row => row.description ? (row.description.length > 50 ? row.description.substring(0, 50) + '...' : row.description) : '-' },
               { key: 'status', label: 'Status', render: row => {
-                  if (row.status === 'active') return <span className="px-2 py-1 rounded bg-green-100 text-green-800 font-semibold">Active</span>;
-                  if (row.status === 'inactive') return <span className="px-2 py-1 rounded bg-red-100 text-red-800 font-semibold">Inactive</span>;
+                  if (row.status === 'scheduled') return <span className="px-2 py-1 rounded bg-blue-100 text-blue-800 font-semibold">Scheduled</span>;
+                  if (row.status === 'completed') return <span className="px-2 py-1 rounded bg-green-100 text-green-800 font-semibold">Completed</span>;
+                  if (row.status === 'cancelled') return <span className="px-2 py-1 rounded bg-red-100 text-red-800 font-semibold">Cancelled</span>;
                   return row.status;
                 } },
             ]}

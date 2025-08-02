@@ -93,7 +93,7 @@ export const deleteSessionSchedule = async (id) => {
 };
 
 export const createClass = async (classData) => {
-  return await classApiPost('/routes.php/', classData);
+  return await classApiPost('/routes.php/create_class', classData);
 };
 
 export const updateClass = async (id, classData) => {

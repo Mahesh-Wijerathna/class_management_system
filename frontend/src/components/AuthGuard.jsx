@@ -10,18 +10,11 @@ const AuthGuard = ({ children, requiredRole = null }) => {
 
   useEffect(() => {
     const checkAuth = () => {
-      console.log("AuthGuard: Checking authentication...");
-      
       // Check if token is expired
       checkTokenExpiry();
       
       const authenticated = isAuthenticated();
       const user = getUserData();
-      
-      console.log("AuthGuard: Authenticated:", authenticated);
-      console.log("AuthGuard: User data:", user);
-      console.log("AuthGuard: User role:", user?.role);
-      console.log("AuthGuard: Required role:", requiredRole);
       
       setIsAuth(authenticated);
       setUserRole(user?.role || null);
