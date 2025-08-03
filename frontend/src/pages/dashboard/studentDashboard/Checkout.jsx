@@ -11,18 +11,42 @@ import CustomSelectField from '../../../components/CustomSelectField';
 import * as Yup from 'yup';
 import { FaCreditCard, FaUser, FaPhone, FaEnvelope, FaMapMarkerAlt, FaBook, FaCalendar, FaClock, FaVideo, FaUsers, FaGraduationCap, FaCheckCircle } from 'react-icons/fa';
 import CustomButton from '../../../components/CustomButton';
+import { getClassById } from '../../../api/classes';
+import { getUserData } from '../../../api/apiUtils';
+import { getStudentEnrollments, convertEnrollmentToMyClass } from '../../../api/enrollments';
 
-const dummyStudent = {
-  firstName: 'bawantha',
-  lastName: 'rathnayake',
-  mobile: '0740901827',
+// Remove dummyStudent - we'll get real data from getUserData()
+
+// Function to get student data from logged-in user
+const getStudentData = () => {
+  const userData = getUserData();
+  if (userData) {
+    return {
+      firstName: userData.firstName || '',
+      lastName: userData.lastName || '',
+      mobile: userData.mobile || '',
+      otherMobile: userData.parentMobile || '',
+      email: userData.email || '',
+      homeCity: userData.district || '',
+      medium: 'Sinhala', // Default value
+      address: userData.address || '',
+      tuteType: '',
+      paymentNote: ''
+    };
+  }
+  // Fallback if no user data
+  return {
+    firstName: '',
+    lastName: '',
+    mobile: '',
   otherMobile: '',
-  email: 'bawantharathnayake25@gmail.com',
+    email: '',
   homeCity: '',
   medium: 'Sinhala',
   address: '',
   tuteType: '',
   paymentNote: ''
+  };
 };
 
 const cityOptions = [
@@ -98,7 +122,7 @@ const formatDay = (day) => {
 const getDeliveryMethodInfo = (method) => {
   switch (method) {
     case 'online':
-      return { color: 'text-purple-600', icon: <FaVideo />, text: 'Online' };
+      return { color: 'text-blue-600', icon: <FaVideo />, text: 'Online' };
     case 'physical':
       return { color: 'text-orange-600', icon: <FaMapMarkerAlt />, text: 'Physical' };
     case 'hybrid':
@@ -157,16 +181,17 @@ const Checkout = () => {
   const [theoryStudentDiscount, setTheoryStudentDiscount] = useState(0);
   const [discountReason, setDiscountReason] = useState('');
 
-  // Load classes and student's purchased classes from localStorage
+  // Load class data from backend API
   useEffect(() => {
+    const loadClassData = async () => {
+      try {
     if (!isStudyPack) {
-      const savedClasses = localStorage.getItem('classes');
-      if (savedClasses) {
-        const allClasses = JSON.parse(savedClasses);
-        setClasses(allClasses);
-        // Find the specific class by ID
-        const foundClass = allClasses.find(c => c.id === parseInt(id, 10));
-        setCls(foundClass);
+          // Load class from backend API
+          const response = await getClassById(id);
+          if (response.success) {
+            setCls(response.data);
+          } else {
+            console.error('Failed to load class:', response.message);
       }
     } else {
       // For study packs, use the static data
@@ -174,36 +199,87 @@ const Checkout = () => {
       setCls(foundStudyPack);
     }
 
-    // Load student's purchased classes
-    const savedMyClasses = localStorage.getItem('myClasses');
-    if (savedMyClasses) {
-      setMyClasses(JSON.parse(savedMyClasses));
+        // Load student's purchased classes from localStorage (for now)
+    const loadMyClasses = async () => {
+      try {
+        const userData = getUserData();
+        if (!userData || !userData.userid) {
+          console.error('No logged-in user found');
+          setMyClasses([]);
+          return;
+        }
+        
+        const response = await getStudentEnrollments(userData.userid);
+        if (response.success) {
+          const convertedClasses = response.data.map(convertEnrollmentToMyClass);
+          setMyClasses(convertedClasses);
+          console.log('Loaded enrollments:', convertedClasses);
+        } else {
+          console.error('Failed to load student enrollments:', response.message);
+          setMyClasses([]);
+        }
+      } catch (error) {
+        console.error('Error loading student enrollments:', error);
+        setMyClasses([]);
+      }
+    };
+    loadMyClasses();
+      } catch (error) {
+        console.error('Error loading class data:', error);
     }
+    };
+
+    loadClassData();
   }, [id, isStudyPack]);
 
   // Check if student owns the related theory class for a revision class
   const checkRelatedTheoryOwnership = (revisionClass) => {
+    console.log('Checking related theory ownership:', {
+      revisionClass: revisionClass,
+      courseType: revisionClass?.courseType,
+      relatedTheoryId: revisionClass?.relatedTheoryId,
+      myClasses: myClasses
+    });
+    
     if (revisionClass.courseType !== 'revision' || !revisionClass.relatedTheoryId) {
+      console.log('Not a revision class or no related theory ID');
       return false;
     }
-    return myClasses.some(myClass => myClass.id === revisionClass.relatedTheoryId);
+    
+    const ownsRelatedTheory = myClasses.some(myClass => myClass.id === revisionClass.relatedTheoryId);
+    console.log('Owns related theory result:', ownsRelatedTheory);
+    return ownsRelatedTheory;
   };
 
   // Calculate theory student discount
   useEffect(() => {
+    console.log('Discount calculation triggered:', {
+      cls: cls,
+      isStudyPack: isStudyPack,
+      myClasses: myClasses,
+      courseType: cls?.courseType,
+      revisionDiscountPrice: cls?.revisionDiscountPrice,
+      relatedTheoryId: cls?.relatedTheoryId
+    });
+    
     if (cls && !isStudyPack && cls.courseType === 'revision' && cls.revisionDiscountPrice) {
       const ownsRelatedTheory = checkRelatedTheoryOwnership(cls);
+      console.log('Owns related theory:', ownsRelatedTheory);
+      
       if (ownsRelatedTheory) {
         const discount = Number(cls.revisionDiscountPrice) || 0;
         setTheoryStudentDiscount(discount);
         setDiscountReason('Theory Student Discount');
+        console.log('Discount applied:', discount);
       } else {
         setTheoryStudentDiscount(0);
         setDiscountReason('');
+        console.log('No discount applied - does not own related theory');
       }
     } else {
       setTheoryStudentDiscount(0);
       setDiscountReason('');
+      console.log('No discount conditions met');
     }
   }, [cls, myClasses, isStudyPack]);
 
@@ -218,10 +294,15 @@ const Checkout = () => {
   }
 
   const handleApplyPromo = () => {
-    if (promo === 'DISCOUNT') {
-      setAppliedPromo(500);
+    if (promo.trim() === '') {
+      alert('Please enter a promo code');
+      return;
+    }
+    // Simulate promo code validation
+    if (promo.toLowerCase() === 'welcome10') {
+      setAppliedPromo(10);
+      alert('Promo code applied! 10% discount');
     } else {
-      setAppliedPromo(0);
       alert('Invalid promo code');
     }
   };
@@ -229,29 +310,52 @@ const Checkout = () => {
   return (
     <DashboardLayout userRole="Student" sidebarItems={studentSidebarSections}>
       <div className="p-4 max-w-6xl mx-auto">
-        <BasicForm initialValues={dummyStudent} validationSchema={getValidationSchema(isStudyPack)} onSubmit={async values => {
+        <BasicForm initialValues={getStudentData()} validationSchema={getValidationSchema(isStudyPack)} onSubmit={async values => {
+          try {
+            setLoading(true);
+            
           const isSpeedPost = values.tuteType === 'Speed Post';
           const speedPostFee = isSpeedPost ? 300 : 0;
           const basePrice = isStudyPack ? parseInt(cls.price.replace(/\D/g, '')) : parseInt(cls.fee);
           const promoDiscount = appliedPromo || 0;
           const totalDiscount = promoDiscount + theoryStudentDiscount;
           const amount = basePrice - totalDiscount + speedPostFee;
-          const invoiceId = `INV${Date.now()}`;
+            
+            // Get logged-in user data
+            const userData = getUserData();
+            if (!userData || !userData.userid) {
+              alert('No logged-in user found. Please login again.');
+              setLoading(false);
+              return;
+            }
+            const actualStudentId = userData.userid;
+            
+            if (!isStudyPack) {
+              // Prepare payment data for Invoice page (don't create payment yet)
+              const paymentData = {
+                studentId: actualStudentId,
+                classId: cls.id,
+                amount: amount,
+                discount: totalDiscount,
+                paymentMethod: paymentMethod,
+                notes: `Promo: ${promoDiscount}, Theory Discount: ${theoryStudentDiscount}, Speed Post: ${speedPostFee}`
+              };
+
           const fullName = `${values.firstName} ${values.lastName}`;
           const orderData = {
             ...values,
             fullName,
-            className: isStudyPack ? cls.title : cls.className,
+                className: cls.className,
             basePrice,
             discount: totalDiscount,
             promoDiscount,
             theoryStudentDiscount,
             speedPostFee,
             amount,
-            invoiceId,
+                paymentData: paymentData, // Pass payment data to Invoice
             date: new Date().toLocaleDateString(),
             // Add class data for My Classes
-            isStudyPack,
+                isStudyPack: false,
             classId: cls.id,
             subject: cls.subject,
             teacher: cls.teacher,
@@ -262,25 +366,43 @@ const Checkout = () => {
                 nextPaymentDate: calculateNextPaymentDate(cls.schedule),
                     image: cls.image,
         description: cls.description,
-        // Add zoom link and other important fields
         zoomLink: cls.zoomLink || '',
-                    // Add payment tracking data
             paymentTracking: cls.paymentTracking,
             paymentTrackingFreeDays: cls.paymentTrackingFreeDays,
-            // Add student count data
             maxStudents: cls.maxStudents || 50,
           };
 
-          // Debug: Log the order data to verify zoom link is included
-          console.log('Checkout - Class zoom link:', cls.zoomLink);
-          console.log('Checkout - Order data zoom link:', orderData.zoomLink);
-
-            setLoading(true);
-            setTimeout(() => {
-              setLoading(false);
-            // For online payment, don't add to My Classes yet - wait for successful payment
               navigate('/student/invoice', { state: orderData });
-          }, 2000);
+            } else {
+              // For study packs, use the old flow for now
+              const invoiceId = `INV${Date.now()}`;
+              const fullName = `${values.firstName} ${values.lastName}`;
+              const orderData = {
+                ...values,
+                fullName,
+                className: cls.title,
+                basePrice,
+                discount: totalDiscount,
+                promoDiscount,
+                theoryStudentDiscount,
+                speedPostFee,
+                amount,
+                invoiceId,
+                date: new Date().toLocaleDateString(),
+                isStudyPack: true,
+                classId: cls.id,
+                image: cls.image,
+                description: cls.description,
+              };
+
+              navigate('/student/invoice', { state: orderData });
+            }
+          } catch (error) {
+            console.error('Error creating payment:', error);
+            alert('Failed to create payment. Please try again.');
+          } finally {
+            setLoading(false);
+          }
         }}>
           {({ errors, touched, handleChange, values }) => {
             const isSpeedPost = values.tuteType === 'Speed Post';
@@ -338,85 +460,250 @@ const Checkout = () => {
                               )}
                             </div>
                           )}
-                          {cls.description && <div className="text-xs text-gray-500 mt-1">{cls.description}</div>}
                         </div>
                       </div>
-                      <div className="mt-4 md:mt-0 text-cyan-700 font-bold text-lg">
-                        LKR {price.toLocaleString()}
+                      <div className="text-right mt-4 md:mt-0">
+                        <div className="text-2xl font-bold text-gray-900">LKR {amount.toLocaleString()}</div>
+                        {totalDiscount > 0 && (
+                          <div className="text-sm text-green-600">
+                            You save LKR {totalDiscount.toLocaleString()}
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <hr className="mb-6" />
-                    <div className="mb-6">
-                      <div className="font-semibold mb-2">Choose Your Payment Method</div>
-                      <div className="flex gap-4 mb-4">
-                        {paymentMethods.map(pm => (
-                          <button key={pm.key} onClick={() => setPaymentMethod(pm.key)} className={`flex-1 border rounded-lg p-4 text-center flex flex-col items-center ${paymentMethod===pm.key ? 'border-cyan-600 bg-cyan-50' : 'border-gray-300 bg-white'}`} type="button">
-                            {pm.icon}
-                            <span className="font-semibold">{pm.label}</span>
-                            <span className="text-xs text-gray-500">{pm.sinhala}</span>
-                          </button>
+
+                    {/* Price Breakdown */}
+                    <div className="border-t pt-4 mb-6">
+                      <h4 className="font-semibold mb-2">Price Breakdown</h4>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>Base Price:</span>
+                          <span>LKR {price.toLocaleString()}</span>
+                        </div>
+                        {promoDiscount > 0 && (
+                          <div className="flex justify-between text-green-600">
+                            <span>Promo Discount:</span>
+                            <span>-LKR {promoDiscount.toLocaleString()}</span>
+                          </div>
+                        )}
+                        {theoryStudentDiscount > 0 && (
+                          <div className="flex justify-between text-blue-600">
+                            <span>Theory Student Discount:</span>
+                            <span>-LKR {theoryStudentDiscount.toLocaleString()}</span>
+                          </div>
+                        )}
+                        {speedPostFee > 0 && (
+                          <div className="flex justify-between">
+                            <span>Speed Post Fee:</span>
+                            <span>LKR {speedPostFee.toLocaleString()}</span>
+                          </div>
+                        )}
+                        <div className="border-t pt-1 flex justify-between font-semibold">
+                          <span>Total:</span>
+                          <span>LKR {amount.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Student Information Form */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <CustomTextField
+                        id="firstName"
+                        name="firstName"
+                        type="text"
+                        label="First Name *"
+                        value={values.firstName}
+                        onChange={handleChange}
+                        error={errors.firstName}
+                        touched={touched.firstName}
+                        icon={FaUser}
+                      />
+                      <CustomTextField
+                        id="lastName"
+                        name="lastName"
+                        type="text"
+                        label="Last Name *"
+                        value={values.lastName}
+                        onChange={handleChange}
+                        error={errors.lastName}
+                        touched={touched.lastName}
+                        icon={FaUser}
+                      />
+                      <CustomTextField
+                        id="mobile"
+                        name="mobile"
+                        type="tel"
+                        label="Mobile Number *"
+                        value={values.mobile}
+                        onChange={handleChange}
+                        error={errors.mobile}
+                        touched={touched.mobile}
+                        icon={FaPhone}
+                      />
+                      <CustomTextField
+                        id="email"
+                        name="email"
+                        type="email"
+                        label="Email Address *"
+                        value={values.email}
+                        onChange={handleChange}
+                        error={errors.email}
+                        touched={touched.email}
+                        icon={FaEnvelope}
+                      />
+                      <CustomSelectField
+                        id="homeCity"
+                        name="homeCity"
+                        label="Home City *"
+                        value={values.homeCity}
+                        onChange={handleChange}
+                        options={cityOptions}
+                        error={errors.homeCity}
+                        touched={touched.homeCity}
+                        icon={FaMapMarkerAlt}
+                        required
+                      />
+                      <CustomSelectField
+                        id="medium"
+                        name="medium"
+                        label="Medium *"
+                        value={values.medium}
+                        onChange={handleChange}
+                        options={mediumOptions}
+                        error={errors.medium}
+                        touched={touched.medium}
+                        required
+                      />
+                      {!isStudyPack && (
+                        <>
+                          <CustomSelectField
+                            id="tuteType"
+                            name="tuteType"
+                            label="Tute and Paper Collection Type *"
+                            value={values.tuteType}
+                            onChange={handleChange}
+                            options={tuteTypeOptions}
+                            error={errors.tuteType}
+                            touched={touched.tuteType}
+                            required
+                          />
+                          {values.tuteType === 'Speed Post' && (
+                            <CustomTextField
+                              id="address"
+                              name="address"
+                              type="text"
+                              label="Address *"
+                              value={values.address}
+                              onChange={handleChange}
+                              error={errors.address}
+                              touched={touched.address}
+                              icon={FaMapMarkerAlt}
+                            />
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Payment Method Selection */}
+                    <div className="mt-6">
+                      <h4 className="font-semibold mb-3">Payment Method</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {paymentMethods.map(method => (
+                          <label
+                            key={method.key}
+                            className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
+                              paymentMethod === method.key
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-300 hover:border-gray-400'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="paymentMethod"
+                              value={method.key}
+                              checked={paymentMethod === method.key}
+                              onChange={(e) => setPaymentMethod(e.target.value)}
+                              className="mr-3"
+                            />
+                            <div className="flex items-center gap-3">
+                              {method.icon}
+                              <div>
+                                <div className="font-medium">{method.label}</div>
+                                <div className="text-sm text-gray-500">{method.sinhala}</div>
+                              </div>
+                            </div>
+                          </label>
                         ))}
                       </div>
                     </div>
-                    <div className="bg-white rounded-xl border p-4">
-                      <div className="font-semibold mb-2">Student Details</div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <CustomTextField id="firstName" name="firstName" type="text" label="First Name" value={values.firstName} onChange={handleChange} error={errors.firstName} touched={touched.firstName} icon={FaUser} />
-                        <CustomTextField id="lastName" name="lastName" type="text" label="Last Name" value={values.lastName} onChange={handleChange} error={errors.lastName} touched={touched.lastName} icon={FaUser} />
-                        <CustomTextField id="mobile" name="mobile" type="text" label="Mobile: මුල් දුරකථන අංකය සදන්න eg: 077123456" value={values.mobile} onChange={handleChange} error={errors.mobile} touched={touched.mobile} icon={FaPhone} />
-                        <CustomTextField id="email" name="email" type="email" label="Email" value={values.email} onChange={handleChange} error={errors.email} touched={touched.email} icon={FaEnvelope} />
-                        <CustomSelectField id="homeCity" name="homeCity" label="Home City" value={values.homeCity} onChange={handleChange} options={cityOptions} error={errors.homeCity} touched={touched.homeCity} />
-                        <CustomSelectField id="medium" name="medium" label="Medium" value={values.medium} onChange={handleChange} options={mediumOptions} error={errors.medium} touched={touched.medium} />
+
+                    {/* Promo Code Section */}
+                    <div className="mt-6">
+                      <h4 className="font-semibold mb-3">Promo Code (Optional)</h4>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Enter promo code"
+                          value={promo}
+                          onChange={(e) => setPromo(e.target.value)}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleApplyPromo}
+                          className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+                        >
+                          Apply
+                        </button>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
-                        {!isStudyPack && (
-                        <CustomSelectField id="tuteType" name="tuteType" label="Tute and Paper Collection Type" value={values.tuteType} onChange={handleChange} options={tuteTypeOptions} error={errors.tuteType} touched={touched.tuteType} />
-                        )}
-                        {!isStudyPack && values.tuteType === 'Speed Post' && (
-                          <CustomTextField id="address" name="address" type="text" label="Delivery Address" value={values.address} onChange={handleChange} error={errors.address} touched={touched.address} icon={FaMapMarkerAlt} />
-                        )}
-                      </div>
-                      {!isStudyPack && (
-                        <div className="mt-2 mb-2 text-xs text-red-600 flex items-center gap-2">
-                          <span className="font-bold">⚠️ Speed Post</span> tute/paper collection සඳහා අමතරව රු.300ක් (Speed Post) ගාස්තු එකතු වේ.
+                      {appliedPromo > 0 && (
+                        <div className="mt-2 text-sm text-green-600">
+                          Promo code applied! You save LKR {appliedPromo.toLocaleString()}
                         </div>
                       )}
-                      <div className="md:col-span-2 grid grid-cols-2 gap-2 mt-2">
-                        <CustomButton type="submit" disabled={loading}>
-                          {loading ? 'Processing...' : 'Pay Online'}
-                        </CustomButton>
-                        <CustomButton type="reset" >Reset</CustomButton>
-                      </div>
-                      {/* Price summary for mobile view */}
-                      <div className="block md:hidden mt-6">
-                        <div className="bg-white rounded-xl shadow p-4 border">
-                          <div className="font-semibold mb-2">Product Price</div>
-                          <div className="flex justify-between text-sm mb-1"><span>Price</span><span> LKR {price.toLocaleString()}</span></div>
-                          {theoryStudentDiscount > 0 && <div className="flex justify-between text-xs text-blue-600 mb-1"><span>{discountReason}</span><span>- LKR {theoryStudentDiscount.toLocaleString()}</span></div>}
-                          {appliedPromo ? <div className="flex justify-between text-xs text-green-600 mb-1"><span>Promo Applied</span><span>- LKR {appliedPromo.toLocaleString()}</span></div> : null}
-                          {isSpeedPost && <div className="flex justify-between text-xs text-red-600 mb-1"><span>Speed Post</span><span>+ LKR 300.00</span></div>}
-                          <div className="flex justify-between font-bold text-base border-t pt-2 mt-2"><span>amount</span><span>LKR {amount.toLocaleString()}</span></div>
-                        </div>
-                      </div>
+                    </div>
+
+                    {/* Submit Button */}
+                    <div className="mt-6">
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full py-3 px-6 bg-[#1a365d] text-white rounded-lg hover:bg-[#13294b] disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold"
+                      >
+                        {loading ? 'Processing...' : 'Proceed to Payment'}
+                      </button>
                     </div>
                   </div>
                 </div>
-                {/* Right: Promo and Price */}
-                <div className="w-full md:w-80">
-                  <div className="bg-white rounded-xl shadow p-4 mb-4 border">
-                    <div className="font-semibold mb-2">Promo Code</div>
-                    <div className="flex gap-2 mb-2">
-                      <input value={promo} onChange={e => setPromo(e.target.value)} placeholder="Enter Promo Code" className="border rounded px-3 py-2 text-xs flex-1" />
-                      <button onClick={handleApplyPromo} className="bg-pink-100 text-pink-700 px-4 py-2 rounded text-xs font-bold" type="button">Apply</button>
+
+                {/* Summary Card */}
+                <div className="md:col-span-1">
+                  <div className="bg-white rounded-xl shadow p-6 border sticky top-4">
+                    <h3 className="text-lg font-semibold mb-4">Order Summary</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span>Class:</span>
+                        <span className="font-medium">{isStudyPack ? cls.title : cls.className}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Subject:</span>
+                        <span>{cls.subject}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Teacher:</span>
+                        <span>{cls.teacher}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Duration:</span>
+                        <span>{isStudyPack ? 'Study Pack' : scheduleText}</span>
+                      </div>
+                      <div className="border-t pt-3">
+                        <div className="flex justify-between font-semibold">
+                          <span>Total Amount:</span>
+                          <span className="text-lg">LKR {amount.toLocaleString()}</span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="bg-white rounded-xl shadow p-4 border">
-                    <div className="font-semibold mb-2">Product Price</div>
-                    <div className="flex justify-between text-sm mb-1"><span>Price</span><span> LKR {price.toLocaleString()}</span></div>
-                    {theoryStudentDiscount > 0 && <div className="flex justify-between text-xs text-blue-600 mb-1"><span>{discountReason}</span><span>- LKR {theoryStudentDiscount.toLocaleString()}</span></div>}
-                    {appliedPromo ? <div className="flex justify-between text-xs text-green-600 mb-1"><span>Promo Applied</span><span>- LKR {appliedPromo.toLocaleString()}</span></div> : null}
-                    {isSpeedPost && <div className="flex justify-between text-xs text-red-600 mb-1"><span>Speed Post</span><span>+ LKR 300.00</span></div>}
-                    <div className="flex justify-between font-bold text-base border-t pt-2 mt-2"><span>amount</span><span>LKR {amount.toLocaleString()}</span></div>
                   </div>
                 </div>
               </div>

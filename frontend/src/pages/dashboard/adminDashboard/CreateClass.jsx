@@ -41,10 +41,22 @@ const validationSchema = Yup.object().shape({
     otherwise: (schema) => schema.notRequired(),
   }),
   schedule: Yup.object().shape({
-    day: Yup.string().required('Day is required'),
-    startTime: Yup.string().required('Start Time is required'),
-    endTime: Yup.string().required('End Time is required'),
-    frequency: Yup.string().oneOf(['weekly', 'bi-weekly', 'monthly'], 'Invalid frequency').required('Frequency is required'),
+    day: Yup.string().when('frequency', {
+      is: 'no-schedule',
+      then: (schema) => schema.notRequired(),
+      otherwise: (schema) => schema.required('Day is required'),
+    }),
+    startTime: Yup.string().when('frequency', {
+      is: 'no-schedule',
+      then: (schema) => schema.notRequired(),
+      otherwise: (schema) => schema.required('Start Time is required'),
+    }),
+    endTime: Yup.string().when('frequency', {
+      is: 'no-schedule',
+      then: (schema) => schema.notRequired(),
+      otherwise: (schema) => schema.required('End Time is required'),
+    }),
+    frequency: Yup.string().oneOf(['weekly', 'bi-weekly', 'monthly', 'no-schedule'], 'Invalid frequency').required('Frequency is required'),
   }),
   startDate: Yup.string().required('Start Date is required'),
   endDate: Yup.string().required('End Date is required').test('endDate', 'End Date must be after Start Date', function(value) {
@@ -956,52 +968,7 @@ const CreateClass = ({ onLogout }) => {
                   )}
                 </div>
                 {/* Schedule */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <CustomSelectField
-                    id="schedule.day"
-                    name="schedule.day"
-                    label="Day *"
-                    value={values.schedule.day}
-                    onChange={handleChange}
-                    options={[
-                      { value: '', label: 'Select Day' },
-                      { value: 'monday', label: 'Monday' },
-                      { value: 'tuesday', label: 'Tuesday' },
-                      { value: 'wednesday', label: 'Wednesday' },
-                      { value: 'thursday', label: 'Thursday' },
-                      { value: 'friday', label: 'Friday' },
-                      { value: 'saturday', label: 'Saturday' },
-                      { value: 'sunday', label: 'Sunday' },
-                    ]}
-                    error={errors.schedule?.day}
-                    touched={touched.schedule?.day}
-                    required
-                    disabled={values.courseType === 'theory+revision'}
-                  />
-                  <CustomTextField
-                    id="schedule.startTime"
-                    name="schedule.startTime"
-                    type="time"
-                    label="Start Time *"
-                    value={values.schedule.startTime}
-                    onChange={handleChange}
-                    error={errors.schedule?.startTime}
-                    touched={touched.schedule?.startTime}
-                    icon={FaClock}
-                    disabled={values.courseType === 'theory+revision'}
-                  />
-                  <CustomTextField
-                    id="schedule.endTime"
-                    name="schedule.endTime"
-                    type="time"
-                    label="End Time *"
-                    value={values.schedule.endTime}
-                    onChange={handleChange}
-                    error={errors.schedule?.endTime}
-                    touched={touched.schedule?.endTime}
-                    icon={FaClock}
-                    disabled={values.courseType === 'theory+revision'}
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <CustomSelectField
                     id="schedule.frequency"
                     name="schedule.frequency"
@@ -1012,11 +979,60 @@ const CreateClass = ({ onLogout }) => {
                       { value: 'weekly', label: 'Weekly' },
                       { value: 'bi-weekly', label: 'Bi-weekly' },
                       { value: 'monthly', label: 'Monthly' },
+                      { value: 'no-schedule', label: 'No Schedule' },
                     ]}
                     error={errors.schedule?.frequency}
                     touched={touched.schedule?.frequency}
                     disabled={values.courseType === 'theory+revision'}
                   />
+                  {values.schedule.frequency !== 'no-schedule' && (
+                    <>
+                      <CustomSelectField
+                        id="schedule.day"
+                        name="schedule.day"
+                        label="Day"
+                        value={values.schedule.day}
+                        onChange={handleChange}
+                        options={[
+                          { value: '', label: 'Select Day' },
+                          { value: 'Monday', label: 'Monday' },
+                          { value: 'Tuesday', label: 'Tuesday' },
+                          { value: 'Wednesday', label: 'Wednesday' },
+                          { value: 'Thursday', label: 'Thursday' },
+                          { value: 'Friday', label: 'Friday' },
+                          { value: 'Saturday', label: 'Saturday' },
+                          { value: 'Sunday', label: 'Sunday' },
+                        ]}
+                        error={errors.schedule?.day}
+                        touched={touched.schedule?.day}
+                        disabled={values.courseType === 'theory+revision'}
+                      />
+                      <CustomTextField
+                        id="schedule.startTime"
+                        name="schedule.startTime"
+                        type="time"
+                        label="Start Time"
+                        value={values.schedule.startTime}
+                        onChange={handleChange}
+                        error={errors.schedule?.startTime}
+                        touched={touched.schedule?.startTime}
+                        icon={FaClock}
+                        disabled={values.courseType === 'theory+revision'}
+                      />
+                      <CustomTextField
+                        id="schedule.endTime"
+                        name="schedule.endTime"
+                        type="time"
+                        label="End Time"
+                        value={values.schedule.endTime}
+                        onChange={handleChange}
+                        error={errors.schedule?.endTime}
+                        touched={touched.schedule?.endTime}
+                        icon={FaClock}
+                        disabled={values.courseType === 'theory+revision'}
+                      />
+                    </>
+                  )}
                 </div>
                 {/* Class Details */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1222,6 +1238,9 @@ const CreateClass = ({ onLogout }) => {
               { key: 'deliveryMethod', label: 'Delivery', render: row => row.deliveryMethod || 'N/A' },
               { key: 'schedule', label: 'Schedule', render: row => {
                 if (!row.schedule) return 'N/A';
+                if (row.schedule.frequency === 'no-schedule') {
+                  return 'No Schedule';
+                }
                 return `${formatDay(row.schedule.day)} ${formatTime(row.schedule.startTime)}-${formatTime(row.schedule.endTime)}`;
               } },
               { key: 'fee', label: 'Fee', render: row => {

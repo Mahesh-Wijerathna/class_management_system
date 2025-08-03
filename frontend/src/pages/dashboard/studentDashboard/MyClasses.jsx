@@ -5,89 +5,95 @@ import DashboardLayout from '../../../components/layout/DashboardLayout';
 import studentSidebarSections from './StudentDashboardSidebar';
 import SecureZoomMeeting from '../../../components/SecureZoomMeeting';
 import { getStudentCard, getCardTypeInfo, getCardStatus, isCardValid } from '../../../utils/cardUtils';
-import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt } from 'react-icons/fa';
+import { getStudentEnrollments, markAttendance, requestForgetCard, requestLatePayment, convertEnrollmentToMyClass } from '../../../api/enrollments';
+import { getUserData } from '../../../api/apiUtils';
+import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt, FaCalendarWeek, FaTasks, FaFilePdf, FaFileWord, FaFilePowerpoint, FaUpload, FaRedo } from 'react-icons/fa';
 
 const MyClasses = ({ onLogout }) => {
   const [myClasses, setMyClasses] = useState([]);
   const [selectedTab, setSelectedTab] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('status');
+  const [selectedClassForDetails, setSelectedClassForDetails] = useState(null);
+  const [showClassDetails, setShowClassDetails] = useState(false);
+  const [forgetCardRequest, setForgetCardRequest] = useState('');
+  const [latePaymentRequest, setLatePaymentRequest] = useState('');
   const [showForgetCardModal, setShowForgetCardModal] = useState(false);
-  const [selectedClassForForgetCard, setSelectedClassForForgetCard] = useState(null);
   const [showLatePaymentModal, setShowLatePaymentModal] = useState(false);
-  const [selectedClassForLatePayment, setSelectedClassForLatePayment] = useState(null);
+  const [selectedClassForRequest, setSelectedClassForRequest] = useState(null);
   const [showSecureZoomModal, setShowSecureZoomModal] = useState(false);
   const [selectedClassForZoom, setSelectedClassForZoom] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedClassForDetails, setSelectedClassForDetails] = useState(null);
   const [detailsActiveTab, setDetailsActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState('name'); // 'name', 'date', 'payment', 'status'
-  const [testDate, setTestDate] = useState(null); // For testing payment tracking
   const navigate = useNavigate();
 
-  const loadMyClasses = () => {
+  const loadMyClasses = async () => {
     try {
-    const stored = localStorage.getItem('myClasses');
-      if (stored) {
-        const classes = JSON.parse(stored);
-        const currentStudent = JSON.parse(localStorage.getItem('currentStudent') || '{}');
-        
-        // Validate and normalize class data
-        const validatedClasses = classes.map(cls => {
+      setLoading(true);
+      setError(null);
+      
+      // Get logged-in user data
+      const userData = getUserData();
+      if (!userData || !userData.userid) {
+        setError('No logged-in user found. Please login again.');
+        setMyClasses([]);
+        return;
+      }
+      
+      const studentId = userData.userid;
+      
+      // Fetch enrollments from backend API
+      const response = await getStudentEnrollments(studentId);
+      
+      if (response.success && response.data) {
+        // Convert enrollments to MyClasses format
+        const convertedClasses = response.data.map(enrollment => {
+          const myClass = convertEnrollmentToMyClass(enrollment);
+          
           // Get student's card for this class
-          const studentCard = getStudentCard(currentStudent.studentId || 'STUDENT_001', cls.id);
+          const studentCard = getStudentCard(studentId, myClass.id);
           const cardInfo = studentCard ? getCardTypeInfo(studentCard.cardType) : null;
           const cardStatus = getCardStatus(studentCard);
           const cardValidity = isCardValid(studentCard);
           
-          return {
-            ...cls,
-            schedule: cls.schedule || { day: '', startTime: '', endTime: '', frequency: 'weekly' },
-            fee: cls.fee || 0,
-            maxStudents: cls.maxStudents || 50,
-            status: cls.status || 'active',
-            currentStudents: cls.currentStudents || 0,
-            className: cls.className || 'Unnamed Class',
-            subject: cls.subject || 'Unknown Subject',
-            teacher: cls.teacher || 'Unknown Teacher',
-            stream: cls.stream || 'Unknown Stream',
-            deliveryMethod: cls.deliveryMethod || 'online',
-            courseType: cls.courseType || 'theory',
-            paymentStatus: cls.paymentStatus || 'pending',
-            // Handle new payment tracking structure
-            paymentTracking: cls.paymentTracking || { enabled: false },
-            paymentTrackingFreeDays: cls.paymentTrackingFreeDays || 7,
-            // Ensure payment tracking is properly structured
-            ...(cls.paymentTracking && typeof cls.paymentTracking === 'object' ? {} : {
-              paymentTracking: {
-                enabled: true, // Enable payment tracking for all classes
-                freeDays: cls.paymentTrackingFreeDays || 7,
-                active: true
-              }
-            }),
-            // Add missing fields with defaults
-            attendance: cls.attendance || [],
-            paymentHistory: cls.paymentHistory || [],
-            hasExams: cls.hasExams || false,
-            hasTutes: cls.hasTutes || false,
-            forgetCardRequested: cls.forgetCardRequested || false,
-            latePaymentRequested: cls.latePaymentRequested || false,
-            purchaseDate: cls.purchaseDate || new Date().toISOString(),
-            nextPaymentDate: cls.nextPaymentDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
             // Add card information
-            studentCard,
-            cardInfo,
-            cardStatus,
-            cardValidity
-          };
+          myClass.studentCard = studentCard;
+          myClass.cardInfo = cardInfo;
+          myClass.cardStatus = cardStatus;
+          myClass.cardValidity = cardValidity;
+          
+          // Add missing fields with defaults
+          myClass.schedule = myClass.schedule || { day: '', startTime: '', endTime: '', frequency: 'weekly' };
+          myClass.fee = myClass.fee || 0;
+          myClass.maxStudents = myClass.maxStudents || 50;
+          myClass.status = myClass.status || 'active';
+          myClass.currentStudents = myClass.currentStudents || 0;
+          myClass.className = myClass.className || 'Unnamed Class';
+          myClass.subject = myClass.subject || 'Unknown Subject';
+          myClass.teacher = myClass.teacher || 'Unknown Teacher';
+          myClass.stream = myClass.stream || 'Unknown Stream';
+          myClass.deliveryMethod = myClass.deliveryMethod || 'online';
+          myClass.courseType = myClass.courseType || 'theory';
+          myClass.paymentStatus = myClass.paymentStatus || 'pending';
+
+          // Use actual payment tracking data from database (already set by convertEnrollmentToMyClass)
+          // The paymentTracking object is now properly populated from the database
+          // No need to override it here
+
+          myClass.attendance = myClass.attendance || [];
+          myClass.paymentHistory = myClass.paymentHistory || [];
+          
+          return myClass;
         });
-        setMyClasses(validatedClasses);
+        
+        setMyClasses(convertedClasses);
       } else {
+        setError(response.message || 'Failed to load classes from server');
         setMyClasses([]);
       }
     } catch (err) {
-      console.error('Error loading classes:', err);
       setError('Failed to load classes. Please refresh the page.');
       setMyClasses([]);
     } finally {
@@ -95,60 +101,27 @@ const MyClasses = ({ onLogout }) => {
     }
   };
 
-  // Create enrollment records for each class
-  const createEnrollmentRecords = () => {
+  // Create enrollment records for each class (now handled by backend)
+  const createEnrollmentRecords = async () => {
     try {
-      const stored = localStorage.getItem('myClasses');
-      if (!stored) return;
+      // Get logged-in user data
+      const userData = getUserData();
+      if (!userData || !userData.userid) {
+        return;
+      }
       
-      const classes = JSON.parse(stored);
-      const currentStudent = JSON.parse(localStorage.getItem('currentStudent') || '{}');
+      const studentId = userData.userid;
       
-      // Get existing enrollments
-      const existingEnrollments = JSON.parse(localStorage.getItem('enrollments') || '[]');
+      // Get existing enrollments from backend
+      const response = await getStudentEnrollments(studentId);
       
-      // Create enrollment records for each class
-      const newEnrollments = classes.map(cls => {
-        // Check if enrollment already exists for this class and student
-        const existingEnrollment = existingEnrollments.find(e => 
-          e.classId === cls.id && e.studentId === currentStudent.studentId
-        );
-        
-        if (existingEnrollment) {
-          return existingEnrollment; // Keep existing enrollment
-        }
-        
-        // Create new enrollment record
-        return {
-          id: Date.now() + Math.random(),
-          classId: cls.id,
-          studentId: currentStudent.studentId || 'STUDENT_001',
-          studentName: currentStudent.firstName || currentStudent.fullName || 'Unknown Student',
-          enrollmentDate: new Date().toISOString(),
-          status: 'enrolled',
-          className: cls.className,
-          subject: cls.subject,
-          teacher: cls.teacher
-        };
-      });
-      
-      // Merge with existing enrollments, avoiding duplicates
-      const allEnrollments = [...existingEnrollments];
-      newEnrollments.forEach(newEnrollment => {
-        const exists = allEnrollments.find(e => 
-          e.classId === newEnrollment.classId && e.studentId === newEnrollment.studentId
-        );
-        if (!exists) {
-          allEnrollments.push(newEnrollment);
-        }
-      });
-      
-      // Save to localStorage
-      localStorage.setItem('enrollments', JSON.stringify(allEnrollments));
-      console.log('Created enrollment records:', allEnrollments);
-      
+      if (response.success && response.data) {
+        // Enrollments are already created in backend when payment is processed
+        // This function is kept for backward compatibility but doesn't need to do anything
+        return;
+      }
     } catch (err) {
-      console.error('Error creating enrollment records:', err);
+      // Silent fail - enrollments are created automatically during payment
     }
   };
 
@@ -181,22 +154,64 @@ const MyClasses = ({ onLogout }) => {
 
   // Payment Tracking Utility Functions
   const getPaymentTrackingStatus = (cls) => {
-    // For demonstration purposes, let's enable payment tracking for all classes
-    // In a real scenario, this would be based on the class configuration
+    // Check if payment tracking is enabled for this class
     const hasPaymentTracking = cls.paymentTracking || cls.paymentTracking === true || cls.paymentTracking?.enabled;
     
-    if (!hasPaymentTracking) {
-      return { canAccess: true, status: 'no-tracking', message: 'No payment tracking enabled' };
+    // Both enabled and disabled payment tracking have monthly payments, but different grace periods
+    const today = new Date(); // Use current date
+    
+    // If payment status is 'paid' but no payment history, create a basic payment record
+    if (cls.paymentStatus === 'paid' && (!cls.paymentHistory || cls.paymentHistory.length === 0)) {
+      // Get free days from class configuration
+      const freeDays = cls.paymentTrackingFreeDays || 7;
+      
+      // Create a default payment date (1 month ago from today)
+      const defaultPaymentDate = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+      const nextPaymentDate = new Date(defaultPaymentDate.getFullYear(), defaultPaymentDate.getMonth() + 1, 1);
+      
+      if (hasPaymentTracking) {
+        // Payment tracking enabled: has grace period
+        const gracePeriodEndDate = new Date(nextPaymentDate);
+        gracePeriodEndDate.setDate(gracePeriodEndDate.getDate() + freeDays);
+        
+        if (today <= gracePeriodEndDate) {
+          const daysRemaining = Math.ceil((gracePeriodEndDate - today) / (1000 * 60 * 60 * 24));
+          return { 
+            canAccess: true, 
+            status: 'paid', 
+            message: `Payment completed (${daysRemaining} days remaining in grace period)`,
+            daysRemaining: daysRemaining,
+            nextPaymentDate: nextPaymentDate,
+            gracePeriodEndDate: gracePeriodEndDate,
+            freeDays: freeDays,
+            paymentTrackingEnabled: true
+          };
+        }
+      } else {
+        // Payment tracking disabled: no grace period, payment due immediately on next payment date
+        if (today < nextPaymentDate) {
+          const daysRemaining = Math.ceil((nextPaymentDate - today) / (1000 * 60 * 60 * 24));
+          return { 
+            canAccess: true, 
+            status: 'paid', 
+            message: `Payment completed (${daysRemaining} days until next payment)`,
+            daysRemaining: daysRemaining,
+            nextPaymentDate: nextPaymentDate,
+            gracePeriodEndDate: nextPaymentDate,
+            freeDays: 0,
+            paymentTrackingEnabled: false
+          };
+        }
+      }
     }
-
-    const today = testDate || new Date(); // Use test date if available
     
     // Check if there's a payment history
     if (!cls.paymentHistory || cls.paymentHistory.length === 0) {
       return { 
         canAccess: false, 
         status: 'no-payment', 
-        message: 'No payment history - payment required' 
+        message: 'No payment history - payment required',
+        paymentTrackingEnabled: hasPaymentTracking
       };
     }
 
@@ -204,12 +219,31 @@ const MyClasses = ({ onLogout }) => {
     const latestPayment = cls.paymentHistory[cls.paymentHistory.length - 1];
     const paymentDate = new Date(latestPayment.date);
     
-    // Calculate next payment date: 1st day of next month from payment date
-    const nextPaymentDate = new Date(paymentDate.getFullYear(), paymentDate.getMonth() + 1, 1);
+    // Check if payment tracking is enabled in the payment record
+    const paymentTrackingEnabled = latestPayment.paymentTrackingEnabled !== undefined ? latestPayment.paymentTrackingEnabled : hasPaymentTracking;
     
-    // Calculate grace period end date: next payment date + 7 days
-    const gracePeriodEndDate = new Date(nextPaymentDate);
-    gracePeriodEndDate.setDate(gracePeriodEndDate.getDate() + 7);
+    // Get free days from payment history or class configuration
+    const freeDays = latestPayment.freeDays || cls.paymentTrackingFreeDays || 7;
+    
+    // Use next payment date from payment history or calculate it
+    let nextPaymentDate;
+    if (latestPayment.nextPaymentDate) {
+      nextPaymentDate = new Date(latestPayment.nextPaymentDate);
+    } else {
+    // Calculate next payment date: 1st day of next month from payment date
+      nextPaymentDate = new Date(paymentDate.getFullYear(), paymentDate.getMonth() + 1, 1);
+    }
+    
+    // Calculate grace period end date based on payment tracking setting
+    let gracePeriodEndDate;
+    if (paymentTrackingEnabled) {
+      // Payment tracking enabled: next payment date + free days
+      gracePeriodEndDate = new Date(nextPaymentDate);
+      gracePeriodEndDate.setDate(gracePeriodEndDate.getDate() + freeDays);
+    } else {
+      // Payment tracking disabled: no grace period (payment due immediately on next payment date)
+      gracePeriodEndDate = new Date(nextPaymentDate);
+    }
     
     // Check if today is within the grace period
     if (today <= gracePeriodEndDate) {
@@ -217,29 +251,61 @@ const MyClasses = ({ onLogout }) => {
       const nextPaymentDay = nextPaymentDate.getDate();
       const nextPaymentMonth = nextPaymentDate.toLocaleDateString('en-US', { month: 'long' });
       
+      if (paymentTrackingEnabled) {
       return { 
         canAccess: true, 
         status: 'paid', 
-        message: `Payment completed (${daysRemaining} days remaining in grace period)${testDate ? ` [TEST: ${testDate.toDateString()}]` : ''}`,
+          message: `Payment completed (${daysRemaining} days remaining in grace period)`,
         daysRemaining: daysRemaining,
         nextPaymentDate: nextPaymentDate,
-        gracePeriodEndDate: gracePeriodEndDate
-      };
+          gracePeriodEndDate: gracePeriodEndDate,
+          freeDays: freeDays,
+          paymentTrackingEnabled: true
+        };
+      } else {
+        return { 
+          canAccess: true, 
+          status: 'paid', 
+          message: `Payment completed (${daysRemaining} days until next payment)`,
+          daysRemaining: daysRemaining,
+          nextPaymentDate: nextPaymentDate,
+          gracePeriodEndDate: gracePeriodEndDate,
+          freeDays: 0,
+          paymentTrackingEnabled: false
+        };
+      }
     }
 
     // If we're past the grace period, payment is required
     return { 
       canAccess: false, 
       status: 'payment-required', 
-      message: 'Payment required - grace period expired' 
+      message: 'Payment required - grace period expired',
+      paymentTrackingEnabled: paymentTrackingEnabled
     };
   };
 
   const getPaymentTrackingInfo = (cls) => {
     const trackingStatus = getPaymentTrackingStatus(cls);
-    const freeDays = cls.paymentTracking?.freeDays || 7;
-    const today = testDate || new Date(); // Use test date if available
+    const freeDays = trackingStatus.freeDays || cls.paymentTrackingFreeDays || 7;
+    const today = new Date(); // Use current date
     const currentDay = today.getDate();
+    
+    // If payment tracking is disabled, return simplified info
+    if (!trackingStatus.paymentTrackingEnabled) {
+      return {
+        ...trackingStatus,
+        freeDays: 0,
+        currentDay,
+        isFreePeriod: true,
+        daysRemaining: 0,
+        nextPaymentDate: null,
+        lastPaymentDate: cls.paymentHistory && cls.paymentHistory.length > 0 
+          ? new Date(cls.paymentHistory[cls.paymentHistory.length - 1].date) 
+          : null,
+        testDate: null
+      };
+    }
     
     return {
       ...trackingStatus,
@@ -247,27 +313,25 @@ const MyClasses = ({ onLogout }) => {
       currentDay,
       isFreePeriod: currentDay <= freeDays,
       daysRemaining: Math.max(0, freeDays - currentDay + 1),
-      nextPaymentDate: cls.nextPaymentDate ? new Date(cls.nextPaymentDate) : null,
+      nextPaymentDate: cls.nextPaymentDate ? new Date(cls.nextPaymentDate) : trackingStatus.nextPaymentDate,
       lastPaymentDate: cls.paymentHistory && cls.paymentHistory.length > 0 
         ? new Date(cls.paymentHistory[cls.paymentHistory.length - 1].date) 
         : null,
-      testDate: testDate ? testDate.toDateString() : null
+      testDate: null
     };
   };
 
   // Debug function to log payment tracking info
   const debugPaymentTracking = (cls) => {
-    const paymentInfo = getPaymentTrackingInfo(cls);
-    console.log('Payment Tracking Debug for:', cls.className, {
-      paymentTracking: cls.paymentTracking,
-      paymentStatus: cls.paymentStatus,
-      currentDay: paymentInfo.currentDay,
-      freeDays: paymentInfo.freeDays,
-      canAccess: paymentInfo.canAccess,
-      status: paymentInfo.status,
-      message: paymentInfo.message
-    });
-    return paymentInfo;
+    console.log('=== PAYMENT TRACKING DEBUG ===');
+    console.log('Class:', cls.className);
+    console.log('Payment Status:', cls.paymentStatus);
+    console.log('Next Payment Date:', cls.nextPaymentDate);
+    console.log('Payment History:', cls.paymentHistory);
+    console.log('Payment Tracking:', cls.paymentTracking);
+    
+    const result = getPaymentTrackingStatus(cls);
+    console.log('Result:', result);
   };
 
   // Test function to simulate different dates for payment tracking
@@ -308,43 +372,7 @@ const MyClasses = ({ onLogout }) => {
     return { canAccess: false, status: 'unpaid', message: 'Payment required - access restricted' };
   };
 
-  // Test scenarios - add this to test different dates
-  const testScenarios = () => {
-    const testClass = myClasses[0]; // Use first class for testing
-    if (!testClass) return;
 
-    console.log('=== PAYMENT TRACKING TEST SCENARIOS ===');
-    console.log('Updated Logic: Payment made on July 29, 2025');
-    console.log('Timeline:');
-    console.log('- July 29: Payment made');
-    console.log('- August 1: Next payment date (1st day of next month)');
-    console.log('- August 8: Grace period ends (August 1 + 7 days)');
-    console.log('- August 9: Payment required (after grace period)');
-    console.log('');
-    
-    // Test the updated timeline
-    const testDates = [
-      new Date('2025-07-29'), // Payment day
-      new Date('2025-08-01'), // Next payment date (1st day of next month)
-      new Date('2025-08-07'), // Still in grace period
-      new Date('2025-08-08'), // Grace period ends
-      new Date('2025-08-09'), // Payment required (after grace period)
-      new Date('2025-08-15'), // Payment required
-      new Date('2025-08-31'), // Payment required
-    ];
-
-    testDates.forEach(date => {
-      // Temporarily set test date
-      const originalTestDate = testDate;
-      testDate = date;
-      
-      const result = getPaymentTrackingStatus(testClass);
-      console.log(`${date.toDateString()}: ${result.message}`);
-      
-      // Restore original test date
-      testDate = originalTestDate;
-    });
-  };
 
   // Get image based on subject
   const getClassImage = (subject) => {
@@ -377,7 +405,29 @@ const MyClasses = ({ onLogout }) => {
   // Format day for display
   const formatDay = (day) => {
     if (!day) return '';
-    return day.charAt(0).toUpperCase() + day.slice(1);
+    return day.charAt(0).toUpperCase() + day.slice(1).toLowerCase();
+  };
+
+  const getTimeUntilClass = (cls) => {
+    if (!cls.schedule || !cls.schedule.startTime) return null;
+    
+    const now = new Date();
+    const [hours, minutes] = cls.schedule.startTime.split(':').map(Number);
+    const classStartTime = new Date();
+    classStartTime.setHours(hours, minutes, 0, 0);
+    
+    const timeDiff = (classStartTime - now) / (1000 * 60); // minutes
+    
+    if (timeDiff < -15) return null; // Class already started more than 15 minutes ago
+    if (timeDiff > 15) return null; // Class starts more than 15 minutes from now
+    
+    if (timeDiff < 0) {
+      return `Started ${Math.abs(Math.round(timeDiff))} minutes ago`;
+    } else if (timeDiff === 0) {
+      return 'Starting now';
+    } else {
+      return `Starts in ${Math.round(timeDiff)} minutes`;
+    }
   };
 
   // Get payment status info with enhanced details
@@ -473,7 +523,7 @@ const MyClasses = ({ onLogout }) => {
   // Get class priority/urgency
   const getClassPriority = (cls) => {
     // If class is inactive, it should be high priority
-    if (cls.status === 'inactive') return { priority: 'high', text: 'Inactive', color: 'text-red-600', bgColor: 'bg-red-50' };
+    if (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid') return { priority: 'high', text: 'Online', color: 'text-red-600', bgColor: 'bg-red-50' };
     
     const nextPayment = new Date(cls.nextPaymentDate);
     const today = new Date();
@@ -490,28 +540,84 @@ const MyClasses = ({ onLogout }) => {
         .filter(cls => {
       // Tab filtering
     if (selectedTab === 'all') return true;
-      if (selectedTab === 'active') return cls.status === 'active';
-      if (selectedTab === 'inactive') return cls.status === 'inactive';
+    if (selectedTab === 'live') {
+      if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
+      if (cls.deliveryMethod !== 'online' && cls.deliveryMethod !== 'hybrid') return false;
+      if (!cls.schedule.day || !cls.schedule.startTime) return false;
+      
+      // Check if class is starting within 15 minutes
+      const now = new Date();
+      const today = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const todayName = dayNames[today];
+      
+      // Only show classes scheduled for today
+      if (cls.schedule.day !== todayName) return false;
+      
+      // Parse class start time
+      const [hours, minutes] = cls.schedule.startTime.split(':').map(Number);
+      const classStartTime = new Date();
+      classStartTime.setHours(hours, minutes, 0, 0);
+      
+      // Calculate time difference in minutes
+      const timeDiff = (classStartTime - now) / (1000 * 60);
+      
+      // Show if class starts within 15 minutes and hasn't started yet
+      return timeDiff >= -15 && timeDiff <= 15;
+    }
+    if (selectedTab === 'today') {
+      if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
+      const today = new Date();
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const todayName = dayNames[today.getDay()];
+      return cls.schedule.day === todayName;
+    }
+    if (selectedTab === 'tomorrow') {
+      if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const tomorrowName = dayNames[tomorrow.getDay()];
+      return cls.schedule.day === tomorrowName;
+    }
+    if (selectedTab === 'this-week') {
+      if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
+      const today = new Date();
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const todayName = dayNames[today.getDay()];
+      return cls.schedule.day === todayName || cls.schedule.frequency === 'weekly';
+    }
+    if (selectedTab === 'this-month') {
+      if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
+      return cls.schedule.frequency === 'weekly' || cls.schedule.frequency === 'bi-weekly' || cls.schedule.frequency === 'monthly';
+    }
+    if (selectedTab === 'no-schedule') {
+      return cls.schedule && cls.schedule.frequency === 'no-schedule';
+    }
     if (selectedTab === 'payment-due') {
+      // Check if payment is due from month start to paid day
+      if (!cls.nextPaymentDate) return false;
+      
       const nextPayment = new Date(cls.nextPaymentDate);
       const today = new Date();
-      return nextPayment <= today && cls.paymentStatus !== 'paid';
+      
+      // Check if payment is overdue
+      if (nextPayment <= today && cls.paymentStatus !== 'paid') return true;
+      
+      // Check if it's a monthly payment and we're in the payment period
+      if (cls.paymentTracking && (cls.paymentTracking.enabled || cls.paymentTracking === true)) {
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const paymentDay = new Date(cls.nextPaymentDate);
+        
+        // If we're between month start and payment day, and payment status is not paid
+        if (today >= monthStart && today <= paymentDay && cls.paymentStatus !== 'paid') {
+          return true;
+        }
+      }
+      
+      return false;
     }
-      if (selectedTab === 'overdue') return cls.paymentStatus === 'overdue';
-      if (selectedTab === 'late-payment') return cls.paymentStatus === 'late_payment';
-      if (selectedTab === 'with-exams') return cls.hasExams;
-      if (selectedTab === 'with-tutes') return cls.hasTutes;
-      if (selectedTab === 'online') return cls.deliveryMethod === 'online';
-      if (selectedTab === 'physical') return cls.deliveryMethod === 'physical';
-      if (selectedTab === 'hybrid') return cls.deliveryMethod === 'hybrid';
-      if (selectedTab === 'theory') return cls.courseType === 'theory';
-      if (selectedTab === 'revision') return cls.courseType === 'revision';
-      if (selectedTab === 'both') return cls.courseType === 'both';
-              if (selectedTab === 'payment-tracking') {
-          const paymentInfo = getPaymentTrackingInfo(cls);
-          return paymentInfo.status !== 'no-tracking';
-    }
-    return cls.schedule?.frequency === selectedTab;
+    return false;
     })
     .filter(cls => {
       // Search filtering
@@ -525,21 +631,22 @@ const MyClasses = ({ onLogout }) => {
       );
     })
     .sort((a, b) => {
-      // Sorting
       switch (sortBy) {
         case 'name':
-          return (a.className || '').localeCompare(b.className || '');
-        case 'date':
-          return new Date(b.purchaseDate) - new Date(a.purchaseDate);
-        case 'payment':
-          return new Date(a.nextPaymentDate) - new Date(b.nextPaymentDate);
+          return a.className.localeCompare(b.className);
+        case 'purchased-date':
+          // Sort by enrollment date (assuming we have this data)
+          const dateA = a.enrollmentDate ? new Date(a.enrollmentDate) : new Date(0);
+          const dateB = b.enrollmentDate ? new Date(b.enrollmentDate) : new Date(0);
+          return dateB - dateA; // Most recent first
+        case 'payment-due':
+          // Sort by payment due date
+          const dueA = a.nextPaymentDate ? new Date(a.nextPaymentDate) : new Date(9999, 11, 31);
+          const dueB = b.nextPaymentDate ? new Date(b.nextPaymentDate) : new Date(9999, 11, 31);
+          return dueA - dueB; // Earliest due date first
         case 'status':
-          const priorityA = getClassPriority(a).priority;
-          const priorityB = getClassPriority(b).priority;
-          const priorityOrder = { high: 3, medium: 2, normal: 1, low: 0 };
-          return priorityOrder[priorityB] - priorityOrder[priorityA];
         default:
-          return 0;
+          return getClassPriority(b) - getClassPriority(a);
       }
   });
 
@@ -571,126 +678,115 @@ const MyClasses = ({ onLogout }) => {
   };
 
   // Handle attendance marking
-  const handleMarkAttendance = (cls) => {
-    const today = new Date().toISOString().split('T')[0];
-
-    const currentStudent = JSON.parse(localStorage.getItem('currentStudent') || '{}');
-    
-    // Ensure enrollment record exists
-    createEnrollmentRecords();
-    
-    // Get existing attendance records
-    const allAttendanceRecords = JSON.parse(localStorage.getItem('attendanceRecords') || '[]');
-    
-    // Check if attendance already marked for today
-    const existingRecord = allAttendanceRecords.find(record => 
-      record.classId === cls.id && 
-      record.date === today
-    );
-
-    if (existingRecord) {
-      alert('Attendance already marked for today!');
+  const handleMarkAttendance = async (cls) => {
+    try {
+      // Get logged-in user data
+      const userData = getUserData();
+      if (!userData || !userData.userid) {
+        alert('No logged-in user found. Please login again.');
       return;
     }
 
-    // Create new attendance record with proper student information
-    const newAttendanceRecord = {
-      id: Date.now(),
-      classId: cls.id,
-      studentId: currentStudent.studentId || 'STUDENT_001',
-      studentName: currentStudent.firstName || currentStudent.fullName || 'Unknown Student',
+      const studentId = userData.userid;
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Create attendance data
+      const attendanceData = {
       date: today,
       time: new Date().toISOString(),
       status: 'present',
       method: 'manual',
-      deliveryMethod: cls.deliveryMethod || 'online'
-    };
-
-    // Save to attendance records
-    const updatedRecords = [...allAttendanceRecords, newAttendanceRecord];
-    localStorage.setItem('attendanceRecords', JSON.stringify(updatedRecords));
-
-    // Also update local attendance for backward compatibility
-    const updatedClasses = myClasses.map(c => {
-      if (c.id === cls.id) {
-        const attendance = c.attendance || [];
-        const existingLocalRecord = attendance.find(a => a.date === today);
-        
-        if (!existingLocalRecord) {
-          attendance.push({
-            date: today,
-            status: 'present',
-            timestamp: new Date().toISOString(),
-            studentId: currentStudent.studentId || 'STUDENT_001',
-            studentName: currentStudent.firstName || currentStudent.fullName || 'Unknown Student',
-            method: 'manual'
-          });
-        }
-        
-        return { ...c, attendance };
+        deliveryMethod: cls.deliveryMethod || 'online',
+        studentId: studentId,
+        studentName: userData.firstName || userData.fullName || 'Unknown Student'
+      };
+      
+      // Mark attendance using backend API
+      const response = await markAttendance(cls.id, studentId, attendanceData);
+      
+      if (response.success) {
+        // Refresh the classes data to show updated attendance
+        await loadMyClasses();
+        alert('Attendance marked successfully!');
+      } else {
+        alert(response.message || 'Failed to mark attendance');
       }
-      return c;
-    });
-    
-    setMyClasses(updatedClasses);
-    localStorage.setItem('myClasses', JSON.stringify(updatedClasses));
-    alert('Attendance marked successfully!');
+    } catch (error) {
+      alert('Error marking attendance. Please try again.');
+    }
   };
 
   // Handle forget card request
   const handleForgetCardRequest = (cls) => {
-    setSelectedClassForForgetCard(cls);
+    setSelectedClassForRequest(cls);
     setShowForgetCardModal(true);
   };
 
   // Submit forget card request
-  const submitForgetCardRequest = () => {
-    if (selectedClassForForgetCard) {
-      const updatedClasses = myClasses.map(c => {
-        if (c.id === selectedClassForForgetCard.id) {
-          return {
-            ...c,
-            forgetCardRequested: true,
-            forgetCardRequestDate: new Date().toISOString()
-          };
+  const submitForgetCardRequest = async () => {
+    if (selectedClassForRequest) {
+      try {
+        // Get logged-in user data
+        const userData = getUserData();
+        if (!userData || !userData.userid) {
+          alert('No logged-in user found. Please login again.');
+          return;
         }
-        return c;
-      });
-      
-      setMyClasses(updatedClasses);
-      localStorage.setItem('myClasses', JSON.stringify(updatedClasses));
+        
+        const studentId = userData.userid;
+        
+        // Request forget card using backend API
+        const response = await requestForgetCard(selectedClassForRequest.id, studentId);
+        
+        if (response.success) {
+          // Refresh the classes data to show updated status
+          await loadMyClasses();
       setShowForgetCardModal(false);
-      setSelectedClassForForgetCard(null);
+          setSelectedClassForRequest(null);
       alert('Forget card request submitted successfully!');
+        } else {
+          alert(response.message || 'Failed to submit forget card request');
+        }
+      } catch (error) {
+        alert('Error submitting forget card request. Please try again.');
+      }
     }
   };
 
   // Handle late payment request
   const handleLatePaymentRequest = (cls) => {
-    setSelectedClassForLatePayment(cls);
+    setSelectedClassForRequest(cls);
     setShowLatePaymentModal(true);
   };
 
   // Submit late payment request
-  const submitLatePaymentRequest = () => {
-    if (selectedClassForLatePayment) {
-      const updatedClasses = myClasses.map(c => {
-        if (c.id === selectedClassForLatePayment.id) {
-          return {
-            ...c,
-            paymentStatus: 'late_payment',
-            latePaymentRequested: true,
-            latePaymentRequestDate: new Date().toISOString()
-          };
+  const submitLatePaymentRequest = async () => {
+    if (selectedClassForRequest) {
+      try {
+        // Get logged-in user data
+        const userData = getUserData();
+        if (!userData || !userData.userid) {
+          alert('No logged-in user found. Please login again.');
+          return;
         }
-        return c;
-      });
-      
-      setMyClasses(updatedClasses);
-      localStorage.setItem('myClasses', JSON.stringify(updatedClasses));
+        
+        const studentId = userData.userid;
+        
+        // Request late payment using backend API
+        const response = await requestLatePayment(selectedClassForRequest.id, studentId);
+        
+        if (response.success) {
+          // Refresh the classes data to show updated status
+          await loadMyClasses();
       setShowLatePaymentModal(false);
-      setSelectedClassForLatePayment(null);
+          setSelectedClassForRequest(null);
       alert('Late payment request submitted successfully! You can attend today\'s class.');
+        } else {
+          alert(response.message || 'Failed to submit late payment request');
+        }
+      } catch (error) {
+        alert('Error submitting late payment request. Please try again.');
+      }
     }
   };
 
@@ -724,25 +820,88 @@ const MyClasses = ({ onLogout }) => {
 
   const tabOptions = [
     { key: 'all', label: 'All Classes', icon: <FaEye />, count: myClasses.length },
-    { key: 'active', label: 'Active', icon: <FaCheckCircle />, count: myClasses.filter(c => c.status === 'active').length },
-    { key: 'inactive', label: 'Inactive', icon: <FaTimesCircle />, count: myClasses.filter(c => c.status === 'inactive').length },
-    { key: 'online', label: 'Online', icon: <FaVideo />, count: myClasses.filter(c => c.deliveryMethod === 'online').length },
-    { key: 'physical', label: 'Physical', icon: <FaMapMarkerAlt />, count: myClasses.filter(c => c.deliveryMethod === 'physical').length },
-    { key: 'hybrid', label: 'Hybrid', icon: <FaUsers />, count: myClasses.filter(c => c.deliveryMethod === 'hybrid').length },
-    { key: 'theory', label: 'Theory', icon: <FaBook />, count: myClasses.filter(c => c.courseType === 'theory').length },
-    { key: 'revision', label: 'Revision', icon: <FaGraduationCap />, count: myClasses.filter(c => c.courseType === 'revision').length },
-    { key: 'both', label: 'Theory + Revision', icon: <FaBook />, count: myClasses.filter(c => c.courseType === 'both').length },
-    { key: 'payment-tracking', label: 'Payment Tracking', icon: <FaMoneyBill />, count: myClasses.filter(c => c.paymentTracking && (c.paymentTracking.enabled || c.paymentTracking === true)).length },
-    { key: 'payment-due', label: 'Payment Due', icon: <FaExclamationTriangle />, count: myClasses.filter(c => {
-      const nextPayment = new Date(c.nextPaymentDate);
-      const today = new Date();
-      return nextPayment <= today && c.paymentStatus !== 'paid';
+    { key: 'live', label: 'Live Classes', icon: <FaVideo />, count: myClasses.filter(cls => {
+      if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
+      if (cls.deliveryMethod !== 'online' && cls.deliveryMethod !== 'hybrid') return false;
+      if (!cls.schedule.day || !cls.schedule.startTime) return false;
+      
+      // Check if class is starting within 15 minutes
+      const now = new Date();
+      const today = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const todayName = dayNames[today];
+      
+      // Only show classes scheduled for today
+      if (cls.schedule.day !== todayName) return false;
+      
+      // Parse class start time
+      const [hours, minutes] = cls.schedule.startTime.split(':').map(Number);
+      const classStartTime = new Date();
+      classStartTime.setHours(hours, minutes, 0, 0);
+      
+      // Calculate time difference in minutes
+      const timeDiff = (classStartTime - now) / (1000 * 60);
+      
+      // Show if class starts within 15 minutes and hasn't started yet
+      return timeDiff >= -15 && timeDiff <= 15;
     }).length },
-    { key: 'overdue', label: 'Overdue', icon: <FaTimesCircle />, count: myClasses.filter(c => c.paymentStatus === 'overdue').length },
-    { key: 'late-payment', label: 'Late Payment', icon: <FaUserClock />, count: myClasses.filter(c => c.paymentStatus === 'late_payment').length },
-    { key: 'with-exams', label: 'With Exams', icon: <FaGraduationCap />, count: myClasses.filter(c => c.hasExams).length },
-    { key: 'with-tutes', label: 'With Tutes', icon: <FaBook />, count: myClasses.filter(c => c.hasTutes).length }
+    { key: 'today', label: "Today's Classes", icon: <FaCalendar />, count: myClasses.filter(cls => {
+      if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
+      const today = new Date();
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const todayName = dayNames[today.getDay()];
+      return cls.schedule.day === todayName;
+    }).length },
+    { key: 'tomorrow', label: "Tomorrow's Classes", icon: <FaCalendarAlt />, count: myClasses.filter(cls => {
+      if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const tomorrowName = dayNames[tomorrow.getDay()];
+      return cls.schedule.day === tomorrowName;
+    }).length },
+    { key: 'this-week', label: 'This Week Classes', icon: <FaCalendarWeek />, count: myClasses.filter(cls => {
+      if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
+      const today = new Date();
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const todayName = dayNames[today.getDay()];
+      return cls.schedule.day === todayName || cls.schedule.frequency === 'weekly';
+    }).length },
+    { key: 'this-month', label: 'This Month Classes', icon: <FaCalendarAlt />, count: myClasses.filter(cls => {
+      if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
+      return cls.schedule.frequency === 'weekly' || cls.schedule.frequency === 'bi-weekly' || cls.schedule.frequency === 'monthly';
+    }).length },
+    { key: 'no-schedule', label: 'No Schedule Classes', icon: <FaClock />, count: myClasses.filter(cls => {
+      return cls.schedule && cls.schedule.frequency === 'no-schedule';
+    }).length },
+    { key: 'payment-due', label: 'Payment Due Classes', icon: <FaExclamationTriangle />, count: myClasses.filter(cls => {
+      // Check if payment is due from month start to paid day
+      if (!cls.nextPaymentDate) return false;
+      
+      const nextPayment = new Date(cls.nextPaymentDate);
+      const today = new Date();
+      
+      // Check if payment is overdue
+      if (nextPayment <= today && cls.paymentStatus !== 'paid') return true;
+      
+      // Check if it's a monthly payment and we're in the payment period
+      if (cls.paymentTracking && (cls.paymentTracking.enabled || cls.paymentTracking === true)) {
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const paymentDay = new Date(cls.nextPaymentDate);
+        
+        // If we're between month start and payment day, and payment status is not paid
+        if (today >= monthStart && today <= paymentDay && cls.paymentStatus !== 'paid') {
+          return true;
+        }
+      }
+      
+      return false;
+    }).length }
   ];
+
+  const handleRefresh = async () => {
+    await loadMyClasses();
+  };
 
   if (loading) {
     return (
@@ -791,7 +950,45 @@ const MyClasses = ({ onLogout }) => {
       <div className="p-2 sm:p-4 md:p-6">
         {/* Header with Stats */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-2 text-center">My Classes</h1>
+          <h1 className="text-2xl font-bold mb-2 text-center">
+            {selectedTab === 'live' ? (
+              <>
+                Live Classes - Starting Soon
+              </>
+            ) : selectedTab === 'today' ? (
+              <>
+                Today's Classes - {new Date().toLocaleDateString('en-US', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
+              </>
+            ) : selectedTab === 'tomorrow' ? (
+              <>
+                Tomorrow's Classes - {(() => {
+                  const tomorrow = new Date();
+                  tomorrow.setDate(tomorrow.getDate() + 1);
+                  return tomorrow.toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  });
+                })()}
+              </>
+            ) : selectedTab === 'this-week' ? (
+              'This Week\'s Classes'
+            ) : selectedTab === 'this-month' ? (
+              'This Month\'s Classes'
+            ) : selectedTab === 'no-schedule' ? (
+              'No Schedule Classes'
+            ) : selectedTab === 'payment-due' ? (
+              'Payment Due Classes'
+            ) : (
+              'My Classes'
+            )}
+          </h1>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div className="bg-blue-50 p-3 rounded-lg text-center">
               <div className="text-2xl font-bold text-blue-600">{myClasses.length}</div>
@@ -846,54 +1043,17 @@ const MyClasses = ({ onLogout }) => {
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
             >
               <option value="name">Sort by Name</option>
-              <option value="date">Sort by Date</option>
-              <option value="payment">Sort by Payment Due</option>
+              <option value="purchased-date">Sort by Purchased Date</option>
+              <option value="payment-due">Sort by Payment Due</option>
               <option value="status">Sort by Priority</option>
             </select>
-            {/* Test Button for Payment Tracking */}
             <button
-              onClick={testScenarios}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
-              title="Test Payment Tracking Scenarios"
-            >
-              <FaShieldAlt /> Test 7-Day
-            </button>
-            <button
-              onClick={loadMyClasses}
+              onClick={handleRefresh}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
               title="Refresh My Classes Data"
             >
               <FaSync /> Refresh Data
             </button>
-            {/* Test Date Selector */}
-            <select
-              value={testDate ? testDate.toISOString().split('T')[0] : ''}
-              onChange={(e) => {
-                if (e.target.value) {
-                  setTestDate(new Date(e.target.value));
-                } else {
-                  setTestDate(null);
-                }
-              }}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-            >
-              <option value="">Current Date</option>
-              <option value="2025-07-29">Day 1 (Free Access)</option>
-              <option value="2025-08-06">Day 7 (Free Access)</option>
-              <option value="2025-08-07">Day 8 (Payment Required)</option>
-              <option value="2025-08-15">Day 15 (Payment Required)</option>
-              <option value="2025-08-29">Day 31 (Payment Required)</option>
-              <option value="2025-09-19">Day 50 (Payment Required)</option>
-            </select>
-            {testDate && (
-              <button
-                onClick={() => setTestDate(null)}
-                className="px-2 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                title="Reset to Current Date"
-              >
-                Reset
-              </button>
-            )}
           </div>
         </div>
         
@@ -926,15 +1086,20 @@ const MyClasses = ({ onLogout }) => {
               const classStatus = getClassStatusInfo(cls.status);
               const priority = getClassPriority(cls);
               const paymentTrackingInfo = getPaymentTrackingInfo(cls);
-              const nextPaymentDate = new Date(cls.nextPaymentDate);
+              const nextPaymentDate = cls.nextPaymentDate ? new Date(cls.nextPaymentDate) : null;
               const today = new Date();
-              const isPaymentDue = nextPaymentDate <= today && cls.paymentStatus !== 'paid';
+              const isPaymentDue = nextPaymentDate && nextPaymentDate <= today && cls.paymentStatus !== 'paid';
               const canAttendToday = paymentTrackingInfo.canAccess && cls.status === 'active';
               const isInactive = cls.status === 'inactive';
               
-              const scheduleText = cls.schedule ? 
+              const scheduleText = cls.schedule && cls.schedule.frequency === 'no-schedule' ? 
+                'No Schedule' :
+                cls.schedule && cls.schedule.day && cls.schedule.startTime && cls.schedule.endTime ?
                 `${formatDay(cls.schedule.day)} ${formatTime(cls.schedule.startTime)}-${formatTime(cls.schedule.endTime)}` : 
                 'Schedule not set';
+
+              // Get time until class starts for live classes
+              const timeUntilClass = selectedTab === 'live' ? getTimeUntilClass(cls) : null;
 
               return (
               <BasicCard
@@ -963,6 +1128,7 @@ const MyClasses = ({ onLogout }) => {
                     </span>
                   }
                   image={getClassImage(cls.subject)}
+                  className={selectedTab === 'live' ? 'border-2 border-red-500 bg-red-50' : ''}
                   description={
                     <div className="text-xs text-gray-600 space-y-2">
                       <div className="flex items-center justify-between">
@@ -970,6 +1136,14 @@ const MyClasses = ({ onLogout }) => {
                         <span><strong>Stream:</strong> {cls.stream}</span>
                       </div>
                       <div><strong>Schedule:</strong> {scheduleText}</div>
+                      {timeUntilClass && (
+                        <div className="bg-red-50 p-2 rounded border border-red-200">
+                          <div className="flex items-center gap-1 text-red-700">
+                            <FaClock className="text-sm" />
+                            <span className="font-semibold text-sm">{timeUntilClass}</span>
+                          </div>
+                        </div>
+                      )}
                       <div className="flex items-center gap-1">
                         <span className={deliveryInfo.color}>{deliveryInfo.icon}</span>
                         <span>{deliveryInfo.text}</span>
@@ -986,7 +1160,7 @@ const MyClasses = ({ onLogout }) => {
                         <span className={classStatus.color}>{classStatus.icon}</span>
                         <span className={classStatus.color}>{classStatus.text}</span>
                       </div>
-                      <div><strong>Next Payment:</strong> {nextPaymentDate.toLocaleDateString()}</div>
+                      <div><strong>Next Payment:</strong> {nextPaymentDate ? nextPaymentDate.toLocaleDateString() : 'Not set'}</div>
                       <div><strong>Students:</strong> {cls.currentStudents || 0}/{cls.maxStudents}</div>
                       {cls.attendance && cls.attendance.length > 0 && (
                         <div><strong>Attendance:</strong> {cls.attendance.filter(a => a.status === 'present').length}/{cls.attendance.length}</div>
@@ -1100,99 +1274,28 @@ const MyClasses = ({ onLogout }) => {
                   onButtonClick={() => handleViewDetails(cls)}
                 >
                   {/* Action Buttons */}
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {canAttendToday && !isInactive && (
+                  <div className="flex flex-wrap gap-2 mt-4">
                       <button
                         onClick={() => handleJoinClass(cls)}
-                        className="bg-blue-600 text-white text-xs px-2 py-1 rounded hover:bg-blue-700 flex items-center gap-1"
-                        title="Join Class"
+                      className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 flex items-center gap-1"
                       >
                         <FaPlay /> Join
                       </button>
-                    )}
-                    
-                    {canAttendToday && !isInactive && (
-                      <button
-                        onClick={() => handleMarkAttendance(cls)}
-                        className="bg-green-600 text-white text-xs px-2 py-1 rounded hover:bg-green-700 flex items-center gap-1"
-                        title="Mark Attendance"
-                      >
-                        <FaCheckCircle /> Attend
-                      </button>
-                    )}
-                    
-                    {isInactive && (
-                      <button
-                        disabled
-                        className="bg-gray-400 text-white text-xs px-2 py-1 rounded cursor-not-allowed flex items-center gap-1"
-                        title="Class is inactive"
-                      >
-                        <FaTimesCircle /> Inactive
-                      </button>
-                    )}
-                    
-                    {cls.hasExams && (
-                      <button
-                        onClick={() => handleExamAccess(cls)}
-                        className="bg-purple-600 text-white text-xs px-2 py-1 rounded hover:bg-purple-700 flex items-center gap-1"
-                        title="Access Exams"
-                      >
-                        <FaGraduationCap /> Exams
-                      </button>
-                    )}
-                    
-                    {cls.hasTutes && (
-                      <button
-                        onClick={() => handleTuteAccess(cls)}
-                        className="bg-green-600 text-white text-xs px-2 py-1 rounded hover:bg-green-700 flex items-center gap-1"
-                        title="Access Tutes"
-                      >
-                        <FaBook /> Tutes
-                      </button>
-                    )}
-                    
-                    <button
-                      onClick={() => handleViewSchedule(cls)}
-                      className="bg-gray-600 text-white text-xs px-2 py-1 rounded hover:bg-gray-700 flex items-center gap-1"
-                      title="View Schedule"
-                    >
-                      <FaCalendar /> Schedule
-                    </button>
-                    
-                    <button
-                      onClick={() => handleNotifications(cls)}
-                      className="bg-yellow-600 text-white text-xs px-2 py-1 rounded hover:bg-yellow-700 flex items-center gap-1"
-                      title="Notifications"
-                    >
-                      <FaBell /> Notify
-                    </button>
-                    
-                    {!cls.forgetCardRequested && (
-                      <button
-                        onClick={() => handleForgetCardRequest(cls)}
-                        className="bg-orange-600 text-white text-xs px-2 py-1 rounded hover:bg-orange-700 flex items-center gap-1"
-                        title="Request Forget Card"
-                      >
-                        <FaQrcode /> Forget Card
-                      </button>
-                    )}
-                    
-                    {cls.paymentStatus === 'overdue' && !cls.latePaymentRequested && (
-                      <button
-                        onClick={() => handleLatePaymentRequest(cls)}
-                        className="bg-red-600 text-white text-xs px-2 py-1 rounded hover:bg-red-700 flex items-center gap-1"
-                        title="Request Late Payment"
-                      >
-                        <FaExclamationCircle /> Late Pay
-                      </button>
-                    )}
                   </div>
                 </BasicCard>
               );
             })
           ) : (
             <div className="text-center text-gray-500 col-span-full mt-8">
-              {selectedTab === 'all' && !searchTerm ? 'You have not purchased any classes yet.' : `No ${selectedTab} classes found.`}
+              {selectedTab === 'all' && !searchTerm ? 'You have not purchased any classes yet.' : 
+               selectedTab === 'live' ? 'No live classes starting soon.' :
+               selectedTab === 'today' ? 'No classes scheduled for today.' :
+               selectedTab === 'tomorrow' ? 'No classes scheduled for tomorrow.' :
+               selectedTab === 'this-week' ? 'No classes scheduled for this week.' :
+               selectedTab === 'this-month' ? 'No classes scheduled for this month.' :
+               selectedTab === 'no-schedule' ? 'No classes without schedule.' :
+               selectedTab === 'payment-due' ? 'No payment due classes.' :
+               `No ${selectedTab} classes found.`}
               {searchTerm && <div className="mt-2">Try adjusting your search terms.</div>}
             </div>
           )}
@@ -1204,7 +1307,7 @@ const MyClasses = ({ onLogout }) => {
             <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
               <h3 className="text-lg font-semibold mb-4">Request Forget Card</h3>
               <p className="text-gray-600 mb-4">
-                You are requesting a forget card for: <strong>{selectedClassForForgetCard?.className}</strong>
+                You are requesting a forget card for: <strong>{selectedClassForRequest?.className}</strong>
               </p>
               <p className="text-sm text-gray-500 mb-4">
                 This will allow you to attend the class even if you forgot your ID card.
@@ -1233,7 +1336,7 @@ const MyClasses = ({ onLogout }) => {
             <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
               <h3 className="text-lg font-semibold mb-4">Request Late Payment</h3>
               <p className="text-gray-600 mb-4">
-                You are requesting late payment for: <strong>{selectedClassForLatePayment?.className}</strong>
+                You are requesting late payment for: <strong>{selectedClassForRequest?.className}</strong>
               </p>
               <p className="text-sm text-gray-500 mb-4">
                 This will allow you to attend today's class without immediate payment.
@@ -1298,19 +1401,26 @@ const MyClasses = ({ onLogout }) => {
 
               {/* Tab Navigation */}
               <div className="border-b border-gray-200">
-                <div className="flex space-x-8 px-6">
+                <div className="flex space-x-8 px-6 overflow-x-auto" style={{
+                  scrollbarWidth: 'none', /* Firefox */
+                  msOverflowStyle: 'none', /* Internet Explorer 10+ */
+                  WebkitScrollbar: { display: 'none' } /* Safari and Chrome */
+                }}>
                   {[
                     { id: 'overview', label: 'Overview', icon: <FaInfoCircle /> },
                     { id: 'schedule', label: 'Schedule', icon: <FaCalendar /> },
                     { id: 'payments', label: 'Payments', icon: <FaMoneyBill /> },
                     { id: 'payment-tracking', label: 'Payment Tracking', icon: <FaShieldAlt /> },
                     { id: 'attendance', label: 'Attendance', icon: <FaCheckCircle /> },
-                    { id: 'actions', label: 'Actions', icon: <FaCog /> }
+                    { id: 'materials', label: 'Materials', icon: <FaFileAlt /> },
+                    { id: 'assignments', label: 'Assignments', icon: <FaTasks /> },
+                    { id: 'exams', label: 'Exams', icon: <FaGraduationCap /> },
+                    { id: 'recordings', label: 'Recordings', icon: <FaVideo /> }
                   ].map(tab => (
                     <button
                       key={tab.id}
                       onClick={() => setDetailsActiveTab(tab.id)}
-                      className={`flex items-center gap-2 py-4 px-2 border-b-2 transition-colors ${
+                      className={`flex items-center gap-2 py-4 px-2 border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${
                         detailsActiveTab === tab.id
                           ? 'border-blue-600 text-blue-600'
                           : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -1371,7 +1481,10 @@ const MyClasses = ({ onLogout }) => {
                            <FaCalendar /> <span className="font-semibold">Next Class</span>
                          </div>
                          <p className="text-lg font-bold">
-                           {formatDay(selectedClassForDetails.schedule?.day)} {formatTime(selectedClassForDetails.schedule?.startTime)}
+                           {selectedClassForDetails.schedule?.frequency === 'no-schedule' ? 
+                             'No Schedule' :
+                             `${formatDay(selectedClassForDetails.schedule?.day)} ${formatTime(selectedClassForDetails.schedule?.startTime)}`
+                           }
                          </p>
                        </div>
                        <div className="bg-green-50 p-4 rounded-lg">
@@ -1618,7 +1731,7 @@ const MyClasses = ({ onLogout }) => {
                                 <div>
                                   <div className="font-semibold">Payment #{index + 1}</div>
                                   <div className="text-sm text-gray-600">
-                                    {new Date(payment.date).toLocaleDateString()} at {new Date(payment.date).toLocaleTimeString()}
+                                    {new Date(payment.date).toLocaleDateString()} 
                                   </div>
                                   {payment.invoiceId && (
                                     <div className="text-xs text-gray-500">Invoice: {payment.invoiceId}</div>
@@ -1769,47 +1882,329 @@ const MyClasses = ({ onLogout }) => {
                   </div>
                 )}
 
-                {detailsActiveTab === 'actions' && (
+                {detailsActiveTab === 'materials' && (
                   <div className="space-y-6">
-                    <div className="bg-orange-50 p-6 rounded-lg">
+                    <div className="bg-blue-50 p-6 rounded-lg">
                       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <FaCog /> Available Actions
+                        <FaFileAlt /> Course Materials
                       </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {selectedClassForDetails.hasExams && (
-                          <button className="bg-purple-600 text-white p-3 rounded-lg hover:bg-purple-700 flex items-center gap-2">
-                            <FaGraduationCap /> Access Exams
+                      <div className="space-y-4">
+                        {/* Sample materials - in real app, this would come from teacher */}
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <FaFilePdf className="text-red-500 text-xl" />
+                              <div>
+                                <div className="font-semibold">Physics Chapter 1 Notes</div>
+                                <div className="text-sm text-gray-500">PDF • 2.5 MB • Uploaded 2 days ago</div>
+                              </div>
+                            </div>
+                            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                              <FaDownload /> Download
                           </button>
-                        )}
-                        {selectedClassForDetails.hasTutes && (
-                          <button className="bg-green-600 text-white p-3 rounded-lg hover:bg-green-700 flex items-center gap-2">
-                            <FaBook /> Access Tutes
+                          </div>
+                        </div>
+                        
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <FaFileWord className="text-blue-500 text-xl" />
+                              <div>
+                                <div className="font-semibold">Practice Problems Set 1</div>
+                                <div className="text-sm text-gray-500">DOCX • 1.8 MB • Uploaded 1 week ago</div>
+                              </div>
+                            </div>
+                            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                              <FaDownload /> Download
                           </button>
-                        )}
-                        {!selectedClassForDetails.forgetCardRequested && (
-                          <button 
-                            onClick={() => {
-                              setShowDetailsModal(false);
-                              setSelectedClassForForgetCard(selectedClassForDetails);
-                              setShowForgetCardModal(true);
-                            }}
-                            className="bg-orange-600 text-white p-3 rounded-lg hover:bg-orange-700 flex items-center gap-2"
-                          >
-                            <FaQrcode /> Request Forget Card
+                          </div>
+                        </div>
+                        
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <FaFilePowerpoint className="text-orange-500 text-xl" />
+                              <div>
+                                <div className="font-semibold">Chapter 1 Presentation</div>
+                                <div className="text-sm text-gray-500">PPTX • 5.2 MB • Uploaded 3 days ago</div>
+                              </div>
+                            </div>
+                            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                              <FaDownload /> Download
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {detailsActiveTab === 'assignments' && (
+                  <div className="space-y-6">
+                    <div className="bg-green-50 p-6 rounded-lg">
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <FaTasks /> Course Assignments
+                      </h3>
+                      <div className="space-y-4">
+                        {/* Sample assignments - in real app, this would come from teacher */}
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-sm font-medium">Active</span>
+                                <span className="text-sm text-gray-500">Due: Dec 15, 2025</span>
+                              </div>
+                              <h4 className="font-semibold text-lg mb-2">Assignment 1: Mechanics Problems</h4>
+                              <p className="text-gray-600 mb-3">Solve problems 1-10 from Chapter 2. Show all your work and submit as PDF.</p>
+                              <div className="flex items-center gap-4 text-sm text-gray-500">
+                                <span>📄 PDF Required</span>
+                                <span>⏰ 2 hours estimated</span>
+                                <span>📊 15% of grade</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2 ml-4">
+                              <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
+                                <FaDownload /> Download
                           </button>
-                        )}
-                        {selectedClassForDetails.paymentStatus === 'overdue' && !selectedClassForDetails.latePaymentRequested && (
-                          <button 
-                            onClick={() => {
-                              setShowDetailsModal(false);
-                              setSelectedClassForLatePayment(selectedClassForDetails);
-                              setShowLatePaymentModal(true);
-                            }}
-                            className="bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 flex items-center gap-2"
-                          >
-                            <FaExclamationCircle /> Request Late Payment
+                              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                                <FaUpload /> Submit
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-sm font-medium">Upcoming</span>
+                                <span className="text-sm text-gray-500">Due: Dec 20, 2025</span>
+                              </div>
+                              <h4 className="font-semibold text-lg mb-2">Assignment 2: Lab Report</h4>
+                              <p className="text-gray-600 mb-3">Write a detailed lab report on the pendulum experiment. Include graphs and analysis.</p>
+                              <div className="flex items-center gap-4 text-sm text-gray-500">
+                                <span>📝 Word/PDF</span>
+                                <span>⏰ 4 hours estimated</span>
+                                <span>📊 20% of grade</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2 ml-4">
+                              <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
+                                <FaDownload /> Download
+                              </button>
+                              <button className="px-4 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed flex items-center gap-2">
+                                <FaClock /> Not Available Yet
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm font-medium">Submitted</span>
+                                <span className="text-sm text-gray-500">Submitted: Dec 10, 2025</span>
+                              </div>
+                              <h4 className="font-semibold text-lg mb-2">Assignment 0: Introduction</h4>
+                              <p className="text-gray-600 mb-3">Brief introduction assignment to get familiar with the course.</p>
+                              <div className="flex items-center gap-4 text-sm text-gray-500">
+                                <span>✅ Submitted</span>
+                                <span>📊 5% of grade</span>
+                                <span>⏳ Grading in progress</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2 ml-4">
+                              <button className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2">
+                                <FaEye /> View Submission
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {detailsActiveTab === 'exams' && (
+                  <div className="space-y-6">
+                    <div className="bg-purple-50 p-6 rounded-lg">
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <FaGraduationCap /> Course Exams
+                      </h3>
+                      <div className="space-y-4">
+                        {/* Sample exams - in real app, this would come from teacher */}
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-sm font-medium">Available</span>
+                                <span className="text-sm text-gray-500">Duration: 2 hours</span>
+                              </div>
+                              <h4 className="font-semibold text-lg mb-2">Midterm Exam - Mechanics</h4>
+                              <p className="text-gray-600 mb-3">Comprehensive exam covering chapters 1-5. Multiple choice and problem solving.</p>
+                              <div className="flex items-center gap-4 text-sm text-gray-500">
+                                <span>📝 50 questions</span>
+                                <span>⏰ 120 minutes</span>
+                                <span>📊 30% of grade</span>
+                                <span>🔄 2 attempts allowed</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2 ml-4">
+                              <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2">
+                                <FaPlay /> Start Exam
                           </button>
-                        )}
+                              <button className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2">
+                                <FaEye /> View Instructions
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-sm font-medium">Upcoming</span>
+                                <span className="text-sm text-gray-500">Available: Dec 25, 2025</span>
+                              </div>
+                              <h4 className="font-semibold text-lg mb-2">Final Exam - Complete Course</h4>
+                              <p className="text-gray-600 mb-3">Final comprehensive exam covering all course material.</p>
+                              <div className="flex items-center gap-4 text-sm text-gray-500">
+                                <span>📝 100 questions</span>
+                                <span>⏰ 180 minutes</span>
+                                <span>📊 40% of grade</span>
+                                <span>🔄 1 attempt only</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2 ml-4">
+                              <button className="px-4 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed flex items-center gap-2">
+                                <FaClock /> Not Available Yet
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm font-medium">Completed</span>
+                                <span className="text-sm text-gray-500">Completed: Dec 5, 2025</span>
+                              </div>
+                              <h4 className="font-semibold text-lg mb-2">Quiz 1 - Introduction</h4>
+                              <p className="text-gray-600 mb-3">Short quiz to test basic understanding of course concepts.</p>
+                              <div className="flex items-center gap-4 text-sm text-gray-500">
+                                <span>✅ Completed</span>
+                                <span>📊 Score: 85/100</span>
+                                <span>📊 10% of grade</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2 ml-4">
+                              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                                <FaEye /> View Results
+                              </button>
+                              <button className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2">
+                                <FaRedo /> Review Answers
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {detailsActiveTab === 'recordings' && (
+                  <div className="space-y-6">
+                    <div className="bg-red-50 p-6 rounded-lg">
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <FaVideo /> Class Recordings
+                      </h3>
+                      <div className="space-y-4">
+                        {/* Sample recordings - in real app, this would come from teacher */}
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-3 flex-1">
+                              <div className="w-16 h-12 bg-gray-200 rounded flex items-center justify-center">
+                                <FaPlay className="text-gray-500" />
+                              </div>
+                              <div>
+                                <h4 className="font-semibold">Class 1: Introduction to Mechanics</h4>
+                                <div className="text-sm text-gray-500">Duration: 1h 25m • Recorded: Dec 1, 2025</div>
+                                <div className="text-xs text-gray-400 mt-1">Topics: Newton's Laws, Force, Motion</div>
+                              </div>
+                            </div>
+                            <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2">
+                              <FaPlay /> Watch
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-3 flex-1">
+                              <div className="w-16 h-12 bg-gray-200 rounded flex items-center justify-center">
+                                <FaPlay className="text-gray-500" />
+                              </div>
+                              <div>
+                                <h4 className="font-semibold">Class 2: Kinematics and Dynamics</h4>
+                                <div className="text-sm text-gray-500">Duration: 1h 42m • Recorded: Dec 3, 2025</div>
+                                <div className="text-xs text-gray-400 mt-1">Topics: Velocity, Acceleration, Free Fall</div>
+                              </div>
+                            </div>
+                            <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2">
+                              <FaPlay /> Watch
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-3 flex-1">
+                              <div className="w-16 h-12 bg-gray-200 rounded flex items-center justify-center">
+                                <FaPlay className="text-gray-500" />
+                              </div>
+                              <div>
+                                <h4 className="font-semibold">Class 3: Energy and Work</h4>
+                                <div className="text-sm text-gray-500">Duration: 1h 18m • Recorded: Dec 5, 2025</div>
+                                <div className="text-xs text-gray-400 mt-1">Topics: Kinetic Energy, Potential Energy, Conservation</div>
+                              </div>
+                            </div>
+                            <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2">
+                              <FaPlay /> Watch
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-white p-4 rounded-lg border">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-3 flex-1">
+                              <div className="w-16 h-12 bg-gray-200 rounded flex items-center justify-center">
+                                <FaPlay className="text-gray-500" />
+                              </div>
+                              <div>
+                                <h4 className="font-semibold">Review Session: Exam Preparation</h4>
+                                <div className="text-sm text-gray-500">Duration: 2h 15m • Recorded: Dec 7, 2025</div>
+                                <div className="text-xs text-gray-400 mt-1">Topics: Practice Problems, Q&A, Tips</div>
+                              </div>
+                            </div>
+                            <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2">
+                              <FaPlay /> Watch
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-6 bg-blue-50 p-4 rounded-lg">
+                        <h4 className="font-semibold mb-2">Recording Features:</h4>
+                        <ul className="text-sm text-gray-600 space-y-1">
+                          <li>• HD quality video recordings</li>
+                          <li>• Playback speed control (0.5x to 2x)</li>
+                          <li>• Searchable transcripts</li>
+                          <li>• Bookmark important moments</li>
+                          <li>• Download for offline viewing</li>
+                        </ul>
                       </div>
                     </div>
                   </div>

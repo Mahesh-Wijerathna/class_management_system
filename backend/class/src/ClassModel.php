@@ -7,10 +7,20 @@ class ClassModel {
     }
 
     public function createClass($data) {
-        // Prepare payment tracking JSON
+        // Prepare payment tracking - handle both boolean and object formats
         $paymentTracking = null;
-        if (isset($data['paymentTracking']) && $data['paymentTracking']) {
-            $paymentTracking = json_encode($data['paymentTracking']);
+        if (isset($data['paymentTracking'])) {
+            if (is_bool($data['paymentTracking'])) {
+                // If it's a boolean, use it directly
+                $paymentTracking = $data['paymentTracking'] ? true : null;
+            } else if (is_array($data['paymentTracking']) || is_object($data['paymentTracking'])) {
+                // If it's an object/array, check if enabled is true
+                $paymentTrackingData = is_array($data['paymentTracking']) ? $data['paymentTracking'] : (array)$data['paymentTracking'];
+                $paymentTracking = isset($paymentTrackingData['enabled']) && $paymentTrackingData['enabled'] ? true : null;
+            } else {
+                // If it's a string or other type, treat as boolean
+                $paymentTracking = $data['paymentTracking'] ? true : null;
+            }
         }
 
         $stmt = $this->conn->prepare("
@@ -30,10 +40,31 @@ class ClassModel {
         $stream = $data['stream'] ?? '';
         $deliveryMethod = $data['deliveryMethod'] ?? '';
         $deliveryOther = $data['deliveryOther'] ?? null;
-        $scheduleDay = $data['schedule']['day'] ?? '';
-        $scheduleStartTime = $data['schedule']['startTime'] ?? '';
-        $scheduleEndTime = $data['schedule']['endTime'] ?? '';
-        $scheduleFrequency = $data['schedule']['frequency'] ?? 'weekly';
+        
+        // Handle schedule data - support both nested schedule object and direct fields
+        $scheduleDay = null;
+        $scheduleStartTime = null;
+        $scheduleEndTime = null;
+        $scheduleFrequency = 'weekly';
+        
+        if (isset($data['schedule']) && is_array($data['schedule'])) {
+            // Nested schedule object format
+            $scheduleFrequency = $data['schedule']['frequency'] ?? 'weekly';
+            if ($scheduleFrequency !== 'no-schedule') {
+                $scheduleDay = $data['schedule']['day'] ?? '';
+                $scheduleStartTime = $data['schedule']['startTime'] ?? '';
+                $scheduleEndTime = $data['schedule']['endTime'] ?? '';
+            }
+        } else {
+            // Direct schedule fields format
+            $scheduleFrequency = $data['scheduleFrequency'] ?? 'weekly';
+            if ($scheduleFrequency !== 'no-schedule') {
+                $scheduleDay = $data['scheduleDay'] ?? '';
+                $scheduleStartTime = $data['scheduleStartTime'] ?? '';
+                $scheduleEndTime = $data['scheduleEndTime'] ?? '';
+            }
+        }
+        
         $startDate = $data['startDate'] ?? '';
         $endDate = $data['endDate'] ?? '';
         $maxStudents = $data['maxStudents'] ?? 0;
@@ -82,7 +113,24 @@ class ClassModel {
             $status
         );
 
-        return $stmt->execute();
+        if ($stmt->execute()) {
+            $classId = $this->conn->insert_id;
+            return [
+                'success' => true,
+                'message' => 'Class created successfully',
+                'data' => [
+                    'id' => $classId,
+                    'className' => $className,
+                    'subject' => $subject,
+                    'teacher' => $teacher
+                ]
+            ];
+        } else {
+            return [
+                'success' => false,
+                'message' => 'Failed to create class: ' . $stmt->error
+            ];
+        }
     }
 
     public function getClassById($id) {
@@ -124,10 +172,31 @@ class ClassModel {
         $stream = $data['stream'] ?? '';
         $deliveryMethod = $data['deliveryMethod'] ?? '';
         $deliveryOther = $data['deliveryOther'] ?? null;
-        $scheduleDay = $data['schedule']['day'] ?? '';
-        $scheduleStartTime = $data['schedule']['startTime'] ?? '';
-        $scheduleEndTime = $data['schedule']['endTime'] ?? '';
-        $scheduleFrequency = $data['schedule']['frequency'] ?? 'weekly';
+        
+        // Handle schedule data - support both nested schedule object and direct fields
+        $scheduleDay = null;
+        $scheduleStartTime = null;
+        $scheduleEndTime = null;
+        $scheduleFrequency = 'weekly';
+        
+        if (isset($data['schedule']) && is_array($data['schedule'])) {
+            // Nested schedule object format
+            $scheduleFrequency = $data['schedule']['frequency'] ?? 'weekly';
+            if ($scheduleFrequency !== 'no-schedule') {
+                $scheduleDay = $data['schedule']['day'] ?? '';
+                $scheduleStartTime = $data['schedule']['startTime'] ?? '';
+                $scheduleEndTime = $data['schedule']['endTime'] ?? '';
+            }
+        } else {
+            // Direct schedule fields format
+            $scheduleFrequency = $data['scheduleFrequency'] ?? 'weekly';
+            if ($scheduleFrequency !== 'no-schedule') {
+                $scheduleDay = $data['scheduleDay'] ?? '';
+                $scheduleStartTime = $data['scheduleStartTime'] ?? '';
+                $scheduleEndTime = $data['scheduleEndTime'] ?? '';
+            }
+        }
+        
         $startDate = $data['startDate'] ?? '';
         $endDate = $data['endDate'] ?? '';
         $maxStudents = $data['maxStudents'] ?? 0;
@@ -274,7 +343,7 @@ class ClassModel {
         $zoomLink = $data['zoomLink'] ?? null;
         $hall = $data['hall'] ?? null;
         $description = $data['description'] ?? null;
-        $status = $data['status'] ?? 'active';
+        $status = $data['status'] ?? 'scheduled';
         $createdBy = $data['teacherId'] ?? '';
 
         $stmt->bind_param("issssssssssssss", 
@@ -282,7 +351,25 @@ class ClassModel {
             $startTime, $endTime, $deliveryMethod, $deliveryOther, $zoomLink, $hall, $description, $status, $createdBy
         );
 
-        return $stmt->execute();
+        if ($stmt->execute()) {
+            $scheduleId = $this->conn->insert_id;
+            return [
+                'success' => true,
+                'message' => 'Session schedule created successfully',
+                'data' => [
+                    'id' => $scheduleId,
+                    'className' => $className,
+                    'subject' => $subject,
+                    'teacher' => $teacher,
+                    'sessionDate' => $sessionDate
+                ]
+            ];
+        } else {
+            return [
+                'success' => false,
+                'message' => 'Failed to create session schedule: ' . $stmt->error
+            ];
+        }
     }
 
     public function getSessionSchedulesByTeacher($teacherId) {
@@ -332,7 +419,7 @@ class ClassModel {
         $zoomLink = $data['zoomLink'] ?? null;
         $hall = $data['hall'] ?? null;
         $description = $data['description'] ?? null;
-        $status = $data['status'] ?? 'active';
+        $status = $data['status'] ?? 'scheduled';
 
         $stmt->bind_param("sssssssssssssi", 
             $subject, $className, $teacher, $teacherId, $sessionDate,
@@ -387,18 +474,25 @@ class ClassModel {
             'stream' => $row['stream'],
             'deliveryMethod' => $row['delivery_method'],
             'deliveryOther' => $row['delivery_other'],
+            // Nested schedule object (for compatibility with existing frontend)
             'schedule' => [
-                'day' => $row['schedule_day'],
-                'startTime' => $row['schedule_start_time'],
-                'endTime' => $row['schedule_end_time'],
+                'day' => $row['schedule_day'] ?? '',
+                'startTime' => $row['schedule_start_time'] ?? '',
+                'endTime' => $row['schedule_end_time'] ?? '',
                 'frequency' => $row['schedule_frequency']
             ],
+            // Direct schedule fields (for API compatibility)
+            'schedule_frequency' => $row['schedule_frequency'],
+            'schedule_day' => $row['schedule_day'] ?? '',
+            'schedule_start_time' => $row['schedule_start_time'] ?? '',
+            'schedule_end_time' => $row['schedule_end_time'] ?? '',
             'startDate' => $row['start_date'],
             'endDate' => $row['end_date'],
             'maxStudents' => (int)$row['max_students'],
             'fee' => (float)$row['fee'],
             'paymentTracking' => $paymentTracking,
             'paymentTrackingFreeDays' => (int)$row['payment_tracking_free_days'],
+            'payment_frequency' => $row['payment_frequency'],
             'zoomLink' => $row['zoom_link'],
             'description' => $row['description'],
             'courseType' => $row['course_type'],
