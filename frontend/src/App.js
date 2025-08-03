@@ -1,6 +1,6 @@
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { authRoutes, adminRoutes, adminDashboardRoutes, teacherRoutes, studentRoutes } from './routes';
+import { authRoutes, adminRoutes, adminDashboardRoutes, teacherRoutes, studentRoutes, cashierRoutes } from './routes';
 
 import AuthGuard from './components/AuthGuard';
 import PublicRoute from './components/PublicRoute';
@@ -65,6 +65,15 @@ function App() {
             key={index} 
             path={route.path} 
             element={<AuthGuard requiredRole="student">{route.element}</AuthGuard>} 
+          />
+        ))}
+
+        {/* Cashier Routes - Protected */}
+        {cashierRoutes.map((route, index) => (
+          <Route 
+            key={index} 
+            path={route.path} 
+            element={<AuthGuard requiredRole="cashier">{route.element}</AuthGuard>} 
           />
         ))}
       </Routes>
