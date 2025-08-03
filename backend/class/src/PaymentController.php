@@ -195,9 +195,14 @@ class PaymentController {
                 $enrollmentStatus = 'paid';
                 $enrollmentDate = date('Y-m-d');
                 
+                $userId = $payment['user_id'];
+                $classId = $payment['class_id'];
+                $amount = $payment['amount'];
+                $paymentMethod = $paymentData['paymentMethod'];
+                
                 $enrollmentStmt->bind_param("sisdsssss", 
-                    $payment['user_id'], $payment['class_id'], $enrollmentDate, $payment['amount'], $enrollmentStatus, 
-                    $paymentData['paymentMethod'], $transactionId, $nextPaymentDate, $paymentHistory
+                    $userId, $classId, $enrollmentDate, $amount, $enrollmentStatus, 
+                    $paymentMethod, $transactionId, $nextPaymentDate, $paymentHistory
                 );
                 
                 if (!$enrollmentStmt->execute()) {
@@ -212,8 +217,13 @@ class PaymentController {
                         enrollment_id, amount, payment_method, reference_number, status, notes
                     ) VALUES (?, ?, ?, ?, ?, ?)
                 ");
+                $amount = $payment['amount'];
+                $paymentMethod = $paymentData['paymentMethod'];
+                $referenceNumber = $paymentData['referenceNumber'];
+                $notes = $paymentData['notes'] ?? '';
+                
                 $paymentHistoryStmt->bind_param("idssss", 
-                    $enrollmentId, $payment['amount'], $paymentData['paymentMethod'], $paymentData['referenceNumber'], 'completed', $paymentData['notes'] ?? ''
+                    $enrollmentId, $amount, $paymentMethod, $referenceNumber, 'completed', $notes
                 );
                 $paymentHistoryStmt->execute();
                 
@@ -250,7 +260,9 @@ class PaymentController {
                 SELECT id FROM enrollments 
                 WHERE class_id = ? AND student_id = ?
             ");
-            $stmt->bind_param("ss", $payment['class_id'], $payment['user_id']);
+            $classId = $payment['class_id'];
+            $userId = $payment['user_id'];
+            $stmt->bind_param("ss", $classId, $userId);
             $stmt->execute();
             $result = $stmt->get_result();
             
@@ -262,7 +274,7 @@ class PaymentController {
                         updated_at = NOW()
                     WHERE class_id = ? AND student_id = ?
                 ");
-                $stmt->bind_param("ss", $payment['class_id'], $payment['user_id']);
+                $stmt->bind_param("ss", $classId, $userId);
                 $stmt->execute();
                 return;
             }
@@ -287,14 +299,14 @@ class PaymentController {
                 'transactionId' => $payment['transaction_id']
             ]]);
             
+            $classId = $payment['class_id'];
+            $userId = $payment['user_id'];
+            $personName = $payment['person_name'];
+            $paymentMethod = $payment['payment_method'];
+            $amount = $payment['amount'];
+            
             $stmt->bind_param("ssssdss", 
-                $payment['class_id'],
-                $payment['user_id'],
-                $payment['person_name'],
-                $payment['payment_method'],
-                $payment['amount'],
-                $nextPaymentDate,
-                $paymentHistory
+                $classId, $userId, $personName, $paymentMethod, $amount, $nextPaymentDate, $paymentHistory
             );
             
             $stmt->execute();

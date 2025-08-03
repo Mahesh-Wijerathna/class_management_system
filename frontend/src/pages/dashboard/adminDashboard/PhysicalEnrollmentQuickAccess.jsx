@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { FaSpinner } from 'react-icons/fa';
-import { MdPayment, MdReceipt, MdPersonAdd, MdClass, MdAttachMoney, MdDateRange, MdReceiptLong, MdEdit, MdDelete, MdCheckCircle, MdWarning, MdInfo, MdError, MdSuccess, MdPending, MdClose, MdSearch, MdRefresh, MdSchool, MdPerson, MdGroup, MdToday, MdArrowBack, MdPhone, MdEmail, MdLocationOn, MdBadge } from 'react-icons/md';
+import { MdPayment, MdReceipt, MdPersonAdd, MdClass, MdAttachMoney, MdDateRange, MdReceiptLong, MdEdit, MdDelete, MdCheckCircle, MdWarning, MdInfo, MdError, MdSuccess, MdPending, MdClose, MdSearch, MdRefresh, MdSchool, MdPerson, MdGroup, MdToday, MdArrowBack, MdPhone, MdEmail, MdLocationOn, MdBadge, MdTouchApp, MdList, MdQrCode, MdPrint, MdDownload } from 'react-icons/md';
 import * as Yup from 'yup';
 import Receipt from '../../../components/Receipt';
 import BasicTable from '../../../components/BasicTable';
+import StudentsPurchasedClasses from './StudentsPurchasedClasses';
 import { getAllStudents } from '../../../api/auth';
 import { getActiveClasses } from '../../../api/classes';
 
@@ -21,37 +22,41 @@ const validationSchema = Yup.object().shape({
   speedPostFee: Yup.number().min(0, 'Speed post fee cannot be negative')
 });
 
-  const StudentsPurchasedClasses = () => {
-  // State Management
-    const [purchasedClasses, setPurchasedClasses] = useState([]);
-    const [students, setStudents] = useState([]);
-    const [availableClasses, setAvailableClasses] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
+const PhysicalEnrollmentQuickAccess = () => {
+  const [currentView, setCurrentView] = useState('dashboard');
+  const [isLoading, setIsLoading] = useState(false);
+  const [quickStats, setQuickStats] = useState({
+    totalEnrollments: 0,
+    todayEnrollments: 0,
+    pendingPayments: 0,
+    totalRevenue: 0,
+    totalStudents: 0,
+    totalClasses: 0
+  });
+
+  // Enrollment System States
   const [showEnrollmentModal, setShowEnrollmentModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [editingRecord, setEditingRecord] = useState(null);
-  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
-  const [recordToDelete, setRecordToDelete] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState('all');
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [currentPaymentData, setCurrentPaymentData] = useState(null);
-  const [processingPayment, setProcessingPayment] = useState(false);
+  const [students, setStudents] = useState([]);
+  const [availableClasses, setAvailableClasses] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedClass, setSelectedClass] = useState(null);
+  const [studentSearchTerm, setStudentSearchTerm] = useState('');
+  const [filteredStudents, setFilteredStudents] = useState([]);
+  const [studentDetails, setStudentDetails] = useState(null);
+  const [showStudentSearch, setShowStudentSearch] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState(0);
   const [discount, setDiscount] = useState(0);
   const [speedPostFee, setSpeedPostFee] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [showStudentSearch, setShowStudentSearch] = useState(false);
-  const [studentSearchTerm, setStudentSearchTerm] = useState('');
-  const [filteredStudents, setFilteredStudents] = useState([]);
-  const [studentDetails, setStudentDetails] = useState(null);
+  const [processingPayment, setProcessingPayment] = useState(false);
+  const [currentPaymentData, setCurrentPaymentData] = useState(null);
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
-  // Load data from database on component mount
   useEffect(() => {
+    loadQuickStats();
     loadDataFromDatabase();
   }, []);
 
@@ -73,12 +78,9 @@ const validationSchema = Yup.object().shape({
 
   const loadDataFromDatabase = async () => {
     try {
-      setIsLoading(true);
-      
       // Load students from database
       const studentsResponse = await getAllStudents();
       if (studentsResponse.success) {
-        // Transform student data to match the expected format
         const studentData = studentsResponse.students?.map(student => ({
           studentId: student.userid,
           firstName: student.firstName || '',
@@ -101,49 +103,58 @@ const validationSchema = Yup.object().shape({
           enrolledClasses: []
         })) || [];
         setStudents(studentData);
-      } else {
-        console.error('Failed to load students:', studentsResponse.message);
-        setStudents([]);
       }
 
       // Load classes from database
       const classesResponse = await getActiveClasses();
       if (classesResponse.success) {
         setAvailableClasses(classesResponse.data || []);
-      } else {
-        console.error('Failed to load classes:', classesResponse.message);
-        setAvailableClasses([]);
-      }
-
-      // Load existing purchased classes from localStorage (for now)
-      // In a real implementation, this would come from a database
-      const storedPurchasedClasses = localStorage.getItem('purchasedClasses');
-      if (storedPurchasedClasses) {
-        const parsedPurchasedClasses = JSON.parse(storedPurchasedClasses);
-        setPurchasedClasses(Array.isArray(parsedPurchasedClasses) ? parsedPurchasedClasses : []);
-      } else {
-        setPurchasedClasses([]);
       }
     } catch (error) {
       console.error('Error loading data from database:', error);
-      setStudents([]);
-      setAvailableClasses([]);
-      setPurchasedClasses([]);
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  // Search student by ID and display details
-  const searchStudentById = (studentId) => {
-    const student = students.find(s => s.studentId === studentId);
-    if (student) {
-      setStudentDetails(student);
-      setSelectedStudent(student);
-      setShowStudentSearch(false);
-    } else {
-      setStudentDetails(null);
-      setSelectedStudent(null);
+  const loadQuickStats = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Load students from database
+      const studentsResponse = await getAllStudents();
+      const totalStudents = studentsResponse.success ? (studentsResponse.students || []).length : 0;
+      
+      // Load classes from database
+      const classesResponse = await getActiveClasses();
+      const totalClasses = classesResponse.success ? (classesResponse.data || []).length : 0;
+      
+      // Load purchased classes from localStorage (for now)
+      const purchasedClasses = JSON.parse(localStorage.getItem('purchasedClasses') || '[]');
+      const today = new Date().toISOString().split('T')[0];
+      
+      const todayEnrollments = purchasedClasses.filter(cls => 
+        cls.purchaseDate === today
+      ).length;
+      
+      const pendingPayments = purchasedClasses.filter(cls => 
+        cls.paymentStatus === 'Pending'
+      ).length;
+      
+      const totalRevenue = purchasedClasses.reduce((sum, cls) => 
+        sum + (cls.amount || 0), 0
+      );
+
+      setQuickStats({
+        totalEnrollments: purchasedClasses.length,
+        todayEnrollments,
+        pendingPayments,
+        totalRevenue,
+        totalStudents,
+        totalClasses
+      });
+    } catch (error) {
+      console.error('Error loading quick stats:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -169,37 +180,6 @@ const validationSchema = Yup.object().shape({
     }
   };
 
-  // Filter data based on search term and selected filter
-  const filteredData = purchasedClasses.filter(record => {
-    const matchesSearch = 
-      (record.studentId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (record.firstName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (record.lastName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (record.purchasedClass || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (record.subject || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (record.teacher || '').toLowerCase().includes(searchTerm.toLowerCase());
-
-    if (selectedFilter === 'all') return matchesSearch;
-    if (selectedFilter === 'paid') return matchesSearch && record.paymentStatus === 'Paid';
-    if (selectedFilter === 'pending') return matchesSearch && record.paymentStatus === 'Pending';
-    if (selectedFilter === 'active') return matchesSearch && record.status === 'Active';
-    if (selectedFilter === 'completed') return matchesSearch && record.status === 'Completed';
-    
-    return matchesSearch;
-  });
-
-  const handleNewEnrollment = () => {
-    setSelectedStudent(null);
-    setSelectedClass(null);
-    setPaymentAmount(0);
-    setDiscount(0);
-    setSpeedPostFee(0);
-    setPaymentMethod('cash');
-    setStudentDetails(null);
-    setStudentSearchTerm('');
-    setShowEnrollmentModal(true);
-  };
-
   const handleStudentSelect = (student) => {
     setSelectedStudent(student);
     setStudentDetails(student);
@@ -213,6 +193,25 @@ const validationSchema = Yup.object().shape({
     setSpeedPostFee(0);
   };
 
+  const calculateTotal = () => {
+    const baseAmount = paymentAmount || 0;
+    const discountAmount = (baseAmount * (discount || 0)) / 100;
+    const finalAmount = baseAmount - discountAmount + (speedPostFee || 0);
+    return Math.max(0, finalAmount);
+  };
+
+  const handleQuickEnrollment = () => {
+    setSelectedStudent(null);
+    setSelectedClass(null);
+    setPaymentAmount(0);
+    setDiscount(0);
+    setSpeedPostFee(0);
+    setPaymentMethod('cash');
+    setStudentDetails(null);
+    setStudentSearchTerm('');
+    setShowEnrollmentModal(true);
+  };
+
   const handleProceedToPayment = () => {
     if (!selectedStudent || !selectedClass) {
       alert('Please select both student and class');
@@ -222,49 +221,91 @@ const validationSchema = Yup.object().shape({
     setShowPaymentModal(true);
   };
 
-  const calculateTotal = () => {
-    const baseAmount = paymentAmount || 0;
-    const discountAmount = (baseAmount * (discount || 0)) / 100;
-    const finalAmount = baseAmount - discountAmount + (speedPostFee || 0);
-    return Math.max(0, finalAmount);
-  };
-
   const handleProcessPayment = async () => {
     setProcessingPayment(true);
     
     try {
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
       const totalAmount = calculateTotal();
       const transactionId = `TXN${Date.now()}`;
       const receiptNumber = `RCP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       
+      // Step 1: Create payment record in the database
+      const paymentResponse = await fetch('http://localhost:8087/routes.php/create_payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          studentId: selectedStudent.studentId,
+          classId: selectedClass.id,
+          amount: totalAmount,
+          paymentMethod: paymentMethod,
+          transactionId: transactionId
+        })
+      });
+
+      if (!paymentResponse.ok) {
+        throw new Error('Failed to create payment record');
+      }
+
+      const paymentResult = await paymentResponse.json();
+      console.log('Payment created:', paymentResult);
+
+      // Step 2: Create enrollment record in the database
+      const enrollmentResponse = await fetch('http://localhost:8087/routes.php/create_enrollment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          class_id: selectedClass.id,
+          student_id: selectedStudent.studentId,
+          student_name: `${selectedStudent.firstName} ${selectedStudent.lastName}`,
+          enrollment_date: new Date().toISOString().split('T')[0],
+          status: 'enrolled',
+          payment_status: 'paid',
+          payment_method: paymentMethod,
+          amount_paid: totalAmount,
+          next_payment_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // 30 days from now
+        })
+      });
+
+      if (!enrollmentResponse.ok) {
+        throw new Error('Failed to create enrollment record');
+      }
+
+      const enrollmentResult = await enrollmentResponse.json();
+      console.log('Enrollment created:', enrollmentResult);
+
+      // Step 3: Verify the enrollment was saved correctly
+      const verifyResponse = await fetch(`http://localhost:8087/routes.php/get_student_enrollments?studentId=${selectedStudent.studentId}`);
+      if (verifyResponse.ok) {
+        const verifyResult = await verifyResponse.json();
+        console.log('Verification - Student enrollments:', verifyResult);
+      }
+
+      // Step 4: Update localStorage for frontend display (optional)
+      const existingPurchasedClasses = JSON.parse(localStorage.getItem('purchasedClasses') || '[]');
       const newEnrollment = {
         id: Date.now(),
         studentId: selectedStudent.studentId,
-        firstName: selectedStudent.firstName,
-        lastName: selectedStudent.lastName,
-        email: selectedStudent.email,
-        phone: selectedStudent.phone,
+        studentName: `${selectedStudent.firstName} ${selectedStudent.lastName}`,
         classId: selectedClass.id,
-        purchasedClass: selectedClass.className,
+        className: selectedClass.className,
         subject: selectedClass.subject,
         teacher: selectedClass.teacher,
         stream: selectedClass.stream,
         courseType: selectedClass.courseType,
-        purchaseDate: new Date().toISOString().split('T')[0],
-        status: 'Active',
-        paymentStatus: 'Paid',
         amount: totalAmount,
-        discount: discount,
-        speedPostFee: speedPostFee,
         paymentMethod: paymentMethod,
+        paymentStatus: 'Paid',
+        purchaseDate: new Date().toISOString().split('T')[0],
         transactionId: transactionId,
         receiptNumber: receiptNumber
       };
       
-      setPurchasedClasses(prev => [...prev, newEnrollment]);
+      existingPurchasedClasses.push(newEnrollment);
+      localStorage.setItem('purchasedClasses', JSON.stringify(existingPurchasedClasses));
       
       // Create payment data for receipt
       const paymentData = {
@@ -291,329 +332,391 @@ const validationSchema = Yup.object().shape({
       setShowPaymentModal(false);
       setShowReceiptModal(true);
       
-      // Show success message
-      setSuccessMessage('Payment processed successfully! Receipt generated.');
+      // Show success message with details about where data is saved
+      setSuccessMessage(`✅ Enrollment successful! 
+
+📊 Data saved to:
+• Database: Payment & enrollment records
+• Local storage: Frontend display data
+• Receipt: Generated for printing
+
+👤 Student: ${selectedStudent.firstName} ${selectedStudent.lastName} (${selectedStudent.studentId})
+📚 Class: ${selectedClass.className} - ${selectedClass.subject}
+💰 Amount: LKR ${totalAmount.toLocaleString()}
+💳 Payment: ${paymentMethod.toUpperCase()}
+🆔 Transaction: ${transactionId}
+
+You can view this enrollment in the "View All Enrollments" section.`);
       setShowSuccessAlert(true);
+      
+      // Refresh quick stats
+      loadQuickStats();
       
     } catch (error) {
       console.error('Payment processing error:', error);
-      alert('Payment processing failed. Please try again.');
+      alert(`Payment processing failed: ${error.message}. Please try again.`);
     } finally {
       setProcessingPayment(false);
     }
   };
 
-  const handleViewReceipt = (record) => {
-    const paymentData = {
-      transactionId: record.transactionId,
-      invoiceId: record.transactionId,
-      date: new Date(record.purchaseDate).toLocaleDateString(),
-      paymentMethod: record.paymentMethod,
-      firstName: record.firstName,
-      lastName: record.lastName,
-      email: record.email,
-      phone: record.phone,
-      className: record.purchasedClass,
-      subject: record.subject,
-      teacher: record.teacher,
-      stream: record.stream,
-      courseType: record.courseType,
-      basePrice: record.amount,
-      discount: record.discount,
-      speedPostFee: record.speedPostFee,
-      amount: record.amount
-    };
-    
-    setCurrentPaymentData(paymentData);
-    setShowReceiptModal(true);
+  const handleViewEnrollments = () => {
+    setCurrentView('enrollments');
   };
 
-  const handleEdit = (record) => {
-    setEditingRecord(record);
-    setSelectedStudent({
-      studentId: record.studentId,
-      firstName: record.firstName,
-      lastName: record.lastName,
-      email: record.email,
-      phone: record.phone
-    });
-    setSelectedClass({
-      id: record.classId,
-      className: record.purchasedClass,
-      subject: record.subject,
-      teacher: record.teacher,
-      stream: record.stream,
-      courseType: record.courseType,
-      fee: record.amount
-    });
-    setPaymentAmount(record.amount);
-    setDiscount(record.discount);
-    setSpeedPostFee(record.speedPostFee);
-    setPaymentMethod(record.paymentMethod);
-    setShowEnrollmentModal(true);
+  const handleBackToDashboard = () => {
+    setCurrentView('dashboard');
   };
 
-  const handleDelete = (record) => {
-    setRecordToDelete(record);
-    setShowDeleteAlert(true);
-  };
-
-  const confirmDelete = () => {
-    if (recordToDelete) {
-      setPurchasedClasses(prev => prev.filter(record => record.id !== recordToDelete.id));
-      
-      try {
-        const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
-        const updatedMyClasses = myClasses.filter(cls => 
-          !(cls.studentId === recordToDelete.studentId && 
-            (cls.classId === recordToDelete.classId || cls.id === recordToDelete.classId))
-        );
-        localStorage.setItem('myClasses', JSON.stringify(updatedMyClasses));
-      } catch (error) {
-        console.error('Error updating myClasses:', error);
-      }
-      
-      setShowDeleteAlert(false);
-      setRecordToDelete(null);
-      
-      setSuccessMessage('Enrollment record deleted successfully!');
-      setShowSuccessAlert(true);
-    }
-  };
-
-  const columns = [
-    { key: 'studentId', label: 'Student ID', render: (row) => (
-      <div className="flex items-center gap-2">
-        <MdPerson className="text-blue-600" />
-        <span className="font-medium">{row.studentId}</span>
-      </div>
-    )},
-    { key: 'studentName', label: 'Student Name', render: (row) => (
-      <div>
-        <div className="font-medium">{row.firstName} {row.lastName}</div>
-        <div className="text-sm text-gray-500">{row.email}</div>
-      </div>
-    )},
-    { key: 'classInfo', label: 'Class Information', render: (row) => (
-      <div>
-        <div className="font-medium">{row.purchasedClass}</div>
-        <div className="text-sm text-gray-500">{row.subject} • {row.teacher}</div>
-        <div className="text-xs text-gray-400">{row.stream} • {row.courseType}</div>
-      </div>
-    )},
-    { key: 'purchaseDate', label: 'Enrollment Date', render: (row) => (
-      <div className="flex items-center gap-2">
-        <MdDateRange className="text-green-600" />
-        <span>{new Date(row.purchaseDate).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-        })}</span>
-      </div>
-    )},
-    { key: 'paymentInfo', label: 'Payment Details', render: (row) => (
-      <div>
-        <div className="font-medium">LKR {row.amount?.toLocaleString()}</div>
-        <div className="text-sm text-gray-500">{row.paymentMethod}</div>
-        {row.discount > 0 && (
-          <div className="text-xs text-green-600">-{row.discount}% discount</div>
-        )}
-      </div>
-    )},
-    { key: 'paymentStatus', label: 'Payment Status', render: (row) => (
-      <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
-        row.paymentStatus === 'Paid' 
-          ? 'bg-green-100 text-green-800' 
-          : 'bg-yellow-100 text-yellow-800'
-      }`}>
-        {row.paymentStatus === 'Paid' ? <MdCheckCircle /> : <MdPending />}
-        {row.paymentStatus}
-      </span>
-    )},
-    { key: 'status', label: 'Status', render: (row) => (
-      <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-        row.status === 'Active' 
-          ? 'bg-blue-100 text-blue-800' 
-          : row.status === 'Completed'
-          ? 'bg-green-100 text-green-800'
-          : 'bg-gray-100 text-gray-800'
-      }`}>
-        {row.status}
-      </span>
-    )}
-  ];
-
-  const actions = (row) => (
-    <div className="flex gap-2">
-      <button
-        className="text-blue-600 hover:text-blue-800 transition-colors p-1 rounded"
-        title="View Receipt"
-        onClick={() => handleViewReceipt(row)}
-      >
-        <MdReceiptLong />
-      </button>
-      <button
-        className="text-green-600 hover:text-green-800 transition-colors p-1 rounded"
-        title="Edit"
-        onClick={() => handleEdit(row)}
-      >
-        <MdEdit />
-      </button>
-      <button
-        className="text-red-600 hover:text-red-800 transition-colors p-1 rounded"
-        title="Delete"
-        onClick={() => handleDelete(row)}
-      >
-        <MdDelete />
-      </button>
-    </div>
-  );
-
-  if (isLoading) {
+  if (currentView === 'enrollment') {
     return (
-      <div className="w-full max-w-7xl mx-auto p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="flex items-center gap-3 text-lg text-gray-600">
-            <FaSpinner className="animate-spin" />
-            Loading enrollment system...
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={handleBackToDashboard}
+                  className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  <MdArrowBack />
+                  Back to Dashboard
+                </button>
+                <div className="h-6 w-px bg-gray-300"></div>
+                <h1 className="text-xl font-semibold text-gray-900">Physical Enrollment System</h1>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-sm text-gray-500">
+                  {new Date().toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {new Date().toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+        <StudentsPurchasedClasses />
+      </div>
+    );
+  }
+
+  if (currentView === 'enrollments') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={handleBackToDashboard}
+                  className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  <MdArrowBack />
+                  Back to Dashboard
+                </button>
+                <div className="h-6 w-px bg-gray-300"></div>
+                <h1 className="text-xl font-semibold text-gray-900">Enrollment Management</h1>
+              </div>
+            </div>
+          </div>
+        </div>
+        <StudentsPurchasedClasses />
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Physical Enrollment System</h1>
-            <p className="text-gray-600">Industry-level student enrollment and payment processing</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={loadDataFromDatabase}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              <MdRefresh />
-              Refresh
-            </button>
-            <button
-              onClick={handleNewEnrollment}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
-              <MdPersonAdd />
-              New Enrollment
-            </button>
+      <div className="bg-white shadow-lg border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-blue-100 rounded-xl">
+                <MdSchool className="w-8 h-8 text-blue-600" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Class Management System</h1>
+                <p className="text-gray-600">Physical Location - Quick Access</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-6">
+              <div className="text-right">
+                <div className="text-sm text-gray-500">Current Time</div>
+                <div className="text-lg font-semibold text-gray-900">
+                  {new Date().toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                  })}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-gray-500">Today's Date</div>
+                <div className="text-lg font-semibold text-gray-900">
+                  {new Date().toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric'
+                  })}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
+      {/* Quick Stats */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Students</p>
+                <p className="text-3xl font-bold text-blue-600">{quickStats.totalStudents}</p>
+              </div>
+              <div className="p-4 bg-blue-100 rounded-xl">
+                <MdPerson className="w-8 h-8 text-blue-600" />
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Classes</p>
+                <p className="text-3xl font-bold text-green-600">{quickStats.totalClasses}</p>
+              </div>
+              <div className="p-4 bg-green-100 rounded-xl">
+                <MdClass className="w-8 h-8 text-green-600" />
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Enrollments</p>
-                <p className="text-2xl font-bold text-gray-900">{purchasedClasses.length}</p>
+                <p className="text-3xl font-bold text-purple-600">{quickStats.totalEnrollments}</p>
               </div>
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <MdGroup className="w-6 h-6 text-blue-600" />
+              <div className="p-4 bg-purple-100 rounded-xl">
+                <MdGroup className="w-8 h-8 text-purple-600" />
               </div>
             </div>
           </div>
           
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Paid Enrollments</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {purchasedClasses.filter(r => r.paymentStatus === 'Paid').length}
-                </p>
+                <p className="text-sm font-medium text-gray-600">Today's Enrollments</p>
+                <p className="text-3xl font-bold text-orange-600">{quickStats.todayEnrollments}</p>
               </div>
-              <div className="p-3 bg-green-100 rounded-lg">
-                <MdCheckCircle className="w-6 h-6 text-green-600" />
+              <div className="p-4 bg-orange-100 rounded-xl">
+                <MdToday className="w-8 h-8 text-orange-600" />
               </div>
             </div>
           </div>
           
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Active Students</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {purchasedClasses.filter(r => r.status === 'Active').length}
-                </p>
+                <p className="text-sm font-medium text-gray-600">Pending Payments</p>
+                <p className="text-3xl font-bold text-yellow-600">{quickStats.pendingPayments}</p>
               </div>
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <MdSchool className="w-6 h-6 text-blue-600" />
+              <div className="p-4 bg-yellow-100 rounded-xl">
+                <MdPending className="w-8 h-8 text-yellow-600" />
               </div>
             </div>
           </div>
           
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
+          <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Revenue</p>
-                <p className="text-2xl font-bold text-purple-600">
-                  LKR {purchasedClasses.reduce((sum, r) => sum + (r.amount || 0), 0).toLocaleString()}
+                <p className="text-3xl font-bold text-red-600">
+                  LKR {quickStats.totalRevenue.toLocaleString()}
                 </p>
               </div>
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <MdAttachMoney className="w-6 h-6 text-purple-600" />
+              <div className="p-4 bg-red-100 rounded-xl">
+                <MdAttachMoney className="w-8 h-8 text-red-600" />
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Search and Filters */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border mb-6">
-        <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
-        <div className="flex-1 max-w-md">
-            <div className="relative">
-              <MdSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-                placeholder="Search by student ID, name, class, or teacher..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Quick Enrollment */}
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-white bg-opacity-20 rounded-xl">
+                  <MdPersonAdd className="w-8 h-8" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold">Quick Enrollment</h2>
+                  <p className="text-blue-100">Enroll new students with payment processing</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 text-gray-600">
+                  <MdCheckCircle className="w-5 h-5 text-green-500" />
+                  <span>Student registration & verification</span>
+                </div>
+                <div className="flex items-center gap-3 text-gray-600">
+                  <MdCheckCircle className="w-5 h-5 text-green-500" />
+                  <span>Class selection & scheduling</span>
+                </div>
+                <div className="flex items-center gap-3 text-gray-600">
+                  <MdCheckCircle className="w-5 h-5 text-green-500" />
+                  <span>Payment processing & receipt generation</span>
+                </div>
+                <div className="flex items-center gap-3 text-gray-600">
+                  <MdCheckCircle className="w-5 h-5 text-green-500" />
+                  <span>Instant enrollment confirmation</span>
+                </div>
+              </div>
+              <button
+                onClick={handleQuickEnrollment}
+                className="w-full mt-6 bg-blue-600 text-white py-4 px-6 rounded-xl font-semibold text-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-3"
+              >
+                <MdTouchApp className="w-6 h-6" />
+                Start Quick Enrollment
+              </button>
             </div>
           </div>
-          
-          <div className="flex gap-3">
-            <select
-              value={selectedFilter}
-              onChange={(e) => setSelectedFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+
+          {/* Enrollment Management */}
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-green-600 to-green-700 p-6 text-white">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-white bg-opacity-20 rounded-xl">
+                  <MdList className="w-8 h-8" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold">Enrollment Management</h2>
+                  <p className="text-green-100">View and manage all student enrollments</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 text-gray-600">
+                  <MdCheckCircle className="w-5 h-5 text-green-500" />
+                  <span>View all enrollment records</span>
+                </div>
+                <div className="flex items-center gap-3 text-gray-600">
+                  <MdCheckCircle className="w-5 h-5 text-green-500" />
+                  <span>Edit enrollment details</span>
+                </div>
+                <div className="flex items-center gap-3 text-gray-600">
+                  <MdCheckCircle className="w-5 h-5 text-green-500" />
+                  <span>Generate receipts & reports</span>
+                </div>
+                <div className="flex items-center gap-3 text-gray-600">
+                  <MdCheckCircle className="w-5 h-5 text-green-500" />
+                  <span>Payment status tracking</span>
+                </div>
+              </div>
+              <button
+                onClick={handleViewEnrollments}
+                className="w-full mt-6 bg-green-600 text-white py-4 px-6 rounded-xl font-semibold text-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-3"
+              >
+                <MdList className="w-6 h-6" />
+                View All Enrollments
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Additional Features */}
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="p-3 bg-purple-100 rounded-lg">
+                <MdQrCode className="w-6 h-6 text-purple-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">QR Code Scanner</h3>
+                <p className="text-sm text-gray-600">Quick student identification</p>
+              </div>
+            </div>
+            <button className="w-full bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors">
+              Scan QR Code
+            </button>
+          </div>
+
+          <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="p-3 bg-orange-100 rounded-lg">
+                <MdReceipt className="w-6 h-6 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Print Receipt</h3>
+                <p className="text-sm text-gray-600">Generate payment receipts</p>
+              </div>
+            </div>
+            <button className="w-full bg-orange-600 text-white py-2 px-4 rounded-lg hover:bg-orange-700 transition-colors">
+              Print Receipt
+            </button>
+          </div>
+
+          <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-shadow">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="p-3 bg-red-100 rounded-lg">
+                <MdRefresh className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Refresh Data</h3>
+                <p className="text-sm text-gray-600">Update system data</p>
+              </div>
+            </div>
+            <button 
+              onClick={loadQuickStats}
+              className="w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors"
             >
-              <option value="all">All Enrollments</option>
-              <option value="paid">Paid</option>
-              <option value="pending">Pending</option>
-              <option value="active">Active</option>
-              <option value="completed">Completed</option>
-            </select>
-            
-            <button
-              onClick={handleNewEnrollment}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <MdPersonAdd />
-              New Enrollment
+              Refresh Now
             </button>
           </div>
         </div>
-      </div>
 
-      {/* Table */}
-      <BasicTable
-        columns={columns}
-        data={filteredData}
-        actions={actions}
-        className="bg-white"
-      />
+        {/* System Status */}
+        <div className="mt-8 bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <MdInfo className="w-5 h-5 text-blue-600" />
+            System Status
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <span className="text-sm text-gray-600">Database: Online</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <span className="text-sm text-gray-600">Payment Gateway: Active</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <span className="text-sm text-gray-600">Printer: Connected</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <span className="text-sm text-gray-600">Network: Stable</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Enrollment Modal */}
       {showEnrollmentModal && (
@@ -622,8 +725,8 @@ const validationSchema = Yup.object().shape({
             <div className="p-6 border-b">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-gray-800">
-                  {editingRecord ? 'Edit Enrollment' : 'New Student Enrollment'}
-            </h2>
+                  New Student Enrollment
+                </h2>
                 <button
                   onClick={() => setShowEnrollmentModal(false)}
                   className="text-gray-400 hover:text-gray-600"
@@ -650,7 +753,7 @@ const validationSchema = Yup.object().shape({
                       <div className="relative">
                         <input
                           type="text"
-                          placeholder="Enter Student ID (e.g., 99985570)..."
+                          placeholder="Enter Student ID (e.g., S020)..."
                           value={studentSearchTerm}
                           onChange={handleStudentSearchChange}
                           onFocus={() => setShowStudentSearch(true)}
@@ -975,8 +1078,8 @@ const validationSchema = Yup.object().shape({
                     <>
                       <MdPayment />
                       Process Payment
-                </>
-              )}
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -992,52 +1095,96 @@ const validationSchema = Yup.object().shape({
         />
       )}
 
-      {/* Delete Confirmation Alert */}
-      {showDeleteAlert && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <div className="flex items-center gap-3 mb-4">
-              <MdWarning className="w-8 h-8 text-red-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Confirm Deletion</h3>
-            </div>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to delete the enrollment record for{' '}
-              <strong>{recordToDelete?.firstName} {recordToDelete?.lastName}</strong> -{' '}
-              <strong>{recordToDelete?.purchasedClass}</strong>?
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowDeleteAlert(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Success Alert */}
       {showSuccessAlert && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
             <div className="flex items-center gap-3 mb-4">
               <MdCheckCircle className="w-8 h-8 text-green-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Success</h3>
+              <h3 className="text-xl font-semibold text-gray-900">Enrollment Successful!</h3>
             </div>
-            <p className="text-gray-600 mb-6">{successMessage}</p>
-            <button
-              onClick={() => setShowSuccessAlert(false)}
-              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              OK
-            </button>
+            
+            <div className="space-y-4 text-sm">
+              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                <h4 className="font-semibold text-green-900 mb-2">📊 Data Saved Successfully</h4>
+                <div className="space-y-2 text-green-800">
+                  <div className="flex items-center gap-2">
+                    <MdCheckCircle className="w-4 h-4" />
+                    <span>Database: Payment & enrollment records</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MdCheckCircle className="w-4 h-4" />
+                    <span>Local storage: Frontend display data</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MdCheckCircle className="w-4 h-4" />
+                    <span>Receipt: Generated for printing</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h4 className="font-semibold text-blue-900 mb-2">👤 Student Information</h4>
+                <div className="grid grid-cols-2 gap-2 text-blue-800">
+                  <div><strong>Name:</strong> {selectedStudent?.firstName} {selectedStudent?.lastName}</div>
+                  <div><strong>ID:</strong> {selectedStudent?.studentId}</div>
+                  <div><strong>Email:</strong> {selectedStudent?.email}</div>
+                  <div><strong>Phone:</strong> {selectedStudent?.phone}</div>
+                </div>
+              </div>
+
+              <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                <h4 className="font-semibold text-purple-900 mb-2">📚 Class Information</h4>
+                <div className="grid grid-cols-2 gap-2 text-purple-800">
+                  <div><strong>Class:</strong> {selectedClass?.className}</div>
+                  <div><strong>Subject:</strong> {selectedClass?.subject}</div>
+                  <div><strong>Teacher:</strong> {selectedClass?.teacher}</div>
+                  <div><strong>Stream:</strong> {selectedClass?.stream}</div>
+                </div>
+              </div>
+
+              <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                <h4 className="font-semibold text-orange-900 mb-2">💰 Payment Details</h4>
+                <div className="grid grid-cols-2 gap-2 text-orange-800">
+                  <div><strong>Amount:</strong> LKR {currentPaymentData?.amount?.toLocaleString()}</div>
+                  <div><strong>Method:</strong> {currentPaymentData?.paymentMethod?.toUpperCase()}</div>
+                  <div><strong>Transaction ID:</strong> {currentPaymentData?.transactionId}</div>
+                  <div><strong>Date:</strong> {currentPaymentData?.date}</div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <h4 className="font-semibold text-gray-900 mb-2">📍 Where to Find This Data</h4>
+                <div className="space-y-2 text-gray-700">
+                  <div className="flex items-center gap-2">
+                    <MdList className="w-4 h-4" />
+                    <span>View All Enrollments: See in enrollment management</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MdReceipt className="w-4 h-4" />
+                    <span>Receipt: Print/download from receipt modal</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MdRefresh className="w-4 h-4" />
+                    <span>Dashboard: Stats updated automatically</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+              <button
+                onClick={() => {
+                  setShowSuccessAlert(false);
+                  setShowEnrollmentModal(false);
+                  setSelectedStudent(null);
+                  setSelectedClass(null);
+                }}
+                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Close & Continue
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1045,4 +1192,4 @@ const validationSchema = Yup.object().shape({
   );
 };
 
-export default StudentsPurchasedClasses; 
+export default PhysicalEnrollmentQuickAccess; 
