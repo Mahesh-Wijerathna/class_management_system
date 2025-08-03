@@ -25,8 +25,8 @@ export const studentRoutes = [
   { path: "/student/my-classes/:id", element: <MyClassDetail/> },
   { path: "/student/checkout/:id", element: <Checkout/> },
   { path: "/student/invoice", element: <Invoice/> },
-  { path: "/payment-success", element: <PaymentSuccess/> },
-  { path: "/payment-cancel", element: <PaymentCancel/> },
+  { path: "/student/payment-success", element: <PaymentSuccess/> },
+  { path: "/student/payment-cancel", element: <PaymentCancel/> },
   { path: "/student/receipt", element: <Receipt /> },
 
   { path: "/student/my-payments", element: <MyPayments/> },

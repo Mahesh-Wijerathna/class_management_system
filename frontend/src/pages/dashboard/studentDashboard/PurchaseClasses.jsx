@@ -6,6 +6,8 @@ import studentSidebarSections from './StudentDashboardSidebar';
 import { getStudentCard, getCardTypeInfo, getCardStatus, isCardValid, calculateFeeWithCard } from '../../../utils/cardUtils';
 import { FaCalendar, FaClock, FaMoneyBill, FaUser, FaBook, FaVideo, FaMapMarkerAlt, FaUsers, FaGraduationCap, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaSync, FaTicketAlt } from 'react-icons/fa';
 import { getActiveClasses } from '../../../api/classes';
+import { getStudentEnrollments, convertEnrollmentToMyClass } from '../../../api/enrollments';
+import { getUserData } from '../../../api/apiUtils';
 
 const PurchaseClasses = ({ onLogout }) => {
   const [search, setSearch] = useState('');
@@ -20,16 +22,12 @@ const PurchaseClasses = ({ onLogout }) => {
   // Load classes from backend API
   const loadClasses = async () => {
     try {
-      console.log('Loading classes...');
       setLoading(true);
       setError(null);
       
       const response = await getActiveClasses();
-      console.log('API Response:', response);
       
       if (response.success) {
-        console.log('Classes loaded successfully:', response.data?.length || 0, 'classes');
-        
         // Process classes with student card information
         const currentStudent = JSON.parse(localStorage.getItem('currentStudent') || '{}');
         
@@ -37,8 +35,8 @@ const PurchaseClasses = ({ onLogout }) => {
           // Get student's card for this class
           const studentCard = getStudentCard(currentStudent.studentId || 'STUDENT_001', cls.id);
           const cardInfo = studentCard ? getCardTypeInfo(studentCard.cardType) : null;
-          const cardStatus = getStudentCard ? getCardStatus(studentCard) : null;
-          const cardValidity = getStudentCard ? isCardValid(studentCard) : null;
+          const cardStatus = studentCard ? getCardStatus(studentCard) : null;
+          const cardValidity = studentCard ? isCardValid(studentCard) : null;
           
           // Calculate fee with card discount
           const originalFee = cls.fee || 0;
@@ -80,12 +78,10 @@ const PurchaseClasses = ({ onLogout }) => {
         
         setClasses(processedClasses);
       } else {
-        console.error('API returned error:', response);
         setError('Failed to load classes from server');
         setClasses([]);
       }
     } catch (err) {
-      console.error('Error loading classes:', err);
       setError('Failed to load classes. Please check your connection and try again.');
       setClasses([]);
     } finally {
@@ -93,28 +89,54 @@ const PurchaseClasses = ({ onLogout }) => {
     }
   };
 
-  // Load classes on component mount
-  useEffect(() => {
-    loadClasses();
-
-    // Load student's purchased classes from localStorage
+  // Load student enrollments from database
+  const loadEnrollments = async () => {
     try {
-      const savedMyClasses = localStorage.getItem('myClasses');
-      if (savedMyClasses) {
-        setMyClasses(JSON.parse(savedMyClasses));
+      const userData = getUserData();
+      if (!userData || !userData.userid) {
+        console.error('No logged-in user found');
+        setMyClasses([]);
+        return;
+      }
+
+      const response = await getStudentEnrollments(userData.userid);
+      if (response.success) {
+        const enrollments = response.data || [];
+        const myClassesData = enrollments.map(enrollment => convertEnrollmentToMyClass(enrollment));
+        setMyClasses(myClassesData);
       } else {
+        console.error('Failed to load enrollments:', response.message);
         setMyClasses([]);
       }
     } catch (err) {
-      console.error('Error loading my classes:', err);
+      console.error('Error loading enrollments:', err);
       setMyClasses([]);
     }
+  };
+
+  // Load classes on component mount
+  useEffect(() => {
+    loadClasses();
+    loadEnrollments();
+
+    // Listen for payment completion events
+    const handlePaymentComplete = () => {
+      console.log('Payment completed, refreshing enrollments...');
+      loadEnrollments();
+    };
+
+    window.addEventListener('refreshMyClasses', handlePaymentComplete);
+
+    // Cleanup event listener
+    return () => {
+      window.removeEventListener('refreshMyClasses', handlePaymentComplete);
+    };
   }, []);
 
   // Refresh classes
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadClasses();
+    await Promise.all([loadClasses(), loadEnrollments()]);
     setRefreshing(false);
   };
 
@@ -174,12 +196,32 @@ const PurchaseClasses = ({ onLogout }) => {
   // Filter classes based on tab and search with improved error handling
   const filteredClasses = classes.filter(cls => {
     try {
+      const isPurchased = checkStudentOwnership(cls.id);
+      
+      // For purchased tab, only show purchased classes
+      if (selectedTab === 'purchased') {
+        const searchTerm = search.toLowerCase();
+        const matchesSearch = 
+          (cls.className || '').toLowerCase().includes(searchTerm) ||
+          (cls.teacher || '').toLowerCase().includes(searchTerm) ||
+          (cls.subject || '').toLowerCase().includes(searchTerm) ||
+          (cls.stream || '').toLowerCase().includes(searchTerm);
+        
+        return isPurchased && matchesSearch;
+      }
+      
+      // For all other tabs, exclude purchased classes
       const matchesTab = selectedTab === 'all' || 
                         (selectedTab === 'online' && cls.deliveryMethod === 'online') ||
                         (selectedTab === 'physical' && cls.deliveryMethod === 'physical') ||
                         (selectedTab === 'hybrid' && cls.deliveryMethod === 'hybrid') ||
                         (selectedTab === 'theory' && cls.courseType === 'theory') ||
                         (selectedTab === 'revision' && cls.courseType === 'revision');
+      
+      // Exclude purchased classes from all other tabs
+      if (isPurchased) {
+        return false;
+      }
       
       const searchTerm = search.toLowerCase();
       const matchesSearch = 
@@ -276,6 +318,7 @@ const PurchaseClasses = ({ onLogout }) => {
 
   const tabOptions = [
     { key: 'all', label: 'All Classes' },
+    { key: 'purchased', label: 'Purchased Classes' },
     { key: 'online', label: 'Online' },
     { key: 'physical', label: 'Physical' },
     { key: 'hybrid', label: 'Hybrid' },
@@ -324,7 +367,9 @@ const PurchaseClasses = ({ onLogout }) => {
     >
       <div className="p-2 sm:p-4 md:p-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-lg font-bold">Available Classes</h1>
+          <h1 className="text-lg font-bold">
+            {selectedTab === 'purchased' ? 'Purchased Classes' : 'Available Classes'}
+          </h1>
           <button
             onClick={handleRefresh}
             disabled={refreshing}
@@ -355,7 +400,10 @@ const PurchaseClasses = ({ onLogout }) => {
         <div className="flex justify-center mb-6">
           <input
             type="text"
-            placeholder="Search by class name, teacher, subject, or stream..."
+            placeholder={selectedTab === 'purchased' ? 
+              "Search your purchased classes..." : 
+              "Search by class name, teacher, subject, or stream..."
+            }
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="border border-gray-300 rounded px-4 py-2 w-full max-w-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
@@ -368,7 +416,9 @@ const PurchaseClasses = ({ onLogout }) => {
               const deliveryInfo = getDeliveryMethodInfo(cls.deliveryMethod);
               const courseTypeInfo = getCourseTypeInfo(cls.courseType);
               const purchaseStatus = getPurchaseStatus(cls);
-              const scheduleText = cls.schedule ? 
+              const scheduleText = cls.schedule && cls.schedule.frequency === 'no-schedule' ? 
+                'No Schedule' :
+                cls.schedule && cls.schedule.day && cls.schedule.startTime && cls.schedule.endTime ?
                 `${formatDay(cls.schedule.day)} ${formatTime(cls.schedule.startTime)}-${formatTime(cls.schedule.endTime)}` : 
                 'Schedule not set';
 
@@ -384,7 +434,7 @@ const PurchaseClasses = ({ onLogout }) => {
               }
               
               // Apply card discount if available
-              if (cls.studentCard && cls.cardValidity.isValid) {
+              if (cls.studentCard && cls.cardValidity && cls.cardValidity.isValid) {
                 finalFee = cls.discountedFee;
                 if (cls.discountedFee < cls.fee) {
                   discountInfo = `(Card discount: Rs. ${finalFee.toLocaleString()})`;
@@ -460,7 +510,7 @@ const PurchaseClasses = ({ onLogout }) => {
                       )}
                       
                       {/* Student Card Information */}
-                      {cls.studentCard && (
+                      {cls.studentCard && cls.cardInfo && cls.cardStatus && (
                         <div className="mt-2 p-2 rounded border">
                           <div className="flex items-center gap-2 mb-1">
                             <FaTicketAlt className="text-blue-500" />
@@ -474,13 +524,13 @@ const PurchaseClasses = ({ onLogout }) => {
                               {cls.cardStatus.label}
                             </span>
                           </div>
-                          {cls.cardValidity.isValid ? (
+                          {cls.cardValidity && cls.cardValidity.isValid ? (
                             <div className="text-xs text-green-600">
                               ✓ {cls.cardValidity.reason}
                             </div>
                           ) : (
                             <div className="text-xs text-red-600">
-                              ✗ {cls.cardValidity.reason}
+                              ✗ {cls.cardValidity?.reason || 'Card not valid'}
                             </div>
                           )}
                           {cls.studentCard.reason && (

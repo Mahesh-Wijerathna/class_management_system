@@ -6,6 +6,10 @@ import CustomButton2 from '../../../components/CustomButton2';
 import { FaCcVisa, FaCcMastercard, FaDownload } from 'react-icons/fa';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { createPayment, processPayment } from '../../../api/payments';
+import { createPayHerePayment } from '../../../api/payhere';
+import { getUserData } from '../../../api/apiUtils';
+import api from '../../../api/axiosConfig';
 
 // REMINDER: Add this to your public/index.html
 // <script type="text/javascript" src="https://www.payhere.lk/lib/payhere.js"></script>
@@ -22,7 +26,7 @@ const Invoice = () => {
     return <div className="p-8 text-center text-gray-500">No invoice data. Please complete checkout first.</div>;
   }
 
-  // PayHere integration - Simplified for demo
+  // PayHere integration - Using Backend API
   const handlePayHere = async () => {
     if (!agreed) {
       alert('Please agree to the privacy policy and terms first.');
@@ -32,173 +36,93 @@ const Invoice = () => {
     setLoading(true);
     
     try {
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('💳 Starting PayHere payment process...');
+      console.log('📊 Invoice data:', data);
       
-      // Save payment record to localStorage
-      const payments = JSON.parse(localStorage.getItem('payments') || '[]');
-      payments.push({
-        date: data.date,
-        className: data.className,
-        amount: data.amount,
-        method: 'online',
-        status: 'Paid',
-        invoiceId: data.invoiceId,
-        paymentDate: new Date().toISOString()
-      });
-      localStorage.setItem('payments', JSON.stringify(payments));
-      
-      // Add class to My Classes after successful payment
-      if (!data.isStudyPack) {
-        const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
-        // Debug: Log the data received
-        console.log('Invoice - Received data zoom link:', data.zoomLink);
-        
-        // Calculate actual current student count for this class
-        const currentStudentCount = myClasses.filter(c => 
-          c.classId === data.classId || c.id === data.classId
-        ).length + 1; // +1 for the current student being added
-        
-        const classToAdd = {
-          id: data.classId || Date.now(), // Use classId from data or generate new one
-          className: data.className,
-          subject: data.subject,
-          teacher: data.teacher,
-          stream: data.stream,
-          deliveryMethod: data.deliveryMethod,
-          courseType: data.courseType,
-          schedule: data.schedule,
-          basePrice: data.basePrice, // Store original class fee
-          purchasePrice: data.amount, // Store what student actually paid (discounted + extras)
-          fee: data.amount, // For backward compatibility, use purchasePrice as recurring fee
-          purchaseDate: new Date().toISOString(),
-          paymentStatus: 'paid',
-          paymentMethod: 'online',
-          nextPaymentDate: data.nextPaymentDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          attendance: [],
-          paymentHistory: [{
-            date: new Date().toISOString(),
-            amount: data.amount,
-            method: 'online',
-            status: 'paid',
-            invoiceId: data.invoiceId,
-            basePrice: data.basePrice,
-            theoryStudentDiscount: data.theoryStudentDiscount,
-            speedPostFee: data.speedPostFee,
-            promoDiscount: data.promoDiscount
-          }],
-          // Add payment tracking data
-          paymentTracking: data.paymentTracking || { enabled: false },
-          paymentTrackingFreeDays: data.paymentTrackingFreeDays || 7,
-          // Add zoom link and other important fields
-          zoomLink: data.zoomLink || '',
-          description: data.description || '',
-          // Add additional fields for MyClasses functionality
-          hasExams: Math.random() > 0.5, // Random for demo
-          hasTutes: Math.random() > 0.3, // Random for demo
-          currentStudents: currentStudentCount,
-          maxStudents: data.maxStudents || 50,
-          forgetCardRequested: false,
-          latePaymentRequested: false
-        };
-        
-        // Check if class already exists in My Classes
-        const existingClassIndex = myClasses.findIndex(c => c.id === classToAdd.id);
-        
-        if (existingClassIndex === -1) {
-          // New class - add it
-          myClasses.push(classToAdd);
-        } else {
-          // Existing class - update payment history and payment status
-          const existingClass = myClasses[existingClassIndex];
-          existingClass.paymentStatus = 'paid';
-          existingClass.paymentMethod = 'online';
-          existingClass.fee = data.amount; // Update fee to new payment amount
-          existingClass.purchasePrice = data.amount;
-          
-          // Add new payment to existing payment history
-          if (!existingClass.paymentHistory) {
-            existingClass.paymentHistory = [];
-          }
-          existingClass.paymentHistory.push({
-            date: new Date().toISOString(),
-            amount: data.amount,
-            method: 'online',
-            status: 'paid',
-            invoiceId: data.invoiceId,
-            basePrice: data.basePrice,
-            theoryStudentDiscount: data.theoryStudentDiscount,
-            speedPostFee: data.speedPostFee,
-            promoDiscount: data.promoDiscount
-          });
-          
-          // Update next payment date based on new payment
-          const newPaymentDate = new Date();
-          const nextPaymentDate = new Date(newPaymentDate.getFullYear(), newPaymentDate.getMonth() + 1, 1);
-          existingClass.nextPaymentDate = nextPaymentDate.toISOString();
-        }
-        
-        // Update current student count for all classes of this type
-        const classGroups = {};
-        myClasses.forEach(c => {
-          const key = c.classId || c.id;
-          if (!classGroups[key]) {
-            classGroups[key] = [];
-          }
-          classGroups[key].push(c);
-        });
-        
-        // Update currentStudents for each class group
-        Object.keys(classGroups).forEach(classKey => {
-          const count = classGroups[classKey].length;
-          classGroups[classKey].forEach(c => {
-            c.currentStudents = count;
-          });
-        });
-        
-        localStorage.setItem('myClasses', JSON.stringify(myClasses));
-      } else {
-        // Add study pack to My Study Packs
-        const myStudyPacks = JSON.parse(localStorage.getItem('myStudyPacks') || '[]');
-        const studyPackToAdd = {
-          title: data.className,
-          price: data.basePrice,
-          teacher: data.teacher,
-          image: data.image,
-          description: data.description,
-          purchaseDate: new Date().toISOString(),
-          paymentStatus: 'paid',
-          paymentMethod: 'online',
-          invoiceId: data.invoiceId
-        };
-        
-        if (!myStudyPacks.some(p => p.title === studyPackToAdd.title && p.teacher === studyPackToAdd.teacher)) {
-          myStudyPacks.push(studyPackToAdd);
-          localStorage.setItem('myStudyPacks', JSON.stringify(myStudyPacks));
-        }
+      // Get logged-in student data
+      const userData = getUserData();
+      if (!userData || !userData.userid) {
+        alert('No logged-in user found. Please login again.');
+        setLoading(false);
+        return;
       }
       
-      // Mark as paid
-      setPaid(true);
+      const studentId = userData.userid;
+      console.log('🔍 Processing payment for logged-in student:', studentId);
       
-      // Force refresh of My Classes data to show updated payment status
-      window.dispatchEvent(new CustomEvent('refreshMyClasses'));
+      let transactionId = data.transactionId;
+      console.log('🔍 Current transactionId:', transactionId);
       
-      // Navigate to success page after a short delay
-      setTimeout(() => {
-        navigate('/student/payment-success', { 
-          state: { 
-            ...data, 
-            paymentDate: new Date().toISOString(),
-            transactionId: `TXN${Date.now()}`
-          } 
-        });
-      }, 1000);
+      // If no transactionId exists, create the payment first
+      if (!transactionId && data.paymentData) {
+        console.log('📝 Creating payment first...');
+        console.log('📊 Payment data to create:', data.paymentData);
+        
+        const paymentResponse = await createPayment(data.paymentData);
+        console.log('✅ Payment created:', paymentResponse);
+        
+        if (paymentResponse.success) {
+          transactionId = paymentResponse.data.transactionId;
+          console.log('✅ Transaction ID generated:', transactionId);
+        } else {
+          alert('Failed to create payment: ' + paymentResponse.message);
+          setLoading(false);
+          return;
+        }
+      } else if (!transactionId && !data.paymentData) {
+        alert('Payment data is missing. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      // Create PayHere payment data
+      const payHereData = {
+        order_id: transactionId,
+        amount: data.finalAmount || data.basePrice,
+        currency: 'LKR',
+        first_name: userData.firstName || userData.name?.split(' ')[0] || 'Student',
+        last_name: userData.lastName || userData.name?.split(' ').slice(1).join(' ') || 'User',
+        email: userData.email || 'student@example.com',
+        phone: userData.phone || '+94123456789',
+        address: userData.address || 'Student Address',
+        city: userData.city || 'Colombo',
+        country: 'Sri Lanka',
+        items: `${data.className} - ${data.subject || 'Course'}`
+      };
+
+      console.log('💳 Creating PayHere payment:', payHereData);
+
+      // Call PayHere API using the proper function
+      const payHereResponse = await createPayHerePayment(payHereData);
+      
+      if (!payHereResponse.success) {
+        throw new Error(payHereResponse.message || 'Failed to create PayHere payment');
+      }
+
+      console.log('✅ PayHere payment created:', payHereResponse);
+
+      // Redirect to PayHere checkout
+      const paymentData = payHereResponse.data;
+      
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = 'https://sandbox.payhere.lk/pay/checkout';
+      
+      Object.entries(paymentData).forEach(([key, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+      });
+
+      document.body.appendChild(form);
+      form.submit();
       
     } catch (err) {
-      console.error('Payment failed:', err);
-      alert('Payment failed. Please try again.');
-    } finally {
+      console.error('PayHere payment error:', err);
+      const errorMessage = err.message || 'Network or server error';
+      alert('PayHere payment failed: ' + errorMessage);
       setLoading(false);
     }
   };
@@ -219,7 +143,7 @@ const Invoice = () => {
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
-    doc.text(`INVOICE INV:${data.invoiceId}`, 195, 20, { align: 'right' });
+    doc.text(`INVOICE INV:${data.transactionId || data.invoiceId || 'N/A'}`, 195, 20, { align: 'right' });
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
     doc.text(`Date Issued: ${data.date}`, 195, 28, { align: 'right' });
@@ -282,7 +206,7 @@ const Invoice = () => {
     doc.setFontSize(9);
     doc.text('NOTE: The above amount is charged only for your order. (Once paid, your classes and orders cannot be changed.)', 15, noteY, { maxWidth: 180 });
 
-    doc.save(`invoice_${data.invoiceId}.pdf`);
+    doc.save(`invoice_${data.transactionId || data.invoiceId || 'unknown'}.pdf`);
   };
 
   return (
@@ -300,7 +224,7 @@ const Invoice = () => {
           {/* Right: Invoice Info and Payment */}
           <div className="w-full md:w-80 flex flex-col items-end">
             <div className="text-right mb-2">
-              <div className="font-bold">INVOICE INV-{data.invoiceId || '751989'}</div>
+              <div className="font-bold">INVOICE INV-{data.transactionId || data.invoiceId || '751989'}</div>
               <div className="text-xs text-gray-500">Date Issued: {data.date || (new Date()).toLocaleDateString()}</div>
             </div>
             <div className="flex items-center mb-2">
@@ -316,19 +240,13 @@ const Invoice = () => {
             >
               {loading ? 'Processing Payment...' : paid ? 'Payment Successful!' : 'Confirm and Pay Now'}
             </CustomButton2>
+            
             <div className="flex items-center gap-2 mb-2">
               <FaCcVisa className="text-3xl text-blue-700" />
               <FaCcMastercard className="text-3xl text-red-600" />
-              <img src="https://www.combank.net/images/logo.png" alt="Commercial Bank" className="h-6" />
+              
             </div>
-            <CustomButton2
-              type="button"
-              color="mint"
-              className="w-full flex items-center justify-center gap-2 text-black"
-              onClick={handleDownload}
-            >
-              <FaDownload /> Download Invoice
-            </CustomButton2>
+            
           </div>
         </div>
         {/* Student Details and Items */}
