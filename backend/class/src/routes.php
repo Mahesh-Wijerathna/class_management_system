@@ -15,6 +15,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once 'ClassController.php';
 require_once 'PaymentController.php';
 require_once 'EnrollmentController.php';
+require_once 'PayHereController.php';
+require_once 'DevPaymentHelper.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -39,6 +41,8 @@ if ($mysqli->connect_errno) {
 $controller = new ClassController($mysqli);
 $paymentController = new PaymentController($mysqli);
 $enrollmentController = new EnrollmentController($mysqli);
+$payHereController = new PayHereController($mysqli);
+$devPaymentHelper = new DevPaymentHelper($mysqli);
 
 switch ($method) {
     case 'POST':
@@ -52,6 +56,22 @@ switch ($method) {
             unset($input['id']); // Remove id from data array
             $result = $controller->updateClass($id, $input);
             echo json_encode(['success' => $result]);
+        } elseif ($path === '/create_payhere_payment') {
+            $result = $payHereController->createPayHerePayment($input);
+            echo json_encode($result);
+        } elseif ($path === '/payhere_notify') {
+            $result = $payHereController->handlePayHereNotification($_POST);
+            if ($result['status'] === 'success') {
+                http_response_code(200);
+                echo "OK";
+            } else {
+                http_response_code(400);
+                echo $result['message'];
+            }
+        } elseif ($path === '/get_payment_status') {
+            $orderId = $input['order_id'] ?? '';
+            $result = $payHereController->getPaymentStatus($orderId);
+            echo json_encode(['success' => true, 'data' => $result]);
         } elseif ($path === '/create_payment') {
             $result = $paymentController->createPayment($input);
             echo json_encode($result);
@@ -142,6 +162,23 @@ switch ($method) {
         } elseif ($path === '/get_all_session_schedules') {
             $schedules = $controller->getAllSessionSchedules();
             echo json_encode(['success' => true, 'data' => $schedules]);
+        } elseif ($path === '/get_payment_status' && isset($_GET['order_id'])) {
+            $orderId = $_GET['order_id'];
+            $result = $payHereController->getPaymentStatus($orderId);
+            echo json_encode(['success' => true, 'data' => $result]);
+        } elseif ($path === '/dev/auto_complete_payment' && isset($_GET['order_id'])) {
+            // Development endpoint to auto-complete payments
+            $orderId = $_GET['order_id'];
+            $result = $devPaymentHelper->autoCompletePayment($orderId);
+            echo json_encode($result);
+        } elseif ($path === '/dev/get_pending_payments') {
+            // Development endpoint to get all pending payments
+            $result = $devPaymentHelper->getPendingPayments();
+            echo json_encode($result);
+        } elseif ($path === '/dev/complete_all_pending') {
+            // Development endpoint to complete all pending payments
+            $result = $devPaymentHelper->completeAllPendingPayments();
+            echo json_encode($result);
         } else {
             http_response_code(404);
             echo json_encode(['error' => 'Endpoint not found']);

@@ -90,83 +90,24 @@ class PaymentController {
 
             $financialRecordId = $stmt->insert_id;
 
-            // Create enrollment record
-            $enrollmentStmt = $this->db->prepare("
-                INSERT INTO enrollments (
-                    student_id, class_id, enrollment_date, fee_amount, payment_status, 
-                    payment_method, transaction_id, next_payment_date, payment_history, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-            ");
-
-            $enrollmentStatus = 'pending';
-            
-            // Get class payment tracking configuration
-            $classStmt = $this->db->prepare("SELECT payment_tracking, payment_tracking_free_days FROM classes WHERE id = ?");
-            $classStmt->bind_param("i", $classId);
-            $classStmt->execute();
-            $classResult = $classStmt->get_result();
-            $classData = $classResult->fetch_assoc();
-            
-            // Check if payment tracking is enabled for this class
-            $paymentTrackingEnabled = $classData ? $classData['payment_tracking'] : false;
-            $freeDays = $classData ? $classData['payment_tracking_free_days'] : 7;
-            
-            // Always calculate next payment date: 1st day of next month (for both enabled and disabled)
-            $nextPaymentDate = date('Y-m-01', strtotime('+1 month'));
-            
-            $paymentHistory = json_encode([[
-                'date' => date('Y-m-d'),
-                'amount' => $finalAmount,
-                'method' => $paymentMethod,
-                'status' => 'pending',
-                'transactionId' => $transactionId,
-                'referenceNumber' => $referenceNumber,
-                'paymentTrackingEnabled' => $paymentTrackingEnabled,
-                'freeDays' => $freeDays,
-                'nextPaymentDate' => $nextPaymentDate
-            ]]);
-            
-            $enrollmentStmt->bind_param("sisdsssss", 
-                $studentId, $classId, $date, $finalAmount, $enrollmentStatus, 
-                $paymentMethod, $transactionId, $nextPaymentDate, $paymentHistory
-            );
-
-            if (!$enrollmentStmt->execute()) {
-                return ['success' => false, 'message' => 'Failed to create enrollment record'];
-            }
-
-            $enrollmentId = $enrollmentStmt->insert_id;
-
-            // Create payment history record
-            $paymentHistoryStmt = $this->db->prepare("
-                INSERT INTO payment_history (
-                    enrollment_id, amount, payment_method, reference_number, status, notes
-                ) VALUES (?, ?, ?, ?, ?, ?)
-            ");
-
-            $paymentStatus = 'pending';
-            $paymentHistoryStmt->bind_param("idssss", 
-                $enrollmentId, $finalAmount, $paymentMethod, $referenceNumber, $paymentStatus, $notes
-            );
-
-            if (!$paymentHistoryStmt->execute()) {
-                return ['success' => false, 'message' => 'Failed to create payment history'];
-            }
-
             return [
                 'success' => true,
                 'message' => 'Payment created successfully',
                 'data' => [
                     'transactionId' => $transactionId,
-                    'enrollmentId' => $enrollmentId,
-                    'financialRecordId' => $financialRecordId,
                     'amount' => $finalAmount,
-                    'status' => $status
+                    'classId' => $classId,
+                    'className' => $className,
+                    'studentId' => $studentId,
+                    'studentName' => $studentName
                 ]
             ];
 
         } catch (Exception $e) {
-            return ['success' => false, 'message' => 'Error creating payment: ' . $e->getMessage()];
+            return [
+                'success' => false,
+                'message' => 'Error creating payment: ' . $e->getMessage()
+            ];
         }
     }
 
@@ -243,27 +184,37 @@ class PaymentController {
                     'gracePeriodEndDate' => $gracePeriodEndDate
                 ]]);
                 
-                // Update enrollment status with payment history and next payment date
+                // Create enrollment record ONLY after successful payment
                 $enrollmentStmt = $this->db->prepare("
-                    UPDATE enrollments 
-                    SET payment_status = 'paid',
-                        amount_paid = ?,
-                        next_payment_date = ?,
-                        payment_history = ?,
-                        updated_at = NOW()
-                    WHERE transaction_id = ?
+                    INSERT INTO enrollments (
+                        student_id, class_id, enrollment_date, fee_amount, payment_status, 
+                        payment_method, transaction_id, next_payment_date, payment_history, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
                 ");
-                $enrollmentStmt->bind_param("dsss", $payment['amount'], $nextPaymentDate, $paymentHistory, $transactionId);
-                $enrollmentStmt->execute();
+
+                $enrollmentStatus = 'paid';
+                $enrollmentDate = date('Y-m-d');
                 
-                // Update payment history status
+                $enrollmentStmt->bind_param("sisdsssss", 
+                    $payment['user_id'], $payment['class_id'], $enrollmentDate, $payment['amount'], $enrollmentStatus, 
+                    $paymentData['paymentMethod'], $transactionId, $nextPaymentDate, $paymentHistory
+                );
+                
+                if (!$enrollmentStmt->execute()) {
+                    return ['success' => false, 'message' => 'Failed to create enrollment record'];
+                }
+                
+                $enrollmentId = $enrollmentStmt->insert_id;
+                
+                // Create payment history record with enrollment_id
                 $paymentHistoryStmt = $this->db->prepare("
-                    UPDATE payment_history 
-                    SET status = 'completed',
-                        payment_date = NOW()
-                    WHERE reference_number = ?
+                    INSERT INTO payment_history (
+                        enrollment_id, amount, payment_method, reference_number, status, notes
+                    ) VALUES (?, ?, ?, ?, ?, ?)
                 ");
-                $paymentHistoryStmt->bind_param("s", $transactionId);
+                $paymentHistoryStmt->bind_param("idssss", 
+                    $enrollmentId, $payment['amount'], $paymentData['paymentMethod'], $paymentData['referenceNumber'], 'completed', $paymentData['notes'] ?? ''
+                );
                 $paymentHistoryStmt->execute();
                 
                 return [
@@ -271,13 +222,16 @@ class PaymentController {
                     'message' => 'Payment processed successfully',
                     'data' => [
                         'transactionId' => $transactionId,
-                        'status' => 'paid'
+                        'enrollmentId' => $enrollmentId,
+                        'amount' => $payment['amount'],
+                        'status' => 'paid',
+                        'nextPaymentDate' => $nextPaymentDate
                     ]
                 ];
             } else {
                 return [
                     'success' => false,
-                    'message' => 'Failed to process payment'
+                    'message' => 'Failed to update payment status'
                 ];
             }
         } catch (Exception $e) {

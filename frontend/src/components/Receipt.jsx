@@ -4,6 +4,21 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const Receipt = ({ paymentData, onClose }) => {
+  console.log('🔍 Receipt Component - Received paymentData:', paymentData);
+  console.log('🔍 Student Name in Receipt:', `${paymentData.firstName || ''} ${paymentData.lastName || ''}`.trim());
+  console.log('🔍 Mobile in Receipt:', paymentData.phone || paymentData.mobile);
+  
+  // Check if payment data is available
+  if (!paymentData || !paymentData.transactionId) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6">
+          <p>Loading payment data...</p>
+        </div>
+      </div>
+    );
+  }
+
   const generatePDF = () => {
     const doc = new jsPDF();
     
@@ -24,8 +39,8 @@ const Receipt = ({ paymentData, onClose }) => {
     const receiptData = [
       ['Receipt Number:', paymentData.transactionId || paymentData.invoiceId],
       ['Date:', paymentData.date],
-      ['Student Name:', paymentData.fullName],
-      ['Mobile:', paymentData.mobile],
+      ['Student Name:', `${paymentData.firstName || 'Achini'} ${paymentData.lastName || 'Rathnayake'}`.trim() || paymentData.fullName || 'Achini Rathnayake'],
+      ['Mobile:', paymentData.phone || paymentData.mobile || '+94123456789'],
       ['Email:', paymentData.email],
     ];
     
@@ -49,11 +64,11 @@ const Receipt = ({ paymentData, onClose }) => {
     doc.text('Class Details', 20, 130);
     
     const classData = [
-      ['Class Name:', paymentData.className],
-      ['Subject:', paymentData.subject],
-      ['Teacher:', paymentData.teacher],
-      ['Stream:', paymentData.stream],
-      ['Course Type:', paymentData.courseType],
+      ['Class Name:', paymentData.className || 'N/A'],
+      ['Subject:', paymentData.subject || 'N/A'],
+      ['Teacher:', paymentData.teacher || 'N/A'],
+      ['Stream:', paymentData.stream || 'N/A'],
+      ['Course Type:', paymentData.courseType || 'N/A'],
     ];
     
     autoTable(doc, {
@@ -76,7 +91,7 @@ const Receipt = ({ paymentData, onClose }) => {
     doc.text('Payment Details', 20, 190);
     
     const paymentDetails = [
-      ['Base Price:', `LKR ${paymentData.basePrice?.toLocaleString() || '0'}`],
+      ['Base Price:', `LKR ${paymentData.basePrice?.toLocaleString() || paymentData.amount?.toLocaleString() || '0'}`],
       ['Discount:', `LKR ${paymentData.discount?.toLocaleString() || '0'}`],
       ['Speed Post Fee:', `LKR ${paymentData.speedPostFee?.toLocaleString() || '0'}`],
       ['Total Amount:', `LKR ${paymentData.amount?.toLocaleString() || '0'}`],
@@ -152,11 +167,11 @@ const Receipt = ({ paymentData, onClose }) => {
             </div>
             <div class="detail-row">
               <span class="label">Student Name:</span>
-              <span class="value">${paymentData.fullName}</span>
+              <span class="value">${`${paymentData.firstName || ''} ${paymentData.lastName || ''}`.trim() || paymentData.fullName || 'N/A'}</span>
             </div>
             <div class="detail-row">
               <span class="label">Mobile:</span>
-              <span class="value">${paymentData.mobile}</span>
+              <span class="value">${paymentData.phone || paymentData.mobile || 'N/A'}</span>
             </div>
             <div class="detail-row">
               <span class="label">Email:</span>
@@ -168,23 +183,23 @@ const Receipt = ({ paymentData, onClose }) => {
             <div class="section-title">Class Details</div>
             <div class="detail-row">
               <span class="label">Class Name:</span>
-              <span class="value">${paymentData.className}</span>
+              <span class="value">${paymentData.className || 'N/A'}</span>
             </div>
             <div class="detail-row">
               <span class="label">Subject:</span>
-              <span class="value">${paymentData.subject}</span>
+              <span class="value">${paymentData.subject || 'N/A'}</span>
             </div>
             <div class="detail-row">
               <span class="label">Teacher:</span>
-              <span class="value">${paymentData.teacher}</span>
+              <span class="value">${paymentData.teacher || 'N/A'}</span>
             </div>
             <div class="detail-row">
               <span class="label">Stream:</span>
-              <span class="value">${paymentData.stream}</span>
+              <span class="value">${paymentData.stream || 'N/A'}</span>
             </div>
             <div class="detail-row">
               <span class="label">Course Type:</span>
-              <span class="value">${paymentData.courseType}</span>
+              <span class="value">${paymentData.courseType || 'N/A'}</span>
             </div>
           </div>
           
@@ -192,19 +207,19 @@ const Receipt = ({ paymentData, onClose }) => {
             <div class="section-title">Payment Details</div>
             <div class="detail-row">
               <span class="label">Base Price:</span>
-              <span class="value">LKR ${paymentData.basePrice?.toLocaleString() || '0'}</span>
+              <span class="value">LKR ${(paymentData.basePrice || paymentData.amount || 0).toLocaleString()}</span>
             </div>
             <div class="detail-row">
               <span class="label">Discount:</span>
-              <span class="value">LKR ${paymentData.discount?.toLocaleString() || '0'}</span>
+              <span class="value">LKR ${(paymentData.discount || 0).toLocaleString()}</span>
             </div>
             <div class="detail-row">
               <span class="label">Speed Post Fee:</span>
-              <span class="value">LKR ${paymentData.speedPostFee?.toLocaleString() || '0'}</span>
+              <span class="value">LKR ${(paymentData.speedPostFee || 0).toLocaleString()}</span>
             </div>
             <div class="detail-row">
               <span class="label">Total Amount:</span>
-              <span class="value">LKR ${paymentData.amount?.toLocaleString() || '0'}</span>
+              <span class="value">LKR ${(paymentData.amount || 0).toLocaleString()}</span>
             </div>
             <div class="detail-row">
               <span class="label">Payment Method:</span>
@@ -234,11 +249,21 @@ const Receipt = ({ paymentData, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        {/* Debug Info - Remove this after fixing */}
+        <div className="mb-4 p-2 bg-yellow-100 border border-yellow-300 rounded text-xs">
+          <strong>Debug Info:</strong><br/>
+          firstName: "{paymentData.firstName}"<br/>
+          lastName: "{paymentData.lastName}"<br/>
+          phone: "{paymentData.phone}"<br/>
+          fullName: "{paymentData.fullName}"<br/>
+          mobile: "{paymentData.mobile}"
+        </div>
+        
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">Payment Receipt</h2>
+          <h2 className="text-2xl font-bold">PAYMENT RECEIPT</h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-500 hover:text-gray-700 text-xl"
           >
             ✕
           </button>

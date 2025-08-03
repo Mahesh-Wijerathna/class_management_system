@@ -7,7 +7,9 @@ import { FaCcVisa, FaCcMastercard, FaDownload } from 'react-icons/fa';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { createPayment, processPayment } from '../../../api/payments';
+import { createPayHerePayment } from '../../../api/payhere';
 import { getUserData } from '../../../api/apiUtils';
+import api from '../../../api/axiosConfig';
 
 // REMINDER: Add this to your public/index.html
 // <script type="text/javascript" src="https://www.payhere.lk/lib/payhere.js"></script>
@@ -34,7 +36,7 @@ const Invoice = () => {
     setLoading(true);
     
     try {
-      console.log('💳 Starting payment process...');
+      console.log('💳 Starting PayHere payment process...');
       console.log('📊 Invoice data:', data);
       
       // Get logged-in student data
@@ -72,67 +74,55 @@ const Invoice = () => {
         setLoading(false);
         return;
       }
+
+      // Create PayHere payment data
+      const payHereData = {
+        order_id: transactionId,
+        amount: data.finalAmount || data.basePrice,
+        currency: 'LKR',
+        first_name: userData.firstName || userData.name?.split(' ')[0] || 'Student',
+        last_name: userData.lastName || userData.name?.split(' ').slice(1).join(' ') || 'User',
+        email: userData.email || 'student@example.com',
+        phone: userData.phone || '+94123456789',
+        address: userData.address || 'Student Address',
+        city: userData.city || 'Colombo',
+        country: 'Sri Lanka',
+        items: `${data.className} - ${data.subject || 'Course'}`
+      };
+
+      console.log('💳 Creating PayHere payment:', payHereData);
+
+      // Call PayHere API using the proper function
+      const payHereResponse = await createPayHerePayment(payHereData);
       
-      // Process payment using backend API
-      console.log('💳 Processing payment with transactionId:', transactionId);
-      const paymentResponse = await processPayment(transactionId, {
-        paymentMethod: 'online',
-        referenceNumber: `PAY${Date.now()}`,
-        studentId: studentId
+      if (!payHereResponse.success) {
+        throw new Error(payHereResponse.message || 'Failed to create PayHere payment');
+      }
+
+      console.log('✅ PayHere payment created:', payHereResponse);
+
+      // Redirect to PayHere checkout
+      const paymentData = payHereResponse.data;
+      
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = 'https://sandbox.payhere.lk/pay/checkout';
+      
+      Object.entries(paymentData).forEach(([key, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
       });
-      
-      console.log('✅ Payment processed:', paymentResponse);
-      
-      if (paymentResponse.success) {
-        setPaid(true);
-        console.log('🎉 Payment successful!');
-        
-        // Verify payment was created in backend
-        try {
-          console.log('📊 Payment processed successfully via backend API');
-          console.log('🔍 Verifying payment in backend...');
-          const verifyResponse = await fetch(`http://localhost:8087/routes.php/get_student_payments?studentId=${studentId}`);
-          const verifyData = await verifyResponse.json();
-          console.log('✅ Backend verification - Total payments:', verifyData.data?.length || 0);
-          if (verifyData.data && verifyData.data.length > 0) {
-            console.log('✅ Latest payment:', verifyData.data[verifyData.data.length - 1]);
-          }
-        } catch (verifyError) {
-          console.log('⚠️ Verification failed (non-critical):', verifyError);
-        }
-      
-      // Enrollment is already created in the backend during payment processing
-      // No need to manage localStorage - the database handles all enrollment data
-      if (!data.isStudyPack) {
-        console.log('📚 Enrollment created in database during payment processing');
-        console.log('📊 Class data processed:', data);
-        
-        // Trigger a refresh of My Classes data from the database
-      window.dispatchEvent(new CustomEvent('refreshMyClasses'));
-        console.log('✅ My Classes refresh triggered');
-      }
-      
-      // Navigate to success page after a short delay
-      setTimeout(() => {
-        navigate('/student/payment-success', { 
-          state: { 
-            ...data, 
-            paymentDate: new Date().toISOString(),
-              transactionId: transactionId
-          } 
-        });
-      }, 1000);
-        
-      } else {
-        const errorMessage = paymentResponse.message || paymentResponse.error || 'Unknown payment error';
-        alert('Payment failed: ' + errorMessage);
-      }
+
+      document.body.appendChild(form);
+      form.submit();
       
     } catch (err) {
-      console.error('Payment error:', err);
+      console.error('PayHere payment error:', err);
       const errorMessage = err.message || 'Network or server error';
-      alert('Payment failed: ' + errorMessage);
-    } finally {
+      alert('PayHere payment failed: ' + errorMessage);
       setLoading(false);
     }
   };

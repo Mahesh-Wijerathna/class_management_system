@@ -1,0 +1,166 @@
+<?php
+
+class PaymentController {
+    private $mysqli;
+    private $merchantId = "1231482"; // PayHere sandbox merchant ID
+    private $merchantSecret = "MTE3MTY5MDMwNjMzMzMyMDgwNDYzNzAxOTQxNDA5MTI1NTA3OTgwOA=="; // PayHere sandbox merchant secret
+
+    public function __construct($mysqli) {
+        $this->mysqli = $mysqli;
+    }
+
+    public function createPayment($data) {
+        try {
+            // Generate unique order ID
+            $orderId = 'ORD' . time() . rand(1000, 9999);
+            
+            // Save payment data to database
+            $query = "INSERT INTO financial_records (user_id, class_id, amount, payment_method, status, order_id, transaction_id, created_at) 
+                      VALUES (?, ?, ?, 'payhere', 'pending', ?, ?, NOW())";
+            
+            $stmt = $this->mysqli->prepare($query);
+            $stmt->bind_param("sids", $data["student_id"], $data["class_id"], $data["amount"], $orderId, $orderId);
+            
+            if (!$stmt->execute()) {
+                return ['success' => false, 'message' => 'Failed to save payment record'];
+            }
+            
+            $financialRecordId = $this->mysqli->insert_id;
+            
+            // Create enrollment record
+            $enrollmentQuery = "INSERT INTO enrollments (student_id, class_id, enrollment_date, payment_status, financial_record_id) 
+                               VALUES (?, ?, NOW(), 'pending', ?)";
+            
+            $enrollmentStmt = $this->mysqli->prepare($enrollmentQuery);
+            $enrollmentStmt->bind_param("sii", $data['student_id'], $data['class_id'], $financialRecordId);
+            
+            if (!$enrollmentStmt->execute()) {
+                return ['success' => false, 'message' => 'Failed to create enrollment'];
+            }
+            
+            $enrollmentId = $this->mysqli->insert_id;
+            
+            // Generate PayHere payment request
+            $hash = strtoupper(
+                md5(
+                    $this->merchantId . 
+                    $orderId . 
+                    number_format($data['amount'], 2, '.', '') . 
+                    'LKR' . 
+                    strtoupper(md5($this->merchantSecret))
+                )
+            );
+
+            $paymentData = [
+                'merchant_id' => $this->merchantId,
+                'return_url' => 'http://localhost:3000/student/payment-success',
+                'cancel_url' => 'http://localhost:3000/student/payment-cancel',
+                'notify_url' => 'http://localhost:8087/routes.php/payhere_notify',
+                'first_name' => $data['first_name'],
+                'last_name' => $data['last_name'],
+                'email' => $data['email'],
+                'phone' => $data['phone'],
+                'address' => $data['address'] ?? '',
+                'city' => $data['city'] ?? '',
+                'country' => 'Sri Lanka',
+                'order_id' => $orderId,
+                'items' => $data['class_name'] ?? 'Class Payment',
+                'currency' => 'LKR',
+                'amount' => number_format($data['amount'], 2, '.', ''),
+                'hash' => $hash,
+                'financial_record_id' => $financialRecordId,
+                'enrollment_id' => $enrollmentId
+            ];
+
+            return ['success' => true, 'data' => $paymentData];
+            
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Payment creation failed: ' . $e->getMessage()];
+        }
+    }
+
+    public function handleNotification($data) {
+        try {
+            // Verify the payment hash
+            $localHash = strtoupper(
+                md5(
+                    $data['merchant_id'] .
+                    $data['order_id'] .
+                    $data['payhere_amount'] .
+                    $data['payhere_currency'] .
+                    $data['status_code'] .
+                    strtoupper(md5($this->merchantSecret))
+                )
+            );
+
+            if ($localHash != $data['md5sig']) {
+                return ['status' => 'error', 'message' => 'Invalid hash'];
+            }
+
+            // Extract financial_record_id from order_id (assuming format: ORD{timestamp}{random}FR{id})
+            $orderId = $data['order_id'];
+            
+            // Find the financial record by order ID pattern
+            $query = "SELECT fr.id, fr.student_id, fr.class_id, fr.amount, e.id as enrollment_id 
+                      FROM financial_records fr 
+                      LEFT JOIN enrollments e ON e.financial_record_id = fr.id 
+                      WHERE fr.order_id = ?";
+            
+            $stmt = $this->mysqli->prepare($query);
+            $stmt->bind_param("s", $orderId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            if ($result->num_rows === 0) {
+                return ['status' => 'error', 'message' => 'Order not found'];
+            }
+            
+            $record = $result->fetch_assoc();
+            $financialRecordId = $record['id'];
+            $enrollmentId = $record['enrollment_id'];
+            
+            // Update payment status based on PayHere response
+            $status = ($data['status_code'] == 2) ? 'paid' : 'failed';
+            
+            // Update financial record
+            $updateFinancialQuery = "UPDATE financial_records SET 
+                                    status = ?, 
+                                    updated_at = NOW(),
+                                    transaction_id = ? 
+                                    WHERE id = ?";
+            
+            $updateFinancialStmt = $this->mysqli->prepare($updateFinancialQuery);
+            $updateFinancialStmt->bind_param("ssi", $status, $data['payment_id'], $financialRecordId);
+            $updateFinancialStmt->execute();
+            
+            // Update enrollment
+            $updateEnrollmentQuery = "UPDATE enrollments SET 
+                                     payment_status = ?, 
+                                     updated_at = NOW() 
+                                     WHERE id = ?";
+            
+            $updateEnrollmentStmt = $this->mysqli->prepare($updateEnrollmentQuery);
+            $updateEnrollmentStmt->bind_param("si", $status, $enrollmentId);
+            $updateEnrollmentStmt->execute();
+            
+            // Add payment history
+            $paymentHistoryQuery = "INSERT INTO payment_history (enrollment_id, amount, payment_method, status, transaction_id, created_at) 
+                                   VALUES (?, ?, 'payhere', ?, ?, NOW())";
+            
+            $paymentHistoryStmt = $this->mysqli->prepare($paymentHistoryQuery);
+            $paymentHistoryStmt->bind_param("idss", $enrollmentId, $data['payhere_amount'], $status, $data['payment_id']);
+            $paymentHistoryStmt->execute();
+            
+            return ['status' => 'success', 'message' => 'Payment processed successfully'];
+            
+        } catch (Exception $e) {
+            return ['status' => 'error', 'message' => 'Payment processing failed: ' . $e->getMessage()];
+        }
+    }
+
+    public function processPayment($transactionId, $data) {
+        // This method is now handled by PayHere notification
+        return ['success' => true, 'message' => 'Payment processed via PayHere'];
+    }
+}
+?> 
