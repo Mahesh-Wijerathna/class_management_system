@@ -343,52 +343,52 @@ const CreateClass = ({ onLogout }) => {
           // Reload classes from backend
           await loadClasses();
       
-      // Also update the class in students' myClasses if it exists
-      try {
-        const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
-        const updatedMyClasses = myClasses.map(studentClass => {
-          if (studentClass.classId === editingId || studentClass.id === editingId) {
-            // Update the class data while preserving student-specific data
-            return {
-              ...studentClass,
-              className: normalizedSubmitValues.className,
-              subject: normalizedSubmitValues.subject,
-              teacher: normalizedSubmitValues.teacher,
-              stream: normalizedSubmitValues.stream,
-              deliveryMethod: normalizedSubmitValues.deliveryMethod,
-              schedule: normalizedSubmitValues.schedule,
-              fee: normalizedSubmitValues.fee,
-              maxStudents: normalizedSubmitValues.maxStudents,
-              zoomLink: normalizedSubmitValues.zoomLink, // Update zoom link
-              description: normalizedSubmitValues.description,
-              courseType: normalizedSubmitValues.courseType,
-              status: normalizedSubmitValues.status, // Update status (active/inactive)
-              paymentTracking: normalizedSubmitValues.paymentTracking,
-              paymentTrackingFreeDays: normalizedSubmitValues.paymentTrackingFreeDays,
-              // Preserve student-specific data
-              // paymentStatus, paymentMethod, purchaseDate, attendance, etc. remain unchanged
-            };
+          // Also update the class in students' myClasses if it exists
+          try {
+            const myClasses = JSON.parse(localStorage.getItem('myClasses') || '[]');
+            const updatedMyClasses = myClasses.map(studentClass => {
+              if (studentClass.classId === editingId || studentClass.id === editingId) {
+                // Update the class data while preserving student-specific data
+                return {
+                  ...studentClass,
+                  className: normalizedSubmitValues.className,
+                  subject: normalizedSubmitValues.subject,
+                  teacher: normalizedSubmitValues.teacher,
+                  stream: normalizedSubmitValues.stream,
+                  deliveryMethod: normalizedSubmitValues.deliveryMethod,
+                  schedule: normalizedSubmitValues.schedule,
+                  fee: normalizedSubmitValues.fee,
+                  maxStudents: normalizedSubmitValues.maxStudents,
+                  zoomLink: normalizedSubmitValues.zoomLink, // Update zoom link
+                  description: normalizedSubmitValues.description,
+                  courseType: normalizedSubmitValues.courseType,
+                  status: normalizedSubmitValues.status, // Update status (active/inactive)
+                  paymentTracking: normalizedSubmitValues.paymentTracking,
+                  paymentTrackingFreeDays: normalizedSubmitValues.paymentTrackingFreeDays,
+                  // Preserve student-specific data
+                  // paymentStatus, paymentMethod, purchaseDate, attendance, etc. remain unchanged
+                };
+              }
+              return studentClass;
+            });
+            
+            localStorage.setItem('myClasses', JSON.stringify(updatedMyClasses));
+            console.log('Updated class in myClasses localStorage for existing students');
+          } catch (error) {
+            console.error('Error updating myClasses localStorage:', error);
           }
-          return studentClass;
-        });
-        
-        localStorage.setItem('myClasses', JSON.stringify(updatedMyClasses));
-        console.log('Updated class in myClasses localStorage for existing students');
-      } catch (error) {
-        console.error('Error updating myClasses localStorage:', error);
-      }
-      
-      setEditingId(null);
-      setAlertBox({
-        open: true,
-        message: 'Class updated successfully! All enrolled students will see the updated information.',
-        onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
-        onCancel: null,
-        confirmText: 'OK',
-        cancelText: '',
-        type: 'success',
-      });
-    } else {
+          
+          setEditingId(null);
+          setAlertBox({
+            open: true,
+            message: 'Class updated successfully! All enrolled students will see the updated information.',
+            onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+            onCancel: null,
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'success',
+          });
+        } else {
           setAlertBox({
             open: true,
             message: 'Failed to update class. Please try again.',
