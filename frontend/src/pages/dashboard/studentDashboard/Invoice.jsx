@@ -78,7 +78,7 @@ const Invoice = () => {
       // Create PayHere payment data
       const payHereData = {
         order_id: transactionId,
-        amount: data.finalAmount || data.basePrice,
+        amount: data.amount || data.finalAmount || data.basePrice, // Use the total amount that includes all fees
         currency: 'LKR',
         first_name: userData.firstName || userData.name?.split(' ')[0] || 'Student',
         last_name: userData.lastName || userData.name?.split(' ').slice(1).join(' ') || 'User',
@@ -91,6 +91,14 @@ const Invoice = () => {
       };
 
       console.log('💳 Creating PayHere payment:', payHereData);
+      console.log('💰 Amount breakdown:', {
+        basePrice: data.basePrice,
+        finalAmount: data.finalAmount,
+        amount: data.amount,
+        speedPostFee: data.speedPostFee,
+        discount: data.discount,
+        usedAmount: payHereData.amount
+      });
 
       // Call PayHere API using the proper function
       const payHereResponse = await createPayHerePayment(payHereData);

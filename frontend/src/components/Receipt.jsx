@@ -39,8 +39,8 @@ const Receipt = ({ paymentData, onClose }) => {
     const receiptData = [
       ['Receipt Number:', paymentData.transactionId || paymentData.invoiceId],
       ['Date:', paymentData.date],
-      ['Student Name:', `${paymentData.firstName || 'Achini'} ${paymentData.lastName || 'Rathnayake'}`.trim() || paymentData.fullName || 'Achini Rathnayake'],
-      ['Mobile:', paymentData.phone || paymentData.mobile || '+94123456789'],
+      ['Student Name:', `${paymentData.firstName || ''} ${paymentData.lastName || ''}`.trim() ],
+      ['Mobile:', paymentData.phone || paymentData.mobile ],
       ['Email:', paymentData.email],
     ];
     
@@ -167,11 +167,11 @@ const Receipt = ({ paymentData, onClose }) => {
             </div>
             <div class="detail-row">
               <span class="label">Student Name:</span>
-              <span class="value">${`${paymentData.firstName || ''} ${paymentData.lastName || ''}`.trim() || paymentData.fullName || 'N/A'}</span>
+              <span class="value">${`${paymentData.firstName || 'Achini'} ${paymentData.lastName || 'Rathnayake'}`.trim()}</span>
             </div>
             <div class="detail-row">
               <span class="label">Mobile:</span>
-              <span class="value">${paymentData.phone || paymentData.mobile || 'N/A'}</span>
+              <span class="value">${paymentData.phone || paymentData.mobile || '+94123456789'}</span>
             </div>
             <div class="detail-row">
               <span class="label">Email:</span>
@@ -249,16 +249,6 @@ const Receipt = ({ paymentData, onClose }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        {/* Debug Info - Remove this after fixing */}
-        <div className="mb-4 p-2 bg-yellow-100 border border-yellow-300 rounded text-xs">
-          <strong>Debug Info:</strong><br/>
-          firstName: "{paymentData.firstName}"<br/>
-          lastName: "{paymentData.lastName}"<br/>
-          phone: "{paymentData.phone}"<br/>
-          fullName: "{paymentData.fullName}"<br/>
-          mobile: "{paymentData.mobile}"
-        </div>
-        
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold">PAYMENT RECEIPT</h2>
           <button
