@@ -44,12 +44,28 @@ const MyClasses = ({ onLogout }) => {
       
       const studentId = userData.userid;
       
+      // Get student's stream from user data
+      const studentStream = userData.stream;
+      
       // Fetch enrollments from backend API
       const response = await getStudentEnrollments(studentId);
       
       if (response.success && response.data) {
-        // Convert enrollments to MyClasses format
-        const convertedClasses = response.data.map(enrollment => {
+        // Convert enrollments to MyClasses format and filter by stream
+        const convertedClasses = response.data
+          .filter(enrollment => {
+            // If student has no stream set, show all classes
+            if (!studentStream) return true;
+            
+            // If student has "Other" stream, show only Other stream classes
+            if (studentStream === 'Other') {
+              return enrollment.stream === 'Other';
+            }
+            
+            // If student has specific stream, show only classes that match their stream
+            return enrollment.stream === studentStream;
+          })
+          .map(enrollment => {
           const myClass = convertEnrollmentToMyClass(enrollment);
           
           // Get student's card for this class
@@ -133,11 +149,29 @@ const MyClasses = ({ onLogout }) => {
   // Listen for payment updates
   useEffect(() => {
     const handlePaymentUpdate = () => {
+      console.log('🔄 MyClasses: Received refreshMyClasses event');
+      loadMyClasses();
+    };
+
+    const handlePaymentCompleted = (event) => {
+      console.log('🔄 MyClasses: Received paymentCompleted event', event.detail);
+      loadMyClasses();
+    };
+
+    const handleStorageChange = () => {
+      console.log('🔄 MyClasses: Received storage change event');
       loadMyClasses();
     };
 
     window.addEventListener('refreshMyClasses', handlePaymentUpdate);
-    return () => window.removeEventListener('refreshMyClasses', handlePaymentUpdate);
+    window.addEventListener('paymentCompleted', handlePaymentCompleted);
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('refreshMyClasses', handlePaymentUpdate);
+      window.removeEventListener('paymentCompleted', handlePaymentCompleted);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   // Handle keyboard events for modal

@@ -125,7 +125,7 @@ const passwordSchema = Yup.object().shape({
 });
 
 const streams = [
-  'AL-Maths', 'AL-Science', 'AL-Art', 'AL-Tech', 'AL-Common', 'OL', 'Primary', 'Other'
+  'A/L-Maths', 'A/L-Science', 'A/L-Art', 'A/L-Technology', 'A/L-Commerce', 'O/L', 'Primary', 'Other'
 ];
 
 const districts = [

@@ -128,6 +128,9 @@ switch ($method) {
             $studentId = $_GET['studentId'];
             $result = $enrollmentController->getStudentEnrollments($studentId);
             echo json_encode($result);
+        } elseif ($path === '/get_all_enrollments') {
+            $result = $enrollmentController->getAllEnrollments();
+            echo json_encode($result);
         } elseif ($path === '/get_all_classes') {
             $classes = $controller->getAllClasses();
             echo json_encode(['success' => true, 'data' => $classes]);
@@ -178,6 +181,10 @@ switch ($method) {
         } elseif ($path === '/dev/complete_all_pending') {
             // Development endpoint to complete all pending payments
             $result = $devPaymentHelper->completeAllPendingPayments();
+            echo json_encode($result);
+        } elseif ($path === '/dev/clear_all_payments') {
+            // Development endpoint to clear all payment records
+            $result = $devPaymentHelper->clearAllPayments();
             echo json_encode($result);
         } else {
             http_response_code(404);

@@ -28,10 +28,27 @@ const PurchaseClasses = ({ onLogout }) => {
       const response = await getActiveClasses();
       
       if (response.success) {
-        // Process classes with student card information
+        // Get student's stream from user data
+        const userData = getUserData();
+        const studentStream = userData?.stream;
+        
+        // Process classes with student card information and filter by stream
         const currentStudent = JSON.parse(localStorage.getItem('currentStudent') || '{}');
         
-        const processedClasses = (response.data || []).map(cls => {
+        const processedClasses = (response.data || [])
+          .filter(cls => {
+            // If student has no stream set, show all classes
+            if (!studentStream) return true;
+            
+            // If student has "Other" stream, show only Other stream classes
+            if (studentStream === 'Other') {
+              return cls.stream === 'Other';
+            }
+            
+            // If student has specific stream, show only classes that match their stream
+            return cls.stream === studentStream;
+          })
+          .map(cls => {
           // Get student's card for this class
           const studentCard = getStudentCard(currentStudent.studentId || 'STUDENT_001', cls.id);
           const cardInfo = studentCard ? getCardTypeInfo(studentCard.cardType) : null;

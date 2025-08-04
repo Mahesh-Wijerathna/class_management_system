@@ -69,6 +69,65 @@ class EnrollmentController {
         }
     }
 
+    // Get all enrollments in the system
+    public function getAllEnrollments() {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT 
+                    e.*,
+                    c.class_name,
+                    c.subject,
+                    c.teacher,
+                    c.stream,
+                    c.delivery_method,
+                    c.course_type,
+                    c.fee,
+                    c.max_students,
+                    c.status as class_status,
+                    c.zoom_link,
+                    c.description,
+                    c.schedule_day,
+                    c.schedule_start_time,
+                    c.schedule_end_time,
+                    c.schedule_frequency,
+                    c.start_date,
+                    c.end_date,
+                    c.current_students,
+                    c.payment_tracking,
+                    c.payment_tracking_free_days
+                FROM enrollments e
+                LEFT JOIN classes c ON e.class_id = c.id
+                ORDER BY e.created_at DESC
+            ");
+            
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            $enrollments = [];
+            while ($row = $result->fetch_assoc()) {
+                // Create schedule object from individual columns
+                $row['schedule'] = [
+                    'day' => $row['schedule_day'],
+                    'startTime' => $row['schedule_start_time'],
+                    'endTime' => $row['schedule_end_time'],
+                    'frequency' => $row['schedule_frequency']
+                ];
+                
+                $enrollments[] = $row;
+            }
+            
+            return [
+                'success' => true,
+                'data' => $enrollments
+            ];
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Error retrieving all enrollments: ' . $e->getMessage()
+            ];
+        }
+    }
+
     // Create a new enrollment
     public function createEnrollment($enrollmentData) {
         try {

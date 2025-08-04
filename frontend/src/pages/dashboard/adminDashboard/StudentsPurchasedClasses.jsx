@@ -115,13 +115,50 @@ const validationSchema = Yup.object().shape({
         setAvailableClasses([]);
       }
 
-      // Load existing purchased classes from localStorage (for now)
-      // In a real implementation, this would come from a database
-      const storedPurchasedClasses = localStorage.getItem('purchasedClasses');
-      if (storedPurchasedClasses) {
-        const parsedPurchasedClasses = JSON.parse(storedPurchasedClasses);
-        setPurchasedClasses(Array.isArray(parsedPurchasedClasses) ? parsedPurchasedClasses : []);
+      // Load enrollment data from database
+      const enrollmentsResponse = await fetch('http://localhost:8087/routes.php/get_all_enrollments');
+      if (enrollmentsResponse.ok) {
+        const enrollmentsData = await enrollmentsResponse.json();
+        if (enrollmentsData.success && enrollmentsData.data) {
+          // Transform enrollment data to match the expected format
+          const transformedEnrollments = enrollmentsData.data.map(enrollment => {
+            // Parse student name properly
+            const studentName = enrollment.student_name || '';
+            const nameParts = studentName.split(' ');
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.slice(1).join(' ') || '';
+            
+            return {
+              id: enrollment.id,
+              studentId: enrollment.student_id,
+              firstName: firstName,
+              lastName: lastName,
+              email: '', // Will be filled from student data
+              phone: '', // Will be filled from student data
+              purchasedClass: enrollment.class_name || '',
+              subject: enrollment.subject || '',
+              teacher: enrollment.teacher || '',
+              stream: enrollment.stream || '',
+              courseType: enrollment.course_type || '',
+              amount: parseFloat(enrollment.amount_paid) || 0,
+              paymentMethod: enrollment.payment_method || '',
+              paymentStatus: enrollment.payment_status === 'paid' ? 'Paid' : 'Pending',
+              status: enrollment.status === 'enrolled' ? 'Active' : 'Inactive',
+              purchaseDate: enrollment.enrollment_date || '',
+              transactionId: enrollment.transaction_id || '',
+              receiptNumber: `RCP-${enrollment.id}-${Math.floor(Math.random() * 1000)}`,
+              nextPaymentDate: enrollment.next_payment_date || '',
+              schedule: enrollment.schedule || {}
+            };
+          });
+          console.log('Transformed enrollments:', transformedEnrollments);
+          setPurchasedClasses(transformedEnrollments);
+        } else {
+          console.error('Failed to load enrollments:', enrollmentsData.message);
+          setPurchasedClasses([]);
+        }
       } else {
+        console.error('Failed to fetch enrollments from API');
         setPurchasedClasses([]);
       }
     } catch (error) {
@@ -187,6 +224,32 @@ const validationSchema = Yup.object().shape({
     
     return matchesSearch;
   });
+
+  // Debug logging
+  console.log('purchasedClasses:', purchasedClasses);
+  console.log('filteredData:', filteredData);
+  console.log('searchTerm:', searchTerm);
+  console.log('selectedFilter:', selectedFilter);
+
+  // Test API call function
+  const testApiCall = async () => {
+    try {
+      console.log('Testing API call...');
+      const response = await fetch('http://localhost:8087/routes.php/get_all_enrollments');
+      console.log('API Response status:', response.status);
+      console.log('API Response ok:', response.ok);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('API Response data:', data);
+        console.log('Number of enrollments:', data.data?.length || 0);
+      } else {
+        console.error('API call failed:', response.status, response.statusText);
+      }
+    } catch (error) {
+      console.error('API call error:', error);
+    }
+  };
 
   const handleNewEnrollment = () => {
     setSelectedStudent(null);
@@ -608,6 +671,21 @@ const validationSchema = Yup.object().shape({
       </div>
 
       {/* Table */}
+      <div className="mb-4">
+        <button 
+          onClick={loadDataFromDatabase}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors mr-2"
+        >
+          Test Load Data ({purchasedClasses.length} records)
+        </button>
+        <button 
+          onClick={testApiCall}
+          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+        >
+          Test API Call
+        </button>
+      </div>
+      
       <BasicTable
         columns={columns}
         data={filteredData}

@@ -21,6 +21,7 @@ const streamOptions = [
   { value: 'A/L-Commerce', label: 'A/L-Commerce' },
   { value: 'A/L-Technology', label: 'A/L-Technology' },
   { value: 'Primary', label: 'Primary' },
+  { value: 'Other', label: 'Other' },
 ];
 
 const statusOptions = [

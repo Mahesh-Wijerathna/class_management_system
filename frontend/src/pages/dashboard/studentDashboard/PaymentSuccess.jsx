@@ -35,6 +35,22 @@ const PaymentSuccess = () => {
     }
   };
 
+  const verifyEnrollment = async (studentId, classId) => {
+    try {
+      const response = await fetch(`http://localhost:8087/routes.php/get_student_enrollments?studentId=${studentId}`);
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        const enrollment = result.data.find(e => e.class_id == classId);
+        return enrollment ? true : false;
+      }
+      return false;
+    } catch (e) {
+      console.error('Error verifying enrollment:', e);
+      return false;
+    }
+  };
+
   const getUserData = () => {
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user) {
@@ -145,12 +161,78 @@ const PaymentSuccess = () => {
                 console.log('🔍 Mobile:', payHerePaymentData.phone);
                 console.log('🔍 Email:', payHerePaymentData.email);
                 
-                window.dispatchEvent(new CustomEvent('refreshMyClasses'));
+                // Verify enrollment was created
+                if (userData && backendPaymentData.class_id) {
+                  const enrollmentVerified = await verifyEnrollment(userData.userid, backendPaymentData.class_id);
+                  console.log('🔍 Enrollment verification:', enrollmentVerified ? '✅ SUCCESS' : '❌ FAILED');
+                  
+                  if (!enrollmentVerified) {
+                    console.warn('⚠️ Enrollment not found, triggering manual refresh...');
+                    // Wait a bit and try again
+                    setTimeout(async () => {
+                      const retryVerification = await verifyEnrollment(userData.userid, backendPaymentData.class_id);
+                      console.log('🔍 Retry enrollment verification:', retryVerification ? '✅ SUCCESS' : '❌ FAILED');
+                    }, 3000);
+                  }
+                }
                 
-              } else {
-                console.log('⚠️ Payment not yet completed:', backendPaymentData.status);
-                setError('Payment is being processed. Please wait a moment and refresh the page.');
-              }
+                // Trigger multiple events to ensure MyClasses gets updated
+                window.dispatchEvent(new CustomEvent('refreshMyClasses'));
+                window.dispatchEvent(new CustomEvent('paymentCompleted', { 
+                  detail: { 
+                    transactionId: orderId,
+                    classId: backendPaymentData.class_id,
+                    status: 'success'
+                  }
+                }));
+                
+                // Also trigger a global refresh event
+                window.dispatchEvent(new Event('storage'));
+                
+                console.log('🔄 Events dispatched to refresh MyClasses');
+                
+                // Also trigger a delayed refresh to ensure data is updated
+                setTimeout(() => {
+                  console.log('🔄 Delayed refresh triggered');
+                  window.dispatchEvent(new CustomEvent('refreshMyClasses'));
+                }, 2000);
+                
+                // Industry-level: Poll for payment status updates
+                let pollCount = 0;
+                const maxPolls = 10;
+                const pollInterval = setInterval(async () => {
+                  pollCount++;
+                  console.log(`🔄 Payment status poll #${pollCount}`);
+                  
+                  try {
+                    const updatedStatus = await getPayHerePaymentStatus(orderId);
+                    if (updatedStatus.success && updatedStatus.data) {
+                      if (updatedStatus.data.status === 'paid' || updatedStatus.data.status === 'completed') {
+                        console.log('✅ Payment confirmed via polling');
+                        clearInterval(pollInterval);
+                        window.dispatchEvent(new CustomEvent('refreshMyClasses'));
+                      }
+                    }
+                  } catch (error) {
+                    console.error('❌ Polling error:', error);
+                  }
+                  
+                  if (pollCount >= maxPolls) {
+                    console.log('⏰ Polling timeout reached');
+                    clearInterval(pollInterval);
+                  }
+                }, 3000); // Poll every 3 seconds
+                
+                              } else {
+                  console.log('⚠️ Payment not yet completed:', backendPaymentData.status);
+                  setError('Payment is being processed. Please wait a moment and refresh the page.');
+                  
+                  // Auto-refresh after 5 seconds
+                  setTimeout(() => {
+                    console.log('🔄 Auto-refreshing payment status...');
+                    window.location.reload();
+                  }, 5000);
+                }
               
             } else {
               console.error('❌ Payment not found in database:', paymentStatusResponse);
@@ -301,7 +383,13 @@ const PaymentSuccess = () => {
             View Receipt
           </button>
           <button
-            onClick={() => navigate('/student/my-classes')}
+            onClick={() => {
+              // Trigger a refresh before navigating
+              window.dispatchEvent(new CustomEvent('refreshMyClasses'));
+              setTimeout(() => {
+                navigate('/student/my-classes');
+              }, 500);
+            }}
             className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
             <FaList />
