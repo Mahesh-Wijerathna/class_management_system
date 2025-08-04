@@ -146,29 +146,21 @@ class EnrollmentController {
         try {
             $stmt = $this->db->prepare("
                 INSERT INTO enrollments (
-                    class_id, student_id, student_name, enrollment_date, 
-                    status, payment_status, payment_method, amount_paid,
-                    next_payment_date, attendance_data, payment_history,
-                    forget_card_requested, late_payment_requested, fee_amount,
-                    created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    class_id, student_id, enrollment_date, 
+                    status, payment_status, total_fee, paid_amount,
+                    next_payment_date
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ");
             
-            $stmt->bind_param("ssssssssssssss", 
+            $stmt->bind_param("issssdss", 
                 $enrollmentData['class_id'],
                 $enrollmentData['student_id'],
-                $enrollmentData['student_name'],
                 $enrollmentData['enrollment_date'],
                 $enrollmentData['status'],
                 $enrollmentData['payment_status'],
-                $enrollmentData['payment_method'],
-                $enrollmentData['amount_paid'],
-                $enrollmentData['next_payment_date'],
-                $enrollmentData['attendance_data'],
-                $enrollmentData['payment_history'],
-                $enrollmentData['forget_card_requested'],
-                $enrollmentData['late_payment_requested'],
-                $enrollmentData['amount_paid'] // Use amount_paid as fee_amount
+                $enrollmentData['total_fee'],
+                $enrollmentData['paid_amount'],
+                $enrollmentData['next_payment_date']
             );
             
             if ($stmt->execute()) {
