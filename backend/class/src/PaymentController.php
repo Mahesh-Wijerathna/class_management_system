@@ -106,63 +106,41 @@ class PaymentController {
     // Process payment
     public function processPayment($transactionId, $paymentData) {
         try {
-            // Get payment record
-            $stmt = $this->db->prepare("
-                SELECT * FROM financial_records 
-                WHERE transaction_id = ?
-            ");
-            $stmt->bind_param("s", $transactionId);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $payment = $result->fetch_assoc();
-            
-            if (!$payment) {
-                return [
-                    'success' => false,
-                    'message' => 'Payment record not found'
-                ];
+            // Step 1: Get payment details
+            $payment = $this->getPaymentByTransactionId($transactionId);
+            if (!$payment['success']) {
+                return ['success' => false, 'message' => 'Payment not found'];
             }
+
+            $payment = $payment['data'];
             
-            // Update payment status
-            $stmt = $this->db->prepare("
+            // Step 2: Update payment status to paid
+            $updateStmt = $this->db->prepare("
                 UPDATE financial_records 
-                SET status = 'paid', 
-                    payment_method = ?, 
-                    reference_number = ?,
-                    updated_at = NOW()
+                SET status = 'paid', updated_at = NOW() 
                 WHERE transaction_id = ?
             ");
-            $stmt->bind_param("sss", 
-                $paymentData['paymentMethod'], 
-                $paymentData['referenceNumber'], 
-                $transactionId
-            );
             
-            if ($stmt->execute()) {
-                // Get class payment tracking configuration
+            if ($updateStmt->execute([$transactionId])) {
+                // Step 3: Get class payment tracking configuration
                 $classStmt = $this->db->prepare("SELECT payment_tracking, payment_tracking_free_days FROM classes WHERE id = ?");
                 $classStmt->bind_param("i", $payment['class_id']);
                 $classStmt->execute();
                 $classResult = $classStmt->get_result();
                 $classData = $classResult->fetch_assoc();
                 
-                // Check if payment tracking is enabled for this class
+                // Step 4: Calculate payment tracking dates
                 $paymentTrackingEnabled = $classData ? $classData['payment_tracking'] : false;
                 $freeDays = $classData ? $classData['payment_tracking_free_days'] : 7;
-                
-                // Always calculate next payment date: 1st day of next month (for both enabled and disabled)
                 $nextPaymentDate = date('Y-m-01', strtotime('+1 month'));
                 
-                // Calculate grace period end date only if payment tracking is enabled
                 if ($paymentTrackingEnabled) {
-                    // Payment tracking enabled: next payment date + free days
                     $gracePeriodEndDate = date('Y-m-d', strtotime($nextPaymentDate . ' +' . $freeDays . ' days'));
                 } else {
-                    // Payment tracking disabled: no grace period (payment due immediately on next payment date)
                     $gracePeriodEndDate = $nextPaymentDate;
                 }
                 
-                // Create payment history JSON with updated information
+                // Step 5: Create payment history JSON
                 $paymentHistory = json_encode([[
                     'date' => date('Y-m-d'),
                     'amount' => $payment['amount'],
@@ -176,51 +154,34 @@ class PaymentController {
                     'gracePeriodEndDate' => $gracePeriodEndDate
                 ]]);
                 
-                // Create enrollment ONLY after successful payment
-                $enrollmentStmt = $this->db->prepare("
-                    INSERT INTO enrollments (
-                        student_id, class_id, enrollment_date, status, payment_status, 
-                        total_fee, paid_amount, next_payment_date, created_at
-                    ) VALUES (?, ?, NOW(), 'active', 'paid', ?, ?, ?, NOW())
-                ");
-
-                $userId = $payment['user_id'];
-                $classId = $payment['class_id'];
-                $amount = $payment['amount'];
+                // Step 6: INDUSTRY-LEVEL ENROLLMENT CREATION WITH RETRY MECHANISM
+                $enrollmentResult = $this->createEnrollmentWithRetry($payment, $nextPaymentDate, $transactionId);
                 
-                $enrollmentStmt->bind_param("sisds", 
-                    $userId, $classId, $amount, $amount, $nextPaymentDate
-                );
-                
-                if (!$enrollmentStmt->execute()) {
-                    return ['success' => false, 'message' => 'Failed to create enrollment record'];
+                if (!$enrollmentResult['success']) {
+                    // Log the failure for monitoring
+                    error_log("ENROLLMENT_FAILURE: Transaction $transactionId - " . $enrollmentResult['message']);
+                    
+                    // Return success for payment but with enrollment warning
+                    return [
+                        'success' => true,
+                        'message' => 'Payment processed successfully, but enrollment creation failed. Please contact support.',
+                        'warning' => 'enrollment_failed',
+                        'data' => [
+                            'transactionId' => $transactionId,
+                            'amount' => $payment['amount'],
+                            'status' => 'paid',
+                            'nextPaymentDate' => $nextPaymentDate,
+                            'enrollmentError' => $enrollmentResult['message']
+                        ]
+                    ];
                 }
-                
-                $enrollmentId = $enrollmentStmt->insert_id;
-                
-                // Create payment history record with enrollment_id
-                $paymentHistoryStmt = $this->db->prepare("
-                    INSERT INTO payment_history (
-                        enrollment_id, amount, payment_method, reference_number, status, notes
-                    ) VALUES (?, ?, ?, ?, ?, ?)
-                ");
-                $amount = $payment['amount'];
-                $paymentMethod = $paymentData['paymentMethod'];
-                $referenceNumber = $paymentData['referenceNumber'];
-                $notes = $paymentData['notes'] ?? '';
-                $status = 'completed';
-                
-                $paymentHistoryStmt->bind_param("idssss", 
-                    $enrollmentId, $amount, $paymentMethod, $referenceNumber, $status, $notes
-                );
-                $paymentHistoryStmt->execute();
                 
                 return [
                     'success' => true,
                     'message' => 'Payment processed successfully',
                     'data' => [
                         'transactionId' => $transactionId,
-                        'enrollmentId' => $enrollmentId,
+                        'enrollmentId' => $enrollmentResult['enrollmentId'],
                         'amount' => $payment['amount'],
                         'status' => 'paid',
                         'nextPaymentDate' => $nextPaymentDate
@@ -233,11 +194,137 @@ class PaymentController {
                 ];
             }
         } catch (Exception $e) {
+            error_log("PAYMENT_PROCESSING_ERROR: Transaction $transactionId - " . $e->getMessage());
             return [
                 'success' => false,
                 'message' => 'Error processing payment: ' . $e->getMessage()
             ];
         }
+    }
+
+    /**
+     * Industry-level enrollment creation with automatic retry mechanism
+     */
+    private function createEnrollmentWithRetry($payment, $nextPaymentDate, $transactionId) {
+        $maxRetries = 3;
+        $retryDelay = 1; // seconds
+        
+        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+            try {
+                // Check if enrollment already exists (idempotency)
+                $existingEnrollment = $this->checkExistingEnrollment($payment['user_id'], $payment['class_id']);
+                if ($existingEnrollment) {
+                    return [
+                        'success' => true,
+                        'enrollmentId' => $existingEnrollment['id'],
+                        'message' => 'Enrollment already exists'
+                    ];
+                }
+                
+                // Create enrollment with transaction
+                $this->db->begin_transaction();
+                
+                try {
+                    // Create enrollment
+                    $enrollmentStmt = $this->db->prepare("
+                        INSERT INTO enrollments (
+                            student_id, class_id, enrollment_date, status, payment_status, 
+                            total_fee, paid_amount, next_payment_date, created_at
+                        ) VALUES (?, ?, NOW(), 'active', 'paid', ?, ?, ?, NOW())
+                    ");
+
+                    $userId = $payment['user_id'];
+                    $classId = $payment['class_id'];
+                    $amount = $payment['amount'];
+                    
+                    $enrollmentStmt->bind_param("sisds", 
+                        $userId, $classId, $amount, $amount, $nextPaymentDate
+                    );
+                    
+                    if (!$enrollmentStmt->execute()) {
+                        throw new Exception("Failed to create enrollment: " . $enrollmentStmt->error);
+                    }
+                    
+                    $enrollmentId = $enrollmentStmt->insert_id;
+                    
+                    // Create payment history record
+                    $paymentHistoryStmt = $this->db->prepare("
+                        INSERT INTO payment_history (
+                            enrollment_id, amount, payment_method, reference_number, status, notes
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                    ");
+                    
+                    $paymentMethod = $payment['payment_method'] ?? 'online';
+                    $referenceNumber = $payment['reference_number'] ?? $transactionId;
+                    $notes = "Auto-created from payment transaction: $transactionId";
+                    $status = 'completed';
+                    
+                    $paymentHistoryStmt->bind_param("idssss", 
+                        $enrollmentId, $amount, $paymentMethod, $referenceNumber, $status, $notes
+                    );
+                    
+                    if (!$paymentHistoryStmt->execute()) {
+                        throw new Exception("Failed to create payment history: " . $paymentHistoryStmt->error);
+                    }
+                    
+                    // Update class student count
+                    $this->updateClassStudentCount($transactionId);
+                    
+                    // Commit transaction
+                    $this->db->commit();
+                    
+                    // Log successful enrollment
+                    error_log("ENROLLMENT_SUCCESS: Transaction $transactionId - Enrollment ID: $enrollmentId");
+                    
+                    return [
+                        'success' => true,
+                        'enrollmentId' => $enrollmentId,
+                        'message' => 'Enrollment created successfully'
+                    ];
+                    
+                } catch (Exception $e) {
+                    // Rollback transaction
+                    $this->db->rollback();
+                    throw $e;
+                }
+                
+            } catch (Exception $e) {
+                error_log("ENROLLMENT_ATTEMPT_$attempt: Transaction $transactionId - " . $e->getMessage());
+                
+                if ($attempt < $maxRetries) {
+                    // Wait before retry
+                    sleep($retryDelay);
+                    $retryDelay *= 2; // Exponential backoff
+                    continue;
+                } else {
+                    // All retries failed
+                    return [
+                        'success' => false,
+                        'message' => "Enrollment creation failed after $maxRetries attempts: " . $e->getMessage()
+                    ];
+                }
+            }
+        }
+        
+        return [
+            'success' => false,
+            'message' => 'Enrollment creation failed - unknown error'
+        ];
+    }
+
+    /**
+     * Check if enrollment already exists (idempotency check)
+     */
+    private function checkExistingEnrollment($studentId, $classId) {
+        $stmt = $this->db->prepare("
+            SELECT id, status, payment_status 
+            FROM enrollments 
+            WHERE student_id = ? AND class_id = ?
+        ");
+        $stmt->bind_param("si", $studentId, $classId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result->fetch_assoc();
     }
     
     // Create enrollment record from payment

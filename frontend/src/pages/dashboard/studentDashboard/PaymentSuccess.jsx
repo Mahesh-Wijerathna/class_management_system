@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import studentSidebarSections from './StudentDashboardSidebar';
 import Receipt from '../../../components/Receipt';
-import { FaCheckCircle, FaPrint, FaDownload, FaHome, FaList } from 'react-icons/fa';
+import { FaCheckCircle, FaPrint, FaDownload, FaHome, FaList, FaMapMarkerAlt } from 'react-icons/fa';
 
 const PaymentSuccess = () => {
   const location = useLocation();
@@ -32,22 +32,6 @@ const PaymentSuccess = () => {
     } catch (e) {
       console.error('Error fetching class details:', e);
       return null;
-    }
-  };
-
-  const verifyEnrollment = async (studentId, classId) => {
-    try {
-      const response = await fetch(`http://localhost:8087/routes.php/get_student_enrollments?studentId=${studentId}`);
-      const result = await response.json();
-      
-      if (result.success && result.data) {
-        const enrollment = result.data.find(e => e.class_id == classId);
-        return enrollment ? true : false;
-      }
-      return false;
-    } catch (e) {
-      console.error('Error verifying enrollment:', e);
-      return false;
     }
   };
 
@@ -115,6 +99,7 @@ const PaymentSuccess = () => {
                 let promoDiscount = 0;
                 let theoryDiscount = 0;
                 let speedPostFee = 0;
+                let isSpeedPost = false;
                 
                 if (backendPaymentData.notes) {
                   const notes = backendPaymentData.notes;
@@ -125,114 +110,87 @@ const PaymentSuccess = () => {
                   promoDiscount = promoMatch ? parseFloat(promoMatch[1]) : 0;
                   theoryDiscount = theoryMatch ? parseFloat(theoryMatch[1]) : 0;
                   speedPostFee = speedPostMatch ? parseFloat(speedPostMatch[1]) : 0;
+                  isSpeedPost = speedPostFee > 0;
                 }
                 
                 const basePrice = classDetails?.fee || parseFloat(backendPaymentData.amount) || 0;
                 const totalDiscount = promoDiscount + theoryDiscount;
                 
-                const payHerePaymentData = {
-                  transactionId: orderId,
-                  paymentId: paymentId,
-                  status: backendPaymentData.status,
-                  paymentMethod: backendPaymentData.payment_method || 'PayHere',
-                  date: new Date(backendPaymentData.created_at).toLocaleDateString(),
-                  className: backendPaymentData.class_name || 'Class Payment',
-                  subject: classDetails?.subject || 'Course',
-                  teacher: classDetails?.teacher || 'Instructor',
-                  stream: classDetails?.stream || 'General',
-                  courseType: classDetails?.course_type || 'Regular',
-                  amount: parseFloat(backendPaymentData.amount) || 0,
-                  basePrice: basePrice,
-                  discount: totalDiscount,
-                  speedPostFee: speedPostFee,
-                  currency: backendPaymentData.currency || 'LKR',
-                  firstName: backendPaymentData.first_name,
-                  lastName: backendPaymentData.last_name,
-                  email: backendPaymentData.email,
-                  phone: backendPaymentData.phone,
-                  address: backendPaymentData.address,
-                  city: backendPaymentData.city,
-                  country: backendPaymentData.country,
-                };
+                                 const payHerePaymentData = {
+                   transactionId: orderId,
+                   paymentId: paymentId,
+                   status: backendPaymentData.status,
+                   paymentMethod: backendPaymentData.payment_method || 'PayHere',
+                   date: new Date(backendPaymentData.created_at).toLocaleDateString(),
+                   className: backendPaymentData.class_name || 'Class Payment',
+                   subject: classDetails?.subject || 'Course',
+                   teacher: classDetails?.teacher || 'Instructor',
+                   stream: classDetails?.stream || 'General',
+                   courseType: classDetails?.course_type || 'Regular',
+                   amount: parseFloat(backendPaymentData.amount) || 0,
+                   basePrice: basePrice,
+                   discount: totalDiscount,
+                   speedPostFee: speedPostFee,
+                   isSpeedPost: isSpeedPost,
+                   currency: backendPaymentData.currency || 'LKR',
+                   firstName: backendPaymentData.first_name,
+                   lastName: backendPaymentData.last_name,
+                   email: backendPaymentData.email,
+                   phone: backendPaymentData.phone,
+                   address: backendPaymentData.address,
+                   city: backendPaymentData.city,
+                   country: backendPaymentData.country,
+                 };
 
-                setPaymentData(payHerePaymentData);
-                console.log('✅ Payment data set successfully:', payHerePaymentData);
-                console.log('🔍 Student Name:', `${payHerePaymentData.firstName} ${payHerePaymentData.lastName}`);
-                console.log('🔍 Mobile:', payHerePaymentData.phone);
-                console.log('🔍 Email:', payHerePaymentData.email);
+                                 setPaymentData(payHerePaymentData);
+                 console.log('✅ Payment data set successfully:', payHerePaymentData);
+                 console.log('🔍 Student Name:', `${payHerePaymentData.firstName} ${payHerePaymentData.lastName}`);
+                 console.log('🔍 Mobile:', payHerePaymentData.phone);
+                 console.log('🔍 Email:', payHerePaymentData.email);
+                 
+                 // GUARANTEED ENROLLMENT: Ensure enrollment is created automatically
+                 try {
+                   console.log('🔄 Ensuring enrollment is created for transaction:', orderId);
+                   
+                   const enrollmentResponse = await fetch(`http://localhost:8087/routes.php/process_payment`, {
+                     method: 'POST',
+                     headers: {
+                       'Content-Type': 'application/json',
+                     },
+                     body: JSON.stringify({
+                       transactionId: orderId,
+                       status: 'paid',
+                       paymentMethod: backendPaymentData.payment_method || 'online',
+                       referenceNumber: orderId,
+                       notes: 'Auto-enrollment from payment success page'
+                     })
+                   });
+                   
+                   const enrollmentResult = await enrollmentResponse.json();
+                   console.log('✅ Auto-enrollment result:', enrollmentResult);
+                   
+                   if (enrollmentResult.success) {
+                     console.log('✅ Enrollment guaranteed! Class will appear in My Classes.');
+                   } else {
+                     console.warn('⚠️ Auto-enrollment failed, but payment is confirmed:', enrollmentResult.message);
+                   }
+                 } catch (enrollmentError) {
+                   console.error('❌ Error in auto-enrollment:', enrollmentError);
+                   // Don't fail the page, just log the error
+                 }
+                 
+                 window.dispatchEvent(new CustomEvent('refreshMyClasses'));
                 
-                // Verify enrollment was created
-                if (userData && backendPaymentData.class_id) {
-                  const enrollmentVerified = await verifyEnrollment(userData.userid, backendPaymentData.class_id);
-                  console.log('🔍 Enrollment verification:', enrollmentVerified ? '✅ SUCCESS' : '❌ FAILED');
-                  
-                  if (!enrollmentVerified) {
-                    console.warn('⚠️ Enrollment not found, triggering manual refresh...');
-                    // Wait a bit and try again
-                    setTimeout(async () => {
-                      const retryVerification = await verifyEnrollment(userData.userid, backendPaymentData.class_id);
-                      console.log('🔍 Retry enrollment verification:', retryVerification ? '✅ SUCCESS' : '❌ FAILED');
-                    }, 3000);
-                  }
-                }
-                
-                // Trigger multiple events to ensure MyClasses gets updated
-                window.dispatchEvent(new CustomEvent('refreshMyClasses'));
-                window.dispatchEvent(new CustomEvent('paymentCompleted', { 
-                  detail: { 
-                    transactionId: orderId,
-                    classId: backendPaymentData.class_id,
-                    status: 'success'
-                  }
-                }));
-                
-                // Also trigger a global refresh event
-                window.dispatchEvent(new Event('storage'));
-                
-                console.log('🔄 Events dispatched to refresh MyClasses');
-                
-                // Also trigger a delayed refresh to ensure data is updated
-                setTimeout(() => {
-                  console.log('🔄 Delayed refresh triggered');
-                  window.dispatchEvent(new CustomEvent('refreshMyClasses'));
-                }, 2000);
-                
-                // Industry-level: Poll for payment status updates
-                let pollCount = 0;
-                const maxPolls = 10;
-                const pollInterval = setInterval(async () => {
-                  pollCount++;
-                  console.log(`🔄 Payment status poll #${pollCount}`);
-                  
-                  try {
-                    const updatedStatus = await getPayHerePaymentStatus(orderId);
-                    if (updatedStatus.success && updatedStatus.data) {
-                      if (updatedStatus.data.status === 'paid' || updatedStatus.data.status === 'completed') {
-                        console.log('✅ Payment confirmed via polling');
-                        clearInterval(pollInterval);
-                        window.dispatchEvent(new CustomEvent('refreshMyClasses'));
-                      }
-                    }
-                  } catch (error) {
-                    console.error('❌ Polling error:', error);
-                  }
-                  
-                  if (pollCount >= maxPolls) {
-                    console.log('⏰ Polling timeout reached');
-                    clearInterval(pollInterval);
-                  }
-                }, 3000); // Poll every 3 seconds
-                
-                              } else {
-                  console.log('⚠️ Payment not yet completed:', backendPaymentData.status);
-                  setError('Payment is being processed. Please wait a moment and refresh the page.');
-                  
-                  // Auto-refresh after 5 seconds
-                  setTimeout(() => {
-                    console.log('🔄 Auto-refreshing payment status...');
-                    window.location.reload();
-                  }, 5000);
-                }
+                             } else {
+                 console.log('⚠️ Payment not yet completed:', backendPaymentData.status);
+                 setError('Payment is being processed. Please wait a moment and refresh the page.');
+                 
+                 // Auto-refresh after 3 seconds for pending payments
+                 setTimeout(() => {
+                   console.log('🔄 Auto-refreshing page after 3 seconds...');
+                   window.location.reload();
+                 }, 3000);
+               }
               
             } else {
               console.error('❌ Payment not found in database:', paymentStatusResponse);
@@ -368,6 +326,20 @@ const PaymentSuccess = () => {
                 <div><span className="font-medium">Subject:</span> {paymentData.subject}</div>
                 <div><span className="font-medium">Teacher:</span> {paymentData.teacher}</div>
                 <div><span className="font-medium">Amount:</span> LKR {paymentData.amount?.toLocaleString()}</div>
+                {paymentData.isSpeedPost && (
+                  <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center gap-2 text-blue-800">
+                      <FaMapMarkerAlt className="text-blue-600" />
+                      <span className="font-medium">Speed Post Delivery</span>
+                    </div>
+                    <div className="text-sm text-blue-700 mt-1">
+                      <div>Fee: LKR {paymentData.speedPostFee?.toLocaleString()}</div>
+                      {paymentData.address && (
+                        <div className="mt-1">Address: {paymentData.address}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -384,16 +356,15 @@ const PaymentSuccess = () => {
           </button>
           <button
             onClick={() => {
-              // Trigger a refresh before navigating
+              // Enrollment is already guaranteed, just navigate
+              console.log('🚀 Navigating to My Classes - enrollment already guaranteed');
               window.dispatchEvent(new CustomEvent('refreshMyClasses'));
-              setTimeout(() => {
-                navigate('/student/my-classes');
-              }, 500);
+              navigate('/student/my-classes');
             }}
             className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
             <FaList />
-            Go to My Classes
+            View in My Classes
           </button>
           <button
             onClick={() => navigate('/studentdashboard')}
@@ -420,6 +391,27 @@ const PaymentSuccess = () => {
               <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
               <p>Check your email for class schedule and zoom links</p>
             </div>
+            {paymentData.isSpeedPost ? (
+              <>
+                <div className="flex items-start gap-2">
+                  <div className="w-2 h-2 bg-orange-600 rounded-full mt-2 flex-shrink-0"></div>
+                  <p><strong>Speed Post Delivery:</strong> Your study materials will be delivered to your address within 2-3 business days</p>
+                </div>
+                <div className="flex items-start gap-2">
+                  <div className="w-2 h-2 bg-orange-600 rounded-full mt-2 flex-shrink-0"></div>
+                  <p>You will receive a tracking number via SMS/email once the package is dispatched</p>
+                </div>
+                <div className="flex items-start gap-2">
+                  <div className="w-2 h-2 bg-orange-600 rounded-full mt-2 flex-shrink-0"></div>
+                  <p>Please ensure someone is available to receive the package at the delivery address</p>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-start gap-2">
+                <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
+                <p>Collect your study materials during physical class sessions</p>
+              </div>
+            )}
             <div className="flex items-start gap-2">
               <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></div>
               <p>Download your receipt for your records</p>

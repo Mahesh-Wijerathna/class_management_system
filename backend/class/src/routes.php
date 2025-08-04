@@ -186,6 +186,25 @@ switch ($method) {
             // Development endpoint to clear all payment records
             $result = $devPaymentHelper->clearAllPayments();
             echo json_encode($result);
+        } elseif ($path === '/dev/recover_failed_enrollments') {
+            // Industry-level endpoint to recover failed enrollments
+            $result = $devPaymentHelper->recoverFailedEnrollments();
+            echo json_encode($result);
+        } elseif ($path === '/dev/process_pending_enrollments') {
+            // Industry-level endpoint to process all pending payments and create enrollments
+            $result = $devPaymentHelper->processPendingEnrollments();
+            echo json_encode($result);
+        } elseif ($path === '/dev/simulate_payhere_confirmation' && isset($_GET['order_id'])) {
+            // Development endpoint to simulate PayHere payment confirmation
+            $orderId = $_GET['order_id'];
+            $result = $devPaymentHelper->simulatePayHereConfirmation($orderId);
+            echo json_encode($result);
+        } elseif ($path === '/dev/debug_enrollment') {
+            // Development endpoint to debug enrollment issues
+            $studentId = $_GET['studentId'] ?? null;
+            $classId = $_GET['classId'] ?? null;
+            $result = $devPaymentHelper->debugEnrollment($studentId, $classId);
+            echo json_encode($result);
         } else {
             http_response_code(404);
             echo json_encode(['error' => 'Endpoint not found']);

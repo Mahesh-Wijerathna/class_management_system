@@ -693,6 +693,48 @@ public function resetPassword($userid, $otp, $newPassword) {
         ]);
     }
 
+    // Get student by ID
+    public function getStudentById($studentId) {
+        $stmt = $this->db->prepare("
+            SELECT 
+                u.userid,
+                u.role,
+                COALESCE(s.firstName, '') as firstName,
+                COALESCE(s.lastName, '') as lastName,
+                COALESCE(s.email, '') as email,
+                COALESCE(s.mobile, '') as mobile,
+                COALESCE(s.nic, '') as nic,
+                COALESCE(s.gender, '') as gender,
+                COALESCE(s.age, '') as age,
+                COALESCE(s.parentName, '') as parentName,
+                COALESCE(s.parentMobile, '') as parentMobile,
+                COALESCE(s.stream, '') as stream,
+                COALESCE(s.dateOfBirth, '') as dateOfBirth,
+                COALESCE(s.school, '') as school,
+                COALESCE(s.address, '') as address,
+                COALESCE(s.district, '') as district,
+                COALESCE(s.dateJoined, '') as dateJoined
+            FROM users u
+            LEFT JOIN students s ON u.userid = s.userid
+            WHERE u.role = 'student' AND u.userid = ?
+        ");
+        $stmt->bind_param("s", $studentId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if ($row = $result->fetch_assoc()) {
+            return json_encode([
+                'success' => true,
+                'data' => $row
+            ]);
+        } else {
+            return json_encode([
+                'success' => false,
+                'message' => 'Student not found'
+            ]);
+        }
+    }
+
 
 
     // Get all barcodes
