@@ -199,9 +199,9 @@ const MyClasses = ({ onLogout }) => {
       // Get free days from class configuration
       const freeDays = cls.paymentTrackingFreeDays || 7;
       
-      // Create a default payment date (1 month ago from today)
-      const defaultPaymentDate = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
-      const nextPaymentDate = new Date(defaultPaymentDate.getFullYear(), defaultPaymentDate.getMonth() + 1, 1);
+      // INDUSTRY STANDARD: Next payment is always 1st of next month, regardless of when class was purchased
+      // This ensures consistent billing cycles and proper grace period calculation
+      const nextPaymentDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
       
       if (hasPaymentTracking) {
         // Payment tracking enabled: has grace period
@@ -264,8 +264,9 @@ const MyClasses = ({ onLogout }) => {
     if (latestPayment.nextPaymentDate) {
       nextPaymentDate = new Date(latestPayment.nextPaymentDate);
     } else {
-    // Calculate next payment date: 1st day of next month from payment date
-      nextPaymentDate = new Date(paymentDate.getFullYear(), paymentDate.getMonth() + 1, 1);
+      // INDUSTRY STANDARD: Next payment is always 1st of next month, regardless of payment date
+      // This ensures consistent billing cycles and proper grace period calculation
+      nextPaymentDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
     }
     
     // Calculate grace period end date based on payment tracking setting
@@ -1783,7 +1784,10 @@ const MyClasses = ({ onLogout }) => {
                                 </div>
                               </div>
                               <div className="mt-2 text-sm text-gray-600">
-                                Method: {payment.method === 'online' ? 'Online Payment' : payment.method}
+                                Method: {payment.payment_method === 'online' ? 'Online Payment' : 
+                                         payment.payment_method === 'cash' ? 'Cash Payment' : 
+                                         payment.payment_method === 'test' ? 'Test Payment' :
+                                         payment.payment_method || 'Not specified'}
                               </div>
                             </div>
                           ))}

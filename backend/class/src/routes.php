@@ -83,6 +83,15 @@ switch ($method) {
         } elseif ($path === '/create_enrollment') {
             $result = $enrollmentController->createEnrollment($input);
             echo json_encode($result);
+        } elseif ($path === '/update_enrollment') {
+            $enrollmentId = $input['id'];
+            unset($input['id']); // Remove id from data array
+            $result = $enrollmentController->updateEnrollment($enrollmentId, $input);
+            echo json_encode($result);
+        } elseif ($path === '/delete_enrollment') {
+            $enrollmentId = $input['id'];
+            $result = $enrollmentController->deleteEnrollment($enrollmentId);
+            echo json_encode($result);
         } elseif ($path === '/mark_attendance') {
             $classId = $input['classId'];
             $studentId = $input['studentId'];

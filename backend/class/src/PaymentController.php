@@ -45,10 +45,8 @@ class PaymentController {
                 ];
             }
 
-            // Calculate payment details
-            $baseAmount = $class['fee'] ?? 0;
-            $discount = $data['discount'] ?? 0;
-            $finalAmount = $baseAmount - $discount;
+            // Use the final amount calculated by frontend (includes all discounts and fees)
+            $finalAmount = $data['amount'] ?? $class['fee'] ?? 0;
 
             // Create financial record
             $stmt = $this->db->prepare("
@@ -129,16 +127,25 @@ class PaymentController {
                 $classResult = $classStmt->get_result();
                 $classData = $classResult->fetch_assoc();
                 
-                // Step 4: Calculate payment tracking dates
+                // Step 4: Calculate payment tracking dates (INDUSTRY STANDARD)
                 $paymentTrackingEnabled = $classData ? $classData['payment_tracking'] : false;
                 $freeDays = $classData ? $classData['payment_tracking_free_days'] : 7;
+                
+                // INDUSTRY STANDARD: Next payment is always 1st of next month, regardless of purchase date
+                // This ensures consistent billing cycles and proper grace period calculation
                 $nextPaymentDate = date('Y-m-01', strtotime('+1 month'));
                 
+                // Calculate grace period end date
                 if ($paymentTrackingEnabled) {
+                    // Grace period = Next payment date + free days
                     $gracePeriodEndDate = date('Y-m-d', strtotime($nextPaymentDate . ' +' . $freeDays . ' days'));
                 } else {
+                    // No grace period - payment due immediately on next payment date
                     $gracePeriodEndDate = $nextPaymentDate;
                 }
+                
+                // Log the payment tracking calculation for debugging
+                error_log("PAYMENT_TRACKING_CALC: Transaction $transactionId - Next Payment: $nextPaymentDate, Grace Period End: $gracePeriodEndDate, Free Days: $freeDays, Tracking Enabled: " . ($paymentTrackingEnabled ? 'Yes' : 'No'));
                 
                 // Step 5: Create payment history JSON
                 $paymentHistory = json_encode([[
@@ -371,6 +378,7 @@ class PaymentController {
                 ) VALUES (?, ?, NOW(), 'active', ?, ?, ?, ?, NOW())
             ");
             
+            // INDUSTRY STANDARD: Next payment is always 1st of next month, regardless of purchase date
             $nextPaymentDate = date('Y-m-01', strtotime('+1 month'));
             
             $classId = $payment['class_id'];
