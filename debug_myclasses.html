@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyClasses Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        input { padding: 5px; margin: 5px; width: 200px; }
+    </style>
+</head>
+<body>
+    <h1>MyClasses Debug Tool</h1>
+    
+    <div class="debug-section info">
+        <h3>1. Check LocalStorage User Data</h3>
+        <button onclick="checkUserData()">Check User Data</button>
+        <div id="userDataResult"></div>
+    </div>
+
+    <div class="debug-section info">
+        <h3>2. Test API Call</h3>
+        <input type="text" id="studentId" placeholder="Enter Student ID" value="S006" style="width: 200px;">
+        <button onclick="testApiCall()">Test API Call</button>
+        <div id="apiResult"></div>
+    </div>
+
+    <div class="debug-section info">
+        <h3>3. Simulate MyClasses Load</h3>
+        <button onclick="simulateMyClassesLoad()">Simulate MyClasses Load</button>
+        <div id="myClassesResult"></div>
+    </div>
+
+    <div class="debug-section info">
+        <h3>4. Set Test User Data</h3>
+        <button onclick="setTestUserData()">Set S006 as Current User</button>
+        <div id="setUserResult"></div>
+    </div>
+
+    <script>
+        function checkUserData() {
+            const resultDiv = document.getElementById('userDataResult');
+            
+            try {
+                // Check localStorage
+                const localStorageUser = localStorage.getItem('userData');
+                const sessionStorageUser = sessionStorage.getItem('userData');
+                
+                let result = '<h4>User Data Check:</h4>';
+                result += '<p><strong>localStorage userData:</strong></p>';
+                result += `<pre>${localStorageUser || 'null'}</pre>`;
+                
+                result += '<p><strong>sessionStorage userData:</strong></p>';
+                result += `<pre>${sessionStorageUser || 'null'}</pre>`;
+                
+                if (localStorageUser) {
+                    const user = JSON.parse(localStorageUser);
+                    result += '<p><strong>Parsed userData:</strong></p>';
+                    result += `<pre>${JSON.stringify(user, null, 2)}</pre>`;
+                    result += `<p><strong>userid:</strong> ${user.userid || 'undefined'}</p>`;
+                    result += `<p><strong>stream:</strong> ${user.stream || 'undefined'}</p>`;
+                }
+                
+                resultDiv.innerHTML = result;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error"><h4>Error:</h4><pre>${error.message}</pre></div>`;
+            }
+        }
+
+        async function testApiCall() {
+            const studentId = document.getElementById('studentId').value;
+            const resultDiv = document.getElementById('apiResult');
+            
+            try {
+                resultDiv.innerHTML = '<p>Testing API call...</p>';
+                
+                const response = await fetch(`http://localhost:8087/routes.php/get_student_enrollments?studentId=${studentId}`);
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <div class="${data.success ? 'success' : 'error'}">
+                        <h4>API Call Result:</h4>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                        <p><strong>Enrollment Count:</strong> ${data.data ? data.data.length : 0}</p>
+                    </div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>Error:</h4>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        async function simulateMyClassesLoad() {
+            const resultDiv = document.getElementById('myClassesResult');
+            
+            try {
+                resultDiv.innerHTML = '<p>Simulating MyClasses load...</p>';
+                
+                // Get user data
+                const userData = getUserData();
+                if (!userData || !userData.userid) {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h4>Error:</h4>
+                            <p>No user data found or no userid. User data:</p>
+                            <pre>${JSON.stringify(userData, null, 2)}</pre>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                const studentId = userData.userid;
+                const studentStream = userData.stream;
+                
+                resultDiv.innerHTML = `
+                    <div class="info">
+                        <h4>User Info:</h4>
+                        <p><strong>Student ID:</strong> ${studentId}</p>
+                        <p><strong>Stream:</strong> ${studentStream || 'undefined'}</p>
+                    </div>
+                `;
+                
+                // Fetch enrollments
+                const response = await fetch(`http://localhost:8087/routes.php/get_student_enrollments?studentId=${studentId}`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    resultDiv.innerHTML += `
+                        <div class="error">
+                            <h4>API Error:</h4>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                resultDiv.innerHTML += `
+                    <div class="success">
+                        <h4>Raw Enrollments:</h4>
+                        <pre>${JSON.stringify(data.data, null, 2)}</pre>
+                    </div>
+                `;
+                
+                // Apply stream filtering
+                const filteredEnrollments = data.data.filter(enrollment => {
+                    if (!studentStream) return true;
+                    if (studentStream === 'Other') {
+                        return enrollment.stream === 'Other';
+                    }
+                    return enrollment.stream === studentStream;
+                });
+                
+                resultDiv.innerHTML += `
+                    <div class="${filteredEnrollments.length > 0 ? 'success' : 'error'}">
+                        <h4>After Stream Filtering:</h4>
+                        <p><strong>Filtered Count:</strong> ${filteredEnrollments.length}</p>
+                        <pre>${JSON.stringify(filteredEnrollments, null, 2)}</pre>
+                    </div>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML += `
+                    <div class="error">
+                        <h4>Error:</h4>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        function setTestUserData() {
+            const resultDiv = document.getElementById('setUserResult');
+            
+            try {
+                // Create test user data for S006 with correct stream to match the class
+                const testUserData = {
+                    userid: 'S006',
+                    name: 'Student',
+                    email: 'student@test.com',
+                    stream: 'A/L-Art', // Changed from 'Other' to match the class stream
+                    role: 'student'
+                };
+                
+                // Set in both storages
+                localStorage.setItem('userData', JSON.stringify(testUserData));
+                sessionStorage.setItem('userData', JSON.stringify(testUserData));
+                
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h4>Test User Data Set:</h4>
+                        <pre>${JSON.stringify(testUserData, null, 2)}</pre>
+                        <p>✅ User data set in both localStorage and sessionStorage</p>
+                        <p>✅ Stream set to 'A/L-Art' to match the enrolled class</p>
+                    </div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h4>Error:</h4>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+
+        // Helper function to get user data (same as in apiUtils.js)
+        function getUserData() {
+            const usePersistentStorage = sessionStorage.getItem('usePersistentStorage');
+            const storage = usePersistentStorage === 'true' ? localStorage : sessionStorage;
+            const userData = storage.getItem('userData');
+            return userData ? JSON.parse(userData) : null;
+        }
+    </script>
+</body>
+</html> 

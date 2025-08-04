@@ -147,6 +147,18 @@ if ($method === 'GET' && $path === '/routes.php/students') {
     exit;
 }
 
+// GET STUDENT BY ID
+if ($method === 'GET' && $path === '/routes.php/get_student_by_id') {
+    $studentId = $_GET['studentId'] ?? null;
+    if (!$studentId) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing studentId parameter']);
+        exit;
+    }
+    echo $controller->getStudentById($studentId);
+    exit;
+}
+
 
 
 // SEND OTP FOR FORGOT PASSWORD
