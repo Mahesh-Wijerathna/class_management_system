@@ -59,13 +59,87 @@ CREATE TABLE IF NOT EXISTS classes (
     FOREIGN KEY (related_theory_id) REFERENCES classes(id) ON DELETE SET NULL
 );
 
--- Add PayHere specific columns to existing financial_records table if needed
-ALTER TABLE financial_records 
-ADD COLUMN IF NOT EXISTS payhere_order_id VARCHAR(100) NULL,
-ADD COLUMN IF NOT EXISTS payhere_payment_id VARCHAR(100) NULL,
-ADD COLUMN IF NOT EXISTS payhere_status VARCHAR(20) NULL;
+-- Enrollments table
+CREATE TABLE IF NOT EXISTS enrollments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id VARCHAR(10) NOT NULL,
+    class_id INT NOT NULL,
+    enrollment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status ENUM('active', 'completed', 'dropped', 'suspended') DEFAULT 'active',
+    payment_status ENUM('pending', 'paid', 'partial', 'overdue') DEFAULT 'pending',
+    total_fee DECIMAL(10,2) NOT NULL,
+    paid_amount DECIMAL(10,2) DEFAULT 0.00,
+    next_payment_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_enrollment (student_id, class_id),
+    INDEX idx_student (student_id),
+    INDEX idx_class (class_id),
+    INDEX idx_payment_status (payment_status)
+);
 
--- Add indexes for better performance
-ALTER TABLE financial_records 
-ADD INDEX IF NOT EXISTS idx_payhere_order_id (payhere_order_id),
-ADD INDEX IF NOT EXISTS idx_payhere_payment_id (payhere_payment_id); 
+-- Attendance table
+CREATE TABLE IF NOT EXISTS attendance (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id VARCHAR(10) NOT NULL,
+    class_id INT NOT NULL,
+    attendance_date DATE NOT NULL,
+    status ENUM('present', 'absent', 'late', 'excused') NOT NULL,
+    marked_by VARCHAR(10),
+    marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT,
+    FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_attendance (student_id, class_id, attendance_date),
+    INDEX idx_student_date (student_id, attendance_date),
+    INDEX idx_class_date (class_id, attendance_date)
+);
+
+-- Financial records table
+CREATE TABLE IF NOT EXISTS financial_records (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    transaction_id VARCHAR(20) UNIQUE NOT NULL,
+    date DATE NOT NULL,
+    type ENUM('income', 'expense') NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    person_name VARCHAR(200),
+    user_id VARCHAR(10),
+    person_role VARCHAR(50),
+    class_name VARCHAR(100),
+    class_id INT,
+    amount DECIMAL(10,2) NOT NULL,
+    status ENUM('pending', 'paid', 'cancelled', 'refunded') DEFAULT 'pending',
+    payment_method VARCHAR(50),
+    reference_number VARCHAR(100),
+    notes TEXT,
+    created_by VARCHAR(10),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE SET NULL,
+    INDEX idx_date (date),
+    INDEX idx_type (type),
+    INDEX idx_category (category),
+    INDEX idx_status (status),
+    INDEX idx_user_id (user_id),
+    INDEX idx_class_id (class_id)
+);
+
+-- Payment history table
+CREATE TABLE IF NOT EXISTS payment_history (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    enrollment_id INT NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    payment_method VARCHAR(50),
+    reference_number VARCHAR(100),
+    status ENUM('pending', 'completed', 'failed', 'refunded') DEFAULT 'pending',
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (enrollment_id) REFERENCES enrollments(id) ON DELETE CASCADE,
+    INDEX idx_enrollment (enrollment_id),
+    INDEX idx_payment_date (payment_date),
+    INDEX idx_status (status)
+);
+
+-- Note: PayHere specific columns and indexes for financial_records table
+-- will be added manually if needed, as IF NOT EXISTS is not supported in MySQL 8.0 

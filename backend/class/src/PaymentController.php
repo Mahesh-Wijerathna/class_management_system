@@ -29,28 +29,20 @@ class PaymentController {
                 return ['success' => false, 'message' => 'Class not found'];
             }
 
-            // Check if student is already enrolled in this class
+            // Check if student is already enrolled in this class (only check paid enrollments)
             $checkEnrollmentStmt = $this->db->prepare("
-                SELECT id, payment_status FROM enrollments 
-                WHERE student_id = ? AND class_id = ?
+                SELECT id FROM enrollments 
+                WHERE student_id = ? AND class_id = ? AND payment_status = 'paid'
             ");
             $checkEnrollmentStmt->bind_param("ss", $studentId, $classId);
             $checkEnrollmentStmt->execute();
             $enrollmentResult = $checkEnrollmentStmt->get_result();
             
             if ($enrollmentResult->num_rows > 0) {
-                $existingEnrollment = $enrollmentResult->fetch_assoc();
-                if ($existingEnrollment['payment_status'] === 'paid') {
-                    return [
-                        'success' => false, 
-                        'message' => 'You are already enrolled in this class'
-                    ];
-                } else if ($existingEnrollment['payment_status'] === 'pending') {
-                    return [
-                        'success' => false, 
-                        'message' => 'You have a pending payment for this class'
-                    ];
-                }
+                return [
+                    'success' => false, 
+                    'message' => 'You are already enrolled in this class'
+                ];
             }
 
             // Calculate payment details
@@ -92,7 +84,7 @@ class PaymentController {
 
             return [
                 'success' => true,
-                'message' => 'Payment created successfully',
+                'message' => 'Payment created successfully. Enrollment will be created after payment confirmation.',
                 'data' => [
                     'transactionId' => $transactionId,
                     'amount' => $finalAmount,
@@ -184,25 +176,20 @@ class PaymentController {
                     'gracePeriodEndDate' => $gracePeriodEndDate
                 ]]);
                 
-                // Create enrollment record ONLY after successful payment
+                // Create enrollment ONLY after successful payment
                 $enrollmentStmt = $this->db->prepare("
                     INSERT INTO enrollments (
-                        student_id, class_id, enrollment_date, fee_amount, payment_status, 
-                        payment_method, transaction_id, next_payment_date, payment_history, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                        student_id, class_id, enrollment_date, status, payment_status, 
+                        total_fee, paid_amount, next_payment_date, created_at
+                    ) VALUES (?, ?, NOW(), 'active', 'paid', ?, ?, ?, NOW())
                 ");
 
-                $enrollmentStatus = 'paid';
-                $enrollmentDate = date('Y-m-d');
-                
                 $userId = $payment['user_id'];
                 $classId = $payment['class_id'];
                 $amount = $payment['amount'];
-                $paymentMethod = $paymentData['paymentMethod'];
                 
-                $enrollmentStmt->bind_param("sisdsssss", 
-                    $userId, $classId, $enrollmentDate, $amount, $enrollmentStatus, 
-                    $paymentMethod, $transactionId, $nextPaymentDate, $paymentHistory
+                $enrollmentStmt->bind_param("sisds", 
+                    $userId, $classId, $amount, $amount, $nextPaymentDate
                 );
                 
                 if (!$enrollmentStmt->execute()) {
@@ -221,9 +208,10 @@ class PaymentController {
                 $paymentMethod = $paymentData['paymentMethod'];
                 $referenceNumber = $paymentData['referenceNumber'];
                 $notes = $paymentData['notes'] ?? '';
+                $status = 'completed';
                 
                 $paymentHistoryStmt->bind_param("idssss", 
-                    $enrollmentId, $amount, $paymentMethod, $referenceNumber, 'completed', $notes
+                    $enrollmentId, $amount, $paymentMethod, $referenceNumber, $status, $notes
                 );
                 $paymentHistoryStmt->execute();
                 
@@ -268,45 +256,42 @@ class PaymentController {
             
             if ($result->num_rows > 0) {
                 // Enrollment already exists, update payment status
+                $paymentStatus = $payment['status'] === 'paid' ? 'paid' : 'pending';
+                $paidAmount = $payment['status'] === 'paid' ? $payment['amount'] : 0;
+                
                 $stmt = $this->db->prepare("
                     UPDATE enrollments 
-                    SET payment_status = 'paid',
+                    SET payment_status = ?,
+                        paid_amount = ?,
                         updated_at = NOW()
                     WHERE class_id = ? AND student_id = ?
                 ");
-                $stmt->bind_param("ss", $classId, $userId);
+                $stmt->bind_param("sdss", $paymentStatus, $paidAmount, $classId, $userId);
                 $stmt->execute();
+                return;
                 return;
             }
             
             // Create new enrollment
+            $paymentStatus = $payment['status'] === 'paid' ? 'paid' : 'pending';
+            $paidAmount = $payment['status'] === 'paid' ? $payment['amount'] : 0;
+            
             $stmt = $this->db->prepare("
                 INSERT INTO enrollments (
-                    class_id, student_id, student_name, enrollment_date,
-                    status, payment_status, payment_method, amount_paid,
-                    next_payment_date, attendance_data, payment_history,
-                    forget_card_requested, late_payment_requested,
-                    created_at
-                ) VALUES (?, ?, ?, NOW(), 'enrolled', 'paid', ?, ?, ?, '[]', ?, '0', '0', NOW())
+                    student_id, class_id, enrollment_date,
+                    status, payment_status, total_fee, paid_amount,
+                    next_payment_date, created_at
+                ) VALUES (?, ?, NOW(), 'active', ?, ?, ?, ?, NOW())
             ");
             
-            $nextPaymentDate = date('Y-m-d', strtotime('+30 days'));
-            $paymentHistory = json_encode([[
-                'date' => date('Y-m-d'),
-                'amount' => $payment['amount'],
-                'method' => $payment['payment_method'],
-                'status' => 'paid',
-                'transactionId' => $payment['transaction_id']
-            ]]);
+            $nextPaymentDate = date('Y-m-01', strtotime('+1 month'));
             
             $classId = $payment['class_id'];
             $userId = $payment['user_id'];
-            $personName = $payment['person_name'];
-            $paymentMethod = $payment['payment_method'];
             $amount = $payment['amount'];
             
-            $stmt->bind_param("ssssdss", 
-                $classId, $userId, $personName, $paymentMethod, $amount, $nextPaymentDate, $paymentHistory
+            $stmt->bind_param("sssdss", 
+                $userId, $classId, $paymentStatus, $amount, $paidAmount, $nextPaymentDate
             );
             
             $stmt->execute();
@@ -323,16 +308,12 @@ class PaymentController {
             $stmt = $this->db->prepare("
                 SELECT 
                     fr.*,
-                    e.student_id,
-                    e.class_id,
-                    e.enrollment_date,
                     c.class_name,
                     c.subject,
                     c.teacher,
                     c.fee as class_fee
                 FROM financial_records fr
-                LEFT JOIN enrollments e ON fr.transaction_id = e.transaction_id
-                LEFT JOIN classes c ON e.class_id = c.id
+                LEFT JOIN classes c ON fr.class_id = c.id
                 WHERE fr.transaction_id = ?
             ");
 
@@ -368,9 +349,8 @@ class PaymentController {
                     c.subject,
                     c.teacher
                 FROM financial_records fr
-                LEFT JOIN enrollments e ON fr.transaction_id = e.transaction_id
-                LEFT JOIN classes c ON e.class_id = c.id
-                WHERE e.student_id = ?
+                LEFT JOIN classes c ON fr.class_id = c.id
+                WHERE fr.user_id = ?
                 ORDER BY fr.date DESC
             ");
 
@@ -432,9 +412,9 @@ class PaymentController {
                 UPDATE classes c
                 SET current_students = current_students + 1
                 WHERE c.id = (
-                    SELECT e.class_id 
-                    FROM enrollments e 
-                    WHERE e.transaction_id = ?
+                    SELECT fr.class_id 
+                    FROM financial_records fr 
+                    WHERE fr.transaction_id = ?
                 )
             ");
 
@@ -450,7 +430,7 @@ class PaymentController {
     // Get payment statistics
     public function getPaymentStats($studentId = null) {
         try {
-            $whereClause = $studentId ? "WHERE e.student_id = ?" : "";
+            $whereClause = $studentId ? "WHERE fr.user_id = ?" : "";
             $params = $studentId ? [$studentId] : [];
 
             $stmt = $this->db->prepare("
@@ -460,7 +440,6 @@ class PaymentController {
                     SUM(CASE WHEN fr.status = 'pending' THEN 1 ELSE 0 END) as pending_payments,
                     SUM(CASE WHEN fr.status = 'paid' THEN fr.amount ELSE 0 END) as total_amount
                 FROM financial_records fr
-                LEFT JOIN enrollments e ON fr.transaction_id = e.transaction_id
                 $whereClause
             ");
 

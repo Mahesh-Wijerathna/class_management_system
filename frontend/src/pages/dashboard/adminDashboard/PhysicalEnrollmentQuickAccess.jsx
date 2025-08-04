@@ -127,24 +127,25 @@ const PhysicalEnrollmentQuickAccess = () => {
       const classesResponse = await getActiveClasses();
       const totalClasses = classesResponse.success ? (classesResponse.data || []).length : 0;
       
-      // Load purchased classes from localStorage (for now)
-      const purchasedClasses = JSON.parse(localStorage.getItem('purchasedClasses') || '[]');
+      // Load enrollment data from database
+      const enrollmentsData = await fetchEnrollmentsFromDatabase();
+      
       const today = new Date().toISOString().split('T')[0];
       
-      const todayEnrollments = purchasedClasses.filter(cls => 
-        cls.purchaseDate === today
+      const todayEnrollments = enrollmentsData.filter(enrollment => 
+        enrollment.enrollment_date === today
       ).length;
       
-      const pendingPayments = purchasedClasses.filter(cls => 
-        cls.paymentStatus === 'Pending'
+      const pendingPayments = enrollmentsData.filter(enrollment => 
+        enrollment.payment_status === 'pending'
       ).length;
       
-      const totalRevenue = purchasedClasses.reduce((sum, cls) => 
-        sum + (cls.amount || 0), 0
+      const totalRevenue = enrollmentsData.reduce((sum, enrollment) => 
+        sum + (parseFloat(enrollment.amount_paid) || 0), 0
       );
 
       setQuickStats({
-        totalEnrollments: purchasedClasses.length,
+        totalEnrollments: enrollmentsData.length,
         todayEnrollments,
         pendingPayments,
         totalRevenue,
@@ -155,6 +156,43 @@ const PhysicalEnrollmentQuickAccess = () => {
       console.error('Error loading quick stats:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Fetch enrollments from database
+  const fetchEnrollmentsFromDatabase = async () => {
+    try {
+      // Get all students first
+      const studentsResponse = await getAllStudents();
+      const students = studentsResponse.success ? studentsResponse.students || [] : [];
+      
+      // Get all enrollments from database
+      const enrollmentsResponse = await fetch('http://localhost:8087/routes.php/get_all_enrollments');
+      if (enrollmentsResponse.ok) {
+        const enrollmentsData = await enrollmentsResponse.json();
+        return enrollmentsData.data || [];
+      }
+      
+      // Fallback: fetch enrollments for each student
+      const allEnrollments = [];
+      for (const student of students) {
+        try {
+          const response = await fetch(`http://localhost:8087/routes.php/get_student_enrollments?studentId=${student.userid}`);
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+              allEnrollments.push(...result.data);
+            }
+          }
+        } catch (error) {
+          console.error(`Error fetching enrollments for student ${student.userid}:`, error);
+        }
+      }
+      
+      return allEnrollments;
+    } catch (error) {
+      console.error('Error fetching enrollments from database:', error);
+      return [];
     }
   };
 

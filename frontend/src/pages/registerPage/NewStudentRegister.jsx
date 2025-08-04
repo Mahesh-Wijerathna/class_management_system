@@ -62,7 +62,7 @@ const phoneRegex = /^0\d{9}$/;
 const genderRegex = /^(male|female)$/i;
 const nameRegex = /^[A-Za-z ]+$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
-const allowedStreams = ['AL-Maths', 'AL-Science', 'AL-Art', 'AL-Tech', 'AL-Commerce', 'OL', 'Primary'];
+const allowedStreams = ['A/L-Maths', 'A/L-Science', 'A/L-Art', 'A/L-Technology', 'A/L-Commerce', 'O/L', 'Primary', 'Other'];
 const allowedDistricts = [
   'Ampara', 'Anuradhapura', 'Badulla', 'Batticaloa', 'Colombo', 'Galle', 'Gampaha', 'Hambantota',
   'Jaffna', 'Kalutara', 'Kandy', 'Kegalle', 'Kilinochchi', 'Kurunegala', 'Mannar', 'Matale',
@@ -101,7 +101,7 @@ const sriLankaDistricts = [
   'Trincomalee', 'Vavuniya'
 ];
 const streams = [
-  'AL-Maths', 'AL-Science', 'AL-Art', 'AL-Tech', 'AL-Common', 'OL', 'Primary'
+  'A/L-Maths', 'A/L-Science', 'A/L-Art', 'A/L-Technology', 'A/L-Commerce', 'O/L', 'Primary', 'Other'
 ];
 
 export default function NewStudentRegister() {

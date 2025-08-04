@@ -183,5 +183,53 @@ class DevPaymentHelper {
             ];
         }
     }
+
+    // Clear all payment records (for development)
+    public function clearAllPayments() {
+        try {
+            // Clear payment history
+            $stmt = $this->db->prepare("DELETE FROM payment_history");
+            $stmt->execute();
+            $paymentHistoryDeleted = $stmt->affected_rows;
+
+            // Clear enrollments
+            $stmt = $this->db->prepare("DELETE FROM enrollments");
+            $stmt->execute();
+            $enrollmentsDeleted = $stmt->affected_rows;
+
+            // Clear financial records
+            $stmt = $this->db->prepare("DELETE FROM financial_records");
+            $stmt->execute();
+            $financialRecordsDeleted = $stmt->affected_rows;
+
+            // Clear payments table (if exists)
+            $stmt = $this->db->prepare("DELETE FROM payments");
+            $stmt->execute();
+            $paymentsDeleted = $stmt->affected_rows;
+
+            // Reset auto-increment counters
+            $this->db->query("ALTER TABLE payment_history AUTO_INCREMENT = 1");
+            $this->db->query("ALTER TABLE enrollments AUTO_INCREMENT = 1");
+            $this->db->query("ALTER TABLE financial_records AUTO_INCREMENT = 1");
+            $this->db->query("ALTER TABLE payments AUTO_INCREMENT = 1");
+
+            return [
+                'success' => true,
+                'message' => 'All payment records cleared successfully',
+                'data' => [
+                    'payment_history_deleted' => $paymentHistoryDeleted,
+                    'enrollments_deleted' => $enrollmentsDeleted,
+                    'financial_records_deleted' => $financialRecordsDeleted,
+                    'payments_deleted' => $paymentsDeleted
+                ]
+            ];
+
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Error clearing payment records: ' . $e->getMessage()
+            ];
+        }
+    }
 }
 ?> 
