@@ -757,5 +757,235 @@ public function resetPassword($userid, $otp, $newPassword) {
             'barcodes' => $barcodes
         ]);
     }
+
+    // Get next cashier ID
+    public function getNextCashierId() {
+        $stmt = $this->db->prepare("
+            SELECT MAX(CAST(SUBSTRING(userid, 2) AS UNSIGNED)) as max_id 
+            FROM users 
+            WHERE userid LIKE 'C%'
+        ");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
+        
+        $nextId = 1;
+        if ($row && $row['max_id']) {
+            $nextId = $row['max_id'] + 1;
+        }
+        
+        return json_encode([
+            'success' => true,
+            'data' => 'C' . str_pad($nextId, 3, '0', STR_PAD_LEFT)
+        ]);
+    }
+
+    // Create cashier
+    public function createCashier($data) {
+        $name = $data['name'];
+        $password = $data['password'];
+        $phone = $data['phone'];
+        $email = $data['email'] ?? '';
+
+        // Get next cashier ID
+        $stmt = $this->db->prepare("
+            SELECT MAX(CAST(SUBSTRING(userid, 2) AS UNSIGNED)) as max_id 
+            FROM users 
+            WHERE userid LIKE 'C%'
+        ");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
+        
+        $nextId = 1;
+        if ($row && $row['max_id']) {
+            $nextId = $row['max_id'] + 1;
+        }
+        
+        $cashierId = 'C' . str_pad($nextId, 3, '0', STR_PAD_LEFT);
+        
+        // Hash the password
+        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+        
+        // Create the cashier user
+        $stmt = $this->db->prepare("
+            INSERT INTO users (userid, password, role, name, email, phone) 
+            VALUES (?, ?, 'cashier', ?, ?, ?)
+        ");
+        $stmt->bind_param("sssss", $cashierId, $hashedPassword, $name, $email, $phone);
+        
+        if ($stmt->execute()) {
+            // Send WhatsApp message with credentials
+            $whatsappService = new WhatsAppService();
+            $message = "Hello $name! Your cashier account has been created.\n\nLogin Details:\nUser ID: $cashierId\nPassword: $password\n\nPlease change your password after first login.";
+            
+            $whatsappSent = false;
+            $whatsappMessage = '';
+            
+            try {
+                $whatsappResult = $whatsappService->sendCustomMessage($phone, $message);
+                $whatsappSent = $whatsappResult['success'];
+                $whatsappMessage = $whatsappResult['message'];
+            } catch (Exception $e) {
+                $whatsappSent = false;
+                $whatsappMessage = $e->getMessage();
+            }
+            
+            return json_encode([
+                'success' => true,
+                'message' => 'Cashier account created successfully',
+                'cashier_id' => $cashierId,
+                'whatsapp_sent' => $whatsappSent,
+                'whatsapp_message' => $whatsappMessage
+            ]);
+        } else {
+            return json_encode([
+                'success' => false,
+                'message' => 'Failed to create cashier account'
+            ]);
+        }
+    }
+
+    // Get all cashiers
+    public function getAllCashiers() {
+        $stmt = $this->db->prepare("
+            SELECT userid, role, name, email, phone, created_at 
+            FROM users 
+            WHERE role = 'cashier'
+            ORDER BY created_at DESC
+        ");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        $cashiers = [];
+        while ($row = $result->fetch_assoc()) {
+            $cashiers[] = $row;
+        }
+        
+        return json_encode([
+            'success' => true,
+            'cashiers' => $cashiers
+        ]);
+    }
+
+    // Update cashier
+    public function updateCashier($cashierId, $data) {
+        // First, verify the user exists and is a cashier
+        $stmt = $this->db->prepare("SELECT role FROM users WHERE userid = ?");
+        $stmt->bind_param("s", $cashierId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if ($result->num_rows === 0) {
+            return json_encode([
+                'success' => false,
+                'message' => 'Cashier not found'
+            ]);
+        }
+        
+        $user = $result->fetch_assoc();
+        if ($user['role'] !== 'cashier') {
+            return json_encode([
+                'success' => false,
+                'message' => 'User is not a cashier'
+            ]);
+        }
+        
+        // Build the update query dynamically based on provided fields
+        $updateFields = [];
+        $updateValues = [];
+        $types = '';
+        
+        if (isset($data['name'])) {
+            $updateFields[] = 'name = ?';
+            $updateValues[] = $data['name'];
+            $types .= 's';
+        }
+        
+        if (isset($data['email'])) {
+            $updateFields[] = 'email = ?';
+            $updateValues[] = $data['email'];
+            $types .= 's';
+        }
+        
+        if (isset($data['phone'])) {
+            $updateFields[] = 'phone = ?';
+            $updateValues[] = $data['phone'];
+            $types .= 's';
+        }
+        
+        if (isset($data['password']) && !empty($data['password'])) {
+            $updateFields[] = 'password = ?';
+            $updateValues[] = password_hash($data['password'], PASSWORD_DEFAULT);
+            $types .= 's';
+        }
+        
+        if (empty($updateFields)) {
+            return json_encode([
+                'success' => false,
+                'message' => 'No fields to update'
+            ]);
+        }
+        
+        // Add the cashier ID to the values array for the WHERE clause
+        $updateValues[] = $cashierId;
+        $types .= 's';
+        
+        $sql = "UPDATE users SET " . implode(', ', $updateFields) . " WHERE userid = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param($types, ...$updateValues);
+        
+        if ($stmt->execute()) {
+            return json_encode([
+                'success' => true,
+                'message' => 'Cashier updated successfully'
+            ]);
+        } else {
+            return json_encode([
+                'success' => false,
+                'message' => 'Failed to update cashier'
+            ]);
+        }
+    }
+
+    // Delete cashier
+    public function deleteCashier($cashierId) {
+        // First, verify the user exists and is a cashier
+        $stmt = $this->db->prepare("SELECT role FROM users WHERE userid = ?");
+        $stmt->bind_param("s", $cashierId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if ($result->num_rows === 0) {
+            return json_encode([
+                'success' => false,
+                'message' => 'Cashier not found'
+            ]);
+        }
+        
+        $user = $result->fetch_assoc();
+        if ($user['role'] !== 'cashier') {
+            return json_encode([
+                'success' => false,
+                'message' => 'User is not a cashier'
+            ]);
+        }
+        
+        // Delete the cashier
+        $stmt = $this->db->prepare("DELETE FROM users WHERE userid = ?");
+        $stmt->bind_param("s", $cashierId);
+        
+        if ($stmt->execute()) {
+            return json_encode([
+                'success' => true,
+                'message' => 'Cashier deleted successfully'
+            ]);
+        } else {
+            return json_encode([
+                'success' => false,
+                'message' => 'Failed to delete cashier'
+            ]);
+        }
+    }
 }
 

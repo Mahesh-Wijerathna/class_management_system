@@ -6,7 +6,7 @@ import BasicTable from '../../../components/BasicTable';
 import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import BasicAlertBox from '../../../components/BasicAlertBox';
-import { getAllCashiers, updateCashier } from '../../../api/cashier';
+import { getAllCashiers, updateCashier, deleteCashier } from '../../../api/cashier';
 
 const CashiersInfo = () => {
   const [cashiers, setCashiers] = useState([]);
@@ -46,8 +46,38 @@ const CashiersInfo = () => {
     setAlertCashierId(cashierId);
     setShowAlert(true);
   };
-  const confirmDelete = () => {
-    setCashiers(cashiers.filter(a => a.userid !== alertCashierId));
+  const confirmDelete = async () => {
+    try {
+      const response = await deleteCashier(alertCashierId);
+      if (response.success) {
+        // Remove from local state
+        setCashiers(cashiers.filter(a => a.userid !== alertCashierId));
+        setSaveAlert({
+          open: true,
+          message: 'Cashier deleted successfully!',
+          onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+          confirmText: 'OK',
+          type: 'success',
+        });
+      } else {
+        setSaveAlert({
+          open: true,
+          message: response.message || 'Failed to delete cashier',
+          onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+          confirmText: 'OK',
+          type: 'error',
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting cashier:', error);
+      setSaveAlert({
+        open: true,
+        message: 'Error deleting cashier. Please try again.',
+        onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'error',
+      });
+    }
     setShowAlert(false);
     setAlertCashierId(null);
   };

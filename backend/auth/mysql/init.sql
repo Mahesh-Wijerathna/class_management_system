@@ -2,7 +2,10 @@
 CREATE TABLE IF NOT EXISTS users (
     userid VARCHAR(10) PRIMARY KEY,
     password VARCHAR(255) NOT NULL,
-    role ENUM('student', 'teacher', 'admin') NOT NULL,
+    role ENUM('student', 'teacher', 'admin', 'cashier') NOT NULL,
+    name VARCHAR(255) DEFAULT NULL,
+    email VARCHAR(255) DEFAULT NULL,
+    phone VARCHAR(15) DEFAULT NULL,
     otp VARCHAR(6) DEFAULT NULL,
     otp_created_at TIMESTAMP NULL DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
