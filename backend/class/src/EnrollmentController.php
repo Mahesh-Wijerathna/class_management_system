@@ -33,10 +33,23 @@ class EnrollmentController {
                     c.end_date,
                     c.current_students,
                     c.payment_tracking,
-                    c.payment_tracking_free_days
+                    c.payment_tracking_free_days,
+                    GROUP_CONCAT(
+                        JSON_OBJECT(
+                            'transaction_id', fr.transaction_id,
+                            'date', fr.date,
+                            'amount', fr.amount,
+                            'payment_method', fr.payment_method,
+                            'reference_number', fr.reference_number,
+                            'status', fr.status,
+                            'notes', fr.notes
+                        ) ORDER BY fr.date DESC SEPARATOR '|'
+                    ) as payment_history_details
                 FROM enrollments e
                 LEFT JOIN classes c ON e.class_id = c.id
+                LEFT JOIN financial_records fr ON e.student_id = fr.user_id AND e.class_id = fr.class_id
                 WHERE e.student_id = ?
+                GROUP BY e.id
                 ORDER BY e.enrollment_date DESC
             ");
             
@@ -69,34 +82,85 @@ class EnrollmentController {
         }
     }
 
+    // Get all enrollments in the system
+    public function getAllEnrollments() {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT 
+                    e.*,
+                    c.class_name,
+                    c.subject,
+                    c.teacher,
+                    c.stream,
+                    c.delivery_method,
+                    c.course_type,
+                    c.fee,
+                    c.max_students,
+                    c.status as class_status,
+                    c.zoom_link,
+                    c.description,
+                    c.schedule_day,
+                    c.schedule_start_time,
+                    c.schedule_end_time,
+                    c.schedule_frequency,
+                    c.start_date,
+                    c.end_date,
+                    c.current_students,
+                    c.payment_tracking,
+                    c.payment_tracking_free_days
+                FROM enrollments e
+                LEFT JOIN classes c ON e.class_id = c.id
+                ORDER BY e.created_at DESC
+            ");
+            
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            $enrollments = [];
+            while ($row = $result->fetch_assoc()) {
+                // Create schedule object from individual columns
+                $row['schedule'] = [
+                    'day' => $row['schedule_day'],
+                    'startTime' => $row['schedule_start_time'],
+                    'endTime' => $row['schedule_end_time'],
+                    'frequency' => $row['schedule_frequency']
+                ];
+                
+                $enrollments[] = $row;
+            }
+            
+            return [
+                'success' => true,
+                'data' => $enrollments
+            ];
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Error retrieving all enrollments: ' . $e->getMessage()
+            ];
+        }
+    }
+
     // Create a new enrollment
     public function createEnrollment($enrollmentData) {
         try {
             $stmt = $this->db->prepare("
                 INSERT INTO enrollments (
-                    class_id, student_id, student_name, enrollment_date, 
-                    status, payment_status, payment_method, amount_paid,
-                    next_payment_date, attendance_data, payment_history,
-                    forget_card_requested, late_payment_requested, fee_amount,
-                    created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    class_id, student_id, enrollment_date, 
+                    status, payment_status, total_fee, paid_amount,
+                    next_payment_date
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ");
             
-            $stmt->bind_param("ssssssssssssss", 
+            $stmt->bind_param("issssdss", 
                 $enrollmentData['class_id'],
                 $enrollmentData['student_id'],
-                $enrollmentData['student_name'],
                 $enrollmentData['enrollment_date'],
                 $enrollmentData['status'],
                 $enrollmentData['payment_status'],
-                $enrollmentData['payment_method'],
-                $enrollmentData['amount_paid'],
-                $enrollmentData['next_payment_date'],
-                $enrollmentData['attendance_data'],
-                $enrollmentData['payment_history'],
-                $enrollmentData['forget_card_requested'],
-                $enrollmentData['late_payment_requested'],
-                $enrollmentData['amount_paid'] // Use amount_paid as fee_amount
+                $enrollmentData['total_fee'],
+                $enrollmentData['paid_amount'],
+                $enrollmentData['next_payment_date']
             );
             
             if ($stmt->execute()) {
@@ -124,23 +188,17 @@ class EnrollmentController {
         try {
             $stmt = $this->db->prepare("
                 UPDATE enrollments SET
+                    status = ?,
                     payment_status = ?,
-                    next_payment_date = ?,
-                    attendance_data = ?,
-                    payment_history = ?,
-                    forget_card_requested = ?,
-                    late_payment_requested = ?,
+                    notes = ?,
                     updated_at = NOW()
                 WHERE id = ?
             ");
             
-            $stmt->bind_param("ssssssi", 
+            $stmt->bind_param("sssi", 
+                $updateData['status'],
                 $updateData['payment_status'],
-                $updateData['next_payment_date'],
-                $updateData['attendance_data'],
-                $updateData['payment_history'],
-                $updateData['forget_card_requested'],
-                $updateData['late_payment_requested'],
+                $updateData['notes'],
                 $enrollmentId
             );
             
@@ -159,6 +217,45 @@ class EnrollmentController {
             return [
                 'success' => false,
                 'message' => 'Error updating enrollment: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    // Delete enrollment
+    public function deleteEnrollment($enrollmentId) {
+        try {
+            // First check if enrollment exists
+            $stmt = $this->db->prepare("SELECT * FROM enrollments WHERE id = ?");
+            $stmt->bind_param("i", $enrollmentId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            if ($result->num_rows === 0) {
+                return [
+                    'success' => false,
+                    'message' => 'Enrollment not found'
+                ];
+            }
+            
+            // Delete the enrollment
+            $stmt = $this->db->prepare("DELETE FROM enrollments WHERE id = ?");
+            $stmt->bind_param("i", $enrollmentId);
+            
+            if ($stmt->execute()) {
+                return [
+                    'success' => true,
+                    'message' => 'Enrollment deleted successfully'
+                ];
+            } else {
+                return [
+                    'success' => false,
+                    'message' => 'Failed to delete enrollment'
+                ];
+            }
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Error deleting enrollment: ' . $e->getMessage()
             ];
         }
     }

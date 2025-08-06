@@ -141,15 +141,18 @@ class PayHereController {
                 $stmt->bind_param("s", $data['order_id']);
                 $stmt->execute();
 
-                // Update enrollments table
-                $updateEnrollments = "UPDATE enrollments SET 
-                                     payment_status = 'paid',
-                                     updated_at = NOW()
-                                     WHERE transaction_id = ?";
+                // Process the payment to create enrollment automatically
+                require_once __DIR__ . '/PaymentController.php';
+                $paymentController = new PaymentController($this->db);
+                $processResult = $paymentController->processPayment($data['order_id'], [
+                    'status' => 'paid',
+                    'paymentMethod' => 'payhere',
+                    'referenceNumber' => 'PAY' . time(),
+                    'notes' => 'PayHere payment confirmed'
+                ]);
                 
-                $stmt = $this->db->prepare($updateEnrollments);
-                $stmt->bind_param("s", $data['order_id']);
-                $stmt->execute();
+                // Log the processing result
+                error_log("PayHere notification - Payment processing result: " . json_encode($processResult));
 
                 return ['status' => 'success', 'message' => 'Payment completed successfully'];
             } else {
@@ -179,7 +182,7 @@ class PayHereController {
 
     public function getPaymentStatus($orderId) {
         try {
-            // First check the payments table
+            // First check the payments table (for PayHere payments)
             $query = "SELECT * FROM payments WHERE order_id = ?";
             $stmt = $this->db->prepare($query);
             $stmt->bind_param("s", $orderId);
@@ -196,7 +199,7 @@ class PayHereController {
                 $stmt2->execute();
                 
                 $result2 = $stmt2->get_result();
-                $financial = $result2->fetch_assoc();
+                $financial = $result2->fetch_assoc(); // Fixed: use $result2 instead of $stmt2->get_result()
                 
                 // Merge the data, prioritizing financial_records status
                 if ($financial) {
@@ -210,8 +213,36 @@ class PayHereController {
                 return $payment;
             }
             
+            // If not found in payments table, check financial_records table (for development payments)
+            $query3 = "SELECT * FROM financial_records WHERE transaction_id = ?";
+            $stmt3 = $this->db->prepare($query3);
+            $stmt3->bind_param("s", $orderId);
+            $stmt3->execute();
+            
+            $result3 = $stmt3->get_result();
+            $financialPayment = $result3->fetch_assoc();
+            
+            if ($financialPayment) {
+                // Convert financial_records format to match payments table format
+                $payment = [
+                    'order_id' => $financialPayment['transaction_id'],
+                    'amount' => $financialPayment['amount'],
+                    'status' => $financialPayment['status'],
+                    'payment_method' => $financialPayment['payment_method'],
+                    'reference_number' => $financialPayment['reference_number'],
+                    'class_id' => $financialPayment['class_id'],
+                    'class_name' => $financialPayment['class_name'],
+                    'notes' => $financialPayment['notes'],
+                    'created_at' => $financialPayment['created_at'],
+                    'updated_at' => $financialPayment['updated_at']
+                ];
+                
+                return $payment;
+            }
+            
             return false;
         } catch (Exception $e) {
+            error_log("PAYMENT_STATUS_ERROR: Order $orderId - " . $e->getMessage());
             return false;
         }
     }

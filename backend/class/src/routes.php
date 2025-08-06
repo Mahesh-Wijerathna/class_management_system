@@ -83,6 +83,15 @@ switch ($method) {
         } elseif ($path === '/create_enrollment') {
             $result = $enrollmentController->createEnrollment($input);
             echo json_encode($result);
+        } elseif ($path === '/update_enrollment') {
+            $enrollmentId = $input['id'];
+            unset($input['id']); // Remove id from data array
+            $result = $enrollmentController->updateEnrollment($enrollmentId, $input);
+            echo json_encode($result);
+        } elseif ($path === '/delete_enrollment') {
+            $enrollmentId = $input['id'];
+            $result = $enrollmentController->deleteEnrollment($enrollmentId);
+            echo json_encode($result);
         } elseif ($path === '/mark_attendance') {
             $classId = $input['classId'];
             $studentId = $input['studentId'];
@@ -127,6 +136,9 @@ switch ($method) {
         } elseif ($path === '/get_student_enrollments' && isset($_GET['studentId'])) {
             $studentId = $_GET['studentId'];
             $result = $enrollmentController->getStudentEnrollments($studentId);
+            echo json_encode($result);
+        } elseif ($path === '/get_all_enrollments') {
+            $result = $enrollmentController->getAllEnrollments();
             echo json_encode($result);
         } elseif ($path === '/get_all_classes') {
             $classes = $controller->getAllClasses();
@@ -178,6 +190,29 @@ switch ($method) {
         } elseif ($path === '/dev/complete_all_pending') {
             // Development endpoint to complete all pending payments
             $result = $devPaymentHelper->completeAllPendingPayments();
+            echo json_encode($result);
+        } elseif ($path === '/dev/clear_all_payments') {
+            // Development endpoint to clear all payment records
+            $result = $devPaymentHelper->clearAllPayments();
+            echo json_encode($result);
+        } elseif ($path === '/dev/recover_failed_enrollments') {
+            // Industry-level endpoint to recover failed enrollments
+            $result = $devPaymentHelper->recoverFailedEnrollments();
+            echo json_encode($result);
+        } elseif ($path === '/dev/process_pending_enrollments') {
+            // Industry-level endpoint to process all pending payments and create enrollments
+            $result = $devPaymentHelper->processPendingEnrollments();
+            echo json_encode($result);
+        } elseif ($path === '/dev/simulate_payhere_confirmation' && isset($_GET['order_id'])) {
+            // Development endpoint to simulate PayHere payment confirmation
+            $orderId = $_GET['order_id'];
+            $result = $devPaymentHelper->simulatePayHereConfirmation($orderId);
+            echo json_encode($result);
+        } elseif ($path === '/dev/debug_enrollment') {
+            // Development endpoint to debug enrollment issues
+            $studentId = $_GET['studentId'] ?? null;
+            $classId = $_GET['classId'] ?? null;
+            $result = $devPaymentHelper->debugEnrollment($studentId, $classId);
             echo json_encode($result);
         } else {
             http_response_code(404);

@@ -44,12 +44,28 @@ const MyClasses = ({ onLogout }) => {
       
       const studentId = userData.userid;
       
+      // Get student's stream from user data
+      const studentStream = userData.stream;
+      
       // Fetch enrollments from backend API
       const response = await getStudentEnrollments(studentId);
       
       if (response.success && response.data) {
-        // Convert enrollments to MyClasses format
-        const convertedClasses = response.data.map(enrollment => {
+        // Convert enrollments to MyClasses format and filter by stream
+        const convertedClasses = response.data
+          .filter(enrollment => {
+            // If student has no stream set, show all classes
+            if (!studentStream) return true;
+            
+            // If student has "Other" stream, show only Other stream classes
+            if (studentStream === 'Other') {
+              return enrollment.stream === 'Other';
+            }
+            
+            // If student has specific stream, show only classes that match their stream
+            return enrollment.stream === studentStream;
+          })
+          .map(enrollment => {
           const myClass = convertEnrollmentToMyClass(enrollment);
           
           // Get student's card for this class
@@ -133,11 +149,29 @@ const MyClasses = ({ onLogout }) => {
   // Listen for payment updates
   useEffect(() => {
     const handlePaymentUpdate = () => {
+      console.log('🔄 MyClasses: Received refreshMyClasses event');
+      loadMyClasses();
+    };
+
+    const handlePaymentCompleted = (event) => {
+      console.log('🔄 MyClasses: Received paymentCompleted event', event.detail);
+      loadMyClasses();
+    };
+
+    const handleStorageChange = () => {
+      console.log('🔄 MyClasses: Received storage change event');
       loadMyClasses();
     };
 
     window.addEventListener('refreshMyClasses', handlePaymentUpdate);
-    return () => window.removeEventListener('refreshMyClasses', handlePaymentUpdate);
+    window.addEventListener('paymentCompleted', handlePaymentCompleted);
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('refreshMyClasses', handlePaymentUpdate);
+      window.removeEventListener('paymentCompleted', handlePaymentCompleted);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   // Handle keyboard events for modal
@@ -165,9 +199,9 @@ const MyClasses = ({ onLogout }) => {
       // Get free days from class configuration
       const freeDays = cls.paymentTrackingFreeDays || 7;
       
-      // Create a default payment date (1 month ago from today)
-      const defaultPaymentDate = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
-      const nextPaymentDate = new Date(defaultPaymentDate.getFullYear(), defaultPaymentDate.getMonth() + 1, 1);
+      // INDUSTRY STANDARD: Next payment is always 1st of next month, regardless of when class was purchased
+      // This ensures consistent billing cycles and proper grace period calculation
+      const nextPaymentDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
       
       if (hasPaymentTracking) {
         // Payment tracking enabled: has grace period
@@ -230,8 +264,9 @@ const MyClasses = ({ onLogout }) => {
     if (latestPayment.nextPaymentDate) {
       nextPaymentDate = new Date(latestPayment.nextPaymentDate);
     } else {
-    // Calculate next payment date: 1st day of next month from payment date
-      nextPaymentDate = new Date(paymentDate.getFullYear(), paymentDate.getMonth() + 1, 1);
+      // INDUSTRY STANDARD: Next payment is always 1st of next month, regardless of payment date
+      // This ensures consistent billing cycles and proper grace period calculation
+      nextPaymentDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
     }
     
     // Calculate grace period end date based on payment tracking setting
@@ -1749,7 +1784,10 @@ const MyClasses = ({ onLogout }) => {
                                 </div>
                               </div>
                               <div className="mt-2 text-sm text-gray-600">
-                                Method: {payment.method === 'online' ? 'Online Payment' : payment.method}
+                                Method: {payment.payment_method === 'online' ? 'Online Payment' : 
+                                         payment.payment_method === 'cash' ? 'Cash Payment' : 
+                                         payment.payment_method === 'test' ? 'Test Payment' :
+                                         payment.payment_method || 'Not specified'}
                               </div>
                             </div>
                           ))}

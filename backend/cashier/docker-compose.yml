@@ -22,7 +22,7 @@ services:
       PMA_HOST: mysql
       PMA_PORT: 3306
     ports:
-      - "8087:80"
+      - "8090:80"
     depends_on:
       - mysql
     networks:
@@ -34,7 +34,7 @@ services:
       dockerfile: Dockerfile
     container_name: cashier-backend
     ports:
-      - "8083:80"
+      - "8091:80"
     volumes:
       - ./src:/var/www/html
       - /var/www/html/vendor

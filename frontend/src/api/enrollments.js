@@ -40,13 +40,32 @@ export const createEnrollment = async (enrollmentData) => {
 // Update enrollment
 export const updateEnrollment = async (enrollmentId, updateData) => {
   try {
-    const response = await classApi.put(`/update_enrollment/${enrollmentId}`, updateData);
+    const response = await classApi.post('/update_enrollment', {
+      id: enrollmentId,
+      ...updateData
+    });
     return response.data;
   } catch (error) {
     console.error('Error updating enrollment:', error);
     return {
       success: false,
       message: error.response?.data?.message || 'Failed to update enrollment'
+    };
+  }
+};
+
+// Delete enrollment
+export const dropEnrollment = async (enrollmentId) => {
+  try {
+    const response = await classApi.post('/delete_enrollment', {
+      id: enrollmentId
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting enrollment:', error);
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to delete enrollment'
     };
   }
 };
@@ -145,7 +164,15 @@ export const convertEnrollmentToMyClass = (enrollment) => {
     amountPaid: enrollment.amount_paid,
     nextPaymentDate: enrollment.next_payment_date,
     attendance: enrollment.attendance_data ? JSON.parse(enrollment.attendance_data) : [],
-    paymentHistory: enrollment.payment_history ? JSON.parse(enrollment.payment_history) : [],
+    paymentHistory: enrollment.payment_history_details ? 
+      enrollment.payment_history_details.split('|').map(payment => {
+        try {
+          return JSON.parse(payment);
+        } catch (e) {
+          return null;
+        }
+      }).filter(payment => payment !== null) : 
+      (enrollment.payment_history ? JSON.parse(enrollment.payment_history) : []),
     forgetCardRequested: enrollment.forget_card_requested === '1',
     latePaymentRequested: enrollment.late_payment_requested === '1',
     enrollmentDate: enrollment.enrollment_date,

@@ -492,7 +492,6 @@ class ClassModel {
             'fee' => (float)$row['fee'],
             'paymentTracking' => $paymentTracking,
             'paymentTrackingFreeDays' => (int)$row['payment_tracking_free_days'],
-            'payment_frequency' => $row['payment_frequency'],
             'zoomLink' => $row['zoom_link'],
             'description' => $row['description'],
             'courseType' => $row['course_type'],
