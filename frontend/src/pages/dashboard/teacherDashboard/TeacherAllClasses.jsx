@@ -689,12 +689,65 @@ const TeacherAllClasses = () => {
                       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                         <FaCalendar /> Class Schedule
                       </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                         <div><strong>Day:</strong> {formatDay(selectedClassForDetails.schedule?.day)}</div>
                         <div><strong>Time:</strong> {formatTime(selectedClassForDetails.schedule?.startTime)} - {formatTime(selectedClassForDetails.schedule?.endTime)}</div>
                         <div><strong>Frequency:</strong> {selectedClassForDetails.schedule?.frequency}</div>
                         <div><strong>Status:</strong> {selectedClassForDetails.status}</div>
                       </div>
+                      
+                      {/* Zoom Link Section for Online/Hybrid Classes */}
+                      {(selectedClassForDetails.deliveryMethod === 'online' || selectedClassForDetails.deliveryMethod === 'hybrid') && selectedClassForDetails.zoomLink && (
+                        <div className="bg-white p-4 rounded-lg border border-blue-200">
+                          <h4 className="text-md font-semibold mb-3 flex items-center gap-2 text-blue-700">
+                            <FaVideo /> Zoom Meeting Link
+                          </h4>
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <div className="flex-1">
+                                <div className="text-sm text-gray-600 mb-1">Meeting URL:</div>
+                                <div className="text-sm font-medium text-blue-600 break-all">
+                                  {selectedClassForDetails.zoomLink}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => window.open(selectedClassForDetails.zoomLink, '_blank')}
+                                className="ml-3 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                              >
+                                <FaVideo /> Join Meeting
+                              </button>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              <strong>Note:</strong> Click "Join Meeting" to open the zoom link in a new tab. Make sure you have Zoom installed or use the web version.
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* No Zoom Link Warning for Online/Hybrid Classes */}
+                      {(selectedClassForDetails.deliveryMethod === 'online' || selectedClassForDetails.deliveryMethod === 'hybrid') && !selectedClassForDetails.zoomLink && (
+                        <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                          <h4 className="text-md font-semibold mb-2 flex items-center gap-2 text-yellow-700">
+                            <FaVideo /> Zoom Link Missing
+                          </h4>
+                          <p className="text-sm text-yellow-600">
+                            This {selectedClassForDetails.deliveryMethod} class doesn't have a zoom link configured. 
+                            Please contact the administrator to add a zoom link for this class.
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Physical Class Info */}
+                      {selectedClassForDetails.deliveryMethod === 'physical' && (
+                        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                          <h4 className="text-md font-semibold mb-2 flex items-center gap-2 text-green-700">
+                            <FaMapMarkerAlt /> Physical Class
+                          </h4>
+                          <p className="text-sm text-green-600">
+                            This is a physical class. Students will attend in person at the designated location.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

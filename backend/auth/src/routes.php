@@ -280,4 +280,48 @@ if ($method === 'DELETE' && preg_match('#^/routes.php/user/(\\d+)$#', $path, $ma
     exit;
 }
 
+// GET next cashier ID
+if ($method === 'GET' && $path === '/routes.php/next-cashier-id') {
+    echo $controller->getNextCashierId();
+    exit;
+}
+
+// CREATE cashier
+if ($method === 'POST' && $path === '/routes.php/cashier') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['name']) || !isset($data['password']) || !isset($data['phone'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing name, password, or phone number']);
+        exit;
+    }
+    echo $controller->createCashier($data);
+    exit;
+}
+
+// GET all cashiers
+if ($method === 'GET' && $path === '/routes.php/cashiers') {
+    echo $controller->getAllCashiers();
+    exit;
+}
+
+// UPDATE cashier by ID
+if ($method === 'PUT' && preg_match('#^/routes.php/cashier/([A-Za-z0-9]+)$#', $path, $matches)) {
+    $cashierId = $matches[1];
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['name']) && !isset($data['email']) && !isset($data['phone']) && !isset($data['password'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'No fields to update']);
+        exit;
+    }
+    echo $controller->updateCashier($cashierId, $data);
+    exit;
+}
+
+// DELETE cashier by ID
+if ($method === 'POST' && preg_match('#^/routes.php/cashier/([A-Za-z0-9]+)/delete$#', $path, $matches)) {
+    $cashierId = $matches[1];
+    echo $controller->deleteCashier($cashierId);
+    exit;
+}
+
 echo json_encode(['path' => $path, 'method' => $method, 'message' => 'Route not found']);
