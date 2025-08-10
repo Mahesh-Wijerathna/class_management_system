@@ -82,6 +82,80 @@ class EnrollmentController {
         }
     }
 
+    // Get all enrollments for a specific class
+    public function getClassEnrollments($classId) {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT 
+                    e.*,
+                    c.class_name,
+                    c.subject,
+                    c.teacher,
+                    c.stream,
+                    c.delivery_method,
+                    c.course_type,
+                    c.fee,
+                    c.max_students,
+                    c.status as class_status,
+                    c.zoom_link,
+                    c.description,
+                    c.schedule_day,
+                    c.schedule_start_time,
+                    c.schedule_end_time,
+                    c.schedule_frequency,
+                    c.start_date,
+                    c.end_date,
+                    c.current_students,
+                    c.payment_tracking,
+                    c.payment_tracking_free_days,
+                    GROUP_CONCAT(
+                        JSON_OBJECT(
+                            'transaction_id', fr.transaction_id,
+                            'date', fr.date,
+                            'amount', fr.amount,
+                            'payment_method', fr.payment_method,
+                            'reference_number', fr.reference_number,
+                            'status', fr.status,
+                            'notes', fr.notes
+                        ) ORDER BY fr.date DESC SEPARATOR '|'
+                    ) as payment_history_details
+                FROM enrollments e
+                LEFT JOIN classes c ON e.class_id = c.id
+                LEFT JOIN financial_records fr ON e.student_id = fr.user_id AND e.class_id = fr.class_id
+                WHERE e.class_id = ?
+                GROUP BY e.id
+                ORDER BY e.enrollment_date DESC
+            ");
+            
+            $stmt->bind_param("i", $classId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            $enrollments = [];
+            while ($row = $result->fetch_assoc()) {
+                // Create schedule object from individual columns
+                $row['schedule'] = [
+                    'day' => $row['schedule_day'],
+                    'startTime' => $row['schedule_start_time'],
+                    'endTime' => $row['schedule_end_time'],
+                    'frequency' => $row['schedule_frequency']
+                ];
+                
+                $enrollments[] = $row;
+            }
+            
+            return [
+                'success' => true,
+                'data' => $enrollments
+            ];
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Error retrieving class enrollments: ' . $e->getMessage()
+            ];
+        }
+    }
+
     // Get all enrollments in the system
     public function getAllEnrollments() {
         try {

@@ -137,6 +137,10 @@ switch ($method) {
             $studentId = $_GET['studentId'];
             $result = $enrollmentController->getStudentEnrollments($studentId);
             echo json_encode($result);
+        } elseif ($path === '/get_class_enrollments' && isset($_GET['classId'])) {
+            $classId = $_GET['classId'];
+            $result = $enrollmentController->getClassEnrollments($classId);
+            echo json_encode($result);
         } elseif ($path === '/get_all_enrollments') {
             $result = $enrollmentController->getAllEnrollments();
             echo json_encode($result);

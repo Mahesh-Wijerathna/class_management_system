@@ -63,6 +63,14 @@ class TeacherController {
                 ];
             }
             
+            // Check if phone number already exists
+            if ($this->model->phoneExists($data['phone'])) {
+                return [
+                    'success' => false,
+                    'message' => 'Phone number already exists'
+                ];
+            }
+            
             // Validate phone number (Sri Lankan format)
             if (!preg_match('/^0\d{9}$/', $data['phone'])) {
                 return [

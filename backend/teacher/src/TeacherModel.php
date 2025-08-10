@@ -350,6 +350,34 @@ class TeacherModel {
         return $result->num_rows > 0;
     }
     
+    // Check if phone number exists
+    public function phoneExists($phone, $excludeTeacherId = null) {
+        $sql = "SELECT teacherId FROM teachers WHERE phone = ?";
+        $params = [$phone];
+        $types = "s";
+        
+        if ($excludeTeacherId) {
+            $sql .= " AND teacherId != ?";
+            $params[] = $excludeTeacherId;
+            $types .= "s";
+        }
+        
+        $stmt = $this->conn->prepare($sql);
+        
+        if (!$stmt) {
+            throw new Exception("Prepare failed: " . $this->conn->error);
+        }
+        
+        $stmt->bind_param($types, ...$params);
+        
+        if (!$stmt->execute()) {
+            throw new Exception("Execute failed: " . $stmt->error);
+        }
+        
+        $result = $stmt->get_result();
+        return $result->num_rows > 0;
+    }
+    
     // Check if teacherId exists
     public function teacherIdExists($teacherId) {
         $sql = "SELECT teacherId FROM teachers WHERE teacherId = ?";
