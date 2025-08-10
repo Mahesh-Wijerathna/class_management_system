@@ -50,12 +50,16 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 CREATE TABLE IF NOT EXISTS login_attempts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     userid VARCHAR(10) NOT NULL,
-    success BOOLEAN NOT NULL DEFAULT 0,
+    attempt_type ENUM('SUCCESS','BLOCKED_MULTIPLE_DEVICE','BLOCKED_ALREADY_LOGGED_IN','FAILED_PASSWORD','INVALID_USER') NOT NULL DEFAULT 'FAILED_PASSWORD',
     ip_address VARCHAR(45) NOT NULL,
+    user_agent TEXT,
+    device_info TEXT,
     attempt_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    details TEXT,
     FOREIGN KEY (userid) REFERENCES users(userid) ON DELETE CASCADE,
     INDEX idx_userid_time (userid, attempt_time),
-    INDEX idx_ip_time (ip_address, attempt_time)
+    INDEX idx_ip_time (ip_address, attempt_time),
+    INDEX idx_attempt_type (attempt_type)
 );
 
 -- Create barcodes table for storing barcode information

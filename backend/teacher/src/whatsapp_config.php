@@ -15,9 +15,9 @@ return [
     // Alternative WhatsApp services
     'alternatives' => [
         'twilio' => [
-            'account_sid' => getenv('TWILIO_ACCOUNT_SID') ?: 'YOUR_ACCOUNT_SID_HERE',
-            'auth_token' => getenv('TWILIO_AUTH_TOKEN') ?: 'YOUR_AUTH_TOKEN_HERE',
-            'whatsapp_from' => getenv('TWILIO_WHATSAPP_FROM') ?: 'whatsapp:+your_twilio_whatsapp_number_here',
+            'account_sid' => getenv('TWILIO_ACCOUNT_SID') ?: 'AC95f3a77e76ca75172239b03fac7b2e91',
+            'auth_token' => getenv('TWILIO_AUTH_TOKEN') ?: '8d0ec591ce35abd960ce816389bc1c70',
+            'whatsapp_from' => getenv('TWILIO_WHATSAPP_FROM') ?: 'whatsapp:+14155238886',
             'enabled' => true,
         ],
         'messagebird' => [
