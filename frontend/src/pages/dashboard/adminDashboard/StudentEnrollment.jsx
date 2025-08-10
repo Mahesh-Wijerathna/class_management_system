@@ -13,7 +13,7 @@ import * as Yup from 'yup';
 import CustomSelectField from '../../../components/CustomSelectField';
 import JsBarcode from 'jsbarcode';
 import { getAllBarcodes, getBarcode } from '../../../api/auth';
-import { getAllStudents } from '../../../api/auth';
+import { getAllStudents, deleteStudent } from '../../../api/students';
 
 // Helper to parse NIC (Sri Lankan)
 function parseNIC(nic) {
@@ -644,9 +644,45 @@ const StudentEnrollment = () => {
   const showDeleteAlert = (studentId) => {
     openAlert(
       'Are you sure you want to delete this student?',
-      () => {
-        setAlertBox(a => ({ ...a, open: false }));
-        setStudents(students.filter(s => s.studentId !== studentId));
+      async () => {
+        try {
+          setAlertBox(a => ({ ...a, open: false }));
+          
+          // Call the backend API to delete the student
+          const response = await deleteStudent(studentId);
+          
+          if (response.success) {
+            // Remove from local state only after successful API call
+            setStudents(students.filter(s => s.userid !== studentId));
+            
+            // Show success message
+            setSaveAlert({
+              open: true,
+              message: 'Student deleted successfully!',
+              onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+              confirmText: 'OK',
+              type: 'success',
+            });
+          } else {
+            // Show error message
+            setSaveAlert({
+              open: true,
+              message: response.message || 'Failed to delete student',
+              onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+              confirmText: 'OK',
+              type: 'error',
+            });
+          }
+        } catch (error) {
+          console.error('Error deleting student:', error);
+          setSaveAlert({
+            open: true,
+            message: 'Error deleting student. Please try again.',
+            onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+            confirmText: 'OK',
+            type: 'error',
+          });
+        }
       },
       { confirmText: 'Delete', cancelText: 'Cancel', type: 'danger' }
     );

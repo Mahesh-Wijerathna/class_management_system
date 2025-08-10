@@ -75,10 +75,10 @@ export const updateStudent = async (studentId, studentData) => {
   }
 };
 
-// Delete student
+// Delete student (uses unified user delete endpoint)
 export const deleteStudent = async (studentId) => {
   try {
-    return await apiDelete(`/routes.php/students/${studentId}`);
+    return await apiDelete(`/routes.php/user/${studentId}`);
   } catch (error) {
     throw new Error(handleApiError(error, 'Failed to delete student'));
   }

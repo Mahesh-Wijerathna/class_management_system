@@ -16,6 +16,7 @@ const teacherSidebarSections = [
       { name: 'My Classes', path: '/teacher/my-classes', icon: <FaBook className="h-5 w-5" /> },
       { name: 'Class Session Schedules', path: '/teacher/schedules', icon: <FaCalendar className="h-5 w-5" /> },
       { name: 'Hall Availability', path: '/teacher/halls', icon: <FaDatabase className="h-5 w-5" /> },
+      { name: 'Class Enrollments', path: '/teacher/enrollments', icon: <FaUsers className="h-5 w-5" /> },
     ]
   },
   {
