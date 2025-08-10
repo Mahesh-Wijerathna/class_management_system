@@ -5,6 +5,7 @@ import TeacherAllClasses from '../../pages/dashboard/teacherDashboard/TeacherAll
 import TeacherAttendanceOverview from '../../pages/dashboard/teacherDashboard/TeacherAttendanceOverview';
 import TeacherClassAttendanceDetail from '../../pages/dashboard/teacherDashboard/TeacherClassAttendanceDetail';
 import TeacherEnrollments from '../../pages/dashboard/teacherDashboard/TeacherEnrollments';
+import TeacherClassPayments from '../../pages/dashboard/teacherDashboard/TeacherClassPayments';
 
 export const teacherRoutes = [
   { path: "/teacherdashboard", element: <TeacherDashboard/> },
@@ -13,5 +14,6 @@ export const teacherRoutes = [
   { path: "/teacher/halls", element: <HallAvailability/> },
   { path: "/teacher/attendance", element: <TeacherAttendanceOverview/> },
   { path: "/teacher/attendance/:classId", element: <TeacherClassAttendanceDetail/> },
-  { path: "/teacher/enrollments", element: <TeacherEnrollments/> }
+  { path: "/teacher/enrollments", element: <TeacherEnrollments/> },
+  { path: "/teacher/payments", element: <TeacherClassPayments/> }
 ]; 
