@@ -16,9 +16,13 @@ const ClassPayments = () => {
   const [streamFilter, setStreamFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
+  const [monthFilter, setMonthFilter] = useState('');
+  const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString());
+  const [dateFilter, setDateFilter] = useState('');
   const [studentsData, setStudentsData] = useState({});
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [classPaymentData, setClassPaymentData] = useState({});
 
   // Load data on component mount
   useEffect(() => {
@@ -48,6 +52,21 @@ const ClassPayments = () => {
           });
           setStudentsData(studentsMap);
         }
+
+        // Load payment data for each class
+        const paymentData = {};
+        for (const classItem of classesList) {
+          try {
+            const enrollmentsResponse = await getClassEnrollments(classItem.id);
+            if (enrollmentsResponse.success) {
+              paymentData[classItem.id] = enrollmentsResponse.data || [];
+            }
+          } catch (error) {
+            console.error(`Error loading payments for class ${classItem.id}:`, error);
+            paymentData[classItem.id] = [];
+          }
+        }
+        setClassPaymentData(paymentData);
       } else {
         setError('Failed to load classes');
       }
@@ -63,9 +82,52 @@ const ClassPayments = () => {
     try {
       const enrollmentsResponse = await getClassEnrollments(classItem.id);
       if (enrollmentsResponse.success) {
+        let filteredEnrollments = enrollmentsResponse.data || [];
+        
+        // Apply date filters to the enrollments
+        if (dateFilter) {
+          // Filter by specific date
+          const targetDate = new Date(dateFilter);
+          targetDate.setHours(0, 0, 0, 0);
+          
+          filteredEnrollments = filteredEnrollments.filter(enrollment => {
+            if (!enrollment.payment_history_details) return false;
+            
+            try {
+              const paymentHistory = JSON.parse(enrollment.payment_history_details);
+              if (!paymentHistory.date) return false;
+              
+              const paymentDate = new Date(paymentHistory.date);
+              paymentDate.setHours(0, 0, 0, 0);
+              
+              return paymentDate.getTime() === targetDate.getTime();
+            } catch (error) {
+              return false;
+            }
+          });
+        } else if (monthFilter && yearFilter) {
+          // Filter by month and year
+          const targetMonth = parseInt(monthFilter);
+          const targetYear = parseInt(yearFilter);
+          
+          filteredEnrollments = filteredEnrollments.filter(enrollment => {
+            if (!enrollment.payment_history_details) return false;
+            
+            try {
+              const paymentHistory = JSON.parse(enrollment.payment_history_details);
+              if (!paymentHistory.date) return false;
+              
+              const paymentDate = new Date(paymentHistory.date);
+              return paymentDate.getMonth() + 1 === targetMonth && paymentDate.getFullYear() === targetYear;
+            } catch (error) {
+              return false;
+            }
+          });
+        }
+        
         setSelectedClass({
           ...classItem,
-          enrollments: enrollmentsResponse.data || []
+          enrollments: filteredEnrollments
         });
         setShowPaymentDetails(true);
       }
@@ -102,8 +164,8 @@ const ClassPayments = () => {
   });
 
   // Get unique values for filter dropdowns
-  const uniqueStreams = [...new Set(classes.map(c => c.stream))].filter(Boolean);
-  const uniqueStatuses = [...new Set(classes.map(c => c.status))].filter(Boolean);
+  const uniqueStreams = [...new Set(classes.map(c => c.stream))].filter(Boolean).sort();
+  const uniqueStatuses = [...new Set(classes.map(c => c.status))].filter(Boolean).sort();
 
   // Format currency
   const formatCurrency = (amount) => {
@@ -171,6 +233,63 @@ const ClassPayments = () => {
     };
   };
 
+  // Calculate payment statistics for a class based on date filters
+  const calculateClassPaymentStats = (classId) => {
+    const enrollments = classPaymentData[classId] || [];
+    
+    // Filter enrollments based on date filters
+    let filteredEnrollments = enrollments;
+    
+    if (dateFilter) {
+      // Filter by specific date
+      const targetDate = new Date(dateFilter);
+      targetDate.setHours(0, 0, 0, 0);
+      
+      filteredEnrollments = enrollments.filter(enrollment => {
+        if (!enrollment.payment_history_details) return false;
+        
+        try {
+          const paymentHistory = JSON.parse(enrollment.payment_history_details);
+          if (!paymentHistory.date) return false;
+          
+          const paymentDate = new Date(paymentHistory.date);
+          paymentDate.setHours(0, 0, 0, 0);
+          
+          return paymentDate.getTime() === targetDate.getTime();
+        } catch (error) {
+          return false;
+        }
+      });
+    } else if (monthFilter && yearFilter) {
+      // Filter by month and year
+      const targetMonth = parseInt(monthFilter);
+      const targetYear = parseInt(yearFilter);
+      
+      filteredEnrollments = enrollments.filter(enrollment => {
+        if (!enrollment.payment_history_details) return false;
+        
+        try {
+          const paymentHistory = JSON.parse(enrollment.payment_history_details);
+          if (!paymentHistory.date) return false;
+          
+          const paymentDate = new Date(paymentHistory.date);
+          return paymentDate.getMonth() + 1 === targetMonth && paymentDate.getFullYear() === targetYear;
+        } catch (error) {
+          return false;
+        }
+      });
+    }
+    
+    const totalPayments = filteredEnrollments.reduce((sum, e) => sum + parseFloat(e.paid_amount || 0), 0);
+    const studentsWithPayments = filteredEnrollments.filter(e => parseFloat(e.paid_amount || 0) > 0).length;
+    
+    return {
+      totalPayments,
+      studentsWithPayments,
+      totalEnrollments: enrollments.length
+    };
+  };
+
   // Define columns for classes table
   const classColumns = [
     {
@@ -220,6 +339,50 @@ const ClassPayments = () => {
           </span>
         </div>
       )
+    },
+    {
+      key: 'totalPayments',
+      label: 'Total Payments',
+      render: (row) => {
+        const stats = calculateClassPaymentStats(row.id);
+        return (
+          <div className="flex flex-col items-center space-y-1">
+            <div className="flex items-center space-x-1">
+              <div className="bg-green-100 p-1 rounded-full">
+                <FaMoneyBill className="text-green-600 text-sm" />
+              </div>
+              <span className="text-xs font-semibold text-gray-900">
+                {formatCurrency(stats.totalPayments)}
+              </span>
+            </div>
+            <div className="text-xs text-gray-500">
+              {stats.studentsWithPayments}/{stats.totalEnrollments} students
+            </div>
+          </div>
+        );
+      }
+    },
+    {
+      key: 'studentsWithPayments',
+      label: 'Students with Payments',
+      render: (row) => {
+        const stats = calculateClassPaymentStats(row.id);
+        return (
+          <div className="flex flex-col items-center space-y-1">
+            <div className="flex items-center space-x-1">
+              <div className="bg-blue-100 p-1 rounded-full">
+                <FaUsers className="text-blue-600 text-sm" />
+              </div>
+              <span className="text-xs font-semibold text-gray-900">
+                {stats.studentsWithPayments}
+              </span>
+            </div>
+            <div className="text-xs text-gray-500">
+              {stats.totalEnrollments > 0 ? Math.round((stats.studentsWithPayments / stats.totalEnrollments) * 100) : 0}% paid
+            </div>
+          </div>
+        );
+      }
     }
   ];
 
@@ -398,7 +561,7 @@ const ClassPayments = () => {
         </div>
 
         {/* Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-4">
           <div className="relative">
             <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
@@ -431,6 +594,62 @@ const ClassPayments = () => {
               <option key={status} value={status}>{status}</option>
             ))}
           </select>
+
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Select Date"
+          />
+
+          <select
+            value={monthFilter}
+            onChange={(e) => setMonthFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">All Months</option>
+            <option value="1">January</option>
+            <option value="2">February</option>
+            <option value="3">March</option>
+            <option value="4">April</option>
+            <option value="5">May</option>
+            <option value="6">June</option>
+            <option value="7">July</option>
+            <option value="8">August</option>
+            <option value="9">September</option>
+            <option value="10">October</option>
+            <option value="11">November</option>
+            <option value="12">December</option>
+          </select>
+
+          <select
+            value={yearFilter}
+            onChange={(e) => setYearFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="2023">2023</option>
+            <option value="2024">2024</option>
+            <option value="2025">2025</option>
+            <option value="2026">2026</option>
+          </select>
+        </div>
+
+        {/* Clear Filters Button */}
+        <div className="flex justify-end mb-6">
+          <button
+            onClick={() => {
+              setSearchTerm('');
+              setStreamFilter('');
+              setStatusFilter('');
+              setDateFilter('');
+              setMonthFilter('');
+              setYearFilter(new Date().getFullYear().toString());
+            }}
+            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+          >
+            Clear All Filters
+          </button>
         </div>
 
         {/* Summary Cards */}
@@ -463,7 +682,10 @@ const ClassPayments = () => {
               <div>
                 <p className="text-sm font-medium text-purple-600">Total Revenue</p>
                 <p className="text-2xl font-bold text-purple-900">
-                  LKR 0.00
+                  {formatCurrency(filteredClasses.reduce((sum, c) => {
+                    const stats = calculateClassPaymentStats(c.id);
+                    return sum + stats.totalPayments;
+                  }, 0))}
                 </p>
               </div>
             </div>
@@ -473,9 +695,12 @@ const ClassPayments = () => {
             <div className="flex items-center">
               <FaClock className="text-yellow-600 text-2xl mr-4" />
               <div>
-                <p className="text-sm font-medium text-yellow-600">Pending Payments</p>
+                <p className="text-sm font-medium text-yellow-600">Students with Payments</p>
                 <p className="text-2xl font-bold text-yellow-900">
-                  0
+                  {filteredClasses.reduce((sum, c) => {
+                    const stats = calculateClassPaymentStats(c.id);
+                    return sum + stats.studentsWithPayments;
+                  }, 0)}
                 </p>
               </div>
             </div>
@@ -495,9 +720,30 @@ const ClassPayments = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Payment Details - {selectedClass.className}
-                </h2>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Payment Details - {selectedClass.className}
+                  </h2>
+                  {/* Filter Indicator */}
+                  {(dateFilter || (monthFilter && yearFilter)) && (
+                    <div className="mt-2 flex items-center space-x-2">
+                      <span className="text-sm text-gray-600">Filters applied:</span>
+                      {dateFilter && (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                          Date: {new Date(dateFilter).toLocaleDateString()}
+                        </span>
+                      )}
+                      {monthFilter && yearFilter && !dateFilter && (
+                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                          {new Date(parseInt(yearFilter), parseInt(monthFilter) - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                        </span>
+                      )}
+                      <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-full">
+                        {selectedClass.enrollments.length} students shown
+                      </span>
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={closePaymentDetails}
                   className="text-gray-500 hover:text-gray-700"
