@@ -12,7 +12,7 @@ class RateLimiter {
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as failed_attempts, MAX(attempt_time) as last_attempt 
             FROM login_attempts 
-            WHERE userid = ? AND success = 0 
+            WHERE userid = ? AND attempt_type IN ('FAILED_PASSWORD', 'INVALID_USER') 
             AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
         ");
         $stmt->bind_param("s", $userid);
@@ -30,11 +30,13 @@ class RateLimiter {
             $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
         }
         
+        $attemptType = $success ? 'SUCCESS' : 'FAILED_PASSWORD';
+        
         $stmt = $this->db->prepare("
-            INSERT INTO login_attempts (userid, success, ip_address, attempt_time) 
+            INSERT INTO login_attempts (userid, attempt_type, ip_address, attempt_time) 
             VALUES (?, ?, ?, NOW())
         ");
-        $stmt->bind_param("sis", $userid, $success, $ip);
+        $stmt->bind_param("sss", $userid, $attemptType, $ip);
         $stmt->execute();
     }
     
@@ -43,7 +45,7 @@ class RateLimiter {
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as failed_attempts 
             FROM login_attempts 
-            WHERE userid = ? AND success = 0 
+            WHERE userid = ? AND attempt_type IN ('FAILED_PASSWORD', 'INVALID_USER') 
             AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
         ");
         $stmt->bind_param("s", $userid);

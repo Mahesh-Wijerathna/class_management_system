@@ -1,9 +1,13 @@
 
 <?php
+// Set timezone for all date/time operations
+date_default_timezone_set('Asia/Colombo');
+
 require_once __DIR__ . '/UserModel.php';
 require_once __DIR__ . '/StudentModel.php';
 require_once __DIR__ . '/RateLimiter.php';
 require_once __DIR__ . '/WhatsAppService.php';
+require_once __DIR__ . '/StudentMonitoringModel.php';
 
 require_once __DIR__ . '/vendor/autoload.php';
 use Firebase\JWT\JWT;
@@ -19,6 +23,19 @@ class UserController {
     }
 
     public function register($role, $password, $studentData = null) {
+        // If this is a student registration, validate student data first
+        if ($role === 'student' && $studentData) {
+            $student = new StudentModel($this->db);
+            $validationErrors = $student->validateStudentData($studentData);
+            
+            if (!empty($validationErrors)) {
+                return json_encode([
+                    'success' => false, 
+                    'message' => implode(', ', $validationErrors)
+                ]);
+            }
+        }
+        
         $user = new UserModel($this->db);
         if ($user->createUser($role, $password)) {
             $userid = $user->userid;
@@ -26,10 +43,14 @@ class UserController {
             // If this is a student registration and we have student data, save it
             if ($role === 'student' && $studentData) {
                 $student = new StudentModel($this->db);
-                if (!$student->createStudent($userid, $studentData)) {
+                $result = $student->createStudent($userid, $studentData);
+                if (!$result['success']) {
                     // If student data creation fails, delete the user and return error
                     $user->deleteUser($userid);
-                    return json_encode(['success' => false, 'message' => 'Student data creation failed']);
+                    return json_encode([
+                        'success' => false, 
+                        'message' => implode(', ', $result['errors'])
+                    ]);
                 }
             }
             
@@ -98,6 +119,20 @@ class UserController {
                 'message' => 'Account temporarily locked due to too many failed attempts. Please try again in 15 minutes.'
             ]);
         }
+
+        // Check if student is blocked - do this BEFORE any other processing
+        if ($userid && $userid[0] === 'S') { // Check if it's a student
+            require_once __DIR__ . '/StudentMonitoringModel.php';
+            $monitoringModel = new StudentMonitoringModel($this->db);
+            if ($monitoringModel->isStudentBlocked($userid)) {
+                // Record failed login attempt for blocked student
+                $this->rateLimiter->recordAttempt($userid, 0);
+                return json_encode([
+                    'success' => false,
+                    'message' => 'Your account has been blocked by the administrator. Please contact support for assistance.'
+                ]);
+            }
+        }
         
         $user = new UserModel($this->db);
         $userData = $user->getUserById($userid);
@@ -163,11 +198,22 @@ class UserController {
             // Record successful login attempt
             $this->rateLimiter->recordAttempt($userData['userid'], 1);
             
+            // Track student login activity for monitoring
+            if ($userData['role'] === 'student') {
+                $monitoringModel = new StudentMonitoringModel($this->db);
+                $sessionId = uniqid('session_', true);
+                $ipAddress = $this->getClientIP();
+                $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+                $loginTime = date('Y-m-d H:i:s');
+                $monitoringModel->trackLoginActivity($userData['userid'], $ipAddress, $userAgent, $sessionId, $loginTime);
+            }
+            
             return json_encode([
                 'success' => true,
                 'user' => $userData,
                 'accessToken' => $accessToken,
-                'refreshToken' => $refreshToken
+                'refreshToken' => $refreshToken,
+                'sessionId' => $sessionId ?? null
             ]);
         } else {
             // Record failed login attempt
@@ -243,11 +289,44 @@ class UserController {
         $stmt->bind_param("sss", $userid, $refreshToken, $expiresAt);
         $stmt->execute();
     }
+
+    // Get client IP address
+    private function getClientIP() {
+        $ipKeys = ['HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP', 'HTTP_CLIENT_IP', 'REMOTE_ADDR'];
+        
+        foreach ($ipKeys as $key) {
+            if (array_key_exists($key, $_SERVER) === true) {
+                foreach (explode(',', $_SERVER[$key]) as $ip) {
+                    $ip = trim($ip);
+                    
+                    // Return any valid IP address, including Docker internal IPs
+                    if (filter_var($ip, FILTER_VALIDATE_IP) !== false) {
+                        return $ip;
+                    }
+                }
+            }
+        }
+        
+        // If no IP found, return a placeholder
+        return 'Unknown IP';
+    }
     // Validate JWT token
     public function validateToken($token) {
         $secretKey = 'your_secret_key_here'; // Use the same key as in login
         try {
             $decoded = JWT::decode($token, new Key($secretKey, 'HS256'));
+            
+            // Check if user is blocked (for students)
+            if (isset($decoded->role) && $decoded->role === 'student') {
+                $monitoring = new StudentMonitoringModel($this->db);
+                if ($monitoring->isStudentBlocked($decoded->userid)) {
+                    return json_encode([
+                        'success' => false,
+                        'message' => 'Your account has been blocked by the administrator. Please contact support for assistance.',
+                        'blocked' => true
+                    ]);
+                }
+            }
             
             return json_encode([
                 'success' => true,

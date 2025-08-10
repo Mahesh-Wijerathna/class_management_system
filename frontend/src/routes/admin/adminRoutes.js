@@ -16,6 +16,7 @@ import CoreAdminTabsPage from '../../pages/dashboard/adminDashboard/CoreAdminTab
 import CashiersTabsPage from '../../pages/dashboard/adminDashboard/CashiersTabsPage';
 import CashiersInfo from '../../pages/dashboard/adminDashboard/CashiersInfo';
 import CreateCashierLogin from '../../pages/dashboard/adminDashboard/CreateCashierLogin';
+import StudentMonitoringDashboard from '../../pages/dashboard/adminDashboard/StudentMonitoringDashboard';
 
 export const adminRoutes = [
   {
@@ -71,5 +72,9 @@ export const adminRoutes = [
       { path: "info", element: <CashiersInfo /> },
       { path: "create", element: <CreateCashierLogin /> }
     ]  
+  },
+  {
+    path: "/admin/monitoring",
+    element: <StudentMonitoringDashboard />
   }
 ]; 
