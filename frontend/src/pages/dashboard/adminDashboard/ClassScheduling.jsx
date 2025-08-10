@@ -6,7 +6,7 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomButton from '../../../components/CustomButton';
 import CustomSelectField from '../../../components/CustomSelectField';
-import { FaEdit, FaTrash, FaPlus, FaCalendar, FaBook, FaUser, FaClock, FaDoorOpen, FaVideo } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaPlus, FaCalendar, FaBook, FaUser, FaClock, FaDoorOpen, FaVideo, FaExclamationTriangle, FaRedo } from 'react-icons/fa';
 import * as Yup from 'yup';
 import BasicTable from '../../../components/BasicTable';
 import { getAllSessionSchedules, createSessionSchedule, updateSessionSchedule, deleteSessionSchedule, getAllClasses } from '../../../api/classes';
@@ -136,24 +136,25 @@ function ClassScheduling() {
   };
 
   // Fetch all session schedules from API
-  useEffect(() => {
-    const fetchSchedules = async () => {
-      try {
-        setLoading(true);
-        const response = await getAllSessionSchedules();
-        if (response.success) {
-          setSchedules(response.data || []);
-        } else {
-          setError(response.message || 'Failed to load session schedules');
-        }
-      } catch (error) {
-        console.error('Error fetching session schedules:', error);
-        setError('Failed to load session schedules. Please try again.');
-      } finally {
-        setLoading(false);
+  const fetchSchedules = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await getAllSessionSchedules();
+      if (response.success) {
+        setSchedules(response.data || []);
+      } else {
+        setError(response.message || 'Failed to load session schedules');
       }
-    };
+    } catch (error) {
+      console.error('Error fetching session schedules:', error);
+      setError('Failed to load session schedules. Please check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchSchedules();
     loadTeachers();
     loadClasses();
@@ -233,26 +234,26 @@ function ClassScheduling() {
             type: 'success',
           });
         }
-      } else {
-        // Create new session schedule
-        const response = await createSessionSchedule(submitValues);
-        if (response.success) {
-          // Refresh schedules
-          const schedulesResponse = await getAllSessionSchedules();
-          if (schedulesResponse.success) {
-            setSchedules(schedulesResponse.data || []);
+              } else {
+          // Create new session schedule
+          const response = await createSessionSchedule(submitValues);
+          if (response.success) {
+            // Refresh schedules
+            const schedulesResponse = await getAllSessionSchedules();
+            if (schedulesResponse.success) {
+              setSchedules(schedulesResponse.data || []);
+            }
+            setAlertBox({
+              open: true,
+              message: `Session schedule created successfully! The session "${submitValues.className}" has been scheduled for ${submitValues.date} from ${submitValues.startTime} to ${submitValues.endTime}.`,
+              onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+              onCancel: null,
+              confirmText: 'OK',
+              cancelText: '',
+              type: 'success',
+            });
           }
-          setAlertBox({
-            open: true,
-            message: 'Session schedule created successfully!',
-            onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
-            onCancel: null,
-            confirmText: 'OK',
-            cancelText: '',
-            type: 'success',
-          });
         }
-      }
       resetForm();
       setFormValues(initialValues);
       setSubmitKey(prev => prev + 1);
@@ -351,14 +352,30 @@ function ClassScheduling() {
   if (error) {
     return (
         <div className="p-6 bg-white rounded-lg shadow">
-          <div className="text-center text-red-600">
-            <p>{error}</p>
-            <button 
-              onClick={() => window.location.reload()} 
-              className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Retry
-            </button>
+          <div className="text-center">
+            <div className="mb-4">
+              <FaExclamationTriangle className="mx-auto text-red-500 text-4xl mb-2" />
+              <h3 className="text-lg font-semibold text-red-600 mb-2">Failed to Load Session Schedules</h3>
+              <p className="text-red-600 mb-4">{error}</p>
+            </div>
+            <div className="flex gap-2 justify-center">
+              <CustomButton
+                onClick={fetchSchedules}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
+              >
+                <FaRedo /> Retry
+              </CustomButton>
+              <CustomButton
+                onClick={() => {
+                  setError(null);
+                  setFormValues(initialValues);
+                  setSubmitKey(prev => prev + 1);
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2"
+              >
+                <FaPlus /> Create New Session Anyway
+              </CustomButton>
+            </div>
           </div>
         </div>
     );
@@ -376,8 +393,24 @@ function ClassScheduling() {
           type={alertBox.type}
         />
         <div className="p-6 bg-white rounded-lg shadow">
-        <h1 className="text-2xl font-bold mb-4">Class Session Schedules</h1>
-        <p className="mb-6 text-gray-700">Create, update, and delete class schedules for all teachers.</p>
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-2xl font-bold mb-2">Class Session Schedules</h1>
+            <p className="text-gray-700">Create, update, and delete class schedules for all teachers.</p>
+          </div>
+          <div className="flex gap-2">
+            <CustomButton
+              onClick={() => {
+                setEditingId(null);
+                setFormValues(initialValues);
+                setSubmitKey(prev => prev + 1);
+              }}
+              className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded flex items-center gap-2"
+            >
+              <FaPlus /> Create New Session
+            </CustomButton>
+          </div>
+        </div>
 
       <BasicForm
         key={submitKey}

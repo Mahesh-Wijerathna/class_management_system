@@ -10,6 +10,7 @@ services:
       MYSQL_DATABASE: auth-db
       MYSQL_USER: devuser
       MYSQL_PASSWORD: devpass
+      TZ: Asia/Colombo
     ports:
       - "3309:3306"
     volumes:
@@ -48,6 +49,7 @@ services:
       - DB_NAME=auth-db
       - DB_USER=devuser
       - DB_PASSWORD=devpass
+      - TZ=Asia/Colombo
 
       
       # Twilio Configuration
@@ -77,6 +79,7 @@ services:
       MYSQL_DATABASE: cashier_db
       MYSQL_USER: cashieruser
       MYSQL_PASSWORD: cashierpass
+      TZ: Asia/Colombo
     ports:
       - "3311:3306"
     volumes:
@@ -115,6 +118,7 @@ services:
       - DB_NAME=cashier_db
       - DB_USER=cashieruser
       - DB_PASSWORD=cashierpass
+      - TZ=Asia/Colombo
     networks:
       - cashier-network
 
@@ -127,6 +131,7 @@ services:
       MYSQL_DATABASE: class_db
       MYSQL_USER: classuser
       MYSQL_PASSWORD: classpass
+      TZ: Asia/Colombo
     ports:
       - "3312:3306"
     volumes:
@@ -166,6 +171,7 @@ services:
       - DB_NAME=class_db
       - DB_USER=classuser
       - DB_PASSWORD=classpass
+      - TZ=Asia/Colombo
     networks:
       - class-network
 
@@ -178,6 +184,7 @@ services:
       MYSQL_DATABASE: student_db
       MYSQL_USER: studentuser
       MYSQL_PASSWORD: studentpass
+      TZ: Asia/Colombo
     ports:
       - "3308:3306"
     volumes:
@@ -216,6 +223,7 @@ services:
       - DB_NAME=student_db
       - DB_USER=studentuser
       - DB_PASSWORD=studentpass
+      - TZ=Asia/Colombo
     networks:
       - student-network
 
@@ -226,6 +234,7 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: teacher_db
+      TZ: Asia/Colombo
     ports:
       - "3310:3306"
     volumes:
@@ -259,8 +268,44 @@ services:
       - ./teacher/src:/var/www/html
     depends_on:
       - teacher-mysql
+    environment:
+      - TZ=Asia/Colombo
     networks:
       - teacher-network
+
+  attendance-backend:
+    build: ./attendance-backend
+    container_name: attendance-backend
+    ports:
+      - "8000:80"
+    volumes:
+      - ./attendance-backend/src:/var/www/html
+    depends_on:
+      - attendance-db
+    environment:
+      - DB_HOST=attendance-db
+      - DB_NAME=attendance_system
+      - DB_USER=root
+      - DB_PASSWORD=secret
+      - TZ=Asia/Colombo
+    networks:
+      - attendance-network
+
+  attendance-db:
+    image: mysql:8.0
+    container_name: attendance-db
+    ports:
+      - "3307:3306"  # Different port than default MySQL to avoid conflicts
+    environment:
+      - MYSQL_ROOT_PASSWORD=secret
+      - MYSQL_DATABASE=attendance
+      - TZ=Asia/Colombo
+    volumes:
+      - ./attendance-backend/sql:/docker-entrypoint-initdb.d
+      - attendance-db-data:/var/lib/mysql
+    networks:
+      - attendance-network
+
 
 volumes:
   auth_mysql_data:
@@ -268,6 +313,7 @@ volumes:
   class_mysql_data:
   student_mysql_data:
   teacher_mysql_data:
+  attendance-db-data:
 
 networks:
   auth-network:
@@ -279,4 +325,6 @@ networks:
   student-network:
     driver: bridge
   teacher-network:
+    driver: bridge
+  attendance-network:
     driver: bridge

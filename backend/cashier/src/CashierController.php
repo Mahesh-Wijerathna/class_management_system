@@ -1,4 +1,7 @@
 <?php
+// Set timezone for all date/time operations
+date_default_timezone_set('Asia/Colombo');
+
 // src/CashierController.php
 require_once 'config.php';
 require_once 'CashierModel.php';

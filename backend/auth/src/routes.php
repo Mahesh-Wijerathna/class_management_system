@@ -324,4 +324,168 @@ if ($method === 'POST' && preg_match('#^/routes.php/cashier/([A-Za-z0-9]+)/delet
     exit;
 }
 
+// =====================================================
+// STUDENT MONITORING ROUTES
+// =====================================================
+
+require_once __DIR__ . '/StudentMonitoringController.php';
+$monitoringController = new StudentMonitoringController($mysqli);
+
+// Track student login activity
+if ($method === 'POST' && $path === '/routes.php/track-student-login') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['studentId']) || !isset($data['sessionId'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing studentId or sessionId']);
+        exit;
+    }
+    echo json_encode($monitoringController->trackStudentLogin($data['studentId'], $data['sessionId']));
+    exit;
+}
+
+// Track concurrent session
+if ($method === 'POST' && $path === '/routes.php/track-concurrent-session') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['studentId']) || !isset($data['sessionId']) || !isset($data['classId'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing studentId, sessionId, or classId']);
+        exit;
+    }
+    echo json_encode($monitoringController->trackConcurrentSession($data['studentId'], $data['sessionId'], $data['classId']));
+    exit;
+}
+
+// End concurrent session
+if ($method === 'POST' && $path === '/routes.php/end-concurrent-session') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['sessionId'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing sessionId']);
+        exit;
+    }
+    echo json_encode($monitoringController->endConcurrentSession($data['sessionId']));
+    exit;
+}
+
+// Get student monitoring data
+if ($method === 'GET' && preg_match('#^/routes.php/student-monitoring/([A-Za-z0-9]+)$#', $path, $matches)) {
+    $studentId = $matches[1];
+    $limit = $_GET['limit'] ?? 50;
+    echo json_encode($monitoringController->getStudentMonitoringData($studentId, $limit));
+    exit;
+}
+
+// Get suspicious activities
+if ($method === 'GET' && $path === '/routes.php/suspicious-activities') {
+    $limit = $_GET['limit'] ?? 100;
+    echo json_encode($monitoringController->getSuspiciousActivities($limit));
+    exit;
+}
+
+// Get concurrent session violations
+if ($method === 'GET' && $path === '/routes.php/concurrent-violations') {
+    $limit = $_GET['limit'] ?? 100;
+    echo json_encode($monitoringController->getConcurrentSessionViolations($limit));
+    exit;
+}
+
+// Block student
+if ($method === 'POST' && $path === '/routes.php/block-student') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['studentId']) || !isset($data['reason']) || !isset($data['blockedBy'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing studentId, reason, or blockedBy']);
+        exit;
+    }
+    $blockDuration = $data['blockDuration'] ?? 24;
+    echo json_encode($monitoringController->blockStudent($data['studentId'], $data['reason'], $data['blockedBy'], $blockDuration));
+    exit;
+}
+
+// Unblock student
+if ($method === 'POST' && $path === '/routes.php/unblock-student') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['studentId'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing studentId']);
+        exit;
+    }
+    echo json_encode($monitoringController->unblockStudent($data['studentId']));
+    exit;
+}
+
+// Check if student is blocked
+if ($method === 'GET' && preg_match('#^/routes.php/student-blocked/([A-Za-z0-9]+)$#', $path, $matches)) {
+    $studentId = $matches[1];
+    echo json_encode($monitoringController->isStudentBlocked($studentId));
+    exit;
+}
+
+// Get student block history
+if ($method === 'GET' && preg_match('#^/routes.php/student-block-history/([A-Za-z0-9]+)$#', $path, $matches)) {
+    $studentId = $matches[1];
+    echo json_encode($monitoringController->getStudentBlockHistory($studentId));
+    exit;
+}
+
+// Get monitoring statistics
+if ($method === 'GET' && $path === '/routes.php/monitoring-statistics') {
+    echo json_encode($monitoringController->getMonitoringStatistics());
+    exit;
+}
+
+// Detect cheating
+if ($method === 'POST' && $path === '/routes.php/detect-cheating') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['studentId']) || !isset($data['classId']) || !isset($data['sessionId'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing studentId, classId, or sessionId']);
+        exit;
+    }
+    echo json_encode($monitoringController->detectCheating($data['studentId'], $data['classId'], $data['sessionId']));
+    exit;
+}
+
+// Get detailed monitoring report
+if ($method === 'GET' && $path === '/routes.php/monitoring-report') {
+    $studentId = $_GET['studentId'] ?? null;
+    $dateFrom = $_GET['dateFrom'] ?? null;
+    $dateTo = $_GET['dateTo'] ?? null;
+    echo json_encode($monitoringController->getDetailedMonitoringReport($studentId, $dateFrom, $dateTo));
+    exit;
+}
+
+// Check for concurrent logins
+if ($method === 'GET' && preg_match('#^/routes.php/check-concurrent-logins/([A-Za-z0-9]+)$#', $path, $matches)) {
+    $studentId = $matches[1];
+    echo json_encode($monitoringController->checkConcurrentLogins($studentId));
+    exit;
+}
+
+// Get student devices
+if ($method === 'GET' && preg_match('#^/routes.php/student-devices/([A-Za-z0-9]+)$#', $path, $matches)) {
+    $studentId = $matches[1];
+    echo json_encode($monitoringController->getStudentDevices($studentId));
+    exit;
+}
+
+// Detect multiple device login
+if ($method === 'POST' && $path === '/routes.php/detect-multiple-device-login') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['studentId']) || !isset($data['deviceFingerprint'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing studentId or deviceFingerprint']);
+        exit;
+    }
+    echo json_encode($monitoringController->detectMultipleDeviceLogin($data['studentId'], $data['deviceFingerprint']));
+    exit;
+}
+
+// Check if session is valid (for real-time session validation)
+if ($method === 'GET' && preg_match('#^/routes.php/session-valid/([A-Za-z0-9]+)$#', $path, $matches)) {
+    $studentId = $matches[1];
+    echo json_encode($monitoringController->isSessionValid($studentId));
+    exit;
+}
+
 echo json_encode(['path' => $path, 'method' => $method, 'message' => 'Route not found']);

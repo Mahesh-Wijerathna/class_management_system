@@ -206,7 +206,7 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
     // If enrollment has class_name directly, use it
     if (enrollment.class_name) {
       return enrollment.class_name;
-    }
+        }
     
     // Fallback to mapping from classes array if needed
     if (enrollment.class_id) {

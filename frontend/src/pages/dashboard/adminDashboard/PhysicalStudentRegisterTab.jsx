@@ -3,6 +3,7 @@ import * as Yup from 'yup';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomButton from '../../../components/CustomButton';
 import BasicForm from '../../../components/BasicForm';
+import BasicAlertBox from '../../../components/BasicAlertBox';
 import { FaUser, FaPhone, FaIdCard, FaCalendarAlt, FaVenusMars, FaGraduationCap, FaBarcode, FaDownload } from 'react-icons/fa';
 import { Formik } from 'formik';
 import JsBarcode from 'jsbarcode';
@@ -111,6 +112,13 @@ const PhysicalStudentRegisterTab = () => {
   const [registeredStudent, setRegisteredStudent] = useState(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    open: false,
+    message: '',
+    title: '',
+    type: 'info',
+    onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+  });
 
   // Generate unique student ID
   const generateStudentId = () => {
@@ -233,21 +241,21 @@ const PhysicalStudentRegisterTab = () => {
         setRegistrationSuccess(true);
         setRegisteredStudent({
           studentId: response.userid,
-        firstName: summaryValues.firstName,
-        lastName: summaryValues.lastName,
-        nic: summaryValues.idNumber || '',
-        gender: summaryValues.gender,
-        age: summaryValues.age,
-        email: summaryValues.email,
-        phone: summaryValues.mobile,
-        parentName: summaryValues.parentName,
-        parentPhone: summaryValues.parentMobile,
-        stream: summaryValues.stream,
-        dateOfBirth: summaryValues.dob,
-        school: summaryValues.school,
-        address: summaryValues.address,
-        district: summaryValues.district,
-        dateJoined: new Date().toISOString().split('T')[0],
+          firstName: summaryValues.firstName,
+          lastName: summaryValues.lastName,
+          nic: summaryValues.idNumber || '',
+          gender: summaryValues.gender,
+          age: summaryValues.age,
+          email: summaryValues.email,
+          phone: summaryValues.mobile,
+          parentName: summaryValues.parentName,
+          parentPhone: summaryValues.parentMobile,
+          stream: summaryValues.stream,
+          dateOfBirth: summaryValues.dob,
+          school: summaryValues.school,
+          address: summaryValues.address,
+          district: summaryValues.district,
+          dateJoined: new Date().toISOString().split('T')[0],
           enrolledClasses: []
         });
         
@@ -267,12 +275,35 @@ const PhysicalStudentRegisterTab = () => {
         
         console.log('Physical registration successful! Student ID:', response.userid);
       } else {
-        alert(response.message || 'Registration failed. Please try again.');
+        setAlertConfig({
+          open: true,
+          message: response.message || 'Registration failed. Please try again.',
+          title: 'Registration Failed',
+          type: 'danger',
+          onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+        });
       }
       
     } catch (error) {
       console.error('Registration error:', error);
-      alert('Registration failed. Please try again.');
+      // Check if it's a validation error
+      if (error.message && (error.message.includes('NIC number') || error.message.includes('mobile number') || error.message.includes('email address'))) {
+        setAlertConfig({
+          open: true,
+          message: 'Registration failed: ' + error.message + '\n\nPlease use different information or contact support if you believe this is an error.',
+          title: 'Duplicate Information',
+          type: 'warning',
+          onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+        });
+      } else {
+        setAlertConfig({
+          open: true,
+          message: 'Registration failed. Please try again.',
+          title: 'Registration Failed',
+          type: 'danger',
+          onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+        });
+      }
     } finally {
       setIsRegistering(false);
     }
@@ -305,6 +336,7 @@ const PhysicalStudentRegisterTab = () => {
 
   return (
     <div className="w-full flex flex-col justify-center items-center min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <BasicAlertBox {...alertConfig} />
       <div className='max-w-md w-full flex flex-col p-8 items-center'>
         <div className='app-log flex flex-col justify-center items-center mb-8'>
           <div className='w-12 h-12 rounded-full bg-[#3da58a] flex items-center justify-center mb-3 shadow-xl backdrop-blur-sm'>
