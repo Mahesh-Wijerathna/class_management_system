@@ -23,6 +23,21 @@ export const getStudentEnrollments = async (studentId) => {
   }
 };
 
+// Get all enrollments for a class
+export const getClassEnrollments = async (classId) => {
+  try {
+    const response = await classApi.get(`/get_class_enrollments?classId=${classId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching class enrollments:', error);
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Failed to fetch class enrollments',
+      data: []
+    };
+  }
+};
+
 // Create a new enrollment
 export const createEnrollment = async (enrollmentData) => {
   try {
