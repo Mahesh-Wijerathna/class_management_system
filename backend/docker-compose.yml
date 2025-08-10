@@ -1,0 +1,282 @@
+version: '3.8'
+
+services:
+  # Auth services
+  auth-mysql:
+    image: mysql:8.0
+    container_name: auth-mysql-server
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: auth-db
+      MYSQL_USER: devuser
+      MYSQL_PASSWORD: devpass
+    ports:
+      - "9001:3306"
+    volumes:
+      - auth_mysql_data:/var/lib/mysql
+      - ./auth/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - auth-network
+
+  # auth-phpmyadmin:
+  #   image: phpmyadmin/phpmyadmin
+  #   container_name: auth-phpmyadmin
+  #   environment:
+  #     PMA_HOST: auth-mysql
+  #     PMA_PORT: 3306
+  #   ports:
+  #     - "8090:80"
+  #   depends_on:
+  #     - auth-mysql
+  #   networks:
+  #     - auth-network
+
+  auth-backend:
+    build:
+      context: ./auth
+      dockerfile: Dockerfile
+    container_name: auth-backend
+    ports:
+      - "8081:80"
+    volumes:
+      - ./auth/src:/var/www/html
+      - /var/www/html/vendor
+    depends_on:
+      - auth-mysql
+    environment:
+      - DB_HOST=auth-mysql
+      - DB_NAME=auth-db
+      - DB_USER=devuser
+      - DB_PASSWORD=devpass
+
+      
+      # Twilio Configuration
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-your_twilio_account_sid_here}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-your_twilio_auth_token_here}
+      - TWILIO_WHATSAPP_FROM=${TWILIO_WHATSAPP_FROM:-whatsapp:+your_twilio_whatsapp_number_here}
+      
+      # WhatsApp Business API Configuration
+      - WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN:-}
+      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID:-}
+      - WHATSAPP_API_VERSION=${WHATSAPP_API_VERSION:-v17.0}
+      - WHATSAPP_BUSINESS_ACCOUNT_ID=${WHATSAPP_BUSINESS_ACCOUNT_ID:-}
+      - WHATSAPP_WEBHOOK_VERIFY_TOKEN=${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-}
+      
+      # MessageBird Configuration
+      - MESSAGEBIRD_ACCESS_KEY=${MESSAGEBIRD_ACCESS_KEY:-}
+      - MESSAGEBIRD_CHANNEL_ID=${MESSAGEBIRD_CHANNEL_ID:-}
+    networks:
+      - auth-network
+
+  # Cashier services
+  cashier-mysql:
+    image: mysql:8.0
+    container_name: cashier-mysql-server
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: cashier_db
+      MYSQL_USER: cashieruser
+      MYSQL_PASSWORD: cashierpass
+    ports:
+      - "9000:3306"
+    volumes:
+      - cashier_mysql_data:/var/lib/mysql
+      - ./cashier/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - cashier-network
+
+  # cashier-phpmyadmin:
+  #   image: phpmyadmin/phpmyadmin
+  #   container_name: cashier-phpmyadmin
+  #   environment:
+  #     PMA_HOST: cashier-mysql
+  #     PMA_PORT: 3306
+  #   ports:
+  #     - "8091:80"
+  #   depends_on:
+  #     - cashier-mysql
+  #   networks:
+  #     - cashier-network
+
+  cashier-backend:
+    build:
+      context: ./cashier
+      dockerfile: Dockerfile
+    container_name: cashier-backend
+    ports:
+      - "8083:80"
+    volumes:
+      - ./cashier/src:/var/www/html
+      - /var/www/html/vendor
+    depends_on:
+      - cashier-mysql
+    environment:
+      - DB_HOST=cashier-mysql
+      - DB_NAME=cashier_db
+      - DB_USER=cashieruser
+      - DB_PASSWORD=cashierpass
+    networks:
+      - cashier-network
+
+  # Class services
+  class-mysql:
+    image: mysql:8.0
+    container_name: class-mysql-server
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: class_db
+      MYSQL_USER: classuser
+      MYSQL_PASSWORD: classpass
+    ports:
+      - "9010:3306"
+    volumes:
+      - class_mysql_data:/var/lib/mysql
+      - ./class/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./class/mysql/payment_tables.sql:/docker-entrypoint-initdb.d/payment_tables.sql
+    networks:
+      - class-network
+
+  class-phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: class-phpmyadmin
+    environment:
+      PMA_HOST: class-mysql
+      PMA_PORT: 3306
+    ports:
+      - "8089:80"
+    depends_on:
+      - class-mysql
+    networks:
+      - class-network
+
+  class-backend:
+    build:
+      context: ./class
+      dockerfile: Dockerfile
+    container_name: class-backend
+    ports:
+      - "8087:80"
+    volumes:
+      - ./class/src:/var/www/html
+      - /var/www/html/vendor
+    depends_on:
+      - class-mysql
+    environment:
+      - DB_HOST=class-mysql
+      - DB_NAME=class_db
+      - DB_USER=classuser
+      - DB_PASSWORD=classpass
+    networks:
+      - class-network
+
+  # Student services
+  student-mysql:
+    image: mysql:8.0
+    container_name: student-mysql-server
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: student_db
+      MYSQL_USER: studentuser
+      MYSQL_PASSWORD: studentpass
+    ports:
+      - "9020:3306"
+    volumes:
+      - student_mysql_data:/var/lib/mysql
+      - ./student/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - student-network
+
+  # student-phpmyadmin:
+  #   image: phpmyadmin/phpmyadmin
+  #   container_name: student-phpmyadmin
+  #   environment:
+  #     PMA_HOST: student-mysql
+  #     PMA_PORT: 3306
+  #   ports:
+  #     - "8085:80"
+  #   depends_on:
+  #     - student-mysql
+  #   networks:
+  #     - student-network
+
+  student-backend:
+    build:
+      context: ./student
+      dockerfile: Dockerfile
+    container_name: student-backend
+    ports:
+      - "8086:80"
+    volumes:
+      - ./student/src:/var/www/html
+      - /var/www/html/vendor
+    depends_on:
+      - student-mysql
+    environment:
+      - DB_HOST=student-mysql
+      - DB_NAME=student_db
+      - DB_USER=studentuser
+      - DB_PASSWORD=studentpass
+    networks:
+      - student-network
+
+  # Teacher services
+  teacher-mysql:
+    image: mysql:8.0
+    container_name: teacher-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: teacher_db
+    ports:
+      - "9070:3306"
+    volumes:
+      - ./teacher/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - teacher_mysql_data:/var/lib/mysql
+    networks:
+      - teacher-network
+
+  teacher-phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: teacher-phpmyadmin
+    environment:
+      PMA_HOST: teacher-mysql
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: password
+    ports:
+      - "8084:80"
+    depends_on:
+      - teacher-mysql
+    networks:
+      - teacher-network
+
+  teacher-backend:
+    build:
+      context: ./teacher
+    container_name: teacher-backend
+    ports:
+      - "8088:80"
+    volumes:
+      - ./teacher/src:/var/www/html
+    depends_on:
+      - teacher-mysql
+    networks:
+      - teacher-network
+
+volumes:
+  auth_mysql_data:
+  cashier_mysql_data:
+  class_mysql_data:
+  student_mysql_data:
+  teacher_mysql_data:
+
+networks:
+  auth-network:
+    driver: bridge
+  cashier-network:
+    driver: bridge
+  class-network:
+    driver: bridge
+  student-network:
+    driver: bridge
+  teacher-network:
+    driver: bridge

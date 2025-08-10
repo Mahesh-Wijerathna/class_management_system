@@ -1,15 +1,32 @@
-
 <?php
-require_once '../db.php';
+require_once __DIR__ . '/config.php';
 
-header('Content-Type: application/json');
+
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, GET, PUT, DELETE');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Accept');
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
+
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-if ($method === 'GET') {
+
+if ($method === 'GET' && isset($_GET['list'])) {
+    // Return all hall bookings for the table
+    $sql = "SELECT hb.*, t.name AS teacher_name FROM hall_bookings hb LEFT JOIN teachers t ON hb.teacherId = t.teacherId ORDER BY hb.date DESC, hb.start_time ASC";
+    $result = $conn->query($sql);
+    $halls = [];
+    while ($row = $result->fetch_assoc()) {
+        $halls[] = $row;
+    }
+    echo json_encode(['success' => true, 'halls' => $halls]);
+    exit;
+}
+
+elseif ($method === 'GET') {
     // Fetch bookings for a date/time range, including teacher name
     $date = $_GET['date'] ?? null;
     $start_time = $_GET['start_time'] ?? null;
@@ -49,7 +66,7 @@ if ($method === 'GET') {
         echo json_encode(['success' => false, 'message' => 'Error checking availability', 'error' => $e->getMessage()]);
     }
 
-} elseif ($method === 'POST') {
+}elseif ($method === 'POST') {
     // Book hall
     $data = json_decode(file_get_contents("php://input"), true);
     $hall_name = $data['hall_name'] ?? null;
@@ -138,10 +155,14 @@ if ($method === 'GET') {
     $stmt->bind_param("ssssssssi", $hall_name, $status, $subject, $class_name, $teacherId, $date, $start_time, $end_time, $booking_id);
 
     if ($stmt->execute()) {
+    if ($stmt->affected_rows > 0) {
         echo json_encode(['success' => true, 'message' => 'Booking updated successfully']);
     } else {
-        echo json_encode(['success' => false, 'message' => 'Error updating booking']);
+        echo json_encode(['success' => false, 'message' => 'No rows updated. Check booking ID or data.']);
     }
+} else {
+    echo json_encode(['success' => false, 'message' => 'Error updating booking', 'error' => $stmt->error]);
+}
 
 } elseif ($method === 'DELETE') {
     // Delete a hall booking
