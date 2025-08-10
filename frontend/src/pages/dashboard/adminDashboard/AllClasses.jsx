@@ -1,52 +1,44 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import adminSidebarSections from './AdminDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
 import CustomButton from '../../../components/CustomButton';
 import { getAllClasses } from '../../../api/classes';
-import { getClassEnrollments } from '../../../api/enrollments';
 
 const AllClasses = () => {
   const navigate = useNavigate();
-  const [rows, setRows] = useState([]);
+  const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Fetch classes from API
   useEffect(() => {
-    const load = async () => {
+    const fetchClasses = async () => {
       try {
         setLoading(true);
-        setError(null);
-        const res = await getAllClasses();
-        if (!res?.success || !Array.isArray(res.data)) {
-          setRows([]);
-          setError(res?.message || 'Failed to load classes');
-          return;
+        const response = await getAllClasses();
+        if (response.success) {
+          setClasses(response.data || []);
+        } else {
+          setError(response.message || 'Failed to load classes');
         }
-        const classes = res.data;
-        // Enrich with total students from DB enrollments (fallback to current_students)
-        const withCounts = await Promise.all(
-          classes.map(async (c) => {
-            try {
-              const er = await getClassEnrollments(c.id);
-              const total = er?.success && Array.isArray(er.data) ? er.data.length : (c.current_students || 0);
-              return { ...c, totalStudents: total };
-            } catch {
-              return { ...c, totalStudents: c.current_students || 0 };
-            }
-          })
-        );
-        setRows(withCounts);
-      } catch (e) {
+      } catch (error) {
+        console.error('Error fetching classes:', error);
         setError('Failed to load classes. Please try again.');
-        setRows([]);
       } finally {
         setLoading(false);
       }
     };
-    load();
+
+    fetchClasses();
   }, []);
+
+  // Calculate total students for each class (for now, using current_students from database)
+  const classesWithStudentCount = classes.map(cls => ({
+    ...cls,
+    totalStudents: cls.current_students || 0,
+  }));
 
   if (loading) {
     return (
@@ -65,7 +57,15 @@ const AllClasses = () => {
     return (
       <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
         <div className="p-6 bg-white rounded-lg shadow">
-          <div className="text-center text-red-600">{error}</div>
+          <div className="text-center text-red-600">
+            <p>{error}</p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -75,39 +75,49 @@ const AllClasses = () => {
     <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
       <div className="p-6 bg-white rounded-lg shadow">
         <h1 className="text-2xl font-bold mb-4">All Classes</h1>
-        <BasicTable
-          columns={[
-            { key: 'className', label: 'Class Name' },
-            { key: 'subject', label: 'Subject' },
-            { key: 'teacher', label: 'Teacher' },
-            { key: 'stream', label: 'Stream' },
-            { key: 'deliveryMethod', label: 'Delivery' },
-            { key: 'fee', label: 'Fee', render: row => `Rs. ${Number(row.fee || 0)}` },
-            { key: 'courseType', label: 'Course Type' },
-            { key: 'status', label: 'Status', render: row => (
-                row.status === 'active' ? (
-                  <span className="px-2 py-1 rounded bg-green-100 text-green-800 font-semibold">Active</span>
-                ) : (
-                  <span className="px-2 py-1 rounded bg-red-100 text-red-800 font-semibold">Inactive</span>
-                )
-              ) },
-            { key: 'totalStudents', label: 'Total Students' },
-            { key: 'actions', label: 'Actions', render: row => (
-                <CustomButton
-                  onClick={() => navigate(`/admin/classes/all/${row.id}`, { state: { className: row.className } })}
-                  className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  View Students
-                </CustomButton>
-              ) },
-          ]}
-          data={rows}
-        />
+        {classes.length === 0 ? (
+          <div className="text-center py-8 text-gray-600">
+            <p>No classes found. Create your first class to get started.</p>
+          </div>
+        ) : (
+                     <BasicTable
+             columns={[
+               { key: 'className', label: 'Class Name' },
+               { key: 'subject', label: 'Subject' },
+               { key: 'teacher', label: 'Teacher' },
+               { key: 'stream', label: 'Stream' },
+               { key: 'deliveryMethod', label: 'Delivery' },
+               { key: 'fee', label: 'Fee', render: row => {
+                   let fee = Number(row.fee) || 0;
+                   if (row.courseType === 'revision' && row.revisionDiscountPrice) {
+                     const discounted = Math.max(0, fee - Number(row.revisionDiscountPrice));
+                     return `Rs. ${fee} (Theory student: Rs. ${discounted})`;
+                   }
+                   return `Rs. ${fee}`;
+                 }
+               },
+               { key: 'courseType', label: 'Course Type' },
+               { key: 'status', label: 'Status', render: row => {
+                   if (row.status === 'active') return <span className="px-2 py-1 rounded bg-green-100 text-green-800 font-semibold">Active</span>;
+                   if (row.status === 'inactive') return <span className="px-2 py-1 rounded bg-red-100 text-red-800 font-semibold">Inactive</span>;
+                   return row.status;
+                 } },
+               { key: 'totalStudents', label: 'Total Students' },
+               { key: 'actions', label: 'Actions', render: row => (
+                   <CustomButton
+                     onClick={() => navigate(`/admin/classes/all/${row.id}`, { state: { className: row.className } })}
+                     className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                   >
+                     View Students
+                   </CustomButton>
+                 ) },
+             ]}
+             data={classesWithStudentCount}
+           />
+        )}
       </div>
     </DashboardLayout>
   );
 };
 
 export default AllClasses;
-
-

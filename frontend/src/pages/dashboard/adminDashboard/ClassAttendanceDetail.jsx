@@ -5,11 +5,47 @@ import adminSidebarSections from './AdminDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
 import CustomButton from '../../../components/CustomButton';
 import { FaQrcode, FaBarcode, FaVideo, FaMapMarkerAlt, FaUsers, FaCalendar, FaClock, FaEye, FaEdit, FaDownload, FaCheckCircle, FaTimesCircle, FaUser, FaArrowLeft, FaChartBar } from 'react-icons/fa';
-import { getClassById } from '../../../api/classes';
-import { getAttendanceByClass, markAttendance as markAttendanceApi } from '../../../api/attendance';
-import BarcodeScanner from '../../../components/BarcodeScanner';
 
-// Attendance is sourced from the backend; no localStorage extractor needed
+// Get attendance records from localStorage
+const getAttendanceRecords = () => {
+  try {
+    const stored = localStorage.getItem('myClasses');
+    if (!stored) return [];
+    const classes = JSON.parse(stored);
+    
+    // Get enrollments to match student information
+    const enrollments = getEnrollments();
+    
+    // Extract attendance records from myClasses
+    const attendanceRecords = [];
+    classes.forEach(cls => {
+      if (cls.attendance && Array.isArray(cls.attendance)) {
+        cls.attendance.forEach((record, index) => {
+          // Find student information from enrollments
+          const studentEnrollment = enrollments.find(e => 
+            e.classId === cls.id && e.studentId === record.studentId
+          );
+          
+          attendanceRecords.push({
+            id: `${cls.id}_${index}`, // Use consistent ID
+            classId: cls.id,
+            studentId: record.studentId || studentEnrollment?.studentId || 'STUDENT_001',
+            studentName: record.studentName || studentEnrollment?.studentName || 'Unknown Student',
+            date: record.date,
+            time: record.timestamp || new Date().toISOString(),
+            status: record.status,
+            method: record.method || 'manual',
+            deliveryMethod: cls.deliveryMethod || 'physical'
+          });
+        });
+      }
+    });
+    
+    return attendanceRecords;
+  } catch {
+    return [];
+  }
+};
 
 // Get enrollments from localStorage
   const getEnrollments = () => {
@@ -48,177 +84,239 @@ const ClassAttendanceDetail = () => {
   const [barcodeInput, setBarcodeInput] = useState('');
   const [scanningStatus, setScanningStatus] = useState('');
   const [loading, setLoading] = useState(true);
-  const [offlineQueue, setOfflineQueue] = useState([]); // {classId, userId, createdAt}
-  const [isSyncing, setIsSyncing] = useState(false);
-
-  const OFFLINE_QUEUE_KEY = 'attendance_offline_queue';
 
   useEffect(() => {
     loadClassData();
   }, [classId, selectedDate]);
 
-  // Load offline queue once on mount and schedule periodic sync
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(OFFLINE_QUEUE_KEY);
-      if (stored) setOfflineQueue(JSON.parse(stored));
-    } catch {}
-
-    const id = setInterval(() => {
-      syncOfflineQueue();
-    }, 10000); // every 10s
-    return () => clearInterval(id);
-  }, []);
-
-  const persistOfflineQueue = (queue) => {
-    setOfflineQueue(queue);
-    try { localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue)); } catch {}
-  };
-
-  const syncOfflineQueue = async () => {
-    if (isSyncing || offlineQueue.length === 0) return;
-    setIsSyncing(true);
-    try {
-      const remaining = [];
-      for (const item of offlineQueue) {
-        try {
-          await markAttendanceApi({ userId: item.userId, classId: item.classId });
-        } catch {
-          remaining.push(item); // keep if still failing
-        }
-      }
-      persistOfflineQueue(remaining);
-      if (String(classId)) await loadClassData();
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  // Gentle beep for feedback
-  const beep = () => {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = 'sine';
-      o.frequency.value = 880;
-      o.connect(g);
-      g.connect(ctx.destination);
-      g.gain.setValueAtTime(0.05, ctx.currentTime);
-      o.start();
-      o.stop(ctx.currentTime + 0.12);
-    } catch {}
-  };
-
-  const loadClassData = async () => {
+  const loadClassData = () => {
     setLoading(true);
-    try {
-      // Load class details (backend first)
-      try {
-        const resp = await getClassById(classId);
-        if (resp?.success && resp.data) {
-          setClassDetails(resp.data);
-        } else {
-          setClassDetails(getClassDetails(classId));
-        }
-      } catch {
-        setClassDetails(getClassDetails(classId));
-      }
+    
+    // Load class details
+    const classData = getClassDetails(classId);
+    setClassDetails(classData);
 
-      // Load enrollments for this class (from localStorage)
-      const allEnrollments = getEnrollments();
-      const classEnrollments = allEnrollments.filter(e => String(e.classId) === String(classId));
-      setEnrolledStudents(classEnrollments);
+    // Load enrollments for this class
+    const allEnrollments = getEnrollments();
+    const classEnrollments = allEnrollments.filter(e => e.classId === classId);
+    setEnrolledStudents(classEnrollments);
 
-      // Fetch attendance from backend and map to rows for selected date
-      const data = await getAttendanceByClass(classId);
-      const records = Array.isArray(data?.records) ? data.records : [];
-      const filtered = records.filter(r => (r.time_stamp || '').slice(0, 10) === selectedDate);
-      const mapped = filtered.map((r, idx) => {
-        const student = classEnrollments.find(e => e.studentId === r.user_id);
-        return {
-          id: `${classId}_${idx}`,
-          classId: classId,
-          studentId: r.user_id,
-          studentName: student?.studentName || 'Unknown Student',
-          date: selectedDate,
-          time: r.time_stamp,
-          status: 'present',
-          method: 'server',
-        };
-      });
-      setAttendanceRecords(mapped);
-    } finally {
-      setLoading(false);
+    // Load attendance records for this class and date
+    const allAttendanceRecords = getAttendanceRecords();
+    console.log('All attendance records:', allAttendanceRecords);
+    console.log('Looking for classId:', classId, 'and date:', selectedDate);
+    
+    const classAttendance = allAttendanceRecords.filter(record => {
+      console.log('Checking record:', record);
+      console.log('Record classId:', record.classId, 'Record date:', record.date);
+      console.log('Match classId:', String(record.classId) === String(classId));
+      console.log('Match date:', record.date === selectedDate);
+      
+      // Normalize date formats for comparison
+      const recordDate = record.date;
+      const selectedDateNormalized = selectedDate;
+      
+      console.log('Date comparison:', recordDate, '===', selectedDateNormalized);
+      
+      return String(record.classId) === String(classId) && recordDate === selectedDateNormalized;
+    });
+    
+    console.log('Filtered class attendance:', classAttendance);
+    setAttendanceRecords(classAttendance);
+
+    setLoading(false);
+  };
+
+  // Process barcode input
+  const processBarcode = () => {
+    if (!barcodeInput.trim()) {
+      setScanningStatus('Please enter a barcode');
+      return;
     }
-  };
 
-  // Process barcode input (manual entry)
-  const processBarcode = async () => {
-    if (!barcodeInput.trim()) { setScanningStatus('Please enter a barcode'); return; }
-    await handleScannedCode(barcodeInput.trim());
-    setBarcodeInput('');
-  };
-
-  // Unified handler for camera/HID scans
-  const handleScannedCode = async (decodedText) => {
-    try {
-      setScanningStatus('Processing barcode...');
-      // Extract student id from common patterns
-      const match = String(decodedText).toUpperCase().match(/STUDENT_\d+/);
-      const studentId = match ? match[0] : String(decodedText).toUpperCase();
-      const student = enrolledStudents.find(e => String(e.studentId).toUpperCase() === studentId);
+    setScanningStatus('Processing barcode...');
+    
+    setTimeout(() => {
+      // Extract student ID from barcode (format: classId_STUDENT_XXX_timestamp_random)
+      const barcodeData = barcodeInput.trim();
+      console.log('Processing barcode:', barcodeData);
+      
+      let studentId;
+      
+      // Try to parse the barcode format
+      if (barcodeData.includes('_')) {
+        const parts = barcodeData.split('_');
+        if (parts.length >= 2) {
+          // Extract student ID from barcode (e.g., "STUDENT_001" from "classId_STUDENT_001_timestamp_random")
+          studentId = parts[1] + '_' + parts[2]; // Combine STUDENT and XXX
+        } else {
+          studentId = barcodeData; // Fallback to original input
+        }
+      } else {
+        studentId = barcodeInput; // Fallback to original input
+      }
+      
+      console.log('Extracted student ID:', studentId);
+      
+      // Find student in enrollments
+      const student = enrolledStudents.find(e => e.studentId === studentId);
+      
       if (!student) {
+        console.log('Available students:', enrolledStudents);
         setScanningStatus(`Student not found or not enrolled in this class. Student ID: ${studentId}`);
         return;
       }
-      try {
-        await markAttendanceApi({ userId: studentId, classId });
-        setScanningStatus(`Attendance marked successfully for ${student.studentName || studentId}`);
-        beep();
-        await loadClassData();
-      } catch (err) {
-        const queued = [...offlineQueue, { userId: studentId, classId, createdAt: new Date().toISOString() }];
-        persistOfflineQueue(queued);
-        setScanningStatus('Network issue. Queued and will auto-sync.');
+
+      // Check if attendance already marked for today
+      const existingRecord = attendanceRecords.find(record => 
+        record.studentId === studentId && record.date === selectedDate
+      );
+
+      if (existingRecord) {
+        setScanningStatus('Attendance already marked for this student today');
+        return;
       }
-    } catch {
-      setScanningStatus('Failed to mark attendance');
-    }
+
+      // Mark attendance
+      const newAttendanceRecord = {
+        id: Date.now(),
+        classId: classId,
+        studentId: studentId,
+        studentName: student.studentName || 'Unknown Student',
+        date: selectedDate,
+        time: new Date().toISOString(),
+        status: 'present',
+        method: 'barcode',
+        deliveryMethod: classDetails?.deliveryMethod || 'physical'
+      };
+
+      // Save to myClasses localStorage
+      const storedClasses = localStorage.getItem('myClasses');
+      if (storedClasses) {
+        const classes = JSON.parse(storedClasses);
+        const updatedClasses = classes.map(cls => {
+          if (cls.id === classId) {
+            const attendance = cls.attendance || [];
+            attendance.push({
+              date: selectedDate,
+              status: 'present',
+              timestamp: new Date().toISOString(),
+              studentId: studentId,
+              studentName: student.studentName || 'Unknown Student',
+              method: 'barcode'
+            });
+            return { ...cls, attendance };
+          }
+          return cls;
+        });
+        localStorage.setItem('myClasses', JSON.stringify(updatedClasses));
+      }
+
+      setScanningStatus(`Attendance marked successfully for ${student.studentName || studentId}`);
+      setBarcodeInput('');
+      
+      // Refresh data
+      setTimeout(() => {
+        loadClassData();
+      }, 1000);
+    }, 1000);
   };
 
-  // Mark attendance manually (present only)
-  const markPresent = async (studentId) => {
+  // Mark attendance manually
+  const markAttendance = (studentId, status) => {
     const student = enrolledStudents.find(e => e.studentId === studentId);
     if (!student) return;
-    try {
-      await markAttendanceApi({ userId: studentId, classId });
-      beep();
-      await loadClassData();
-    } catch {
-      const queued = [...offlineQueue, { userId: studentId, classId, createdAt: new Date().toISOString() }];
-      persistOfflineQueue(queued);
-      setScanningStatus('Network issue. Queued and will auto-sync.');
+
+    // Check if attendance already marked
+    const existingRecord = attendanceRecords.find(record => 
+      record.studentId === studentId && record.date === selectedDate
+    );
+
+    if (existingRecord) {
+      // Update existing record in myClasses
+      const storedClasses = localStorage.getItem('myClasses');
+      if (storedClasses) {
+        const classes = JSON.parse(storedClasses);
+        const updatedClasses = classes.map(cls => {
+          if (cls.id === classId) {
+            const attendance = cls.attendance || [];
+            const updatedAttendance = attendance.map(record => 
+              record.date === selectedDate && record.studentId === studentId
+                ? { ...record, status: status, timestamp: new Date().toISOString() }
+                : record
+            );
+            return { ...cls, attendance: updatedAttendance };
+          }
+          return cls;
+        });
+        localStorage.setItem('myClasses', JSON.stringify(updatedClasses));
+      }
+    } else {
+      // Create new record
+      const newRecord = {
+        id: Date.now(),
+        classId: classId,
+        studentId: studentId,
+        studentName: student.studentName || 'Unknown Student',
+        date: selectedDate,
+        time: new Date().toISOString(),
+        status: status,
+        method: 'manual',
+        deliveryMethod: classDetails?.deliveryMethod || 'physical'
+      };
+
+      // Save to myClasses localStorage
+      const storedClasses = localStorage.getItem('myClasses');
+      if (storedClasses) {
+        const classes = JSON.parse(storedClasses);
+        const updatedClasses = classes.map(cls => {
+          if (cls.id === classId) {
+            const attendance = cls.attendance || [];
+            attendance.push({
+              date: selectedDate,
+              status: status,
+              timestamp: new Date().toISOString(),
+              studentId: studentId,
+              studentName: student.studentName || 'Unknown Student',
+              method: 'manual'
+            });
+            return { ...cls, attendance };
+          }
+          return cls;
+        });
+        localStorage.setItem('myClasses', JSON.stringify(updatedClasses));
+      }
     }
+
+    loadClassData();
   };
 
-  // Mark all students present via backend
-  const markAllPresent = async () => {
-    try {
-      await Promise.all(
-        enrolledStudents.map(s => markAttendanceApi({ userId: s.studentId, classId }))
-      );
-      beep();
-      await loadClassData();
-    } catch {
-      // Fallback: queue remaining
-      const queued = [
-        ...offlineQueue,
-        ...enrolledStudents.map(s => ({ userId: s.studentId, classId, createdAt: new Date().toISOString() }))
-      ];
-      persistOfflineQueue(queued);
-      setScanningStatus('Some marks failed. Queued for auto-sync.');
+  // Mark all students present (for online classes)
+  const markAllPresent = () => {
+    // Save to myClasses localStorage
+    const storedClasses = localStorage.getItem('myClasses');
+    if (storedClasses) {
+      const classes = JSON.parse(storedClasses);
+      const updatedClasses = classes.map(cls => {
+        if (cls.id === classId) {
+          const attendance = cls.attendance || [];
+          enrolledStudents.forEach(student => {
+            attendance.push({
+              date: selectedDate,
+              status: 'present',
+              timestamp: new Date().toISOString(),
+              studentId: student.studentId,
+              studentName: student.studentName || 'Unknown Student',
+              method: 'bulk'
+            });
+          });
+          return { ...cls, attendance };
+        }
+        return cls;
+      });
+      localStorage.setItem('myClasses', JSON.stringify(updatedClasses));
     }
+    loadClassData();
   };
 
   // Download attendance report
@@ -438,11 +536,18 @@ const ClassAttendanceDetail = () => {
             { key: 'actions', label: 'Actions', render: row => (
                 <div className="flex gap-2">
                   <CustomButton
-                    onClick={() => markPresent(row.studentId)}
+                    onClick={() => markAttendance(row.studentId, 'present')}
                     className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
                     disabled={row.attendanceStatus === 'present'}
                   >
                     Present
+                  </CustomButton>
+                  <CustomButton
+                    onClick={() => markAttendance(row.studentId, 'absent')}
+                    className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                    disabled={row.attendanceStatus === 'absent'}
+                  >
+                    Absent
                   </CustomButton>
                 </div>
               ) },
@@ -453,12 +558,58 @@ const ClassAttendanceDetail = () => {
         {/* Barcode Scanner Modal */}
         {showBarcodeModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <BarcodeScanner
-              onScan={handleScannedCode}
-              onClose={() => setShowBarcodeModal(false)}
-              className={classDetails.className}
-              classId={classId}
-            />
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-bold mb-4">Barcode Attendance Scanner</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Class: <strong>{classDetails.className}</strong><br/>
+                Date: <strong>{selectedDate}</strong><br/>
+                Scan or enter student barcode:
+              </p>
+              
+              <div className="mb-4">
+                <input
+                  type="text"
+                  value={barcodeInput}
+                  onChange={(e) => setBarcodeInput(e.target.value)}
+                  placeholder="Enter barcode or student ID"
+                  className="w-full border rounded px-3 py-2"
+                  autoFocus
+                  onKeyPress={(e) => e.key === 'Enter' && processBarcode()}
+          />
+        </div>
+              
+              {scanningStatus && (
+                <div className={`p-3 rounded mb-4 ${
+                  scanningStatus.includes('successfully') 
+                    ? 'bg-green-100 text-green-800' 
+                    : 'bg-red-100 text-red-800'
+                }`}>
+                  {scanningStatus}
+                </div>
+              )}
+              
+              <div className="flex gap-2">
+                <CustomButton
+                  onClick={processBarcode}
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                >
+                  Mark Attendance
+                </CustomButton>
+                <CustomButton
+                  onClick={() => setShowBarcodeModal(false)}
+                  className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+                >
+                  Close
+                </CustomButton>
+              </div>
+              
+              <div className="mt-4 p-3 bg-gray-100 rounded text-sm">
+                <strong>Test Barcodes:</strong><br/>
+                • STUDENT_001<br/>
+                • STUDENT_002<br/>
+                • STUDENT_003
+              </div>
+            </div>
           </div>
         )}
       </div>

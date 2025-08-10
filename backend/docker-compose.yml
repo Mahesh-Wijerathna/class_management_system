@@ -273,6 +273,7 @@ services:
     networks:
       - teacher-network
 
+<<<<<<< HEAD
   attendance-backend:
     build: ./attendance-backend
     container_name: attendance-backend
@@ -307,13 +308,14 @@ services:
       - attendance-network
 
 
+=======
+>>>>>>> parent of 1b9328a (Updated barcode scanner,AllClasses,ClassattendanceDetails,AttendanceOverview.)
 volumes:
   auth_mysql_data:
   cashier_mysql_data:
   class_mysql_data:
   student_mysql_data:
   teacher_mysql_data:
-  attendance-db-data:
 
 networks:
   auth-network:
@@ -325,6 +327,9 @@ networks:
   student-network:
     driver: bridge
   teacher-network:
+<<<<<<< HEAD
     driver: bridge
   attendance-network:
+=======
+>>>>>>> parent of 1b9328a (Updated barcode scanner,AllClasses,ClassattendanceDetails,AttendanceOverview.)
     driver: bridge

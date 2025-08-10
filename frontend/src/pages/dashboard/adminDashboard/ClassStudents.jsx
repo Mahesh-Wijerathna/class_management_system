@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import adminSidebarSections from './AdminDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
 import CustomButton from '../../../components/CustomButton';
-import { getClassEnrollments } from '../../../api/enrollments';
 
 // Get all enrollments from localStorage
 const getEnrollments = () => {
@@ -32,40 +31,13 @@ const ClassStudents = () => {
   const { classId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const enrollments = getEnrollments();
+  const students = getStudents();
   const className = location.state && location.state.className ? location.state.className : '';
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        setLoading(true);
-        const res = await getClassEnrollments(classId);
-        if (res?.success && Array.isArray(res.data)) {
-          const list = res.data.map(s => ({
-            id: s.student_id || s.id,
-            firstname: s.first_name || s.firstname || s.name || '',
-            lastname: s.last_name || s.lastname || '',
-            email: s.email || '-',
-            phone: s.phone || '-',
-            school: s.school || '-',
-            dateJoined: s.date_joined || s.enrollment_date || '-'
-          }));
-          setRows(list);
-        } else {
-          // Fallback to local storage
-          const enrollments = getEnrollments();
-          const students = getStudents();
-          const enrolledStudentIds = enrollments.filter(e => String(e.classId) === String(classId)).map(e => e.studentId);
-          const enrolledStudents = students.filter(s => enrolledStudentIds.includes(s.id));
-          setRows(enrolledStudents);
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [classId]);
+  // Get all students enrolled in this class
+  const enrolledStudentIds = enrollments.filter(e => e.classId === classId).map(e => e.studentId);
+  const enrolledStudents = students.filter(s => enrolledStudentIds.includes(s.id));
 
   // Get class details from localStorage
   let classDetails = null;
@@ -83,7 +55,7 @@ const ClassStudents = () => {
         {/* Left summary/details panel */}
         <div className="md:w-1/4 w-full bg-white rounded-lg shadow p-4">
           <h2 className="text-xl font-bold mb-2">{className}</h2>
-          <div className="mb-2 text-gray-700">Total Students: <span className="font-semibold">{rows.length}</span></div>
+          <div className="mb-2 text-gray-700">Total Students: <span className="font-semibold">{enrolledStudents.length}</span></div>
           <div className="mb-10">
             <div className="font-semibold mb-1">Details</div>
             <div className="text-sm mb-1">Subject: {classDetails?.subject || '-'}</div>
@@ -109,7 +81,7 @@ const ClassStudents = () => {
               { key: 'school', label: 'School' },
               { key: 'dateJoined', label: 'Date Joined' },
             ]}
-            data={rows}
+            data={enrolledStudents}
           />
         </div>
       </div>

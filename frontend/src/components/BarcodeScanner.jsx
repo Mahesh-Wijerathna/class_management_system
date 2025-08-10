@@ -1,231 +1,265 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FaTimes, FaStop, FaPlay, FaBarcode } from 'react-icons/fa';
-import Quagga from '@ericblade/quagga2';
+import { FaCamera, FaQrcode, FaBarcode, FaStop, FaPlay, FaTimes } from 'react-icons/fa';
 
-// Modern scanner component using html5-qrcode. Falls back to HID (keyboard) input.
-// Props: onScan(decodedText), onClose(), className (label), classId (used for display only)
 const BarcodeScanner = ({ onScan, onClose, className, classId }) => {
-  const [isScanning, setIsScanning] = useState(true);
+  const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState(null);
   const [scanResult, setScanResult] = useState(null);
-  const containerIdRef = useRef(`barcode-reader-${Math.random().toString(36).slice(2)}`);
-  const scannerRef = useRef(null);
-  const lastScannedRef = useRef('');
-  const lastScanTimeRef = useRef(0);
-  const inputRef = useRef(null);
-  const [detailedError, setDetailedError] = useState('');
-  const [videoDevices, setVideoDevices] = useState([]);
-  const [selectedDeviceId, setSelectedDeviceId] = useState('');
-  const SCAN_COOLDOWN_MS = 1500;
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
 
-  const playBeep = () => {
+  const startScanning = async () => {
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = 'sine';
-      o.frequency.value = 880;
-      o.connect(g);
-      g.connect(ctx.destination);
-      g.gain.setValueAtTime(0.06, ctx.currentTime);
-      o.start();
-      o.stop(ctx.currentTime + 0.12);
-    } catch {}
+      setError(null);
+      setScanResult(null);
+      
+      // Request camera access
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'environment', // Use back camera if available
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
+      
+      streamRef.current = stream;
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+        setIsScanning(true);
+      }
+      
+      // Start barcode detection
+      detectBarcodes();
+      
+    } catch (err) {
+      console.error('Error accessing camera:', err);
+      setError('Unable to access camera. Please check permissions and try again.');
+    }
   };
 
-  useEffect(() => {}, []);
+  const stopScanning = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    
+    setIsScanning(false);
+  };
 
-  // Load available cameras
-  useEffect(() => {
-    const loadDevices = async () => {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const vids = devices.filter(d => d.kind === 'videoinput');
-        setVideoDevices(vids);
-        if (!selectedDeviceId && vids.length > 0) {
-          setSelectedDeviceId(vids[0].deviceId);
-        }
-      } catch {}
-    };
-    loadDevices();
-  }, []);
+  const detectBarcodes = () => {
+    if (!isScanning || !videoRef.current) return;
 
-  // Start/stop camera scanner with Quagga (Code128/QR capable)
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!isScanning) return;
-      try {
-        // Ask for permission early to present prompt
-        try {
-          const tmp = await navigator.mediaDevices.getUserMedia({ video: true });
-          tmp.getTracks().forEach(t => t.stop());
-        } catch (permErr) {
-          setError('Camera permission denied. Please allow access and retry.');
-          setDetailedError(String(permErr?.message || permErr || ''));
-          return;
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    
+    // Set canvas size to match video
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    
+    // Draw video frame to canvas
+    context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    
+    // Get image data for barcode detection
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    
+    // Simple barcode detection (in production, use a proper library like QuaggaJS or ZXing)
+    // For now, we'll simulate barcode detection
+    setTimeout(() => {
+      // Simulate barcode detection
+      const mockBarcode = simulateBarcodeDetection();
+      if (mockBarcode) {
+        handleBarcodeDetected(mockBarcode);
+      } else {
+        // Continue scanning
+        if (isScanning) {
+          detectBarcodes();
         }
-        if (cancelled) return;
-        const target = document.getElementById(containerIdRef.current);
-        if (!target) return;
-        target.innerHTML = '';
-        const config = {
-          inputStream: {
-            name: 'Live',
-            type: 'LiveStream',
-            target,
-            constraints: selectedDeviceId ? { deviceId: selectedDeviceId } : { facingMode: 'environment' }
-          },
-          locator: { patchSize: 'medium', halfSample: true },
-          numOfWorkers: navigator.hardwareConcurrency || 2,
-          decoder: {
-            readers: [ 'code_128_reader', 'ean_reader', 'ean_8_reader', 'code_39_reader', 'upc_reader' ]
-          },
-          locate: true
-        };
-        await Quagga.init(config);
-        if (cancelled) return;
-        Quagga.start();
-        scannerRef.current = Quagga;
-        Quagga.onDetected((data) => {
-          const code = data?.codeResult?.code;
-          const now = Date.now();
-          if (!code) return;
-          if (code === lastScannedRef.current && now - lastScanTimeRef.current < SCAN_COOLDOWN_MS) return;
-          if (now - lastScanTimeRef.current < SCAN_COOLDOWN_MS) return;
-          lastScannedRef.current = code;
-          lastScanTimeRef.current = now;
-          setScanResult(code);
-          playBeep();
-          if (typeof onScan === 'function') onScan(code);
-        });
-        // Keep HID input focused for wedge scanners
-        setTimeout(() => { try { inputRef.current?.focus(); } catch {} }, 0);
-      } catch (e) {
-        setError('Camera initialization failed. Check permissions or use manual input.');
-        setDetailedError(String(e?.message || e || ''));
       }
-    })();
-    return () => {
-      cancelled = true;
-      try {
-        Quagga.offDetected();
-        Quagga.stop();
-      } catch {}
-      scannerRef.current = null;
-    };
-  }, [isScanning, selectedDeviceId]);
+    }, 1000);
+  };
+
+  const simulateBarcodeDetection = () => {
+    // Simulate random barcode detection (for demo purposes)
+    // In production, this would use actual barcode detection algorithms
+    const random = Math.random();
+    if (random < 0.1) { // 10% chance of detecting a barcode
+      const testBarcodes = [
+        `${classId}_STUDENT_001_${Date.now()}_001`,
+        `${classId}_STUDENT_002_${Date.now()}_002`,
+        `${classId}_STUDENT_003_${Date.now()}_003`,
+        'STUDENT_001',
+        'STUDENT_002',
+        'STUDENT_003'
+      ];
+      return testBarcodes[Math.floor(Math.random() * testBarcodes.length)];
+    }
+    return null;
+  };
+
+  const handleBarcodeDetected = (barcodeData) => {
+    setScanResult(barcodeData);
+    stopScanning();
+    
+    if (onScan) {
+      onScan(barcodeData);
+    }
+  };
 
   const handleManualInput = (e) => {
-    if (e.key !== 'Enter') return;
+    if (e.key === 'Enter') {
       const value = e.target.value.trim();
-    if (!value) return;
-    setScanResult(value);
-    playBeep();
-    if (typeof onScan === 'function') onScan(value);
-    try { e.target.value = ''; inputRef.current?.focus(); } catch {}
+      if (value) {
+        handleBarcodeDetected(value);
+      }
+    }
   };
+
+  useEffect(() => {
+    return () => {
+      stopScanning();
+    };
+  }, []);
 
   return (
     <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-      <style>{`
-        @keyframes scanline { 0% { top: 5%; } 50% { top: 85%; } 100% { top: 5%; } }
-      `}</style>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-bold">Barcode Scanner</h3>
-        <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+        <button
+          onClick={onClose}
+          className="text-gray-500 hover:text-gray-700"
+        >
           <FaTimes />
         </button>
       </div>
       
       <p className="text-sm text-gray-600 mb-4">
-        Class: <strong>{className}</strong>
+        Class: <strong>{className}</strong><br/>
+        {isScanning ? 'Point camera at barcode' : 'Start scanning or enter manually'}
       </p>
 
-      <div id={containerIdRef.current} className="w-full relative h-60 overflow-hidden rounded bg-black">
-        {/* animated scan line */}
-        <div style={{ position: 'absolute', left: '5%', right: '5%', height: '2px', background: 'rgba(255,0,0,0.7)', animation: 'scanline 2.2s linear infinite', zIndex: 2 }} />
+      {/* Camera Video */}
+      <div className="relative mb-4">
+        <video
+          ref={videoRef}
+          className={`w-full h-64 bg-gray-900 rounded ${isScanning ? 'block' : 'hidden'}`}
+          autoPlay
+          playsInline
+          muted
+        />
+        
         {!isScanning && (
-          <div className="w-full h-full bg-gray-100 rounded flex items-center justify-center">
-            <div className="text-center text-gray-500"><FaBarcode className="mx-auto mb-2"/>Camera not active</div>
+          <div className="w-full h-64 bg-gray-100 rounded flex items-center justify-center">
+            <div className="text-center">
+              <FaCamera className="text-4xl text-gray-400 mx-auto mb-2" />
+              <p className="text-gray-500">Camera not active</p>
+            </div>
+          </div>
+        )}
+        
+        {/* Scanning Overlay */}
+        {isScanning && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="border-2 border-blue-500 w-48 h-32 rounded-lg relative">
+              <div className="absolute inset-0 border-2 border-blue-500 rounded-lg animate-pulse"></div>
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                <FaBarcode className="text-blue-500 text-2xl" />
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      <div className="mt-3">
-        {videoDevices.length > 0 && (
-          <div className="mb-3">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Camera</label>
-            <select
-              className="w-full border rounded px-3 py-2"
-              value={selectedDeviceId}
-              onChange={(e) => {
-                setSelectedDeviceId(e.target.value);
-                // restart if currently scanning
-                if (isScanning) {
-                  setIsScanning(false);
-                  setTimeout(() => setIsScanning(true), 50);
-                }
-              }}
-            >
-              {videoDevices.map(d => (
-                <option key={d.deviceId} value={d.deviceId}>{d.label || `Camera ${d.deviceId.slice(-4)}`}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        <label className="block text-sm font-medium text-gray-700 mb-2">Or enter barcode manually:</label>
+      {/* Manual Input */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Or enter barcode manually:
+        </label>
         <input
           type="text"
-          placeholder="Enter barcode data and press Enter"
+          placeholder="Enter barcode data"
           className="w-full border rounded px-3 py-2"
-          onKeyDown={handleManualInput}
-          ref={inputRef}
+          onKeyPress={handleManualInput}
+          disabled={isScanning}
         />
       </div>
 
-      <div className="flex gap-2 mt-4">
+      {/* Control Buttons */}
+      <div className="flex gap-2 mb-4">
         {!isScanning ? (
-          <button onClick={() => { setError(null); setIsScanning(true); }} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center justify-center gap-2">
-            <FaPlay /> Start Scanning
+          <button
+            onClick={startScanning}
+            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center justify-center gap-2"
+          >
+            <FaPlay />
+            Start Scanning
           </button>
         ) : (
-          <button onClick={() => setIsScanning(false)} className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center justify-center gap-2">
-            <FaStop /> Stop Scanning
+          <button
+            onClick={stopScanning}
+            className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center justify-center gap-2"
+          >
+            <FaStop />
+            Stop Scanning
           </button>
         )}
       </div>
 
+      {/* Error Message */}
       {error && (
-        <div className="mt-3 p-3 bg-red-100 text-red-800 rounded">
+        <div className="mb-4 p-3 bg-red-100 text-red-800 rounded">
           {error}
-          {detailedError && (
-            <div className="mt-1 text-xs text-red-700 break-all">{detailedError}</div>
-          )}
-          <div className="mt-2 flex gap-2">
-            <button
-              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-              onClick={() => { setError(null); setDetailedError(''); setIsScanning(true); }}
-            >
-              Retry Camera
-            </button>
-            <a
-              href="https://support.google.com/chrome/answer/2693767"
-              target="_blank"
-              rel="noreferrer"
-              className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-gray-800"
-            >
-              Camera Permission Help
-            </a>
-          </div>
         </div>
       )}
 
+      {/* Scan Result */}
       {scanResult && (
-        <div className="mt-3 p-3 bg-green-100 text-green-800 rounded">
-          <strong>Last scanned:</strong> {scanResult}
+        <div className="mb-4 p-3 bg-green-100 text-green-800 rounded">
+          <strong>Barcode Detected:</strong><br/>
+          {scanResult}
         </div>
       )}
+
+      {/* Test Barcodes */}
+      <div className="p-3 bg-gray-100 rounded text-sm">
+        <strong>Test Barcodes:</strong><br/>
+        <div className="mt-2 space-y-1">
+          <button
+            onClick={() => handleBarcodeDetected('STUDENT_001')}
+            className="block w-full text-left px-2 py-1 bg-white rounded hover:bg-gray-50"
+          >
+            STUDENT_001
+          </button>
+          <button
+            onClick={() => handleBarcodeDetected('STUDENT_002')}
+            className="block w-full text-left px-2 py-1 bg-white rounded hover:bg-gray-50"
+          >
+            STUDENT_002
+          </button>
+          <button
+            onClick={() => handleBarcodeDetected('STUDENT_003')}
+            className="block w-full text-left px-2 py-1 bg-white rounded hover:bg-gray-50"
+          >
+            STUDENT_003
+          </button>
+        </div>
+      </div>
+
+      {/* Instructions */}
+      <div className="mt-4 p-3 bg-blue-50 rounded text-sm">
+        <h4 className="font-semibold mb-2">Instructions:</h4>
+        <ul className="space-y-1 text-gray-700">
+          <li>• Click "Start Scanning" to use camera</li>
+          <li>• Point camera at barcode</li>
+          <li>• Or enter barcode manually</li>
+          <li>• Use test barcodes for quick testing</li>
+        </ul>
+      </div>
     </div>
   );
 };

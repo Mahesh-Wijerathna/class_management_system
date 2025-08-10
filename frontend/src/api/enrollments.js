@@ -23,42 +23,6 @@ export const getStudentEnrollments = async (studentId) => {
   }
 };
 
-// Get enrollments by class (list of students for a class)
-export const getClassEnrollments = async (classId) => {
-  try {
-    // Try multiple endpoints/param names for compatibility across backends
-    const attempts = [
-      `/get_class_enrollments?classId=${classId}`,
-      `/get_class_enrollments?class_id=${classId}`,
-      `/get_enrollments_by_class?classId=${classId}`,
-      `/get_enrollments_by_class?class_id=${classId}`,
-      `/class_enrollments?classId=${classId}`
-    ];
-    for (const url of attempts) {
-      try {
-        const resp = await classApi.get(url);
-        if (resp?.data) {
-          // Normalize into { success, data: [] }
-          const d = resp.data;
-          if (Array.isArray(d)) return { success: true, data: d };
-          if (Array.isArray(d?.data)) return { success: true, data: d.data };
-          if (Array.isArray(d?.enrollments)) return { success: true, data: d.enrollments };
-          if (Array.isArray(d?.students)) return { success: true, data: d.students };
-          if (d?.success && Array.isArray(d?.rows)) return { success: true, data: d.rows };
-        }
-      } catch {}
-    }
-    return { success: false, message: 'No enrollment endpoint responded', data: [] };
-  } catch (error) {
-    console.error('Error fetching class enrollments:', error);
-    return {
-      success: false,
-      message: error.response?.data?.message || 'Failed to fetch class enrollments',
-      data: []
-    };
-  }
-};
-
 // Create a new enrollment
 export const createEnrollment = async (enrollmentData) => {
   try {

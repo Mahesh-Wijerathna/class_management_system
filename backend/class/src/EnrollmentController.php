@@ -141,33 +141,6 @@ class EnrollmentController {
         }
     }
 
-    // Get enrollments by class (list of students in a class)
-    public function getEnrollmentsByClass($classId) {
-        try {
-            $stmt = $this->db->prepare("\n                SELECT \n                    e.id, e.class_id, e.student_id, e.enrollment_date,\n                    e.status, e.payment_status, e.total_fee, e.paid_amount, e.next_payment_date\n                FROM enrollments e\n                WHERE e.class_id = ?\n                ORDER BY e.enrollment_date DESC\n            ");
-
-            // Bind as string for compatibility (DB schema may use INT; MySQL will cast)
-            $stmt->bind_param("s", $classId);
-            $stmt->execute();
-            $result = $stmt->get_result();
-
-            $enrollments = [];
-            while ($row = $result->fetch_assoc()) {
-                $enrollments[] = $row;
-            }
-
-            return [
-                'success' => true,
-                'data' => $enrollments
-            ];
-        } catch (Exception $e) {
-            return [
-                'success' => false,
-                'message' => 'Error retrieving enrollments by class: ' . $e->getMessage()
-            ];
-        }
-    }
-
     // Create a new enrollment
     public function createEnrollment($enrollmentData) {
         try {
