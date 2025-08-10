@@ -141,5 +141,33 @@ CREATE TABLE IF NOT EXISTS payment_history (
     INDEX idx_status (status)
 );
 
+-- Session Schedules table
+CREATE TABLE IF NOT EXISTS session_schedules (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    class_id INT,
+    subject VARCHAR(100) NOT NULL,
+    class_name VARCHAR(100) NOT NULL,
+    teacher VARCHAR(100) NOT NULL,
+    teacher_id VARCHAR(50) NOT NULL,
+    session_date DATE NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    delivery_method ENUM('online', 'physical', 'hybrid', 'other') NOT NULL,
+    delivery_other VARCHAR(100),
+    zoom_link TEXT,
+    hall VARCHAR(100),
+    description TEXT,
+    status ENUM('scheduled', 'completed', 'cancelled') DEFAULT 'scheduled',
+    created_by VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_teacher_id (teacher_id),
+    INDEX idx_session_date (session_date),
+    INDEX idx_status (status),
+    INDEX idx_delivery_method (delivery_method),
+    INDEX idx_class_name (class_name),
+    INDEX idx_subject (subject)
+);
+
 -- Note: PayHere specific columns and indexes for financial_records table
 -- will be added manually if needed, as IF NOT EXISTS is not supported in MySQL 8.0 

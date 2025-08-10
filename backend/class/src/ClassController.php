@@ -1,4 +1,6 @@
 <?php
+// Set timezone for all date/time operations
+date_default_timezone_set('Asia/Colombo');
 
 require_once 'ClassModel.php';
 require_once 'config.php';

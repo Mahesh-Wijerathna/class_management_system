@@ -7,6 +7,7 @@ import DateCalendarFormProps from '../../../components/DateCalendarFormProps';
 import BasicCard from '../../../components/BasicCard';
 import { useNavigate } from 'react-router-dom';
 import { LuMonitorSmartphone, LuCreditCard, LuMonitorPlay, LuBookOpen } from 'react-icons/lu';
+import axios from 'axios';
 
 // Helper function to get the appropriate storage
 const getStorage = () => {
@@ -56,6 +57,8 @@ function DashboardNavButtons() {
 const StudentDashboard = ({ onLogout }) => {
   const [currentStudent, setCurrentStudent] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sessionChecking, setSessionChecking] = useState(false);
+  const [showLogoutMessage, setShowLogoutMessage] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -69,6 +72,52 @@ const StudentDashboard = ({ onLogout }) => {
         // Check if user is a student
         if (user.role === 'student') {
           setCurrentStudent(user);
+          setLoading(false); // Set loading to false immediately after setting student
+          
+          // Check session validity every 30 seconds
+          const checkSessionValidity = async () => {
+            setSessionChecking(true);
+            try {
+              const response = await axios.get(`http://localhost:8081/routes.php/session-valid/${user.userid}`, {
+                timeout: 5000 // 5 second timeout
+              });
+              if (response.data.success && !response.data.session_valid) {
+                // Session is invalid (user is blocked)
+                // Clear specific authentication data
+                storage.removeItem('userData');
+                storage.removeItem('authToken');
+                storage.removeItem('refreshToken');
+                localStorage.removeItem('userData');
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('refreshToken');
+                sessionStorage.removeItem('userData');
+                sessionStorage.removeItem('authToken');
+                sessionStorage.removeItem('refreshToken');
+                
+                // Show logout message
+                setShowLogoutMessage(true);
+                
+                // Force complete page reload to clear all cached data and redirect
+                setTimeout(() => {
+                  window.location.replace('/login');
+                }, 2000);
+              }
+            } catch (error) {
+              console.error('Error checking session validity:', error);
+              // Don't block the UI if session check fails
+            } finally {
+              setSessionChecking(false);
+            }
+          };
+          
+          // Check immediately after a short delay to avoid blocking initial render
+          setTimeout(checkSessionValidity, 100);
+          
+          // Set up periodic checking every 30 seconds
+          const intervalId = setInterval(checkSessionValidity, 30000);
+          
+          // Cleanup interval on unmount
+          return () => clearInterval(intervalId);
         } else {
           // If not a student, redirect to appropriate dashboard
           console.log("User is not a student, redirecting...");
@@ -124,6 +173,26 @@ const StudentDashboard = ({ onLogout }) => {
       onLogout={onLogout}
     >
       <div className="p-4 min-h-screen ">
+        {/* Logout Message */}
+        {showLogoutMessage && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center justify-center text-red-600 text-sm font-medium">
+              <span className="mr-2">⚠️</span>
+              Your account has been blocked by the administrator. Redirecting to login...
+            </div>
+          </div>
+        )}
+        
+        {/* Session Status Indicator */}
+        {sessionChecking && (
+          <div className="mb-4 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center justify-center text-blue-600 text-sm">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+              Checking session validity...
+            </div>
+          </div>
+        )}
+        
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 gap-y-6">
           {/* First Column: Greeting, Clock, Date (stacked) */}
           <div className="flex flex-col gap-2 w-full items-center">

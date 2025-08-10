@@ -4,6 +4,7 @@ import * as Yup from 'yup';
 import CustomTextField from '../../components/CustomTextField';
 import CustomButton from '../../components/CustomButton';
 import BasicForm from '../../components/BasicForm';
+import BasicAlertBox from '../../components/BasicAlertBox';
 import { FaUser, FaLock, FaPhone, FaIdCard, FaCalendarAlt, FaVenusMars, FaBarcode, FaDownload } from 'react-icons/fa';
 import { FaGraduationCap } from 'react-icons/fa';
 import { Formik } from 'formik';
@@ -133,6 +134,13 @@ export default function NewStudentRegister() {
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [generatedBarcode, setGeneratedBarcode] = useState(null);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    open: false,
+    message: '',
+    title: '',
+    type: 'info',
+    onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+  });
 
   const handleStep1 = (values) => {
     setStep1Values(values);
@@ -191,19 +199,19 @@ export default function NewStudentRegister() {
         role: 'student',
         password: summaryValues.password,
         // Additional student data
-      firstName: summaryValues.firstName,
-      lastName: summaryValues.lastName,
-      nic: summaryValues.idNumber || '',
-      gender: summaryValues.gender,
-      age: summaryValues.age,
-      email: summaryValues.email,
+        firstName: summaryValues.firstName,
+        lastName: summaryValues.lastName,
+        nic: summaryValues.idNumber || '',
+        gender: summaryValues.gender,
+        age: summaryValues.age,
+        email: summaryValues.email,
         mobile: summaryValues.mobile,
-      parentName: summaryValues.parentName,
+        parentName: summaryValues.parentName,
         parentMobile: summaryValues.parentMobile,
-      stream: summaryValues.stream,
-      dateOfBirth: summaryValues.dob,
-      school: summaryValues.school,
-      address: summaryValues.address,
+        stream: summaryValues.stream,
+        dateOfBirth: summaryValues.dob,
+        school: summaryValues.school,
+        address: summaryValues.address,
         district: summaryValues.district
       };
 
@@ -216,15 +224,15 @@ export default function NewStudentRegister() {
       
       if (response.success) {
         // Create barcode object for display using the generated userid
-    const barcodeObj = {
+        const barcodeObj = {
           id: response.userid,
           barcodeData: response.userid,
-      studentName: `${summaryValues.firstName} ${summaryValues.lastName}`,
-      generatedAt: new Date().toISOString()
-    };
-    
-    setGeneratedBarcode(barcodeObj);
-    setRegistrationSuccess(true);
+          studentName: `${summaryValues.firstName} ${summaryValues.lastName}`,
+          generatedAt: new Date().toISOString()
+        };
+        
+        setGeneratedBarcode(barcodeObj);
+        setRegistrationSuccess(true);
         
         // Save barcode data to backend
         try {
@@ -243,13 +251,36 @@ export default function NewStudentRegister() {
         console.log('Registration successful! Student ID:', response.userid);
       } else {
         console.error('Registration failed:', response.message);
-        alert('Registration failed: ' + (response.message || 'Unknown error'));
+        setAlertConfig({
+          open: true,
+          message: 'Registration failed: ' + (response.message || 'Unknown error'),
+          title: 'Registration Failed',
+          type: 'danger',
+          onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+        });
       }
     } catch (error) {
       console.error('Registration error:', error);
-      alert('Registration failed: ' + (error.message || 'Network error occurred'));
+      // Check if it's a validation error
+      if (error.message && (error.message.includes('NIC number') || error.message.includes('mobile number') || error.message.includes('email address'))) {
+        setAlertConfig({
+          open: true,
+          message: 'Registration failed: ' + error.message + '\n\nPlease use different information or contact support if you believe this is an error.',
+          title: 'Duplicate Information',
+          type: 'warning',
+          onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+        });
+      } else {
+        setAlertConfig({
+          open: true,
+          message: 'Registration failed: ' + (error.message || 'Network error occurred'),
+          title: 'Registration Failed',
+          type: 'danger',
+          onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+        });
+      }
     } finally {
-    setIsRegistering(false);
+      setIsRegistering(false);
     }
   };
 
@@ -304,6 +335,7 @@ export default function NewStudentRegister() {
 
   return (
     <div className="w-full flex flex-col justify-center items-center min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <BasicAlertBox {...alertConfig} />
       <div className='max-w-md w-full flex flex-col p-8 items-center'>
         <div className='app-log flex flex-col justify-center items-center mb-8'>
           <div className='w-12 h-12 rounded-full bg-[#3da58a] flex items-center justify-center mb-3 shadow-xl backdrop-blur-sm'>

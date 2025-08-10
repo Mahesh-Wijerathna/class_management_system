@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaUsers, FaGraduationCap, FaBook, FaChartBar, FaCog, FaCalendar, FaUserPlus, FaFileAlt, FaUsersCog, FaUserShield, FaDatabase, FaBell, FaSync, FaPlusSquare, FaClipboardList, FaTicketAlt } from 'react-icons/fa';
+import { FaUsers, FaGraduationCap, FaBook, FaChartBar, FaCog, FaCalendar, FaUserPlus, FaFileAlt, FaUsersCog, FaUserShield, FaDatabase, FaBell, FaSync, FaPlusSquare, FaClipboardList, FaTicketAlt, FaShieldAlt } from 'react-icons/fa';
 
 // Sidebar sections for the admin dashboard
 const adminSidebarSections = [
@@ -66,6 +66,12 @@ const adminSidebarSections = [
     items: [
       { name: 'Announcements', path: '/admin/announcements', icon: <FaBell className="h-5 w-5" /> },
       { name: 'Messages', path: '/admin/messages', icon: <FaUsers className="h-5 w-5" /> },
+    ]
+  },
+  {
+    section: 'Security & Monitoring',
+    items: [
+      { name: 'Student Monitoring', path: '/admin/monitoring', icon: <FaShieldAlt className="h-5 w-5" /> },
     ]
   },
   {
