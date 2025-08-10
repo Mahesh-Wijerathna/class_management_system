@@ -273,15 +273,24 @@ useEffect(() => {
                   <div className="flex flex-col mb-2">
                     <label htmlFor="status" className="text-xs font-medium text-gray-700 mb-1">Status *</label>
                     <select id="status" name="status" value={values.status} onChange={handleChange} className="border rounded px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400" style={{ borderColor: '#1a365d', borderWidth: '2px' }} required>
-                      {/* <option value="Select Status">Select Status</option> */}
-                      <option value="Free">Free</option>
+                      <option value="Select Status">Select Status</option>
+                      {/* <option value="Free">Free</option> */}
                       <option value="Booked">Booked</option>
                     </select>
                   </div>
                   <>
                       <CustomTextField id="subject" name="subject" label="Subject" value={values.subject} onChange={handleChange} icon={FaBook} />
                       <CustomTextField id="className" name="className" label="Class Name" value={values.className} onChange={handleChange} icon={FaUserGraduate} />
-                      <CustomSelectField id="teacher" name="teacher" label="Teacher Name" value={values.teacher} onChange={handleChange} options={teacherOptions} required />
+                      {/* <CustomSelectField id="teacher" name="teacher" label="Teacher Name" value={values.teacher} onChange={handleChange} options={teacherOptions} required /> */}
+                      <CustomSelectField
+                        id="teacher"
+                        name="teacher"
+                        label="Teacher Name"
+                        value={values.teacher}
+                        onChange={handleChange}
+                        options={[{ label: 'Select Teacher', value: '' }, ...teacherOptions]}
+                        required
+                      />
                       <CustomTextField id="date" name="date" type="date" label="Date" value={values.date} onChange={handleChange} required icon={FaCalendarAlt} />
                       <div className="flex mt-3 mb-3 gap-4 items-end ">
                         <CustomTextField id="startTime" name="startTime" type="time" label="Start Time" value={values.startTime} onChange={handleChange} required style={{ minWidth: '180px', width: '505px' }} icon={FaClock} />

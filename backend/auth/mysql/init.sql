@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS login_attempts (
     userid VARCHAR(10) NOT NULL,
     success BOOLEAN NOT NULL DEFAULT 0,
     ip_address VARCHAR(45) NOT NULL,
+    attempt_type VARCHAR(32) DEFAULT NULL,
     attempt_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (userid) REFERENCES users(userid) ON DELETE CASCADE,
     INDEX idx_userid_time (userid, attempt_time),

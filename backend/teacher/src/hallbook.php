@@ -5,6 +5,7 @@ require_once __DIR__ . '/config.php';
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Accept');
+header('Content-Type: application/json');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit();
@@ -77,6 +78,8 @@ elseif ($method === 'GET') {
     $date = $data['date'] ?? null;
     $start_time = $data['start_time'] ?? null;
     $end_time = $data['end_time'] ?? null;
+
+    // console.log("Received data for booking:", $data);
 
     if (!$hall_name || !$teacherId || !$date || !$start_time || !$end_time) {
         echo json_encode(['success' => false, 'message' => 'Missing required fields']);
