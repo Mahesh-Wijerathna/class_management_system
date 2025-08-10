@@ -5,6 +5,8 @@ import adminSidebarSections from './AdminDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
 import CustomButton from '../../../components/CustomButton';
 import { FaQrcode, FaBarcode, FaVideo, FaMapMarkerAlt, FaUsers, FaCalendar, FaClock, FaEye, FaEdit, FaDownload } from 'react-icons/fa';
+import { getAttendanceByClass, markAttendance } from '../../../api/attendance';
+import { getAllClasses } from '../../../api/classes';
 
 import BarcodeScanner from '../../../components/BarcodeScanner';
 
@@ -86,198 +88,129 @@ const AttendanceOverview = () => {
   const [selectedClass, setSelectedClass] = useState(null);
   const [barcodeInput, setBarcodeInput] = useState('');
   const [scanningStatus, setScanningStatus] = useState('');
+  const [rows, setRows] = useState([]);
+  const [loadingRows, setLoadingRows] = useState(true);
 
-  const classList = getClassList();
+  const [classListState, setClassListState] = useState([]);
   const enrollments = getEnrollments();
-  const attendanceRecords = getAttendanceRecords();
-  const myClassesData = getMyClassesData();
+  // Load classes from backend to avoid reliance on localStorage
+  useEffect(() => {
+    (async () => {
+      try {
+        const resp = await getAllClasses();
+        if (resp?.success && Array.isArray(resp.data)) {
+          setClassListState(resp.data);
+        } else {
+          // Fallback to localStorage if backend returns nothing
+          setClassListState(getClassList());
+        }
+      } catch {
+        setClassListState(getClassList());
+      }
+    })();
+  }, []);
 
-  // Calculate studentsPresent and totalStudents for each class
-  const classesWithAttendance = classList.map(cls => {
-    // Get students enrolled in this class
-    const enrolledStudents = enrollments.filter(e => e.classId === cls.id);
-    
-    // Get today's attendance for this class
-    const today = new Date().toISOString().split('T')[0];
-    const todayAttendance = attendanceRecords.filter(record => 
-      record.classId === cls.id && record.date === today
-    );
-    
-    // Count present students
-    const presentStudents = todayAttendance.filter(record => record.status === 'present').length;
-    
-    // Get delivery method info
-    const deliveryMethod = cls.deliveryMethod || 'physical';
-    
-    return {
-      ...cls,
-      studentsPresent: presentStudents,
-      totalStudents: enrolledStudents.length,
-      date: cls.startDate || today,
-      from: cls.schedule?.startTime || '',
-      to: cls.schedule?.endTime || '',
-      status: cls.status || 'Not Started',
-      deliveryMethod: deliveryMethod,
-      attendanceRate: enrolledStudents.length > 0 ? Math.round((presentStudents / enrolledStudents.length) * 100) : 0
+  // Build table rows from backend attendance for the selected date (or today)
+  useEffect(() => {
+    const buildRows = async () => {
+      try {
+        setLoadingRows(true);
+        const dateToUse = selectedDate || new Date().toISOString().split('T')[0];
+        const results = await Promise.all(
+          classListState.map(async (cls) => {
+            try {
+              const data = await getAttendanceByClass(cls.id);
+              const records = Array.isArray(data?.records) ? data.records : [];
+              const dayRecords = records.filter(r => (r.time_stamp || '').slice(0, 10) === dateToUse);
+              const uniquePresent = new Set(dayRecords.map(r => r.user_id)).size;
+              const enrolledStudents = enrollments.filter(e => e.classId === cls.id);
+              const total = enrolledStudents.length;
+              const rate = total > 0 ? Math.round((uniquePresent / total) * 100) : 0;
+              return {
+                ...cls,
+                studentsPresent: uniquePresent,
+                totalStudents: total,
+                date: cls.startDate || dateToUse,
+                from: cls.schedule?.startTime || '',
+                to: cls.schedule?.endTime || '',
+                status: cls.status || 'Not Started',
+                deliveryMethod: cls.deliveryMethod || 'physical',
+                attendanceRate: rate,
+              };
+            } catch {
+              const enrolledStudents = enrollments.filter(e => e.classId === cls.id);
+              return {
+                ...cls,
+                studentsPresent: 0,
+                totalStudents: enrolledStudents.length,
+                date: cls.startDate || dateToUse,
+                from: cls.schedule?.startTime || '',
+                to: cls.schedule?.endTime || '',
+                status: cls.status || 'Not Started',
+                deliveryMethod: cls.deliveryMethod || 'physical',
+                attendanceRate: 0,
+              };
+            }
+          })
+        );
+        setRows(results);
+      } finally {
+        setLoadingRows(false);
+      }
     };
-  });
+    buildRows();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, classListState]);
 
-  // Filter classes by selected date if selectedDate is set, else show all
-  const filteredClasses = selectedDate
-    ? classesWithAttendance.filter(cls => cls.date === selectedDate)
-    : classesWithAttendance;
+  // Backend-driven rows are used directly for the table
 
   // Handle barcode scanning
   const handleBarcodeScan = (classId) => {
-    setSelectedClass(classList.find(cls => cls.id === classId));
+    setSelectedClass(classListState.find(cls => cls.id === classId));
     setShowBarcodeModal(true);
     setBarcodeInput('');
     setScanningStatus('');
   };
 
   // Process barcode input
-  const processBarcode = (barcodeData) => {
+  const processBarcode = async (barcodeData) => {
     if (!barcodeData || !barcodeData.trim()) {
       setScanningStatus('Please enter a barcode');
       return;
     }
 
-    // Simulate barcode processing
-    setScanningStatus('Processing barcode...');
-    
-    setTimeout(() => {
-      // Extract student ID from barcode (format: classId_STUDENT_XXX_timestamp_random)
+    try {
+      setScanningStatus('Processing barcode...');
       const data = barcodeData.trim();
-      console.log('Processing barcode:', data);
-      
       let studentId;
-      
-      // Try to parse the barcode format
       if (data.includes('_')) {
         const parts = data.split('_');
-        if (parts.length >= 2) {
-          // Extract student ID from barcode (e.g., "STUDENT_001" from "classId_STUDENT_001_timestamp_random")
-          studentId = parts[1] + '_' + parts[2]; // Combine STUDENT and XXX
-        } else {
-          studentId = data; // Fallback to original input
-        }
+        studentId = parts.length >= 3 ? `${parts[1]}_${parts[2]}` : data;
       } else {
-        studentId = data; // Fallback to original input
+        studentId = data;
       }
-      
-      console.log('Extracted student ID:', studentId);
-      
-      // Find student in enrollments
       const student = enrollments.find(e => e.studentId === studentId && e.classId === selectedClass.id);
-      
       if (!student) {
-        console.log('Available enrollments:', enrollments.filter(e => e.classId === selectedClass.id));
         setScanningStatus(`Student not found or not enrolled in this class. Student ID: ${studentId}`);
         return;
       }
-
-      // Check if attendance already marked for today
-      const today = new Date().toISOString().split('T')[0];
-      const existingRecord = attendanceRecords.find(record => 
-        record.classId === selectedClass.id && 
-        record.studentId === studentId && 
-        record.date === today
-      );
-
-      if (existingRecord) {
-        setScanningStatus('Attendance already marked for this student today');
-        return;
-      }
-
-      // Mark attendance
-      const newAttendanceRecord = {
-        id: Date.now(),
-        classId: selectedClass.id,
-        studentId: studentId,
-        studentName: student.studentName || 'Unknown Student',
-        date: today,
-        time: new Date().toISOString(),
-        status: 'present',
-        method: 'barcode',
-        deliveryMethod: selectedClass.deliveryMethod || 'physical'
-      };
-
-      // Save to myClasses localStorage
-      const storedClasses = localStorage.getItem('myClasses');
-      if (storedClasses) {
-        const classes = JSON.parse(storedClasses);
-        const updatedClasses = classes.map(cls => {
-          if (cls.id === selectedClass.id) {
-            const attendance = cls.attendance || [];
-            attendance.push({
-              date: today,
-              status: 'present',
-              timestamp: new Date().toISOString(),
-              studentId: studentId,
-              studentName: student.studentName || 'Unknown Student',
-              method: 'barcode'
-            });
-            return { ...cls, attendance };
-          }
-          return cls;
-        });
-        localStorage.setItem('myClasses', JSON.stringify(updatedClasses));
-      }
-
+      await markAttendance({ userId: studentId, classId: selectedClass.id });
       setScanningStatus(`Attendance marked successfully for ${student.studentName || studentId}`);
       setBarcodeInput('');
-      
-      // Refresh the page data
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
-    }, 1000);
+    } catch (e) {
+      setScanningStatus('Failed to mark attendance');
+    }
   };
 
   // Handle online attendance marking
-  const handleOnlineAttendance = (classId) => {
-    const today = new Date().toISOString().split('T')[0];
-    const classStudents = enrollments.filter(e => e.classId === classId);
-    
-    // For online classes, mark all enrolled students as present (simplified)
-    const newRecords = classStudents.map(student => ({
-      id: Date.now() + Math.random(),
-      classId: classId,
-      studentId: student.studentId,
-      studentName: student.studentName || 'Unknown Student',
-      date: today,
-      time: new Date().toISOString(),
-      status: 'present',
-      method: 'online',
-      deliveryMethod: 'online'
-    }));
-
-    // Save to myClasses localStorage
-    const storedClasses = localStorage.getItem('myClasses');
-    if (storedClasses) {
-      const classes = JSON.parse(storedClasses);
-      const updatedClasses = classes.map(cls => {
-        if (cls.id === classId) {
-          const attendance = cls.attendance || [];
-          classStudents.forEach(student => {
-            attendance.push({
-              date: today,
-              status: 'present',
-              timestamp: new Date().toISOString(),
-              studentId: student.studentId,
-              studentName: student.studentName || 'Unknown Student',
-              method: 'online'
-            });
-          });
-          return { ...cls, attendance };
-        }
-        return cls;
-      });
-      localStorage.setItem('myClasses', JSON.stringify(updatedClasses));
+  const handleOnlineAttendance = async (classId) => {
+    try {
+      const classStudents = enrollments.filter(e => e.classId === classId);
+      await Promise.all(classStudents.map(s => markAttendance({ userId: s.studentId, classId })));
+      alert('Online attendance marked for all enrolled students');
+    } catch (e) {
+      alert('Failed to mark online attendance');
     }
-
-    alert('Online attendance marked for all enrolled students');
-    window.location.reload();
   };
 
   // Generate barcode for a class
@@ -288,37 +221,30 @@ const AttendanceOverview = () => {
   };
 
   // Download attendance report
-  const downloadAttendanceReport = (classId) => {
-    const classData = classList.find(cls => cls.id === classId);
-    const storedClasses = localStorage.getItem('myClasses');
-    if (!storedClasses) {
-      alert('No class data found');
-      return;
-    }
-    
-    const classes = JSON.parse(storedClasses);
-    const classDataFromStorage = classes.find(cls => cls.id === classId);
-    const classAttendance = classDataFromStorage?.attendance || [];
-    
-    if (classAttendance.length === 0) {
+  const downloadAttendanceReport = async (classId) => {
+    const classData = classListState.find(cls => cls.id === classId);
+    const data = await getAttendanceByClass(classId);
+    const records = Array.isArray(data?.records) ? data.records : [];
+    if (records.length === 0) {
       alert('No attendance records found for this class');
       return;
     }
-
-    // Create CSV content
     const csvContent = [
       ['Date', 'Student ID', 'Student Name', 'Status', 'Method', 'Time'],
-      ...classAttendance.map(record => [
-        record.date,
-        record.studentId || 'Unknown',
-        record.studentName || 'Unknown Student',
-        record.status,
-        record.method || 'manual',
-        new Date(record.timestamp || record.time || new Date()).toLocaleString()
-      ])
+      ...records.map(r => {
+        const student = enrollments.find(e => e.classId === classId && e.studentId === r.user_id);
+        const date = (r.time_stamp || '').slice(0, 10);
+        return [
+          date,
+          r.user_id || 'Unknown',
+          student?.studentName || 'Unknown Student',
+          'present',
+          'server',
+          new Date(r.time_stamp || new Date()).toLocaleString(),
+        ];
+      })
     ].map(row => row.join(',')).join('\n');
 
-    // Download file
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -427,7 +353,7 @@ const AttendanceOverview = () => {
                 </div>
               ) },
           ]}
-          data={filteredClasses}
+          data={selectedDate ? rows.filter(r => r.date === selectedDate) : rows}
         />
 
         {/* Barcode Scanner Modal */}

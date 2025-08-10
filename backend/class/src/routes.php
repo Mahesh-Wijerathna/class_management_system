@@ -140,6 +140,15 @@ switch ($method) {
         } elseif ($path === '/get_all_enrollments') {
             $result = $enrollmentController->getAllEnrollments();
             echo json_encode($result);
+        } elseif (($path === '/get_enrollments_by_class' || $path === '/get_class_enrollments') && isset($_GET['classId'])) {
+            $classId = $_GET['classId'];
+            $result = $enrollmentController->getEnrollmentsByClass($classId);
+            echo json_encode($result);
+        } elseif (($path === '/get_enrollments_by_class' || $path === '/get_class_enrollments') && isset($_GET['class_id'])) {
+            // support snake_case param name as well
+            $classId = $_GET['class_id'];
+            $result = $enrollmentController->getEnrollmentsByClass($classId);
+            echo json_encode($result);
         } elseif ($path === '/get_all_classes') {
             $classes = $controller->getAllClasses();
             echo json_encode(['success' => true, 'data' => $classes]);

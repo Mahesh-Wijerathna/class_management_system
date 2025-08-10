@@ -262,12 +262,44 @@ services:
     networks:
       - teacher-network
 
+  attendance-backend:
+    build: ./attendance-backend
+    container_name: attendance-backend
+    ports:
+      - "8000:80"
+    volumes:
+      - ./attendance-backend/src:/var/www/html
+    depends_on:
+      - attendance-db
+    environment:
+      - DB_HOST=attendance-db
+      - DB_NAME=attendance_system
+      - DB_USER=root
+      - DB_PASSWORD=secret
+    networks:
+      - attendance-network
+
+  attendance-db:
+    image: mysql:8.0
+    container_name: attendance-db
+    ports:
+      - "3307:3306"  # Different port than default MySQL to avoid conflicts
+    environment:
+      - MYSQL_ROOT_PASSWORD=secret
+      - MYSQL_DATABASE=attendance
+    volumes:
+      - ./attendance-backend/sql:/docker-entrypoint-initdb.d
+      - attendance-db-data:/var/lib/mysql
+    networks:
+      - attendance-network
+
 volumes:
   auth_mysql_data:
   cashier_mysql_data:
   class_mysql_data:
   student_mysql_data:
   teacher_mysql_data:
+  attendance-db-data:
 
 networks:
   auth-network:
@@ -279,4 +311,6 @@ networks:
   student-network:
     driver: bridge
   teacher-network:
+    driver: bridge
+  attendance-network:
     driver: bridge
