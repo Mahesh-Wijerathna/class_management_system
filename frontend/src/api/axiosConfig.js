@@ -8,7 +8,7 @@ const getStorage = () => {
 
 // Create axios instance with default config
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_BASE_URL || 'http://192.168.1.175:8081',
+  baseURL: process.env.REACT_APP_API_BASE_URL || 'http://localhost:8081',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

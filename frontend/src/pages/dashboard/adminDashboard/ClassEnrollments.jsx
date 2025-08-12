@@ -1,0 +1,749 @@
+import React, { useState, useEffect } from 'react';
+import { FaUsers, FaGraduationCap, FaCalendar, FaSearch, FaFilter, FaDownload, FaPrint, FaEye, FaClock, FaCheckCircle, FaExclamationTriangle, FaUser, FaPhone, FaEnvelope, FaSchool, FaBook, FaChalkboardTeacher, FaVideo, FaMoneyBill, FaSync } from 'react-icons/fa';
+import { getAllClasses } from '../../../api/classes';
+import { getClassEnrollments } from '../../../api/enrollments';
+import { getAllStudents } from '../../../api/students';
+import DashboardLayout from '../../../components/layout/DashboardLayout';
+import adminSidebarSections from './AdminDashboardSidebar';
+import BasicTable from '../../../components/BasicTable';
+
+const ClassEnrollments = () => {
+  const [classes, setClasses] = useState([]);
+  const [selectedClass, setSelectedClass] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [streamFilter, setStreamFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [studentsData, setStudentsData] = useState({});
+  const [showEnrollmentDetails, setShowEnrollmentDetails] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [viewMode, setViewMode] = useState('classes'); // 'classes' or 'enrollments'
+
+  // Load data on component mount
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Load classes and students in parallel
+      const [classesResponse, studentsResponse] = await Promise.all([
+        getAllClasses(),
+        getAllStudents()
+      ]);
+
+      if (classesResponse.success) {
+        const classesList = classesResponse.data || [];
+        setClasses(classesList);
+        
+        // Store students data for quick lookup
+        if (studentsResponse.success && studentsResponse.students) {
+          const studentsMap = {};
+          studentsResponse.students.forEach(student => {
+            studentsMap[student.userid] = student;
+          });
+          setStudentsData(studentsMap);
+        }
+      } else {
+        setError('Failed to load classes');
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setError('Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewEnrollments = async (classItem) => {
+    try {
+      const enrollmentsResponse = await getClassEnrollments(classItem.id);
+      if (enrollmentsResponse.success) {
+        setSelectedClass({
+          ...classItem,
+          enrollments: enrollmentsResponse.data || []
+        });
+        setShowEnrollmentDetails(true);
+      }
+    } catch (error) {
+      console.error('Error loading enrollments:', error);
+    }
+  };
+
+  const closeEnrollmentDetails = () => {
+    setShowEnrollmentDetails(false);
+    setSelectedClass(null);
+    setSelectedStudent(null);
+  };
+
+  const handleViewStudentDetails = (student) => {
+    setSelectedStudent(student);
+  };
+
+  const closeStudentDetails = () => {
+    setSelectedStudent(null);
+  };
+
+  // Filter classes based on search term and filters
+  const filteredClasses = classes.filter(classItem => {
+    const matchesSearch = searchTerm === '' || 
+      classItem.className.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      classItem.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      classItem.teacher.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStream = streamFilter === '' || classItem.stream === streamFilter;
+    const matchesStatus = statusFilter === '' || classItem.status === statusFilter;
+    
+    return matchesSearch && matchesStream && matchesStatus;
+  });
+
+  // Get unique values for filter dropdowns
+  const uniqueStreams = [...new Set(classes.map(c => c.stream))].filter(Boolean);
+  const uniqueStatuses = [...new Set(classes.map(c => c.status))].filter(Boolean);
+
+  // Format currency
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-LK', {
+      style: 'currency',
+      currency: 'LKR',
+      minimumFractionDigits: 2
+    }).format(amount);
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-LK');
+  };
+
+  // Format time
+  const formatTime = (timeString) => {
+    if (!timeString) return 'N/A';
+    return timeString;
+  };
+
+  // Get status color
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'active':
+        return 'text-green-700 bg-green-100 border border-green-200';
+      case 'inactive':
+        return 'text-red-700 bg-red-100 border border-red-200';
+      case 'enrolled':
+        return 'text-blue-700 bg-blue-100 border border-blue-200';
+      case 'completed':
+        return 'text-purple-700 bg-purple-100 border border-purple-200';
+      default:
+        return 'text-gray-700 bg-gray-100 border border-gray-200';
+    }
+  };
+
+  // Get delivery method icon
+  const getDeliveryIcon = (deliveryMethod) => {
+    switch (deliveryMethod?.toLowerCase()) {
+      case 'online':
+        return <FaVideo className="text-blue-600 text-sm" />;
+      case 'physical':
+        return <FaChalkboardTeacher className="text-green-600 text-sm" />;
+      case 'hybrid':
+        return <FaUsers className="text-purple-600 text-sm" />;
+      default:
+        return <FaBook className="text-gray-600 text-sm" />;
+    }
+  };
+
+  // Calculate enrollment statistics
+  const calculateEnrollmentStats = (enrollments) => {
+    const totalStudents = enrollments.length;
+    const activeStudents = enrollments.filter(e => e.status === 'enrolled').length;
+    const completedStudents = enrollments.filter(e => e.status === 'completed').length;
+    const totalRevenue = enrollments.reduce((sum, e) => {
+      const student = studentsData[e.student_id];
+      return sum + parseFloat(student?.fee || 0);
+    }, 0);
+
+    return {
+      totalStudents,
+      activeStudents,
+      completedStudents,
+      totalRevenue,
+      enrollmentRate: classes.length > 0 ? (totalStudents / classes.length) * 100 : 0
+    };
+  };
+
+  // Define columns for classes table
+  const classColumns = [
+    {
+      key: 'classInfo',
+      label: 'Class Info',
+      render: (row) => (
+        <div className="flex flex-col space-y-1">
+          <div className="font-semibold text-gray-900 text-sm">{row.className}</div>
+          <div className="text-xs text-gray-700">{row.subject}</div>
+          <div className="text-xs text-gray-500 bg-gray-100 px-1 py-0.5 rounded inline-block w-fit">
+            ID: {row.id}
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'teacher',
+      label: 'Teacher',
+      render: (row) => (
+        <div className="flex items-center space-x-1">
+          <div className="bg-blue-100 p-1 rounded-full">
+            <FaUser className="text-blue-600 text-sm" />
+          </div>
+          <span className="text-xs text-gray-800">{row.teacher}</span>
+        </div>
+      )
+    },
+    {
+      key: 'enrollments',
+      label: 'Enrollments',
+      render: (row) => (
+        <div className="flex flex-col space-y-1">
+          <div className="flex items-center space-x-1">
+            <div className="bg-blue-100 p-1 rounded-full">
+              <FaUsers className="text-blue-600 text-sm" />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-semibold text-gray-900 text-sm">
+                {row.currentStudents || 0}
+                <span className="text-gray-500 font-normal text-xs">/{row.maxStudents || 'N/A'}</span>
+              </span>
+            </div>
+          </div>
+          <div className={`text-xs px-2 py-0.5 rounded-full font-medium text-center ${getStatusColor(row.status)}`}>
+            {row.currentStudents && row.maxStudents ? 
+              Math.round((row.currentStudents / row.maxStudents) * 100) : 0}% Full
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (row) => (
+        <div className="flex justify-center">
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(row.status)}`}>
+            {row.status}
+          </span>
+        </div>
+      )
+    }
+  ];
+
+  // Define actions for classes table
+  const classActions = (row) => (
+    <div className="flex flex-col space-y-1">
+      <button
+        onClick={() => handleViewEnrollments(row)}
+        className="flex items-center justify-center px-2 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded transition-all duration-200 border border-blue-200 text-xs font-medium shadow-sm hover:shadow-md"
+        title="View Enrollment Details"
+      >
+        <FaUsers size={12} className="mr-1" />
+        Enrollments
+      </button>
+    </div>
+  );
+
+  // Define columns for students table
+  const studentColumns = [
+    {
+      key: 'studentInfo',
+      label: 'Student Info',
+      render: (row) => {
+        const student = studentsData[row.student_id];
+        return (
+          <div className="flex flex-col space-y-1">
+            <div className="font-semibold text-gray-900 text-sm">
+              {student ? `${student.firstName} ${student.lastName}` : row.student_id}
+            </div>
+            <div className="text-xs text-gray-700">{student?.school || 'School not specified'}</div>
+            <div className="text-xs text-gray-500 bg-gray-100 px-1 py-0.5 rounded inline-block w-fit">
+              ID: {row.student_id}
+            </div>
+          </div>
+        );
+      }
+    },
+    {
+      key: 'contact',
+      label: 'Contact',
+      render: (row) => {
+        const student = studentsData[row.student_id];
+        return (
+          <div className="flex flex-col space-y-1">
+            <div className="flex items-center space-x-1">
+              <FaEnvelope className="text-blue-500 text-xs" />
+              <span className="text-xs text-gray-800">{student?.email || 'N/A'}</span>
+            </div>
+            <div className="flex items-center space-x-1">
+              <FaPhone className="text-green-500 text-xs" />
+              <span className="text-xs text-gray-800">{student?.mobile || 'N/A'}</span>
+            </div>
+          </div>
+        );
+      }
+    },
+    {
+      key: 'enrollment',
+      label: 'Enrollment',
+      render: (row) => (
+        <div className="flex flex-col space-y-1">
+          <div className="text-xs text-gray-700">
+            <FaCalendar className="inline mr-1" />
+            {formatDate(row.enrollment_date)}
+          </div>
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(row.status)}`}>
+            {row.status}
+          </span>
+        </div>
+      )
+    }
+  ];
+
+  // Define actions for students table
+  const studentActions = (row) => {
+    const student = studentsData[row.student_id];
+    return (
+      <div className="flex flex-col space-y-1">
+        <button
+          onClick={() => handleViewStudentDetails(student)}
+          className="flex items-center justify-center px-2 py-1 bg-green-50 text-green-700 hover:bg-green-100 rounded transition-all duration-200 border border-green-200 text-xs font-medium shadow-sm hover:shadow-md"
+          title="View Student Details"
+        >
+          <FaEye size={12} className="mr-1" />
+          Details
+        </button>
+      </div>
+    );
+  };
+
+  if (loading) {
+    return (
+      <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading class enrollments...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <FaExclamationTriangle className="text-red-500 text-4xl mx-auto mb-4" />
+            <p className="text-red-600 mb-4">{error}</p>
+            <button
+              onClick={loadData}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  return (
+    <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
+      <div className="w-full max-w-7xl mx-auto bg-white p-8 rounded-lg shadow">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Class Enrollments</h1>
+            <p className="text-gray-600 mt-2">Manage and view all class enrollments</p>
+          </div>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setViewMode('classes')}
+              className={`px-4 py-2 rounded-lg transition-colors ${
+                viewMode === 'classes' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Classes View
+            </button>
+            <button
+              onClick={() => setViewMode('enrollments')}
+              className={`px-4 py-2 rounded-lg transition-colors ${
+                viewMode === 'enrollments' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Enrollments View
+            </button>
+            <button
+              onClick={loadData}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <FaSearch className="mr-2" />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="relative">
+            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search classes..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          
+          <select
+            value={streamFilter}
+            onChange={(e) => setStreamFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">All Streams</option>
+            {uniqueStreams.map(stream => (
+              <option key={stream} value={stream}>{stream}</option>
+            ))}
+          </select>
+          
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">All Statuses</option>
+            {uniqueStatuses.map(status => (
+              <option key={status} value={status}>{status}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <div className="bg-blue-50 p-6 rounded-lg">
+            <div className="flex items-center">
+              <FaGraduationCap className="text-blue-600 text-2xl mr-4" />
+              <div>
+                <p className="text-sm font-medium text-blue-600">Total Classes</p>
+                <p className="text-2xl font-bold text-blue-900">{filteredClasses.length}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-green-50 p-6 rounded-lg">
+            <div className="flex items-center">
+              <FaUsers className="text-green-600 text-2xl mr-4" />
+              <div>
+                <p className="text-sm font-medium text-green-600">Active Classes</p>
+                <p className="text-2xl font-bold text-green-900">
+                  {filteredClasses.filter(c => c.status === 'active').length}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-purple-50 p-6 rounded-lg">
+            <div className="flex items-center">
+              <FaMoneyBill className="text-purple-600 text-2xl mr-4" />
+              <div>
+                <p className="text-sm font-medium text-purple-600">Total Enrollments</p>
+                <p className="text-2xl font-bold text-purple-900">
+                  {filteredClasses.reduce((sum, c) => sum + (c.currentStudents || 0), 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Classes Table */}
+        <BasicTable
+          columns={classColumns}
+          data={filteredClasses}
+          actions={classActions}
+          className=""
+        />
+
+        {/* Enrollment Details Modal */}
+        {showEnrollmentDetails && selectedClass && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Enrollment Details - {selectedClass.className}
+                </h2>
+                <button
+                  onClick={closeEnrollmentDetails}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <FaSearch size={24} />
+                </button>
+              </div>
+              
+              {/* Two Column Layout: Class Info (Left) + Table (Right) */}
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                {/* Left Side - Class Information */}
+                <div className="lg:col-span-1">
+                  {/* Class Information Card */}
+                  <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Class Information</h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                        <div className="flex items-center space-x-3">
+                          <div className="bg-blue-100 p-2 rounded-full">
+                            <FaGraduationCap className="text-blue-600 text-sm" />
+                          </div>
+                          <span className="text-sm font-medium text-gray-700">Stream</span>
+                        </div>
+                        <span className="text-sm font-bold text-gray-900">{selectedClass.stream || 'N/A'}</span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                        <div className="flex items-center space-x-3">
+                          <div className="bg-green-100 p-2 rounded-full">
+                            {getDeliveryIcon(selectedClass.deliveryMethod)}
+                          </div>
+                          <span className="text-sm font-medium text-gray-700">Delivery Method</span>
+                        </div>
+                        <span className="text-sm font-bold text-gray-900 capitalize">
+                          {selectedClass.deliveryMethod || 'N/A'}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                        <div className="flex items-center space-x-3">
+                          <div className="bg-purple-100 p-2 rounded-full">
+                            <FaCalendar className="text-purple-600 text-sm" />
+                          </div>
+                          <span className="text-sm font-medium text-gray-700">Schedule Day</span>
+                        </div>
+                        <span className="text-sm font-bold text-gray-900">
+                          {selectedClass.schedule_day || selectedClass.scheduleDay || 'N/A'}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                        <div className="flex items-center space-x-3">
+                          <div className="bg-orange-100 p-2 rounded-full">
+                            <FaClock className="text-orange-600 text-sm" />
+                          </div>
+                          <span className="text-sm font-medium text-gray-700">Schedule Time</span>
+                        </div>
+                        <span className="text-sm font-bold text-gray-900">
+                          {(selectedClass.schedule_start_time || selectedClass.scheduleStartTime) && 
+                           (selectedClass.schedule_end_time || selectedClass.scheduleEndTime) ? 
+                            `${formatTime(selectedClass.schedule_start_time || selectedClass.scheduleStartTime)} - ${formatTime(selectedClass.schedule_end_time || selectedClass.scheduleEndTime)}` : 
+                            'N/A'
+                          }
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                        <div className="flex items-center space-x-3">
+                          <div className="bg-indigo-100 p-2 rounded-full">
+                            <FaSync className="text-indigo-600 text-sm" />
+                          </div>
+                          <span className="text-sm font-medium text-gray-700">Frequency</span>
+                        </div>
+                        <span className="text-sm font-bold text-gray-900">
+                          {selectedClass.schedule_frequency || selectedClass.scheduleFrequency || 'N/A'}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center justify-between py-2">
+                        <div className="flex items-center space-x-3">
+                          <div className="bg-teal-100 p-2 rounded-full">
+                            <FaUsers className="text-teal-600 text-sm" />
+                          </div>
+                          <span className="text-sm font-medium text-gray-700">Student Capacity</span>
+                        </div>
+                        <span className="text-sm font-bold text-gray-900">
+                          {selectedClass.currentStudents || 0} / {selectedClass.maxStudents || 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Enrollment Statistics Card */}
+                  {(() => {
+                    const stats = calculateEnrollmentStats(selectedClass.enrollments);
+                    return (
+                      <div className="bg-white rounded-lg border border-gray-200 p-4">
+                        <h3 className="text-sm font-semibold text-gray-700 mb-3">Enrollment Statistics</h3>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                            <span className="text-sm font-medium text-blue-600">Total Students</span>
+                            <span className="text-lg font-bold text-blue-900">{stats.totalStudents}</span>
+                          </div>
+                          <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                            <span className="text-sm font-medium text-green-600">Active Students</span>
+                            <span className="text-lg font-bold text-green-900">{stats.activeStudents}</span>
+                          </div>
+                          <div className="flex items-center justify-between py-2">
+                            <span className="text-sm font-medium text-purple-600">Completed</span>
+                            <span className="text-lg font-bold text-purple-900">{stats.completedStudents}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+                
+                {/* Right Side - Table and Search */}
+                <div className="lg:col-span-3">
+                  {/* Search and Filter Section */}
+                  <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+                    <div className="flex flex-col md:flex-row gap-3">
+                      <div className="flex-1 relative">
+                        <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
+                        <input
+                          type="text"
+                          placeholder="Search students by name, email, or ID..."
+                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          onChange={(e) => {
+                            const searchTerm = e.target.value.toLowerCase();
+                            const filteredEnrollments = selectedClass.enrollments.filter(enrollment => {
+                              const student = studentsData[enrollment.student_id];
+                              if (!student) return false;
+                              return (
+                                student.firstName?.toLowerCase().includes(searchTerm) ||
+                                student.lastName?.toLowerCase().includes(searchTerm) ||
+                                student.email?.toLowerCase().includes(searchTerm) ||
+                                student.userid?.toLowerCase().includes(searchTerm)
+                              );
+                            });
+                            setSelectedClass(prev => ({
+                              ...prev,
+                              filteredEnrollments: searchTerm ? filteredEnrollments : prev.enrollments
+                            }));
+                          }}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <select className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                          <option value="">All Status</option>
+                          <option value="active">Active</option>
+                          <option value="completed">Completed</option>
+                        </select>
+                        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                          Export
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Students Table */}
+                  <BasicTable
+                    columns={studentColumns}
+                    data={selectedClass.filteredEnrollments || selectedClass.enrollments}
+                    actions={studentActions}
+                    className=""
+                  />
+                </div>
+              </div>
+              
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={closeEnrollmentDetails}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Student Details Modal */}
+        {selectedStudent && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Student Details
+                </h2>
+                <button
+                  onClick={closeStudentDetails}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <FaSearch size={24} />
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Personal Information</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="font-medium text-gray-700">Name:</label>
+                      <p className="text-gray-900">{selectedStudent.firstName} {selectedStudent.lastName}</p>
+                    </div>
+                    <div>
+                      <label className="font-medium text-gray-700">Student ID:</label>
+                      <p className="text-gray-900">{selectedStudent.userid}</p>
+                    </div>
+                    <div>
+                      <label className="font-medium text-gray-700">Email:</label>
+                      <p className="text-gray-900">{selectedStudent.email}</p>
+                    </div>
+                    <div>
+                      <label className="font-medium text-gray-700">Mobile:</label>
+                      <p className="text-gray-900">{selectedStudent.mobile}</p>
+                    </div>
+                    <div>
+                      <label className="font-medium text-gray-700">School:</label>
+                      <p className="text-gray-900">{selectedStudent.school}</p>
+                    </div>
+                    <div>
+                      <label className="font-medium text-gray-700">Stream:</label>
+                      <p className="text-gray-900">{selectedStudent.stream}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Academic Information</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="font-medium text-gray-700">Parent Mobile:</label>
+                      <p className="text-gray-900">{selectedStudent.parentMobile || 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <label className="font-medium text-gray-700">Address:</label>
+                      <p className="text-gray-900">{selectedStudent.address || 'Not specified'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={closeStudentDetails}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </DashboardLayout>
+  );
+};
+
+export default ClassEnrollments;

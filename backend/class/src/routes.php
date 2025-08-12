@@ -92,6 +92,10 @@ switch ($method) {
             $enrollmentId = $input['id'];
             $result = $enrollmentController->deleteEnrollment($enrollmentId);
             echo json_encode($result);
+        } elseif ($path === '/delete_student_enrollments') {
+            $studentId = $input['studentId'];
+            $result = $enrollmentController->deleteStudentEnrollments($studentId);
+            echo json_encode($result);
         } elseif ($path === '/mark_attendance') {
             $classId = $input['classId'];
             $studentId = $input['studentId'];
@@ -108,6 +112,10 @@ switch ($method) {
             $studentId = $input['studentId'];
             $result = $enrollmentController->requestLatePayment($classId, $studentId);
             echo json_encode($result);
+        } elseif ($path === '/update_class_student_count') {
+            $classId = $input['classId'];
+            $enrollmentController->updateClassStudentCount($classId);
+            echo json_encode(['success' => true, 'message' => 'Class student count updated successfully']);
         } elseif ($path === '/create_session_schedule') {
             $result = $controller->createSessionSchedule($input);
             echo json_encode($result);

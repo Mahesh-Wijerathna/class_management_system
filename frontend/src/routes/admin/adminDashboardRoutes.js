@@ -11,6 +11,8 @@ import CoreAdminInfo from '../../pages/dashboard/adminDashboard/CoreAdminInfo';
 import StudentAllPayments from '../../pages/dashboard/adminDashboard/StudentAllPayments';
 import StudentClassPayments from '../../pages/dashboard/adminDashboard/StudentClassPayments';
 import AllClasses from '../../pages/dashboard/adminDashboard/AllClasses';
+import ClassPayments from '../../pages/dashboard/adminDashboard/ClassPayments';
+import ClassEnrollments from '../../pages/dashboard/adminDashboard/ClassEnrollments';
 import ClassStudents from '../../pages/dashboard/adminDashboard/ClassStudents';
 import AllRoles from '../../pages/dashboard/adminDashboard/AllRoles';
 import RolesWithPermission from '../../pages/dashboard/adminDashboard/RolesWithPermission';
@@ -29,6 +31,8 @@ export const adminDashboardRoutes = [
   { path: "/admin/students-payments", element: <StudentAllPayments /> },
   { path: "/admin/students-payments/:classId", element: <StudentClassPayments /> },
   { path: "/admin/classes/all", element: <AllClasses /> },
+  { path: "/admin/classes/payments", element: <ClassPayments /> },
+  { path: "/admin/classes/enrollments", element: <ClassEnrollments /> },
   { path: "/admin/classes/all/:classId", element: <ClassStudents /> },
   { path: "/admin/roles", element: <AllRoles /> },
   { path: "/admin/roles/permissions", element: <RolesWithPermission /> }, 

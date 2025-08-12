@@ -89,16 +89,88 @@ class UserController {
         }
     }
 
-    // Delete user by ID
+    // Delete user by ID (handles both regular users and students)
     public function deleteUser($userid) {
-        $user = new UserModel($this->db);
-        $result = $user->deleteUser($userid);
-        if ($result) {
-            return json_encode(['success' => true, 'message' => 'User deleted successfully']);
-        } else {
-            return json_encode(['success' => false, 'message' => 'User deletion failed']);
+        try {
+            // Start transaction
+            $this->db->begin_transaction();
+            
+            // Check if this is a student (starts with 'S')
+            if (strpos($userid, 'S') === 0) {
+                // Delete from students table
+                $stmt = $this->db->prepare("DELETE FROM students WHERE userid = ?");
+                $stmt->bind_param("s", $userid);
+                $stmt->execute();
+                
+                // Delete from barcodes table
+                $stmt = $this->db->prepare("DELETE FROM barcodes WHERE userid = ?");
+                $stmt->bind_param("s", $userid);
+                $stmt->execute();
+            }
+            
+            // Delete from users table (for all users)
+            $user = new UserModel($this->db);
+            $result = $user->deleteUser($userid);
+            
+            if ($result) {
+                // If this is a student, also delete their enrollments from class-db
+                if (strpos($userid, 'S') === 0) {
+                    $this->deleteStudentEnrollments($userid);
+                }
+                
+                // Commit transaction
+                $this->db->commit();
+                return json_encode(['success' => true, 'message' => 'User deleted successfully']);
+            } else {
+                // Rollback transaction
+                $this->db->rollback();
+                return json_encode(['success' => false, 'message' => 'User deletion failed']);
+            }
+        } catch (Exception $e) {
+            // Rollback transaction on error
+            $this->db->rollback();
+            return json_encode(['success' => false, 'message' => 'Failed to delete user: ' . $e->getMessage()]);
         }
     }
+    
+    // Helper method to delete student enrollments from class-db
+    private function deleteStudentEnrollments($studentId) {
+        try {
+            // Call the class backend to delete enrollments
+            $url = 'http://host.docker.internal:8087/routes.php/delete_student_enrollments';
+            $data = json_encode(['studentId' => $studentId]);
+            
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Content-Length: ' . strlen($data)
+            ]);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+            
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            
+            if ($httpCode === 200) {
+                $result = json_decode($response, true);
+                if ($result && $result['success']) {
+                    error_log("Successfully deleted enrollments for student {$studentId}: " . $result['message']);
+                } else {
+                    error_log("Failed to delete enrollments for student {$studentId}: " . ($result['message'] ?? 'Unknown error'));
+                }
+            } else {
+                error_log("HTTP error {$httpCode} when deleting enrollments for student {$studentId}");
+            }
+        } catch (Exception $e) {
+            error_log("Exception when deleting enrollments for student {$studentId}: " . $e->getMessage());
+        }
+    }
+
+
     // Get all users
     public function getAllUsers() {
         $user = new UserModel($this->db);

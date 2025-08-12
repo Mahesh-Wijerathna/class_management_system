@@ -238,6 +238,9 @@ class EnrollmentController {
             );
             
             if ($stmt->execute()) {
+                // Update the current_students count in the classes table
+                $this->updateClassStudentCount($enrollmentData['class_id']);
+                
                 return [
                     'success' => true,
                     'message' => 'Enrollment created successfully',
@@ -298,8 +301,8 @@ class EnrollmentController {
     // Delete enrollment
     public function deleteEnrollment($enrollmentId) {
         try {
-            // First check if enrollment exists
-            $stmt = $this->db->prepare("SELECT * FROM enrollments WHERE id = ?");
+            // First check if enrollment exists and get class_id
+            $stmt = $this->db->prepare("SELECT class_id FROM enrollments WHERE id = ?");
             $stmt->bind_param("i", $enrollmentId);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -311,11 +314,17 @@ class EnrollmentController {
                 ];
             }
             
+            $enrollment = $result->fetch_assoc();
+            $classId = $enrollment['class_id'];
+            
             // Delete the enrollment
             $stmt = $this->db->prepare("DELETE FROM enrollments WHERE id = ?");
             $stmt->bind_param("i", $enrollmentId);
             
             if ($stmt->execute()) {
+                // Update the current_students count in the classes table
+                $this->updateClassStudentCount($classId);
+                
                 return [
                     'success' => true,
                     'message' => 'Enrollment deleted successfully'
@@ -330,6 +339,49 @@ class EnrollmentController {
             return [
                 'success' => false,
                 'message' => 'Error deleting enrollment: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    // Delete all enrollments for a student
+    public function deleteStudentEnrollments($studentId) {
+        try {
+            // Get all class IDs that will be affected
+            $stmt = $this->db->prepare("SELECT DISTINCT class_id FROM enrollments WHERE student_id = ?");
+            $stmt->bind_param("s", $studentId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $affectedClasses = [];
+            while ($row = $result->fetch_assoc()) {
+                $affectedClasses[] = $row['class_id'];
+            }
+            
+            // Delete all enrollments for the student
+            $stmt = $this->db->prepare("DELETE FROM enrollments WHERE student_id = ?");
+            $stmt->bind_param("s", $studentId);
+            
+            if ($stmt->execute()) {
+                $deletedCount = $stmt->affected_rows;
+                
+                // Update the current_students count for all affected classes
+                foreach ($affectedClasses as $classId) {
+                    $this->updateClassStudentCount($classId);
+                }
+                
+                return [
+                    'success' => true,
+                    'message' => "Deleted {$deletedCount} enrollment(s) for student {$studentId}"
+                ];
+            } else {
+                return [
+                    'success' => false,
+                    'message' => 'Failed to delete student enrollments'
+                ];
+            }
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Error deleting student enrollments: ' . $e->getMessage()
             ];
         }
     }
@@ -455,6 +507,34 @@ class EnrollmentController {
                 'success' => false,
                 'message' => 'Error submitting late payment request: ' . $e->getMessage()
             ];
+        }
+    }
+    
+    // Helper method to update the current_students count for a class
+    public function updateClassStudentCount($classId) {
+        try {
+            // Count active enrollments for the class
+            $stmt = $this->db->prepare("
+                SELECT COUNT(*) as student_count 
+                FROM enrollments 
+                WHERE class_id = ? AND status = 'active'
+            ");
+            $stmt->bind_param("i", $classId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $count = $result->fetch_assoc()['student_count'];
+            
+            // Update the classes table
+            $stmt = $this->db->prepare("
+                UPDATE classes 
+                SET current_students = ? 
+                WHERE id = ?
+            ");
+            $stmt->bind_param("ii", $count, $classId);
+            $stmt->execute();
+            
+        } catch (Exception $e) {
+            error_log("Error updating class student count for class {$classId}: " . $e->getMessage());
         }
     }
 }

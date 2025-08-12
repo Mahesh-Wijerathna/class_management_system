@@ -273,8 +273,8 @@ if ($method === 'PUT' && preg_match('#^/routes.php/user/([A-Za-z0-9]+)$#', $path
     exit;
 }
 
-// DELETE user by ID
-if ($method === 'DELETE' && preg_match('#^/routes.php/user/(\\d+)$#', $path, $matches)) {
+// DELETE user by ID (handles both regular users and students)
+if ($method === 'DELETE' && preg_match('#^/routes.php/user/([A-Za-z0-9]+)$#', $path, $matches)) {
     $userid = $matches[1];
     echo $controller->deleteUser($userid);
     exit;
