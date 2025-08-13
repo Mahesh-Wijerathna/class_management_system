@@ -1,5 +1,9 @@
 <?php
 // src/config.php
+
+// Set timezone to Asia/Colombo (Sri Lanka)
+date_default_timezone_set('Asia/Colombo');
+
 $host = getenv('DB_HOST') ?: 'localhost';
 $db   = getenv('DB_NAME') ?: 'class_db';
 $user = getenv('DB_USER') ?: 'classuser';

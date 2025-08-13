@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaUsers, FaGraduationCap, FaCalendar, FaSearch, FaFilter, FaDownload, FaPrint, FaEye, FaClock, FaCheckCircle, FaExclamationTriangle, FaUser, FaPhone, FaEnvelope, FaSchool, FaBook, FaChalkboardTeacher, FaVideo, FaMoneyBill, FaSync } from 'react-icons/fa';
+import { FaUsers, FaGraduationCap, FaCalendar, FaSearch, FaFilter, FaDownload, FaPrint, FaEye, FaClock, FaCheckCircle, FaExclamationTriangle, FaUser, FaPhone, FaEnvelope, FaSchool, FaBook, FaChalkboardTeacher, FaVideo, FaMoneyBill, FaSync, FaTimes, FaMapMarkerAlt, FaIdCard, FaVenusMars, FaCalendarAlt } from 'react-icons/fa';
 import { getAllClasses } from '../../../api/classes';
 import { getClassEnrollments } from '../../../api/enrollments';
 import { getAllStudents } from '../../../api/students';
@@ -15,10 +15,12 @@ const ClassEnrollments = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [streamFilter, setStreamFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [deliveryFilter, setDeliveryFilter] = useState('');
   const [studentsData, setStudentsData] = useState({});
   const [showEnrollmentDetails, setShowEnrollmentDetails] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [viewMode, setViewMode] = useState('classes'); // 'classes' or 'enrollments'
+  const [totalEnrollments, setTotalEnrollments] = useState(0);
+  const [enrollmentStatusFilter, setEnrollmentStatusFilter] = useState('');
 
   // Load data on component mount
   useEffect(() => {
@@ -48,6 +50,9 @@ const ClassEnrollments = () => {
           });
           setStudentsData(studentsMap);
         }
+        
+        // Calculate total enrollments after classes are loaded
+        await calculateTotalEnrollments();
       } else {
         setError('Failed to load classes');
       }
@@ -78,6 +83,7 @@ const ClassEnrollments = () => {
     setShowEnrollmentDetails(false);
     setSelectedClass(null);
     setSelectedStudent(null);
+    setEnrollmentStatusFilter('');
   };
 
   const handleViewStudentDetails = (student) => {
@@ -97,13 +103,43 @@ const ClassEnrollments = () => {
     
     const matchesStream = streamFilter === '' || classItem.stream === streamFilter;
     const matchesStatus = statusFilter === '' || classItem.status === statusFilter;
+    const matchesDelivery = deliveryFilter === '' || classItem.deliveryMethod === deliveryFilter;
     
-    return matchesSearch && matchesStream && matchesStatus;
+    return matchesSearch && matchesStream && matchesStatus && matchesDelivery;
   });
 
   // Get unique values for filter dropdowns
   const uniqueStreams = [...new Set(classes.map(c => c.stream))].filter(Boolean);
   const uniqueStatuses = [...new Set(classes.map(c => c.status))].filter(Boolean);
+
+  // Filter enrollments based on search term and status filter
+  const getFilteredEnrollments = (enrollments) => {
+    if (!enrollments) return [];
+    
+    return enrollments.filter(enrollment => {
+      const student = studentsData[enrollment.student_id];
+      if (!student) return false;
+      
+      // Filter by status
+      if (enrollmentStatusFilter && enrollment.status !== enrollmentStatusFilter) {
+        return false;
+      }
+      
+      // Filter by search term
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        const matchesSearch = (
+          student.firstName?.toLowerCase().includes(searchLower) ||
+          student.lastName?.toLowerCase().includes(searchLower) ||
+          student.email?.toLowerCase().includes(searchLower) ||
+          student.userid?.toLowerCase().includes(searchLower)
+        );
+        if (!matchesSearch) return false;
+      }
+      
+      return true;
+    });
+  };
 
   // Format currency
   const formatCurrency = (amount) => {
@@ -156,11 +192,31 @@ const ClassEnrollments = () => {
     }
   };
 
+  // Calculate total enrollments across all classes
+  const calculateTotalEnrollments = async () => {
+    let total = 0;
+    
+    for (const classItem of classes) {
+      try {
+        const enrollmentsResponse = await getClassEnrollments(classItem.id);
+        if (enrollmentsResponse.success) {
+          total += (enrollmentsResponse.data || []).length;
+        }
+      } catch (error) {
+        console.error(`Error loading enrollments for class ${classItem.id}:`, error);
+      }
+    }
+    
+    setTotalEnrollments(total);
+  };
+
   // Calculate enrollment statistics
   const calculateEnrollmentStats = (enrollments) => {
     const totalStudents = enrollments.length;
-    const activeStudents = enrollments.filter(e => e.status === 'enrolled').length;
+    const activeStudents = enrollments.filter(e => e.status === 'active').length;
     const completedStudents = enrollments.filter(e => e.status === 'completed').length;
+    const droppedStudents = enrollments.filter(e => e.status === 'dropped').length;
+    const suspendedStudents = enrollments.filter(e => e.status === 'suspended').length;
     const totalRevenue = enrollments.reduce((sum, e) => {
       const student = studentsData[e.student_id];
       return sum + parseFloat(student?.fee || 0);
@@ -170,6 +226,8 @@ const ClassEnrollments = () => {
       totalStudents,
       activeStudents,
       completedStudents,
+      droppedStudents,
+      suspendedStudents,
       totalRevenue,
       enrollmentRate: classes.length > 0 ? (totalStudents / classes.length) * 100 : 0
     };
@@ -199,6 +257,32 @@ const ClassEnrollments = () => {
             <FaUser className="text-blue-600 text-sm" />
           </div>
           <span className="text-xs text-gray-800">{row.teacher}</span>
+        </div>
+      )
+    },
+    {
+      key: 'stream',
+      label: 'Stream',
+      render: (row) => (
+        <div className="flex items-center space-x-1">
+          <div className="bg-green-100 p-1 rounded-full">
+            <FaGraduationCap className="text-green-600 text-sm" />
+          </div>
+          <span className="text-xs text-gray-800">{row.stream}</span>
+        </div>
+      )
+    },
+    {
+      key: 'deliveryMethod',
+      label: 'Delivery',
+      render: (row) => (
+        <div className="flex items-center space-x-1">
+          <div className="bg-purple-100 p-1 rounded-full">
+            {getDeliveryIcon(row.deliveryMethod)}
+          </div>
+          <span className="text-xs text-gray-800 capitalize">
+            {row.deliveryMethod || 'Not specified'}
+          </span>
         </div>
       )
     },
@@ -361,76 +445,81 @@ const ClassEnrollments = () => {
     <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
       <div className="w-full max-w-7xl mx-auto bg-white p-8 rounded-lg shadow">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Class Enrollments</h1>
-            <p className="text-gray-600 mt-2">Manage and view all class enrollments</p>
-          </div>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => setViewMode('classes')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                viewMode === 'classes' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Classes View
-            </button>
-            <button
-              onClick={() => setViewMode('enrollments')}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                viewMode === 'enrollments' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Enrollments View
-            </button>
-            <button
-              onClick={loadData}
-              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <FaSearch className="mr-2" />
-              Refresh
-            </button>
-          </div>
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">Class Enrollments</h1>
+          <p className="text-gray-600 mt-2">Manage and view all class enrollments</p>
         </div>
 
-        {/* Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="relative">
-            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search classes..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+        {/* Search and Filters */}
+        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+          <div className="flex items-center justify-between space-x-4">
+            {/* Left side - Search and Filters */}
+            <div className="flex items-center space-x-4 flex-1">
+              {/* Search */}
+              <div className="relative flex-1 max-w-md">
+                <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search classes..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Stream Filter */}
+              <div className="min-w-[140px]">
+                <select
+                  value={streamFilter}
+                  onChange={(e) => setStreamFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                >
+                  <option value="">All Streams</option>
+                  {uniqueStreams.map(stream => (
+                    <option key={stream} value={stream}>{stream}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Status Filter */}
+              <div className="min-w-[130px]">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                >
+                  <option value="">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+
+              {/* Delivery Method Filter */}
+              <div className="min-w-[140px]">
+                <select
+                  value={deliveryFilter}
+                  onChange={(e) => setDeliveryFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                >
+                  <option value="">All Delivery</option>
+                  <option value="online">Online</option>
+                  <option value="physical">Physical</option>
+                  <option value="hybrid">Hybrid</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Right side - Refresh Button */}
+            <div className="flex-shrink-0">
+              <button
+                onClick={loadData}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium"
+              >
+                <FaSync className="text-sm" />
+                Refresh
+              </button>
+            </div>
           </div>
-          
-          <select
-            value={streamFilter}
-            onChange={(e) => setStreamFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">All Streams</option>
-            {uniqueStreams.map(stream => (
-              <option key={stream} value={stream}>{stream}</option>
-            ))}
-          </select>
-          
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">All Statuses</option>
-            {uniqueStatuses.map(status => (
-              <option key={status} value={status}>{status}</option>
-            ))}
-          </select>
         </div>
 
         {/* Summary Cards */}
@@ -463,7 +552,7 @@ const ClassEnrollments = () => {
               <div>
                 <p className="text-sm font-medium text-purple-600">Total Enrollments</p>
                 <p className="text-2xl font-bold text-purple-900">
-                  {filteredClasses.reduce((sum, c) => sum + (c.currentStudents || 0), 0)}
+                  {totalEnrollments}
                 </p>
               </div>
             </div>
@@ -481,7 +570,7 @@ const ClassEnrollments = () => {
         {/* Enrollment Details Modal */}
         {showEnrollmentDetails && selectedClass && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold text-gray-900">
                   Enrollment Details - {selectedClass.className}
@@ -490,60 +579,60 @@ const ClassEnrollments = () => {
                   onClick={closeEnrollmentDetails}
                   className="text-gray-500 hover:text-gray-700"
                 >
-                  <FaSearch size={24} />
+                  <FaTimes size={24} />
                 </button>
               </div>
               
               {/* Two Column Layout: Class Info (Left) + Table (Right) */}
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
                 {/* Left Side - Class Information */}
                 <div className="lg:col-span-1">
                   {/* Class Information Card */}
-                  <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Class Information</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                        <div className="flex items-center space-x-3">
-                          <div className="bg-blue-100 p-2 rounded-full">
-                            <FaGraduationCap className="text-blue-600 text-sm" />
+                  <div className="bg-white rounded-lg border border-gray-200 p-3 mb-3">
+                    <h3 className="text-xs font-semibold text-gray-700 mb-2">Class Information</h3>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between py-1">
+                        <div className="flex items-center space-x-2">
+                          <div className="bg-blue-100 p-1 rounded-full">
+                            <FaGraduationCap className="text-blue-600 text-xs" />
                           </div>
-                          <span className="text-sm font-medium text-gray-700">Stream</span>
+                          <span className="text-xs font-medium text-gray-700">Stream</span>
                         </div>
-                        <span className="text-sm font-bold text-gray-900">{selectedClass.stream || 'N/A'}</span>
+                        <span className="text-xs font-bold text-gray-900">{selectedClass.stream || 'N/A'}</span>
                       </div>
                       
-                      <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                        <div className="flex items-center space-x-3">
-                          <div className="bg-green-100 p-2 rounded-full">
+                      <div className="flex items-center justify-between py-1">
+                        <div className="flex items-center space-x-2">
+                          <div className="bg-green-100 p-1 rounded-full">
                             {getDeliveryIcon(selectedClass.deliveryMethod)}
                           </div>
-                          <span className="text-sm font-medium text-gray-700">Delivery Method</span>
+                          <span className="text-xs font-medium text-gray-700">Delivery</span>
                         </div>
-                        <span className="text-sm font-bold text-gray-900 capitalize">
+                        <span className="text-xs font-bold text-gray-900 capitalize">
                           {selectedClass.deliveryMethod || 'N/A'}
                         </span>
                       </div>
                       
-                      <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                        <div className="flex items-center space-x-3">
-                          <div className="bg-purple-100 p-2 rounded-full">
-                            <FaCalendar className="text-purple-600 text-sm" />
+                      <div className="flex items-center justify-between py-1">
+                        <div className="flex items-center space-x-2">
+                          <div className="bg-purple-100 p-1 rounded-full">
+                            <FaCalendar className="text-purple-600 text-xs" />
                           </div>
-                          <span className="text-sm font-medium text-gray-700">Schedule Day</span>
+                          <span className="text-xs font-medium text-gray-700">Day</span>
                         </div>
-                        <span className="text-sm font-bold text-gray-900">
+                        <span className="text-xs font-bold text-gray-900">
                           {selectedClass.schedule_day || selectedClass.scheduleDay || 'N/A'}
                         </span>
                       </div>
                       
-                      <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                        <div className="flex items-center space-x-3">
-                          <div className="bg-orange-100 p-2 rounded-full">
-                            <FaClock className="text-orange-600 text-sm" />
+                      <div className="flex items-center justify-between py-1">
+                        <div className="flex items-center space-x-2">
+                          <div className="bg-orange-100 p-1 rounded-full">
+                            <FaClock className="text-orange-600 text-xs" />
                           </div>
-                          <span className="text-sm font-medium text-gray-700">Schedule Time</span>
+                          <span className="text-xs font-medium text-gray-700">Time</span>
                         </div>
-                        <span className="text-sm font-bold text-gray-900">
+                        <span className="text-xs font-bold text-gray-900">
                           {(selectedClass.schedule_start_time || selectedClass.scheduleStartTime) && 
                            (selectedClass.schedule_end_time || selectedClass.scheduleEndTime) ? 
                             `${formatTime(selectedClass.schedule_start_time || selectedClass.scheduleStartTime)} - ${formatTime(selectedClass.schedule_end_time || selectedClass.scheduleEndTime)}` : 
@@ -552,26 +641,26 @@ const ClassEnrollments = () => {
                         </span>
                       </div>
                       
-                      <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                        <div className="flex items-center space-x-3">
-                          <div className="bg-indigo-100 p-2 rounded-full">
-                            <FaSync className="text-indigo-600 text-sm" />
+                      <div className="flex items-center justify-between py-1">
+                        <div className="flex items-center space-x-2">
+                          <div className="bg-indigo-100 p-1 rounded-full">
+                            <FaSync className="text-indigo-600 text-xs" />
                           </div>
-                          <span className="text-sm font-medium text-gray-700">Frequency</span>
+                          <span className="text-xs font-medium text-gray-700">Frequency</span>
                         </div>
-                        <span className="text-sm font-bold text-gray-900">
+                        <span className="text-xs font-bold text-gray-900">
                           {selectedClass.schedule_frequency || selectedClass.scheduleFrequency || 'N/A'}
                         </span>
                       </div>
                       
-                      <div className="flex items-center justify-between py-2">
-                        <div className="flex items-center space-x-3">
-                          <div className="bg-teal-100 p-2 rounded-full">
-                            <FaUsers className="text-teal-600 text-sm" />
+                      <div className="flex items-center justify-between py-1">
+                        <div className="flex items-center space-x-2">
+                          <div className="bg-teal-100 p-1 rounded-full">
+                            <FaUsers className="text-teal-600 text-xs" />
                           </div>
-                          <span className="text-sm font-medium text-gray-700">Student Capacity</span>
+                          <span className="text-xs font-medium text-gray-700">Capacity</span>
                         </div>
-                        <span className="text-sm font-bold text-gray-900">
+                        <span className="text-xs font-bold text-gray-900">
                           {selectedClass.currentStudents || 0} / {selectedClass.maxStudents || 'N/A'}
                         </span>
                       </div>
@@ -582,20 +671,28 @@ const ClassEnrollments = () => {
                   {(() => {
                     const stats = calculateEnrollmentStats(selectedClass.enrollments);
                     return (
-                      <div className="bg-white rounded-lg border border-gray-200 p-4">
-                        <h3 className="text-sm font-semibold text-gray-700 mb-3">Enrollment Statistics</h3>
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                            <span className="text-sm font-medium text-blue-600">Total Students</span>
-                            <span className="text-lg font-bold text-blue-900">{stats.totalStudents}</span>
+                      <div className="bg-white rounded-lg border border-gray-200 p-3">
+                        <h3 className="text-xs font-semibold text-gray-700 mb-2">Enrollment Statistics</h3>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between py-1">
+                            <span className="text-xs font-medium text-blue-600">Total</span>
+                            <span className="text-sm font-bold text-blue-900">{stats.totalStudents}</span>
                           </div>
-                          <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                            <span className="text-sm font-medium text-green-600">Active Students</span>
-                            <span className="text-lg font-bold text-green-900">{stats.activeStudents}</span>
+                          <div className="flex items-center justify-between py-1">
+                            <span className="text-xs font-medium text-green-600">Active</span>
+                            <span className="text-sm font-bold text-green-900">{stats.activeStudents}</span>
                           </div>
-                          <div className="flex items-center justify-between py-2">
-                            <span className="text-sm font-medium text-purple-600">Completed</span>
-                            <span className="text-lg font-bold text-purple-900">{stats.completedStudents}</span>
+                          <div className="flex items-center justify-between py-1">
+                            <span className="text-xs font-medium text-purple-600">Completed</span>
+                            <span className="text-sm font-bold text-purple-900">{stats.completedStudents}</span>
+                          </div>
+                          <div className="flex items-center justify-between py-1">
+                            <span className="text-xs font-medium text-red-600">Dropped</span>
+                            <span className="text-sm font-bold text-red-900">{stats.droppedStudents}</span>
+                          </div>
+                          <div className="flex items-center justify-between py-1">
+                            <span className="text-xs font-medium text-orange-600">Suspended</span>
+                            <span className="text-sm font-bold text-orange-900">{stats.suspendedStudents}</span>
                           </div>
                         </div>
                       </div>
@@ -613,35 +710,24 @@ const ClassEnrollments = () => {
                         <input
                           type="text"
                           placeholder="Search students by name, email, or ID..."
+                          value={searchTerm}
                           className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                          onChange={(e) => {
-                            const searchTerm = e.target.value.toLowerCase();
-                            const filteredEnrollments = selectedClass.enrollments.filter(enrollment => {
-                              const student = studentsData[enrollment.student_id];
-                              if (!student) return false;
-                              return (
-                                student.firstName?.toLowerCase().includes(searchTerm) ||
-                                student.lastName?.toLowerCase().includes(searchTerm) ||
-                                student.email?.toLowerCase().includes(searchTerm) ||
-                                student.userid?.toLowerCase().includes(searchTerm)
-                              );
-                            });
-                            setSelectedClass(prev => ({
-                              ...prev,
-                              filteredEnrollments: searchTerm ? filteredEnrollments : prev.enrollments
-                            }));
-                          }}
+                          onChange={(e) => setSearchTerm(e.target.value)}
                         />
                       </div>
                       <div className="flex gap-2">
-                        <select className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                        <select 
+                          value={enrollmentStatusFilter}
+                          onChange={(e) => setEnrollmentStatusFilter(e.target.value)}
+                          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        >
                           <option value="">All Status</option>
                           <option value="active">Active</option>
                           <option value="completed">Completed</option>
+                          <option value="dropped">Dropped</option>
+                          <option value="suspended">Suspended</option>
                         </select>
-                        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
-                          Export
-                        </button>
+
                       </div>
                     </div>
                   </div>
@@ -649,7 +735,7 @@ const ClassEnrollments = () => {
                   {/* Students Table */}
                   <BasicTable
                     columns={studentColumns}
-                    data={selectedClass.filteredEnrollments || selectedClass.enrollments}
+                    data={getFilteredEnrollments(selectedClass.enrollments)}
                     actions={studentActions}
                     className=""
                   />
@@ -671,69 +757,94 @@ const ClassEnrollments = () => {
         {/* Student Details Modal */}
         {selectedStudent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Student Details
-                </h2>
+            <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Student Details
+                  </h2>
+                  <p className="text-gray-600 mt-1">View comprehensive information about the student</p>
+                </div>
                 <button
                   onClick={closeStudentDetails}
-                  className="text-gray-500 hover:text-gray-700"
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
                 >
-                  <FaSearch size={24} />
+                  <FaTimes size={24} />
                 </button>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Personal Information</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="font-medium text-gray-700">Name:</label>
-                      <p className="text-gray-900">{selectedStudent.firstName} {selectedStudent.lastName}</p>
-                    </div>
-                    <div>
-                      <label className="font-medium text-gray-700">Student ID:</label>
-                      <p className="text-gray-900">{selectedStudent.userid}</p>
-                    </div>
-                    <div>
-                      <label className="font-medium text-gray-700">Email:</label>
-                      <p className="text-gray-900">{selectedStudent.email}</p>
-                    </div>
-                    <div>
-                      <label className="font-medium text-gray-700">Mobile:</label>
-                      <p className="text-gray-900">{selectedStudent.mobile}</p>
-                    </div>
-                    <div>
-                      <label className="font-medium text-gray-700">School:</label>
-                      <p className="text-gray-900">{selectedStudent.school}</p>
-                    </div>
-                    <div>
-                      <label className="font-medium text-gray-700">Stream:</label>
-                      <p className="text-gray-900">{selectedStudent.stream}</p>
-                    </div>
+              <div className="bg-gray-50 rounded-lg p-6">
+                <div className="flex items-center mb-6">
+                  <div className="bg-blue-100 p-3 rounded-lg mr-4">
+                    <FaUser className="text-blue-600 text-xl" />
                   </div>
+                  <h3 className="text-xl font-semibold text-gray-900">Information</h3>
                 </div>
                 
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Academic Information</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="font-medium text-gray-700">Parent Mobile:</label>
-                      <p className="text-gray-900">{selectedStudent.parentMobile || 'Not specified'}</p>
-                    </div>
-                    <div>
-                      <label className="font-medium text-gray-700">Address:</label>
-                      <p className="text-gray-900">{selectedStudent.address || 'Not specified'}</p>
-                    </div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                    <span className="text-sm font-medium text-gray-600">Full Name</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.firstName} {selectedStudent.lastName}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                    <span className="text-sm font-medium text-gray-600">Student ID</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.userid}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                    <span className="text-sm font-medium text-gray-600">Email</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.email}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                    <span className="text-sm font-medium text-gray-600">Mobile</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.mobile}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                    <span className="text-sm font-medium text-gray-600">Address</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.address || 'Not specified'}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                    <span className="text-sm font-medium text-gray-600">NIC Number</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.nic || 'Not specified'}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                    <span className="text-sm font-medium text-gray-600">Gender</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.gender || 'Not specified'}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                    <span className="text-sm font-medium text-gray-600">Age</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.age || 'Not specified'}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                    <span className="text-sm font-medium text-gray-600">Date of Birth</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.dateOfBirth || 'Not specified'}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                    <span className="text-sm font-medium text-gray-600">School</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.school || 'Not specified'}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                    <span className="text-sm font-medium text-gray-600">Stream</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.stream || 'Not specified'}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                    <span className="text-sm font-medium text-gray-600">Registration Date</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.dateJoined || 'Not specified'}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                    <span className="text-sm font-medium text-gray-600">Parent Name</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.parentName || 'Not specified'}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                    <span className="text-sm font-medium text-gray-600">Parent Mobile</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.parentMobile || 'Not specified'}</span>
                   </div>
                 </div>
               </div>
               
-              <div className="mt-6 flex justify-end">
+              <div className="mt-8 flex justify-end">
                 <button
                   onClick={closeStudentDetails}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                  className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
                 >
                   Close
                 </button>

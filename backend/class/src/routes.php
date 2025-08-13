@@ -96,6 +96,10 @@ switch ($method) {
             $studentId = $input['studentId'];
             $result = $enrollmentController->deleteStudentEnrollments($studentId);
             echo json_encode($result);
+        } elseif ($path === '/delete_student_payments') {
+            $email = $input['email'];
+            $result = $paymentController->deleteStudentPayments($email);
+            echo json_encode($result);
         } elseif ($path === '/mark_attendance') {
             $classId = $input['classId'];
             $studentId = $input['studentId'];
@@ -116,10 +120,13 @@ switch ($method) {
             $classId = $input['classId'];
             $enrollmentController->updateClassStudentCount($classId);
             echo json_encode(['success' => true, 'message' => 'Class student count updated successfully']);
+        } elseif ($path === '/synchronize_payment_status') {
+            $result = $enrollmentController->synchronizeAllPaymentStatuses();
+            echo json_encode($result);
         } elseif ($path === '/create_session_schedule') {
             $result = $controller->createSessionSchedule($input);
             echo json_encode($result);
-                } else {
+        } else {
             http_response_code(404);
             echo json_encode(['error' => 'Endpoint not found']);
         }

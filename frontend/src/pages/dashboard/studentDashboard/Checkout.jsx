@@ -9,7 +9,7 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import * as Yup from 'yup';
-import { FaCreditCard, FaUser, FaPhone, FaEnvelope, FaMapMarkerAlt, FaBook, FaCalendar, FaClock, FaVideo, FaUsers, FaGraduationCap, FaCheckCircle } from 'react-icons/fa';
+import { FaCreditCard, FaUser, FaPhone, FaEnvelope, FaMapMarkerAlt, FaBook, FaCalendar, FaClock, FaVideo, FaUsers, FaGraduationCap, FaCheckCircle, FaMoneyBill } from 'react-icons/fa';
 import CustomButton from '../../../components/CustomButton';
 import { getClassById } from '../../../api/classes';
 import { getUserData } from '../../../api/apiUtils';
@@ -150,7 +150,7 @@ const getCourseTypeInfo = (type) => {
 const calculateNextPaymentDate = (schedule) => {
   const now = new Date();
   if (!schedule || !schedule.frequency) {
-    return new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    return new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString(); // 1st of next month
   }
   
   switch (schedule.frequency) {
@@ -159,9 +159,9 @@ const calculateNextPaymentDate = (schedule) => {
     case 'bi-weekly':
       return new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
     case 'monthly':
-      return new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()).toISOString();
+      return new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString(); // 1st of next month
     default:
-      return new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      return new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString(); // 1st of next month
   }
 };
 
@@ -170,6 +170,7 @@ const Checkout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isStudyPack = location.state && location.state.type === 'studyPack';
+  const isRenewal = location.state && location.state.type === 'renewal';
   const [classes, setClasses] = useState([]);
   const [myClasses, setMyClasses] = useState([]);
   const [cls, setCls] = useState(null);
@@ -185,18 +186,41 @@ const Checkout = () => {
   useEffect(() => {
     const loadClassData = async () => {
       try {
-    if (!isStudyPack) {
+        if (isRenewal) {
+          // For renewal payments, load the class from student's enrollments
+          const userData = getUserData();
+          if (!userData || !userData.userid) {
+            alert('No logged-in user found. Please login again.');
+            navigate('/student/login');
+            return;
+          }
+          
+          const enrollmentsResponse = await getStudentEnrollments(userData.userid);
+          if (enrollmentsResponse.success) {
+            const myClasses = enrollmentsResponse.data.map(convertEnrollmentToMyClass);
+            const renewalClass = myClasses.find(c => c.id === parseInt(id));
+            if (renewalClass) {
+              setCls(renewalClass);
+            } else {
+              alert('Class not found in your enrollments.');
+              navigate('/student/dashboard');
+            }
+          } else {
+            alert('Failed to load your enrollments.');
+            navigate('/student/dashboard');
+          }
+        } else if (!isStudyPack) {
           // Load class from backend API
           const response = await getClassById(id);
           if (response.success) {
             setCls(response.data);
           } else {
             console.error('Failed to load class:', response.message);
-      }
-    } else {
-      // For study packs, use the static data
-      const foundStudyPack = studyPacks[parseInt(id, 10)];
-      setCls(foundStudyPack);
+          }
+        } else {
+          // For study packs, use the static data
+          const foundStudyPack = studyPacks[parseInt(id, 10)];
+          setCls(foundStudyPack);
     }
 
         // Load student's purchased classes from localStorage (for now)
@@ -310,6 +334,25 @@ const Checkout = () => {
   return (
     <DashboardLayout userRole="Student" sidebarItems={studentSidebarSections}>
       <div className="p-4 max-w-6xl mx-auto">
+        {/* Renewal Payment Header */}
+        {isRenewal && (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center gap-3">
+              <FaMoneyBill className="text-orange-600 text-xl" />
+              <div>
+                <div className="font-semibold text-orange-700 text-lg">Payment Required</div>
+                <div className="text-orange-600">
+                  {location.state?.gracePeriodExpired 
+                    ? 'Your grace period has expired. Please make payment to restore access to this class.'
+                    : location.state?.daysRemaining <= 3
+                    ? 'Your grace period is ending soon. You can make an early payment to extend your access.'
+                    : 'Next payment is due. You can make a payment to renew your class for the next month.'
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         <BasicForm initialValues={getStudentData()} validationSchema={getValidationSchema(isStudyPack)} onSubmit={async values => {
           try {
             setLoading(true);
@@ -338,7 +381,13 @@ const Checkout = () => {
                 amount: amount,
                 discount: totalDiscount,
                 paymentMethod: paymentMethod,
-                notes: `Promo: ${promoDiscount}, Theory Discount: ${theoryStudentDiscount}, Speed Post: ${speedPostFee}`
+                notes: `${isRenewal ? (
+                  location.state?.gracePeriodExpired 
+                    ? 'Renewal Payment - ' 
+                    : location.state?.daysRemaining <= 3 
+                    ? 'Early Payment - ' 
+                    : 'Next Month Renewal - '
+                ) : ''}Promo: ${promoDiscount}, Theory Discount: ${theoryStudentDiscount}, Speed Post: ${speedPostFee}`
               };
 
           const fullName = `${values.firstName} ${values.lastName}`;
@@ -356,6 +405,7 @@ const Checkout = () => {
             date: new Date().toLocaleDateString(),
             // Add class data for My Classes
                 isStudyPack: false,
+                isRenewal: isRenewal, // Add renewal flag
             classId: cls.id,
             subject: cls.subject,
             teacher: cls.teacher,
@@ -670,7 +720,13 @@ const Checkout = () => {
                         disabled={loading}
                         className="w-full py-3 px-6 bg-[#1a365d] text-white rounded-lg hover:bg-[#13294b] disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold"
                       >
-                        {loading ? 'Processing...' : 'Proceed to Payment'}
+                        {loading ? 'Processing...' : isRenewal ? (
+                          location.state?.gracePeriodExpired 
+                            ? 'Renew Payment' 
+                            : location.state?.daysRemaining <= 3 
+                            ? 'Pay Early' 
+                            : 'Renew for Next Month'
+                        ) : 'Proceed to Payment'}
                       </button>
                     </div>
                   </div>
@@ -679,7 +735,15 @@ const Checkout = () => {
                 {/* Summary Card */}
                 <div className="md:col-span-1">
                   <div className="bg-white rounded-xl shadow p-6 border sticky top-4">
-                    <h3 className="text-lg font-semibold mb-4">Order Summary</h3>
+                    <h3 className="text-lg font-semibold mb-4">
+                      {isRenewal ? (
+                        location.state?.gracePeriodExpired 
+                          ? 'Renewal Summary' 
+                          : location.state?.daysRemaining <= 3 
+                          ? 'Early Payment Summary' 
+                          : 'Next Month Renewal Summary'
+                      ) : 'Order Summary'}
+                    </h3>
                     <div className="space-y-3">
                       <div className="flex justify-between">
                         <span>Class:</span>

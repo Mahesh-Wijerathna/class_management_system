@@ -463,15 +463,15 @@ const StudentMonitoringDashboard = ({ onLogout }) => {
             render: (row) => {
                 const riskDetails = getRiskAssessmentDetails(row);
                 return (
-                    <div className="space-y-2">
+                <div className="space-y-2">
                         <div className={`text-sm font-semibold ${riskDetails.color}`}>
                             {riskDetails.icon}
                             {riskDetails.level}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                            {riskDetails.reason}
-                        </div>
                     </div>
+                    <div className="text-xs text-gray-500">
+                            {riskDetails.reason}
+                    </div>
+                </div>
                 );
             }
         },

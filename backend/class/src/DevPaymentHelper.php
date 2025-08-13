@@ -62,7 +62,7 @@ class DevPaymentHelper {
 
                 if ($financial) {
                     // Create enrollment record
-                    $nextPaymentDate = date('Y-m-01', strtotime('+1 month'));
+                    $nextPaymentDate = date('Y-m-01', strtotime('first day of next month'));
                     $paymentHistory = json_encode([[
                         'date' => date('Y-m-d'),
                         'amount' => $financial['amount'],
@@ -83,7 +83,7 @@ class DevPaymentHelper {
                     ");
 
                     $enrollmentStatus = 'paid';
-                    $enrollmentDate = date('Y-m-d');
+                    $enrollmentDate = date('Y-m-d'); // Current date
                     
                     $stmt->bind_param("sisdsssss", 
                         $financial['user_id'], $financial['class_id'], $enrollmentDate, $financial['amount'], $enrollmentStatus, 
@@ -248,19 +248,21 @@ class DevPaymentHelper {
             foreach ($failedPayments as $payment) {
                 try {
                     // Calculate next payment date
-                    $nextPaymentDate = date('Y-m-01', strtotime('+1 month'));
+                    $nextPaymentDate = date('Y-m-01', strtotime('first day of next month'));
                     
                     // Create enrollment
                     $enrollmentStmt = $this->db->prepare("
                         INSERT INTO enrollments (
                             student_id, class_id, enrollment_date, status, payment_status, 
                             total_fee, paid_amount, next_payment_date, created_at
-                        ) VALUES (?, ?, NOW(), 'active', 'paid', ?, ?, ?, NOW())
+                        ) VALUES (?, ?, ?, 'active', 'paid', ?, ?, ?, NOW())
                     ");
                     
+                    $enrollmentDate = date('Y-m-d'); // Current date
                     $enrollmentStmt->bind_param("sisds", 
                         $payment['user_id'], 
                         $payment['class_id'], 
+                        $enrollmentDate,
                         $payment['amount'], 
                         $payment['amount'], 
                         $nextPaymentDate

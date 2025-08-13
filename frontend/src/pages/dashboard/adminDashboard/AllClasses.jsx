@@ -16,6 +16,9 @@ const AllClasses = ({ onLogout }) => {
   const [streamFilter, setStreamFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [deliveryFilter, setDeliveryFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+  const [monthFilter, setMonthFilter] = useState((new Date().getMonth() + 1).toString());
+  const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString());
 
   // Modal states
   const [selectedClass, setSelectedClass] = useState(null);
@@ -121,6 +124,64 @@ const AllClasses = ({ onLogout }) => {
             return sum + parseFloat(e.paid_amount || 0);
           }, 0),
           
+          // Revenue Breakdown by Payment Method
+          cashRevenue: enrollments.reduce((sum, e) => {
+            if (e.payment_history_details) {
+              try {
+                const paymentHistory = e.payment_history_details.split('|').map(p => {
+                  try { return JSON.parse(p); } catch (e) { return null; }
+                }).filter(p => p);
+                
+                return sum + paymentHistory
+                  .filter(p => p.payment_method === 'cash')
+                  .reduce((paymentSum, p) => paymentSum + parseFloat(p.amount || 0), 0);
+              } catch (error) {
+                return sum + (e.payment_method === 'cash' ? parseFloat(e.paid_amount || 0) : 0);
+              }
+            }
+            return sum + (e.payment_method === 'cash' ? parseFloat(e.paid_amount || 0) : 0);
+          }, 0),
+          
+          onlineRevenue: enrollments.reduce((sum, e) => {
+            if (e.payment_history_details) {
+              try {
+                const paymentHistory = e.payment_history_details.split('|').map(p => {
+                  try { return JSON.parse(p); } catch (e) { return null; }
+                }).filter(p => p);
+                
+                return sum + paymentHistory
+                  .filter(p => p.payment_method === 'online')
+                  .reduce((paymentSum, p) => paymentSum + parseFloat(p.amount || 0), 0);
+              } catch (error) {
+                return sum + (e.payment_method === 'online' ? parseFloat(e.paid_amount || 0) : 0);
+              }
+            }
+            return sum + (e.payment_method === 'online' ? parseFloat(e.paid_amount || 0) : 0);
+          }, 0),
+          
+          // Payment Methods Summary
+          paymentMethods: enrollments.reduce((methods, e) => {
+            if (e.payment_history_details) {
+              try {
+                const paymentHistory = e.payment_history_details.split('|').map(p => {
+                  try { return JSON.parse(p); } catch (e) { return null; }
+                }).filter(p => p);
+                
+                paymentHistory.forEach(p => {
+                  const method = p.payment_method || 'unknown';
+                  methods[method] = (methods[method] || 0) + 1;
+                });
+              } catch (error) {
+                const method = e.payment_method || 'unknown';
+                methods[method] = (methods[method] || 0) + 1;
+              }
+            } else {
+              const method = e.payment_method || 'unknown';
+              methods[method] = (methods[method] || 0) + 1;
+            }
+            return methods;
+          }, {}),
+          
           // Detailed Data
           enrollments: enrollments,
           
@@ -161,6 +222,9 @@ const AllClasses = ({ onLogout }) => {
           completedEnrollments: 0,
           droppedEnrollments: 0,
           totalRevenue: 0,
+          cashRevenue: 0,
+          onlineRevenue: 0,
+          paymentMethods: {},
           enrollments: [],
           capacityPercentage: 0,
           availableSpots: classItem.maxStudents
@@ -190,7 +254,51 @@ const AllClasses = ({ onLogout }) => {
     const matchesStatus = statusFilter === '' || classItem.status === statusFilter;
     const matchesDelivery = deliveryFilter === '' || classItem.deliveryMethod === deliveryFilter;
     
-    return matchesSearch && matchesStream && matchesStatus && matchesDelivery;
+    // Apply date filters to revenue calculations
+    let matchesDateFilter = true;
+    if (dateFilter || (monthFilter && yearFilter)) {
+      // Filter based on payment dates in enrollments
+      const filteredEnrollments = classItem.enrollments.filter(enrollment => {
+        if (!enrollment.payment_history_details) return false;
+        
+        try {
+          const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
+            try { return JSON.parse(p); } catch (e) { return null; }
+          }).filter(p => p);
+          
+          if (dateFilter) {
+            // Filter by specific date
+            const targetDate = new Date(dateFilter);
+            targetDate.setHours(0, 0, 0, 0);
+            
+            return paymentHistory.some(payment => {
+              if (!payment.date) return false;
+              const paymentDate = new Date(payment.date);
+              paymentDate.setHours(0, 0, 0, 0);
+              return paymentDate.getTime() === targetDate.getTime();
+            });
+          } else if (monthFilter && yearFilter) {
+            // Filter by month and year
+            const targetMonth = parseInt(monthFilter);
+            const targetYear = parseInt(yearFilter);
+            
+            return paymentHistory.some(payment => {
+              if (!payment.date) return false;
+              const paymentDate = new Date(payment.date);
+              return paymentDate.getMonth() + 1 === targetMonth && paymentDate.getFullYear() === targetYear;
+            });
+          }
+        } catch (error) {
+          return false;
+        }
+        return false;
+      });
+      
+      // Only include classes that have enrollments matching the date filter
+      matchesDateFilter = filteredEnrollments.length > 0;
+    }
+    
+    return matchesSearch && matchesStream && matchesStatus && matchesDelivery && matchesDateFilter;
   });
 
   // Define columns for BasicTable
@@ -290,11 +398,50 @@ const AllClasses = ({ onLogout }) => {
       key: 'revenue',
       label: 'Revenue',
       render: (row) => (
-        <div className="flex items-center space-x-1">
-          <div className="bg-green-100 p-1 rounded-full">
-            <FaMoneyBill className="text-green-600 text-sm" />
+        <div className="flex flex-col space-y-2">
+          <div className="flex items-center space-x-1">
+            <div className="bg-green-100 p-1 rounded-full">
+              <FaMoneyBill className="text-green-600 text-sm" />
+            </div>
+            <span className="font-semibold text-gray-900 text-xs">{formatCurrency(row.totalRevenue)}</span>
           </div>
-          <span className="font-semibold text-gray-900 text-xs">{formatCurrency(row.totalRevenue)}</span>
+          <div className="flex flex-col space-y-1 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-green-600 font-medium">Cash:</span>
+              <span className="text-green-700">{formatCurrency(row.cashRevenue)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-blue-600 font-medium">Online:</span>
+              <span className="text-blue-700">{formatCurrency(row.onlineRevenue)}</span>
+            </div>
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'paymentMethods',
+      label: 'Payment Methods',
+      render: (row) => (
+        <div className="flex flex-col space-y-2">
+          {Object.entries(row.paymentMethods || {}).map(([method, count]) => (
+            <div key={method} className="flex items-center justify-between">
+              <div className="flex items-center space-x-1">
+                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                  method === 'cash' ? 'bg-green-100 text-green-700' :
+                  method === 'online' ? 'bg-blue-100 text-blue-700' :
+                  'bg-gray-100 text-gray-700'
+                }`}>
+                  {method === 'cash' ? 'Cash' : 
+                   method === 'online' ? 'Online' : 
+                   method}
+                </span>
+              </div>
+              <span className="text-gray-600 font-medium text-xs">{count}</span>
+            </div>
+          ))}
+          {Object.keys(row.paymentMethods || {}).length === 0 && (
+            <span className="text-gray-400 text-xs">No payments</span>
+          )}
         </div>
       )
     },
@@ -478,7 +625,7 @@ const AllClasses = ({ onLogout }) => {
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
         <div className="relative">
           <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           <input
@@ -524,6 +671,84 @@ const AllClasses = ({ onLogout }) => {
         </select>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <input
+          type="date"
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value)}
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="Select Date"
+        />
+
+        <select
+          value={monthFilter}
+          onChange={(e) => setMonthFilter(e.target.value)}
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="">All Months</option>
+          <option value="1">January</option>
+          <option value="2">February</option>
+          <option value="3">March</option>
+          <option value="4">April</option>
+          <option value="5">May</option>
+          <option value="6">June</option>
+          <option value="7">July</option>
+          <option value="8">August</option>
+          <option value="9">September</option>
+          <option value="10">October</option>
+          <option value="11">November</option>
+          <option value="12">December</option>
+        </select>
+
+        <select
+          value={yearFilter}
+          onChange={(e) => setYearFilter(e.target.value)}
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="2023">2023</option>
+          <option value="2024">2024</option>
+          <option value="2025">2025</option>
+          <option value="2026">2026</option>
+        </select>
+
+        <div className="flex justify-end">
+          <button
+            onClick={() => {
+              setSearchTerm('');
+              setStreamFilter('');
+              setStatusFilter('');
+              setDeliveryFilter('');
+              setDateFilter('');
+              setMonthFilter((new Date().getMonth() + 1).toString());
+              setYearFilter(new Date().getFullYear().toString());
+            }}
+            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+          >
+            Reset to Current Month
+          </button>
+        </div>
+      </div>
+
+      {/* Filter Indicator */}
+      {(dateFilter || (monthFilter && yearFilter)) && (
+        <div className="mb-4 flex items-center space-x-2">
+          <span className="text-sm text-gray-600">Filters applied:</span>
+          {dateFilter && (
+            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+              Date: {new Date(dateFilter).toLocaleDateString()}
+            </span>
+          )}
+          {monthFilter && yearFilter && !dateFilter && (
+            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+              {new Date(parseInt(yearFilter), parseInt(monthFilter) - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </span>
+          )}
+          <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-full">
+            {filteredClasses.length} classes shown
+          </span>
+        </div>
+      )}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
         <div className="bg-blue-50 p-6 rounded-lg">
@@ -566,8 +791,150 @@ const AllClasses = ({ onLogout }) => {
             <div>
               <p className="text-sm font-medium text-yellow-600">Total Revenue</p>
               <p className="text-2xl font-bold text-yellow-900">
-                {formatCurrency(filteredClasses.reduce((sum, c) => sum + c.totalRevenue, 0))}
+                {formatCurrency(filteredClasses.reduce((sum, c) => {
+                  // Calculate revenue based on date filters
+                  if (dateFilter || (monthFilter && yearFilter)) {
+                    let filteredRevenue = 0;
+                    let filteredCashRevenue = 0;
+                    let filteredOnlineRevenue = 0;
+                    
+                    c.enrollments.forEach(enrollment => {
+                      if (enrollment.payment_history_details) {
+                        try {
+                          const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
+                            try { return JSON.parse(p); } catch (e) { return null; }
+                          }).filter(p => p);
+                          
+                          paymentHistory.forEach(payment => {
+                            if (payment.date) {
+                              const paymentDate = new Date(payment.date);
+                              let includePayment = false;
+                              
+                              if (dateFilter) {
+                                const targetDate = new Date(dateFilter);
+                                targetDate.setHours(0, 0, 0, 0);
+                                paymentDate.setHours(0, 0, 0, 0);
+                                includePayment = paymentDate.getTime() === targetDate.getTime();
+                              } else if (monthFilter && yearFilter) {
+                                const targetMonth = parseInt(monthFilter);
+                                const targetYear = parseInt(yearFilter);
+                                includePayment = paymentDate.getMonth() + 1 === targetMonth && paymentDate.getFullYear() === targetYear;
+                              }
+                              
+                              if (includePayment) {
+                                const amount = parseFloat(payment.amount || 0);
+                                filteredRevenue += amount;
+                                
+                                if (payment.payment_method?.toLowerCase() === 'cash') {
+                                  filteredCashRevenue += amount;
+                                } else if (payment.payment_method?.toLowerCase() === 'online' || payment.payment_method?.toLowerCase() === 'card') {
+                                  filteredOnlineRevenue += amount;
+                                }
+                              }
+                            }
+                          });
+                        } catch (error) {
+                          // Fallback to enrollment data
+                        }
+                      }
+                    });
+                    
+                    return sum + filteredRevenue;
+                  } else {
+                    return sum + c.totalRevenue;
+                  }
+                }, 0))}
               </p>
+              <div className="flex flex-col space-y-1 text-xs mt-2">
+                <div className="flex justify-between">
+                  <span className="text-green-600 font-medium">Cash:</span>
+                  <span className="text-green-700">{formatCurrency(filteredClasses.reduce((sum, c) => {
+                    if (dateFilter || (monthFilter && yearFilter)) {
+                      let filteredCashRevenue = 0;
+                      c.enrollments.forEach(enrollment => {
+                        if (enrollment.payment_history_details) {
+                          try {
+                            const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
+                              try { return JSON.parse(p); } catch (e) { return null; }
+                            }).filter(p => p);
+                            
+                            paymentHistory.forEach(payment => {
+                              if (payment.date && payment.payment_method?.toLowerCase() === 'cash') {
+                                const paymentDate = new Date(payment.date);
+                                let includePayment = false;
+                                
+                                if (dateFilter) {
+                                  const targetDate = new Date(dateFilter);
+                                  targetDate.setHours(0, 0, 0, 0);
+                                  paymentDate.setHours(0, 0, 0, 0);
+                                  includePayment = paymentDate.getTime() === targetDate.getTime();
+                                } else if (monthFilter && yearFilter) {
+                                  const targetMonth = parseInt(monthFilter);
+                                  const targetYear = parseInt(yearFilter);
+                                  includePayment = paymentDate.getMonth() + 1 === targetMonth && paymentDate.getFullYear() === targetYear;
+                                }
+                                
+                                if (includePayment) {
+                                  filteredCashRevenue += parseFloat(payment.amount || 0);
+                                }
+                              }
+                            });
+                          } catch (error) {
+                            // Fallback to enrollment data
+                          }
+                        }
+                      });
+                      return sum + filteredCashRevenue;
+                    } else {
+                      return sum + c.cashRevenue;
+                    }
+                  }, 0))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-blue-600 font-medium">Online:</span>
+                  <span className="text-blue-700">{formatCurrency(filteredClasses.reduce((sum, c) => {
+                    if (dateFilter || (monthFilter && yearFilter)) {
+                      let filteredOnlineRevenue = 0;
+                      c.enrollments.forEach(enrollment => {
+                        if (enrollment.payment_history_details) {
+                          try {
+                            const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
+                              try { return JSON.parse(p); } catch (e) { return null; }
+                            }).filter(p => p);
+                            
+                            paymentHistory.forEach(payment => {
+                              if (payment.date && (payment.payment_method?.toLowerCase() === 'online' || payment.payment_method?.toLowerCase() === 'card')) {
+                                const paymentDate = new Date(payment.date);
+                                let includePayment = false;
+                                
+                                if (dateFilter) {
+                                  const targetDate = new Date(dateFilter);
+                                  targetDate.setHours(0, 0, 0, 0);
+                                  paymentDate.setHours(0, 0, 0, 0);
+                                  includePayment = paymentDate.getTime() === targetDate.getTime();
+                                } else if (monthFilter && yearFilter) {
+                                  const targetMonth = parseInt(monthFilter);
+                                  const targetYear = parseInt(yearFilter);
+                                  includePayment = paymentDate.getMonth() + 1 === targetMonth && paymentDate.getFullYear() === targetYear;
+                                }
+                                
+                                if (includePayment) {
+                                  filteredOnlineRevenue += parseFloat(payment.amount || 0);
+                                }
+                              }
+                            });
+                          } catch (error) {
+                            // Fallback to enrollment data
+                          }
+                        }
+                      });
+                      return sum + filteredOnlineRevenue;
+                    } else {
+                      return sum + c.onlineRevenue;
+                    }
+                  }, 0))}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -679,6 +1046,16 @@ const AllClasses = ({ onLogout }) => {
                   <div>
                     <label className="font-medium text-gray-700">Total Revenue:</label>
                     <p className="text-gray-900">{formatCurrency(selectedClass.totalRevenue)}</p>
+                    <div className="flex flex-col space-y-1 text-sm mt-2">
+                      <div className="flex justify-between">
+                        <span className="text-green-600 font-medium">Cash:</span>
+                        <span className="text-green-700">{formatCurrency(selectedClass.cashRevenue)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-600 font-medium">Online:</span>
+                        <span className="text-blue-700">{formatCurrency(selectedClass.onlineRevenue)}</span>
+                      </div>
+                    </div>
                   </div>
                   <div>
                     <label className="font-medium text-gray-700">Payment Tracking:</label>
@@ -690,6 +1067,28 @@ const AllClasses = ({ onLogout }) => {
                       <p className="text-gray-900">{selectedClass.paymentTrackingFreeDays} days</p>
                     </div>
                   )}
+                  <div>
+                    <label className="font-medium text-gray-700">Payment Methods:</label>
+                    <div className="mt-1">
+                                             {Object.entries(selectedClass.paymentMethods || {}).map(([method, count]) => (
+                         <div key={method} className="flex justify-between items-center text-sm mb-1">
+                           <span className={`px-2 py-1 rounded text-xs font-medium ${
+                             method === 'cash' ? 'bg-green-100 text-green-700' :
+                             method === 'online' ? 'bg-blue-100 text-blue-700' :
+                             'bg-gray-100 text-gray-700'
+                           }`}>
+                             {method === 'cash' ? 'Cash' : 
+                              method === 'online' ? 'Online' : 
+                              method}
+                           </span>
+                           <span className="text-gray-600 font-medium">{count} payments</span>
+                         </div>
+                       ))}
+                      {Object.keys(selectedClass.paymentMethods || {}).length === 0 && (
+                        <span className="text-gray-400 text-sm">No payments recorded</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
               
@@ -738,7 +1137,7 @@ const AllClasses = ({ onLogout }) => {
       {/* Enrollments Modal */}
       {showEnrollmentsModal && selectedClass && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-gray-900">
                 Enrollments - {selectedClass.className}
@@ -809,118 +1208,182 @@ const AllClasses = ({ onLogout }) => {
                 
                 return false;
               });
-              
-              return filteredEnrollments.length > 0 ? (
-              <div className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Student Information
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Contact Details
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Enrollment Details
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Payment Status
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Amount Paid
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredEnrollments.map((enrollment) => {
-                        const student = studentsData[enrollment.student_id];
-                        return (
-                          <tr key={enrollment.id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex flex-col">
-                                <div className="flex items-center">
-                                  <FaUser className="mr-2 text-blue-500" />
-                                  <div>
-                                    <div className="font-semibold text-gray-900">
-                                      {student ? `${student.firstName} ${student.lastName}` : enrollment.student_id}
-                                    </div>
-                                    <div className="text-sm text-gray-600">ID: {enrollment.student_id}</div>
-                                    {student && (
-                                      <div className="text-xs text-gray-500">
-                                        {student.stream} • {student.school}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex flex-col text-sm">
-                                {student ? (
-                                  <>
-                                    <div className="flex items-center">
-                                      <FaEnvelope className="mr-1 text-blue-500" />
-                                      <span>{student.email}</span>
-                                    </div>
-                                    <div className="flex items-center">
-                                      <FaPhone className="mr-1 text-green-500" />
-                                      <span>{student.mobile}</span>
-                                    </div>
-                                    {student.parentMobile && (
-                                      <div className="flex items-center">
-                                        <FaPhone className="mr-1 text-purple-500" />
-                                        <span className="text-xs">Parent: {student.parentMobile}</span>
-                                      </div>
-                                    )}
-                                  </>
-                                ) : (
-                                  <span className="text-gray-500">Student data not available</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex flex-col">
-                                <div className="flex items-center">
-                                  <FaCalendar className="mr-2 text-purple-500" />
-                                  <span>{formatDate(enrollment.enrollment_date)}</span>
-                                </div>
-                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(enrollment.status)}`}>
-                                  {enrollment.status}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                enrollment.payment_status === 'paid' ? 'text-green-600 bg-green-100' :
-                                enrollment.payment_status === 'pending' ? 'text-yellow-600 bg-yellow-100' :
-                                'text-red-600 bg-red-100'
-                              }`}>
-                                {enrollment.payment_status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <FaMoneyBill className="mr-2 text-green-500" />
-                                <span className="font-semibold">{formatCurrency(enrollment.paid_amount)}</span>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+
+              // Process enrollment data for BasicTable
+              const processedEnrollments = filteredEnrollments.map(enrollment => {
+                const student = studentsData[enrollment.student_id];
+                
+                // Calculate payment breakdown
+                let cashAmount = 0;
+                let onlineAmount = 0;
+                let paymentMethod = 'unknown';
+                
+                if (enrollment.payment_history_details) {
+                  try {
+                    const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
+                      try { return JSON.parse(p); } catch (e) { return null; }
+                    }).filter(p => p);
+                    
+                    paymentHistory.forEach(p => {
+                      if (p.payment_method === 'cash') {
+                        cashAmount += parseFloat(p.amount || 0);
+                      } else if (p.payment_method === 'online') {
+                        onlineAmount += parseFloat(p.amount || 0);
+                      }
+                    });
+                    
+                    // Get primary payment method
+                    if (paymentHistory.length > 0) {
+                      paymentMethod = paymentHistory[0].payment_method || 'unknown';
+                    }
+                  } catch (error) {
+                    // Fallback to direct payment method
+                    paymentMethod = enrollment.payment_method || 'unknown';
+                    if (paymentMethod === 'cash') {
+                      cashAmount = parseFloat(enrollment.paid_amount || 0);
+                    } else if (paymentMethod === 'online') {
+                      onlineAmount = parseFloat(enrollment.paid_amount || 0);
+                    }
+                  }
+                } else {
+                  // Fallback to direct payment method
+                  paymentMethod = enrollment.payment_method || 'unknown';
+                  if (paymentMethod === 'cash') {
+                    cashAmount = parseFloat(enrollment.paid_amount || 0);
+                  } else if (paymentMethod === 'online') {
+                    onlineAmount = parseFloat(enrollment.paid_amount || 0);
+                  }
+                }
+
+                return {
+                  ...enrollment,
+                  student,
+                  cashAmount,
+                  onlineAmount,
+                  paymentMethod,
+                  totalAmount: cashAmount + onlineAmount
+                };
+              });
+
+              // Define columns for BasicTable
+              const enrollmentColumns = [
+                {
+                  key: 'studentInfo',
+                  label: 'Student Information',
+                  render: (row) => (
+                    <div className="flex flex-col">
+                      <div className="flex items-center">
+                        <FaUser className="mr-2 text-blue-500" />
+                        <div>
+                          <div className="font-semibold text-gray-900">
+                            {row.student ? `${row.student.firstName} ${row.student.lastName}` : row.student_id}
+                          </div>
+                          <div className="text-sm text-gray-600">ID: {row.student_id}</div>
+                          {row.student && (
+                            <div className="text-xs text-gray-500">
+                              {row.student.stream} • {row.student.school}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                },
+                {
+                  key: 'contactDetails',
+                  label: 'Contact Details',
+                  render: (row) => (
+                    <div className="flex flex-col text-sm">
+                      {row.student ? (
+                        <>
+                          <div className="flex items-center">
+                            <FaEnvelope className="mr-1 text-blue-500" />
+                            <span>{row.student.email}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <FaPhone className="mr-1 text-green-500" />
+                            <span>{row.student.mobile}</span>
+                          </div>
+                          {row.student.parentMobile && (
+                            <div className="flex items-center">
+                              <FaPhone className="mr-1 text-purple-500" />
+                              <span className="text-xs">Parent: {row.student.parentMobile}</span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-gray-500">Student data not available</span>
+                      )}
+                    </div>
+                  )
+                },
+                {
+                  key: 'enrollmentDetails',
+                  label: 'Enrollment Details',
+                  render: (row) => (
+                    <div className="flex flex-col">
+                      <div className="flex items-center">
+                        <FaCalendar className="mr-2 text-purple-500" />
+                        <span>{formatDate(row.enrollment_date)}</span>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(row.status)}`}>
+                        {row.status}
+                      </span>
+                    </div>
+                  )
+                },
+
+                {
+                  key: 'revenue',
+                  label: 'Revenue',
+                  render: (row) => (
+                    <div className="flex flex-col space-y-1">
+                      <div className="flex items-center">
+                        <FaMoneyBill className="mr-1 text-green-500" />
+                        <span className="font-semibold text-xs">{formatCurrency(row.totalAmount)}</span>
+                      </div>
+                      <div className="flex flex-col space-y-1 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-green-600">Cash:</span>
+                          <span className="text-green-700">{formatCurrency(row.cashAmount)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-blue-600">Online:</span>
+                          <span className="text-blue-700">{formatCurrency(row.onlineAmount)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                },
+                {
+                  key: 'paymentStatus',
+                  label: 'Payment Status',
+                  render: (row) => (
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      row.payment_status === 'paid' ? 'text-green-600 bg-green-100' :
+                      row.payment_status === 'pending' ? 'text-yellow-600 bg-yellow-100' :
+                      'text-red-600 bg-red-100'
+                    }`}>
+                      {row.payment_status}
+                    </span>
+                  )
+                }
+              ];
+
+              return processedEnrollments.length > 0 ? (
+                <BasicTable
+                  columns={enrollmentColumns}
+                  data={processedEnrollments}
+                  className=""
+                />
+              ) : (
+                <div className="text-center py-8">
+                  <FaUsers className="text-gray-400 text-4xl mx-auto mb-4" />
+                  <p className="text-gray-500">
+                    {enrollmentSearchTerm ? 'No students found matching your search.' : 'No enrollments found for this class.'}
+                  </p>
                 </div>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <FaUsers className="text-gray-400 text-4xl mx-auto mb-4" />
-                <p className="text-gray-500">
-                  {enrollmentSearchTerm ? 'No students found matching your search.' : 'No enrollments found for this class.'}
-                </p>
-              </div>
-            );
+              );
             })()}
             
             <div className="mt-6 flex justify-end">
