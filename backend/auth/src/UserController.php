@@ -109,23 +109,24 @@ class UserController {
             }
             
             // Delete from users table (for all users)
-            $user = new UserModel($this->db);
-            $result = $user->deleteUser($userid);
+        $user = new UserModel($this->db);
+        $result = $user->deleteUser($userid);
             
-            if ($result) {
+        if ($result) {
                 // If this is a student, also delete their enrollments from class-db
                 if (strpos($userid, 'S') === 0) {
                     $this->deleteStudentEnrollments($userid);
+                    $this->deleteStudentPayments($userid);
                 }
                 
                 // Commit transaction
                 $this->db->commit();
-                return json_encode(['success' => true, 'message' => 'User deleted successfully']);
-            } else {
+            return json_encode(['success' => true, 'message' => 'User deleted successfully']);
+        } else {
                 // Rollback transaction
                 $this->db->rollback();
-                return json_encode(['success' => false, 'message' => 'User deletion failed']);
-            }
+            return json_encode(['success' => false, 'message' => 'User deletion failed']);
+        }
         } catch (Exception $e) {
             // Rollback transaction on error
             $this->db->rollback();
@@ -167,6 +168,55 @@ class UserController {
             }
         } catch (Exception $e) {
             error_log("Exception when deleting enrollments for student {$studentId}: " . $e->getMessage());
+        }
+    }
+    
+    // Helper method to delete student payments from class-db
+    private function deleteStudentPayments($studentId) {
+        try {
+            // Get student email first
+            $stmt = $this->db->prepare("SELECT email FROM students WHERE userid = ?");
+            $stmt->bind_param("s", $studentId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $studentEmail = null;
+            if ($row = $result->fetch_assoc()) {
+                $studentEmail = $row['email'];
+            }
+            
+            if ($studentEmail) {
+                // Call the class backend to delete payments
+                $url = 'http://host.docker.internal:8087/routes.php/delete_student_payments';
+                $data = json_encode(['email' => $studentEmail]);
+                
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, $url);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/json',
+                    'Content-Length: ' . strlen($data)
+                ]);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+                
+                $response = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                
+                if ($httpCode === 200) {
+                    $result = json_decode($response, true);
+                    if ($result && $result['success']) {
+                        error_log("Successfully deleted payments for student {$studentId}: " . $result['message']);
+                    } else {
+                        error_log("Failed to delete payments for student {$studentId}: " . ($result['message'] ?? 'Unknown error'));
+                    }
+                } else {
+                    error_log("HTTP error {$httpCode} when deleting payments for student {$studentId}");
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Exception when deleting payments for student {$studentId}: " . $e->getMessage());
         }
     }
 

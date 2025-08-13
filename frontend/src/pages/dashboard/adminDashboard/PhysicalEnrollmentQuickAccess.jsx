@@ -299,12 +299,27 @@ const PhysicalEnrollmentQuickAccess = () => {
           class_id: selectedClass.id,
           student_id: selectedStudent.studentId,
           student_name: `${selectedStudent.firstName} ${selectedStudent.lastName}`,
-          enrollment_date: new Date().toISOString().split('T')[0],
+          enrollment_date: (() => {
+            const now = new Date();
+            // Use local date instead of UTC date
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`; // Current local date in YYYY-MM-DD format
+          })(),
           status: 'enrolled',
           payment_status: 'paid',
           payment_method: paymentMethod,
           amount_paid: totalAmount,
-          next_payment_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // 30 days from now
+          next_payment_date: (() => {
+            const now = new Date();
+            const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+            // Use local date instead of UTC date
+            const year = nextMonth.getFullYear();
+            const month = String(nextMonth.getMonth() + 1).padStart(2, '0');
+            const day = String(nextMonth.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`; // 1st of next month in local time
+          })()
         })
       });
 

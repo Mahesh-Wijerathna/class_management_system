@@ -5,7 +5,7 @@ import DashboardLayout from '../../../components/layout/DashboardLayout';
 import studentSidebarSections from './StudentDashboardSidebar';
 import SecureZoomMeeting from '../../../components/SecureZoomMeeting';
 import { getStudentCard, getCardTypeInfo, getCardStatus, isCardValid } from '../../../utils/cardUtils';
-import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt } from 'react-icons/fa';
+import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt, FaPauseCircle } from 'react-icons/fa';
 
 const MyClasses = ({ onLogout }) => {
   const [myClasses, setMyClasses] = useState([]);
@@ -74,7 +74,7 @@ const MyClasses = ({ onLogout }) => {
             forgetCardRequested: cls.forgetCardRequested || false,
             latePaymentRequested: cls.latePaymentRequested || false,
             purchaseDate: cls.purchaseDate || new Date().toISOString(),
-            nextPaymentDate: cls.nextPaymentDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            nextPaymentDate: cls.nextPaymentDate || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString(),
             // Add card information
             studentCard,
             cardInfo,
@@ -465,6 +465,12 @@ const MyClasses = ({ onLogout }) => {
         return { color: 'text-green-600', icon: <FaCheckCircle />, text: 'Active', bgColor: 'bg-green-50', borderColor: 'border-green-200' };
       case 'inactive':
         return { color: 'text-red-600', icon: <FaTimesCircle />, text: 'Inactive', bgColor: 'bg-red-50', borderColor: 'border-red-200' };
+      case 'suspended':
+        return { color: 'text-orange-600', icon: <FaPauseCircle />, text: 'Suspended', bgColor: 'bg-orange-50', borderColor: 'border-orange-200' };
+      case 'completed':
+        return { color: 'text-blue-600', icon: <FaGraduationCap />, text: 'Completed', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' };
+      case 'dropped':
+        return { color: 'text-red-600', icon: <FaTimesCircle />, text: 'Dropped', bgColor: 'bg-red-50', borderColor: 'border-red-200' };
       default:
         return { color: 'text-gray-600', icon: <FaClock />, text: 'Unknown', bgColor: 'bg-gray-50', borderColor: 'border-gray-200' };
     }
@@ -550,6 +556,17 @@ const MyClasses = ({ onLogout }) => {
 
   // Handle view details - modern modal approach
   const handleViewDetails = (cls) => {
+    // Check enrollment status first
+    if (cls.status === 'suspended') {
+      alert('Access to this class has been suspended. Please contact the administrator for more information.');
+      return;
+    }
+    
+    if (cls.status === 'dropped') {
+      alert('You have dropped this course. No access is available.');
+      return;
+    }
+    
     setSelectedClassForDetails(cls);
     setDetailsActiveTab('overview');
     setShowDetailsModal(true);
@@ -557,6 +574,22 @@ const MyClasses = ({ onLogout }) => {
 
   // Handle join class
   const handleJoinClass = (cls) => {
+    // Check enrollment status first
+    if (cls.status === 'suspended') {
+      alert('Access to this class has been suspended. Please contact the administrator for more information.');
+      return;
+    }
+    
+    if (cls.status === 'completed') {
+      alert('This course has been completed. No further access is available.');
+      return;
+    }
+    
+    if (cls.status === 'dropped') {
+      alert('You have dropped this course. No access is available.');
+      return;
+    }
+    
     if (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid') {
       if (cls.zoomLink) {
         // Use secure zoom meeting modal instead of opening link directly
@@ -931,6 +964,9 @@ const MyClasses = ({ onLogout }) => {
               const isPaymentDue = nextPaymentDate <= today && cls.paymentStatus !== 'paid';
               const canAttendToday = paymentTrackingInfo.canAccess && cls.status === 'active';
               const isInactive = cls.status === 'inactive';
+              const isSuspended = cls.status === 'suspended';
+              const isCompleted = cls.status === 'completed';
+              const isDropped = cls.status === 'dropped';
               
               const scheduleText = cls.schedule ? 
                 `${formatDay(cls.schedule.day)} ${formatTime(cls.schedule.startTime)}-${formatTime(cls.schedule.endTime)}` : 
@@ -986,6 +1022,45 @@ const MyClasses = ({ onLogout }) => {
                         <span className={classStatus.color}>{classStatus.icon}</span>
                         <span className={classStatus.color}>{classStatus.text}</span>
                       </div>
+                      
+                      {/* Suspended Enrollment Warning */}
+                      {isSuspended && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <FaExclamationTriangle className="text-orange-600 text-sm" />
+                            <div>
+                              <div className="font-semibold text-orange-700 text-sm">Enrollment Suspended</div>
+                              <div className="text-orange-600 text-xs">Access to this class has been temporarily suspended. Contact admin for details.</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Completed Enrollment Info */}
+                      {isCompleted && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <FaGraduationCap className="text-blue-600 text-sm" />
+                            <div>
+                              <div className="font-semibold text-blue-700 text-sm">Course Completed</div>
+                              <div className="text-blue-600 text-xs">You have successfully completed this course.</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Dropped Enrollment Info */}
+                      {isDropped && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <FaTimesCircle className="text-red-600 text-sm" />
+                            <div>
+                              <div className="font-semibold text-red-700 text-sm">Enrollment Dropped</div>
+                              <div className="text-red-600 text-xs">You have dropped this course. No further access available.</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       <div><strong>Next Payment:</strong> {nextPaymentDate.toLocaleDateString()}</div>
                       <div><strong>Students:</strong> {cls.currentStudents || 0}/{cls.maxStudents}</div>
                       {cls.attendance && cls.attendance.length > 0 && (
@@ -1098,6 +1173,7 @@ const MyClasses = ({ onLogout }) => {
                   }
                   buttonText="View Details"
                   onButtonClick={() => handleViewDetails(cls)}
+                  buttonDisabled={isSuspended || isDropped}
                 >
                   {/* Action Buttons */}
                   <div className="flex flex-wrap gap-1 mt-2">

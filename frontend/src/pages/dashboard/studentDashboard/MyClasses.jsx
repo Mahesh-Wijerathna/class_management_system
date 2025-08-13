@@ -7,7 +7,7 @@ import SecureZoomMeeting from '../../../components/SecureZoomMeeting';
 import { getStudentCard, getCardTypeInfo, getCardStatus, isCardValid } from '../../../utils/cardUtils';
 import { getStudentEnrollments, markAttendance, requestForgetCard, requestLatePayment, convertEnrollmentToMyClass } from '../../../api/enrollments';
 import { getUserData } from '../../../api/apiUtils';
-import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt, FaCalendarWeek, FaTasks, FaFilePdf, FaFileWord, FaFilePowerpoint, FaUpload, FaRedo } from 'react-icons/fa';
+import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt, FaCalendarWeek, FaTasks, FaFilePdf, FaFileWord, FaFilePowerpoint, FaUpload, FaRedo, FaPauseCircle } from 'react-icons/fa';
 
 const MyClasses = ({ onLogout }) => {
   const [myClasses, setMyClasses] = useState([]);
@@ -51,6 +51,7 @@ const MyClasses = ({ onLogout }) => {
       const response = await getStudentEnrollments(studentId);
       
       if (response.success && response.data) {
+
         // Convert enrollments to MyClasses format and filter by stream
         const convertedClasses = response.data
           .filter(enrollment => {
@@ -84,7 +85,8 @@ const MyClasses = ({ onLogout }) => {
           myClass.schedule = myClass.schedule || { day: '', startTime: '', endTime: '', frequency: 'weekly' };
           myClass.fee = myClass.fee || 0;
           myClass.maxStudents = myClass.maxStudents || 50;
-          myClass.status = myClass.status || 'active';
+          // Don't override status - let it come from the enrollment data
+          // myClass.status = myClass.status || 'active';
           myClass.currentStudents = myClass.currentStudents || 0;
           myClass.className = myClass.className || 'Unnamed Class';
           myClass.subject = myClass.subject || 'Unknown Subject';
@@ -103,6 +105,7 @@ const MyClasses = ({ onLogout }) => {
           
           return myClass;
         });
+        
         
         setMyClasses(convertedClasses);
       } else {
@@ -550,6 +553,12 @@ const MyClasses = ({ onLogout }) => {
         return { color: 'text-green-600', icon: <FaCheckCircle />, text: 'Active', bgColor: 'bg-green-50', borderColor: 'border-green-200' };
       case 'inactive':
         return { color: 'text-red-600', icon: <FaTimesCircle />, text: 'Inactive', bgColor: 'bg-red-50', borderColor: 'border-red-200' };
+      case 'suspended':
+        return { color: 'text-orange-600', icon: <FaPauseCircle />, text: 'Suspended', bgColor: 'bg-orange-50', borderColor: 'border-orange-200' };
+      case 'completed':
+        return { color: 'text-blue-600', icon: <FaGraduationCap />, text: 'Completed', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' };
+      case 'dropped':
+        return { color: 'text-red-600', icon: <FaTimesCircle />, text: 'Dropped', bgColor: 'bg-red-50', borderColor: 'border-red-200' };
       default:
         return { color: 'text-gray-600', icon: <FaClock />, text: 'Unknown', bgColor: 'bg-gray-50', borderColor: 'border-gray-200' };
     }
@@ -687,11 +696,44 @@ const MyClasses = ({ onLogout }) => {
 
   // Handle make payment
   const handleMakePayment = (cls) => {
-    navigate(`/student/checkout/${cls.id}`, { state: { type: 'renewal' } });
+    const paymentTrackingInfo = getPaymentTrackingInfo(cls);
+    const gracePeriodExpired = !paymentTrackingInfo.canAccess;
+    
+    navigate(`/student/checkout/${cls.id}`, { 
+      state: { 
+        type: 'renewal',
+        gracePeriodExpired: gracePeriodExpired,
+        daysRemaining: paymentTrackingInfo.daysRemaining || 0
+      } 
+    });
   };
 
   // Handle view details - modern modal approach
   const handleViewDetails = (cls) => {
+    // Check enrollment status first
+    if (cls.status === 'suspended') {
+      alert('Access to this class has been suspended. Please contact the administrator for more information.');
+      return;
+    }
+    
+    if (cls.status === 'dropped') {
+      alert('You have dropped this course. No access is available.');
+      return;
+    }
+    
+    // Check payment tracking and grace period
+    const paymentTrackingInfo = getPaymentTrackingInfo(cls);
+    if (!paymentTrackingInfo.canAccess) {
+      if (paymentTrackingInfo.status === 'payment-required') {
+        alert('Payment required - grace period has expired. Please make payment to restore access to this class.');
+      } else if (paymentTrackingInfo.status === 'no-payment') {
+        alert('No payment history found. Please make payment to access this class.');
+      } else {
+        alert('Access restricted due to payment issues. Please contact the administrator.');
+      }
+      return;
+    }
+    
     setSelectedClassForDetails(cls);
     setDetailsActiveTab('overview');
     setShowDetailsModal(true);
@@ -699,6 +741,35 @@ const MyClasses = ({ onLogout }) => {
 
   // Handle join class
   const handleJoinClass = (cls) => {
+    // Check enrollment status first
+    if (cls.status === 'suspended') {
+      alert('Access to this class has been suspended. Please contact the administrator for more information.');
+      return;
+    }
+    
+    if (cls.status === 'completed') {
+      alert('This course has been completed. No further access is available.');
+      return;
+    }
+    
+    if (cls.status === 'dropped') {
+      alert('You have dropped this course. No access is available.');
+      return;
+    }
+    
+    // Check payment tracking and grace period
+    const paymentTrackingInfo = getPaymentTrackingInfo(cls);
+    if (!paymentTrackingInfo.canAccess) {
+      if (paymentTrackingInfo.status === 'payment-required') {
+        alert('Payment required - grace period has expired. Please make payment to restore access to this class.');
+      } else if (paymentTrackingInfo.status === 'no-payment') {
+        alert('No payment history found. Please make payment to access this class.');
+      } else {
+        alert('Access restricted due to payment issues. Please contact the administrator.');
+      }
+      return;
+    }
+    
     if (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid') {
       if (cls.zoomLink) {
         // Use secure zoom meeting modal instead of opening link directly
@@ -1126,6 +1197,9 @@ const MyClasses = ({ onLogout }) => {
               const isPaymentDue = nextPaymentDate && nextPaymentDate <= today && cls.paymentStatus !== 'paid';
               const canAttendToday = paymentTrackingInfo.canAccess && cls.status === 'active';
               const isInactive = cls.status === 'inactive';
+              const isSuspended = cls.status === 'suspended';
+              const isCompleted = cls.status === 'completed';
+              const isDropped = cls.status === 'dropped';
               
               const scheduleText = cls.schedule && cls.schedule.frequency === 'no-schedule' ? 
                 'No Schedule' :
@@ -1195,7 +1269,87 @@ const MyClasses = ({ onLogout }) => {
                         <span className={classStatus.color}>{classStatus.icon}</span>
                         <span className={classStatus.color}>{classStatus.text}</span>
                       </div>
-                      <div><strong>Next Payment:</strong> {nextPaymentDate ? nextPaymentDate.toLocaleDateString() : 'Not set'}</div>
+                      
+                      {/* Suspended Enrollment Warning */}
+                      {isSuspended && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <FaExclamationTriangle className="text-orange-600 text-sm" />
+                            <div>
+                              <div className="font-semibold text-orange-700 text-sm">Enrollment Suspended</div>
+                              <div className="text-orange-600 text-xs">Access to this class has been temporarily suspended. Contact admin for details.</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Grace Period Warning */}
+                      {!paymentTrackingInfo.canAccess && paymentTrackingInfo.status === 'payment-required' && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <FaExclamationTriangle className="text-red-600 text-sm" />
+                            <div>
+                              <div className="font-semibold text-red-700 text-sm">Grace Period Expired</div>
+                              <div className="text-red-600 text-xs">Payment required - grace period has expired. Please make payment to restore access.</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Grace Period Warning (Almost Expired) */}
+                      {paymentTrackingInfo.canAccess && paymentTrackingInfo.daysRemaining <= 3 && paymentTrackingInfo.daysRemaining > 0 && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <FaExclamationTriangle className="text-yellow-600 text-sm" />
+                            <div>
+                              <div className="font-semibold text-yellow-700 text-sm">Grace Period Ending Soon</div>
+                              <div className="text-yellow-600 text-xs">Only {paymentTrackingInfo.daysRemaining} days remaining in grace period. Make payment to avoid access restriction.</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Next Payment Due Warning */}
+                      {paymentTrackingInfo.canAccess && paymentTrackingInfo.nextPaymentDate && new Date() >= paymentTrackingInfo.nextPaymentDate && paymentTrackingInfo.daysRemaining > 3 && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <FaCalendar className="text-blue-600 text-sm" />
+                            <div>
+                              <div className="font-semibold text-blue-700 text-sm">Next Payment Due</div>
+                              <div className="text-blue-600 text-xs">Next payment due on {paymentTrackingInfo.nextPaymentDate?.toLocaleDateString()}. You can renew anytime during the grace period.</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+
+                      
+                      {/* Completed Enrollment Info */}
+                      {isCompleted && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <FaGraduationCap className="text-blue-600 text-sm" />
+                            <div>
+                              <div className="font-semibold text-blue-700 text-sm">Course Completed</div>
+                              <div className="text-blue-600 text-xs">You have successfully completed this course.</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Dropped Enrollment Info */}
+                      {isDropped && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <FaTimesCircle className="text-red-600 text-sm" />
+                            <div>
+                              <div className="font-semibold text-red-700 text-sm">Enrollment Dropped</div>
+                              <div className="text-red-600 text-xs">You have dropped this course. No further access available.</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div><strong>Next Payment:</strong> {paymentTrackingInfo.nextPaymentDate ? paymentTrackingInfo.nextPaymentDate.toLocaleDateString() : 'Not set'}</div>
                       <div><strong>Students:</strong> {cls.currentStudents || 0}/{cls.maxStudents}</div>
                       {cls.attendance && cls.attendance.length > 0 && (
                         <div><strong>Attendance:</strong> {cls.attendance.filter(a => a.status === 'present').length}/{cls.attendance.length}</div>
@@ -1307,15 +1461,64 @@ const MyClasses = ({ onLogout }) => {
                   }
                   buttonText="View Details"
                   onButtonClick={() => handleViewDetails(cls)}
+                  buttonDisabled={isSuspended || isDropped || !paymentTrackingInfo.canAccess}
                 >
                   {/* Action Buttons */}
                   <div className="flex flex-wrap gap-2 mt-4">
+                      {/* Disable Join button for suspended, completed, dropped enrollments, or grace period expired */}
                       <button
                         onClick={() => handleJoinClass(cls)}
-                      className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 flex items-center gap-1"
+                        disabled={isSuspended || isCompleted || isDropped || !paymentTrackingInfo.canAccess}
+                        className={`px-3 py-1 rounded-lg text-sm flex items-center gap-1 ${
+                          isSuspended || isCompleted || isDropped || !paymentTrackingInfo.canAccess
+                            ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                        title={
+                          isSuspended ? 'Access suspended - contact admin' :
+                          isCompleted ? 'Course completed' :
+                          isDropped ? 'Course dropped' :
+                          !paymentTrackingInfo.canAccess ? 'Payment required - grace period expired' :
+                          'Join class'
+                        }
                       >
-                        <FaPlay /> Join
+                        <FaPlay /> 
+                        {isSuspended ? 'Suspended' : 
+                         isCompleted ? 'Completed' : 
+                         isDropped ? 'Dropped' : 
+                         !paymentTrackingInfo.canAccess ? 'Payment Required' :
+                         'Join'}
                       </button>
+                      
+                      {/* Payment Button - Show when grace period expired OR payment is due */}
+                      {((!paymentTrackingInfo.canAccess && (paymentTrackingInfo.status === 'payment-required' || paymentTrackingInfo.status === 'no-payment')) || 
+                        (paymentTrackingInfo.canAccess && paymentTrackingInfo.nextPaymentDate && new Date() >= paymentTrackingInfo.nextPaymentDate)) && (
+                        <button
+                          onClick={() => handleMakePayment(cls)}
+                          className={`px-3 py-1 rounded-lg text-sm flex items-center gap-1 ${
+                            !paymentTrackingInfo.canAccess 
+                              ? 'bg-red-600 text-white hover:bg-red-700' 
+                              : paymentTrackingInfo.daysRemaining <= 3
+                              ? 'bg-yellow-600 text-white hover:bg-yellow-700'
+                              : 'bg-blue-600 text-white hover:bg-blue-700'
+                          }`}
+                          title={
+                            !paymentTrackingInfo.canAccess 
+                              ? 'Make payment to restore access' 
+                              : paymentTrackingInfo.daysRemaining <= 3
+                              ? 'Make payment to extend grace period'
+                              : 'Make payment to renew for next month'
+                          }
+                        >
+                          <FaMoneyBill /> 
+                          {!paymentTrackingInfo.canAccess 
+                            ? 'Make Payment' 
+                            : paymentTrackingInfo.daysRemaining <= 3 
+                            ? 'Pay Early' 
+                            : 'Renew Payment'
+                          }
+                        </button>
+                      )}
                   </div>
                 </BasicCard>
               );

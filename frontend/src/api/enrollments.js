@@ -139,6 +139,7 @@ export const requestLatePayment = async (classId, studentId) => {
 
 // Utility function to convert enrollment data to MyClasses format
 export const convertEnrollmentToMyClass = (enrollment) => {
+
   // Parse payment tracking data from database
   let paymentTracking = { enabled: false, freeDays: 7 };
   if (enrollment.payment_tracking) {
@@ -159,7 +160,9 @@ export const convertEnrollmentToMyClass = (enrollment) => {
     }
   }
 
-  return {
+
+  
+  const convertedClass = {
     id: enrollment.class_id,
     className: enrollment.class_name,
     subject: enrollment.subject,
@@ -169,8 +172,13 @@ export const convertEnrollmentToMyClass = (enrollment) => {
     courseType: enrollment.course_type,
     fee: enrollment.fee,
     maxStudents: enrollment.max_students,
-    status: enrollment.class_status,
-    schedule: enrollment.schedule,
+    status: enrollment.status, // Use enrollment status, not class status
+    schedule: {
+      day: enrollment.schedule_day,
+      startTime: enrollment.schedule_start_time,
+      endTime: enrollment.schedule_end_time,
+      frequency: enrollment.schedule_frequency
+    },
     zoomLink: enrollment.zoom_link,
     description: enrollment.description,
     image: enrollment.image,
@@ -204,4 +212,7 @@ export const convertEnrollmentToMyClass = (enrollment) => {
     cardStatus: null,
     cardValidity: null
   };
+  
+
+  return convertedClass;
 }; 

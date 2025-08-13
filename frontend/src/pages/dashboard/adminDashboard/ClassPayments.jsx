@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaUsers, FaMoneyBill, FaCalendar, FaSearch, FaFilter, FaDownload, FaPrint, FaEye, FaClock, FaCheckCircle, FaExclamationTriangle, FaGraduationCap, FaUser, FaPhone, FaEnvelope, FaSchool } from 'react-icons/fa';
+import { FaUsers, FaMoneyBill, FaCalendar, FaSearch, FaFilter, FaDownload, FaPrint, FaEye, FaClock, FaCheckCircle, FaExclamationTriangle, FaGraduationCap, FaUser, FaPhone, FaEnvelope, FaSchool, FaTimes, FaSync } from 'react-icons/fa';
 import { getAllClasses } from '../../../api/classes';
 import { getClassEnrollments } from '../../../api/enrollments';
 import { getAllStudents } from '../../../api/students';
@@ -16,7 +16,7 @@ const ClassPayments = () => {
   const [streamFilter, setStreamFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
-  const [monthFilter, setMonthFilter] = useState('');
+  const [monthFilter, setMonthFilter] = useState((new Date().getMonth() + 1).toString());
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString());
   const [dateFilter, setDateFilter] = useState('');
   const [studentsData, setStudentsData] = useState({});
@@ -125,6 +125,22 @@ const ClassPayments = () => {
           });
         }
         
+        // Ensure students data is loaded
+        if (Object.keys(studentsData).length === 0) {
+          try {
+            const studentsResponse = await getAllStudents();
+            if (studentsResponse.success && studentsResponse.students) {
+              const studentsMap = {};
+              studentsResponse.students.forEach(student => {
+                studentsMap[student.userid] = student;
+              });
+              setStudentsData(studentsMap);
+            }
+          } catch (error) {
+            console.error('Error loading students data:', error);
+          }
+        }
+        
         setSelectedClass({
           ...classItem,
           enrollments: filteredEnrollments
@@ -142,8 +158,8 @@ const ClassPayments = () => {
     setSelectedStudent(null);
   };
 
-  const handleViewStudentDetails = (student) => {
-    setSelectedStudent(student);
+  const handleViewStudentDetails = (student, enrollment) => {
+    setSelectedStudent({ ...student, enrollment });
   };
 
   const closeStudentDetails = () => {
@@ -215,7 +231,24 @@ const ClassPayments = () => {
     const totalStudents = enrollments.length;
     const paidStudents = enrollments.filter(e => e.payment_status === 'paid').length;
     const pendingStudents = enrollments.filter(e => e.payment_status === 'pending').length;
-    const overdueStudents = enrollments.filter(e => e.payment_status === 'overdue').length;
+    
+    // Count students with different payment types
+    let freeStudents = 0;
+    let halfPaidStudents = 0;
+    
+    enrollments.forEach(enrollment => {
+      const fee = parseFloat(enrollment.fee || 0);
+      
+      if (fee === 0) {
+        freeStudents++;
+      }
+      
+      // Count students with "partial" payment status
+      if (enrollment.payment_status === 'partial') {
+        halfPaidStudents++;
+      }
+    });
+    
     const totalRevenue = enrollments.reduce((sum, e) => sum + parseFloat(e.paid_amount || 0), 0);
     const expectedRevenue = enrollments.reduce((sum, e) => {
       const student = studentsData[e.student_id];
@@ -226,14 +259,119 @@ const ClassPayments = () => {
       totalStudents,
       paidStudents,
       pendingStudents,
-      overdueStudents,
+      freeStudents,
+      halfPaidStudents,
       totalRevenue,
       expectedRevenue,
       collectionRate: totalStudents > 0 ? (paidStudents / totalStudents) * 100 : 0
     };
   };
 
-  // Calculate payment statistics for a class based on date filters
+  // Calculate current month revenue for a class
+  const calculateCurrentMonthRevenue = (classId) => {
+    const enrollments = classPaymentData[classId] || [];
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth() + 1;
+    const currentYear = currentDate.getFullYear();
+    
+    let cashRevenue = 0;
+    let onlineRevenue = 0;
+    
+    enrollments.forEach(enrollment => {
+      if (enrollment.payment_history_details) {
+        try {
+          const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
+            try { return JSON.parse(p); } catch (e) { return null; }
+          }).filter(p => p);
+          
+          paymentHistory.forEach(payment => {
+            if (payment.date) {
+              const paymentDate = new Date(payment.date);
+              if (paymentDate.getMonth() + 1 === currentMonth && paymentDate.getFullYear() === currentYear) {
+                const amount = parseFloat(payment.amount || 0);
+                const method = payment.payment_method?.toLowerCase() || 'unknown';
+                
+                if (method === 'cash') {
+                  cashRevenue += amount;
+                } else if (method === 'online' || method === 'card') {
+                  onlineRevenue += amount;
+                }
+              }
+            }
+          });
+        } catch (error) {
+          // Fallback to enrollment payment_method
+          const method = enrollment.payment_method?.toLowerCase() || 'unknown';
+          const paidAmount = parseFloat(enrollment.paid_amount || 0);
+          if (method === 'cash') {
+            cashRevenue += paidAmount;
+          } else if (method === 'online' || method === 'card') {
+            onlineRevenue += paidAmount;
+          }
+        }
+      }
+    });
+    
+    return {
+      totalRevenue: cashRevenue + onlineRevenue,
+      cashRevenue,
+      onlineRevenue
+    };
+  };
+
+  // Calculate previous month revenue for a class
+  const calculatePreviousMonthRevenue = (classId) => {
+    const enrollments = classPaymentData[classId] || [];
+    const currentDate = new Date();
+    const previousMonth = currentDate.getMonth() === 0 ? 12 : currentDate.getMonth();
+    const previousYear = currentDate.getMonth() === 0 ? currentDate.getFullYear() - 1 : currentDate.getFullYear();
+    
+    let cashRevenue = 0;
+    let onlineRevenue = 0;
+    
+    enrollments.forEach(enrollment => {
+      if (enrollment.payment_history_details) {
+        try {
+          const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
+            try { return JSON.parse(p); } catch (e) { return null; }
+          }).filter(p => p);
+          
+          paymentHistory.forEach(payment => {
+            if (payment.date) {
+              const paymentDate = new Date(payment.date);
+              if (paymentDate.getMonth() + 1 === previousMonth && paymentDate.getFullYear() === previousYear) {
+                const amount = parseFloat(payment.amount || 0);
+                const method = payment.payment_method?.toLowerCase() || 'unknown';
+                
+                if (method === 'cash') {
+                  cashRevenue += amount;
+                } else if (method === 'online' || method === 'card') {
+                  onlineRevenue += amount;
+                }
+              }
+            }
+          });
+        } catch (error) {
+          // Fallback to enrollment payment_method
+          const method = enrollment.payment_method?.toLowerCase() || 'unknown';
+          const paidAmount = parseFloat(enrollment.paid_amount || 0);
+          if (method === 'cash') {
+            cashRevenue += paidAmount;
+          } else if (method === 'online' || method === 'card') {
+            onlineRevenue += paidAmount;
+          }
+        }
+      }
+    });
+    
+    return {
+      totalRevenue: cashRevenue + onlineRevenue,
+      cashRevenue,
+      onlineRevenue
+    };
+  };
+
+  // Calculate payment statistics for a class based on date filters with revenue breakdown
   const calculateClassPaymentStats = (classId) => {
     const enrollments = classPaymentData[classId] || [];
     
@@ -280,11 +418,64 @@ const ClassPayments = () => {
       });
     }
     
-    const totalPayments = filteredEnrollments.reduce((sum, e) => sum + parseFloat(e.paid_amount || 0), 0);
+    // Calculate revenue breakdown by payment method
+    let cashRevenue = 0;
+    let onlineRevenue = 0;
+    const paymentMethods = {};
+    
+    filteredEnrollments.forEach(enrollment => {
+      const paidAmount = parseFloat(enrollment.paid_amount || 0);
+      if (paidAmount > 0) {
+        // Try to get payment method from payment_history_details
+        if (enrollment.payment_history_details) {
+          try {
+            const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
+              try { return JSON.parse(p); } catch (e) { return null; }
+            }).filter(p => p);
+            
+            paymentHistory.forEach(payment => {
+              const amount = parseFloat(payment.amount || 0);
+              const method = payment.payment_method?.toLowerCase() || 'unknown';
+              
+              if (method === 'cash') {
+                cashRevenue += amount;
+              } else if (method === 'online' || method === 'card') {
+                onlineRevenue += amount;
+              }
+              
+              paymentMethods[method] = (paymentMethods[method] || 0) + 1;
+            });
+          } catch (error) {
+            // Fallback to enrollment payment_method
+            const method = enrollment.payment_method?.toLowerCase() || 'unknown';
+            if (method === 'cash') {
+              cashRevenue += paidAmount;
+            } else if (method === 'online' || method === 'card') {
+              onlineRevenue += paidAmount;
+            }
+            paymentMethods[method] = (paymentMethods[method] || 0) + 1;
+          }
+        } else {
+          // Fallback to enrollment payment_method
+          const method = enrollment.payment_method?.toLowerCase() || 'unknown';
+          if (method === 'cash') {
+            cashRevenue += paidAmount;
+          } else if (method === 'online' || method === 'card') {
+            onlineRevenue += paidAmount;
+          }
+          paymentMethods[method] = (paymentMethods[method] || 0) + 1;
+        }
+      }
+    });
+    
+    const totalPayments = cashRevenue + onlineRevenue;
     const studentsWithPayments = filteredEnrollments.filter(e => parseFloat(e.paid_amount || 0) > 0).length;
     
     return {
       totalPayments,
+      cashRevenue,
+      onlineRevenue,
+      paymentMethods,
       studentsWithPayments,
       totalEnrollments: enrollments.length
     };
@@ -342,21 +533,26 @@ const ClassPayments = () => {
     },
     {
       key: 'totalPayments',
-      label: 'Total Payments',
+      label: 'Revenue',
       render: (row) => {
         const stats = calculateClassPaymentStats(row.id);
         return (
-          <div className="flex flex-col items-center space-y-1">
+          <div className="flex flex-col space-y-2">
             <div className="flex items-center space-x-1">
               <div className="bg-green-100 p-1 rounded-full">
                 <FaMoneyBill className="text-green-600 text-sm" />
               </div>
-              <span className="text-xs font-semibold text-gray-900">
-                {formatCurrency(stats.totalPayments)}
-              </span>
+              <span className="font-semibold text-gray-900 text-xs">{formatCurrency(stats.totalPayments)}</span>
             </div>
-            <div className="text-xs text-gray-500">
-              {stats.studentsWithPayments}/{stats.totalEnrollments} students
+            <div className="flex flex-col space-y-1 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-green-600 font-medium">Cash:</span>
+                <span className="text-green-700">{formatCurrency(stats.cashRevenue)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-blue-600 font-medium">Online:</span>
+                <span className="text-blue-700">{formatCurrency(stats.onlineRevenue)}</span>
+              </div>
             </div>
           </div>
         );
@@ -380,6 +576,38 @@ const ClassPayments = () => {
             <div className="text-xs text-gray-500">
               {stats.totalEnrollments > 0 ? Math.round((stats.studentsWithPayments / stats.totalEnrollments) * 100) : 0}% paid
             </div>
+          </div>
+        );
+      }
+    },
+    {
+      key: 'paymentMethods',
+      label: 'Payment Methods',
+      render: (row) => {
+        const stats = calculateClassPaymentStats(row.id);
+        return (
+          <div className="flex flex-col space-y-2">
+            {Object.entries(stats.paymentMethods || {}).map(([method, count]) => (
+              <div key={method} className="flex items-center justify-between">
+                <div className="flex items-center space-x-1">
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    method === 'cash' ? 'bg-green-100 text-green-700' :
+                    method === 'online' ? 'bg-blue-100 text-blue-700' :
+                    method === 'card' ? 'bg-purple-100 text-purple-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {method === 'cash' ? 'Cash' :
+                     method === 'online' ? 'Online' :
+                     method === 'card' ? 'Card' :
+                     method}
+                  </span>
+                </div>
+                <span className="text-gray-600 font-medium text-xs">{count}</span>
+              </div>
+            ))}
+            {Object.keys(stats.paymentMethods || {}).length === 0 && (
+              <span className="text-gray-400 text-xs">No payments</span>
+            )}
           </div>
         );
       }
@@ -457,22 +685,70 @@ const ClassPayments = () => {
     {
       key: 'paymentStatus',
       label: 'Payment Status',
-      render: (row) => (
-        <div className="flex justify-center">
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPaymentStatusColor(row.payment_status)}`}>
-            {row.payment_status || 'Not specified'}
-          </span>
-        </div>
-      )
+      render: (row) => {
+        // Get payment method from payment_history_details
+        let paymentMethod = 'Unknown';
+        if (row.payment_history_details) {
+          try {
+            const paymentHistory = row.payment_history_details.split('|').map(p => {
+              try { return JSON.parse(p); } catch (e) { return null; }
+            }).filter(p => p);
+            
+            if (paymentHistory.length > 0) {
+              const method = paymentHistory[0].payment_method?.toLowerCase() || 'unknown';
+              paymentMethod = method === 'cash' ? 'Cash' : 
+                             method === 'online' ? 'Online' : 
+                             method === 'card' ? 'Card' : 
+                             method;
+            }
+          } catch (error) {
+            // Fallback to enrollment payment_method
+            const method = row.payment_method?.toLowerCase() || 'unknown';
+            paymentMethod = method === 'cash' ? 'Cash' : 
+                           method === 'online' ? 'Online' : 
+                           method === 'card' ? 'Card' : 
+                           method;
+          }
+        } else {
+          // Fallback to enrollment payment_method
+          const method = row.payment_method?.toLowerCase() || 'unknown';
+          paymentMethod = method === 'cash' ? 'Cash' : 
+                         method === 'online' ? 'Online' : 
+                         method === 'card' ? 'Card' : 
+                         method;
+        }
+
+        return (
+          <div className="flex flex-col space-y-1">
+            <div className="flex justify-center">
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPaymentStatusColor(row.payment_status)}`}>
+                {row.payment_status === 'paid' ? 'Paid' :
+                 row.payment_status === 'pending' ? 'Pending' :
+                 row.payment_status === 'partial' ? 'Half Card' :
+                 row.payment_status === 'overdue' ? 'Free Card' :
+                 row.payment_status || 'Not specified'}
+              </span>
+            </div>
+            <div className="flex justify-center">
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                paymentMethod === 'Cash' ? 'bg-green-100 text-green-700' :
+                paymentMethod === 'Online' ? 'bg-blue-100 text-blue-700' :
+                paymentMethod === 'Card' ? 'bg-purple-100 text-purple-700' :
+                'bg-gray-100 text-gray-700'
+              }`}>
+                {paymentMethod}
+              </span>
+            </div>
+          </div>
+        );
+      }
     },
     {
       key: 'amount',
       label: 'Amount',
       render: (row) => {
-        const student = studentsData[row.student_id];
-        const fee = student?.fee || 0;
+        const fee = parseFloat(row.fee || 0);
         const paid = parseFloat(row.paid_amount || 0);
-        const remaining = fee - paid;
         
         return (
           <div className="flex flex-col space-y-1">
@@ -482,11 +758,6 @@ const ClassPayments = () => {
             <div className="text-xs text-green-600">
               <span className="font-medium">Paid:</span> {formatCurrency(paid)}
             </div>
-            {remaining > 0 && (
-              <div className="text-xs text-red-600">
-                <span className="font-medium">Due:</span> {formatCurrency(remaining)}
-              </div>
-            )}
           </div>
         );
       }
@@ -499,7 +770,7 @@ const ClassPayments = () => {
     return (
       <div className="flex flex-col space-y-1">
         <button
-          onClick={() => handleViewStudentDetails(student)}
+          onClick={() => handleViewStudentDetails(student, row)}
           className="flex items-center justify-center px-2 py-1 bg-green-50 text-green-700 hover:bg-green-100 rounded transition-all duration-200 border border-green-200 text-xs font-medium shadow-sm hover:shadow-md"
           title="View Student Details"
         >
@@ -548,14 +819,14 @@ const ClassPayments = () => {
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Class Payments</h1>
-            <p className="text-gray-600 mt-2">Manage monthly recurring payments for all classes</p>
+            <h1 className="text-3xl font-bold text-gray-900">Monthly Tuition Payments</h1>
+            <p className="text-gray-600 mt-2">Track and manage monthly recurring tuition payments with cash/online breakdown</p>
           </div>
           <button
             onClick={loadData}
             className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            <FaSearch className="mr-2" />
+            <FaSync className="mr-2" />
             Refresh
           </button>
         </div>
@@ -643,65 +914,143 @@ const ClassPayments = () => {
               setStreamFilter('');
               setStatusFilter('');
               setDateFilter('');
-              setMonthFilter('');
+              setMonthFilter((new Date().getMonth() + 1).toString());
               setYearFilter(new Date().getFullYear().toString());
             }}
             className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
           >
-            Clear All Filters
+            Reset to Current Month
           </button>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div className="bg-blue-50 p-6 rounded-lg">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
+          <div className="bg-blue-50 p-4 rounded-lg">
             <div className="flex items-center">
-              <FaGraduationCap className="text-blue-600 text-2xl mr-4" />
+              <FaGraduationCap className="text-blue-600 text-xl mr-3" />
               <div>
-                <p className="text-sm font-medium text-blue-600">Total Classes</p>
-                <p className="text-2xl font-bold text-blue-900">{filteredClasses.length}</p>
+                <p className="text-xs font-medium text-blue-600">Total Classes</p>
+                <p className="text-lg font-bold text-blue-900">{filteredClasses.length}</p>
               </div>
             </div>
           </div>
           
-          <div className="bg-green-50 p-6 rounded-lg">
+          <div className="bg-green-50 p-4 rounded-lg">
             <div className="flex items-center">
-              <FaUsers className="text-green-600 text-2xl mr-4" />
+              <FaUsers className="text-green-600 text-xl mr-3" />
               <div>
-                <p className="text-sm font-medium text-green-600">Active Classes</p>
-                <p className="text-2xl font-bold text-green-900">
+                <p className="text-xs font-medium text-green-600">Active Classes</p>
+                <p className="text-lg font-bold text-green-900">
                   {filteredClasses.filter(c => c.status === 'active').length}
                 </p>
               </div>
             </div>
           </div>
           
-          <div className="bg-purple-50 p-6 rounded-lg">
+          <div className="bg-purple-50 p-4 rounded-lg">
             <div className="flex items-center">
-              <FaMoneyBill className="text-purple-600 text-2xl mr-4" />
+              <FaMoneyBill className="text-purple-600 text-xl mr-3" />
               <div>
-                <p className="text-sm font-medium text-purple-600">Total Revenue</p>
-                <p className="text-2xl font-bold text-purple-900">
+                <p className="text-xs font-medium text-purple-600">Total Revenue</p>
+                <p className="text-lg font-bold text-purple-900">
                   {formatCurrency(filteredClasses.reduce((sum, c) => {
                     const stats = calculateClassPaymentStats(c.id);
                     return sum + stats.totalPayments;
                   }, 0))}
                 </p>
+                <div className="flex flex-col space-y-1 text-xs mt-2">
+                  <div className="flex justify-between">
+                    <span className="text-green-600 font-medium">Cash:</span>
+                    <span className="text-green-700">{formatCurrency(filteredClasses.reduce((sum, c) => {
+                      const stats = calculateClassPaymentStats(c.id);
+                      return sum + stats.cashRevenue;
+                    }, 0))}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-blue-600 font-medium">Online:</span>
+                    <span className="text-blue-700">{formatCurrency(filteredClasses.reduce((sum, c) => {
+                      const stats = calculateClassPaymentStats(c.id);
+                      return sum + stats.onlineRevenue;
+                    }, 0))}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
           
-          <div className="bg-yellow-50 p-6 rounded-lg">
+          <div className="bg-yellow-50 p-4 rounded-lg">
             <div className="flex items-center">
-              <FaClock className="text-yellow-600 text-2xl mr-4" />
+              <FaClock className="text-yellow-600 text-xl mr-3" />
               <div>
-                <p className="text-sm font-medium text-yellow-600">Students with Payments</p>
-                <p className="text-2xl font-bold text-yellow-900">
+                <p className="text-xs font-medium text-yellow-600">Students with Payments</p>
+                <p className="text-lg font-bold text-yellow-900">
                   {filteredClasses.reduce((sum, c) => {
                     const stats = calculateClassPaymentStats(c.id);
                     return sum + stats.studentsWithPayments;
                   }, 0)}
                 </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-green-50 p-4 rounded-lg">
+            <div className="flex items-center">
+              <FaMoneyBill className="text-green-600 text-xl mr-3" />
+              <div>
+                <p className="text-xs font-medium text-green-600">This Month Revenue</p>
+                <p className="text-lg font-bold text-green-900">
+                  {formatCurrency(filteredClasses.reduce((sum, c) => {
+                    const stats = calculateCurrentMonthRevenue(c.id);
+                    return sum + stats.totalRevenue;
+                  }, 0))}
+                </p>
+                <div className="flex flex-col space-y-1 text-xs mt-2">
+                  <div className="flex justify-between">
+                    <span className="text-green-600 font-medium">Cash:</span>
+                    <span className="text-green-700">{formatCurrency(filteredClasses.reduce((sum, c) => {
+                      const stats = calculateCurrentMonthRevenue(c.id);
+                      return sum + stats.cashRevenue;
+                    }, 0))}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-blue-600 font-medium">Online:</span>
+                    <span className="text-blue-700">{formatCurrency(filteredClasses.reduce((sum, c) => {
+                      const stats = calculateCurrentMonthRevenue(c.id);
+                      return sum + stats.onlineRevenue;
+                    }, 0))}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-orange-50 p-4 rounded-lg">
+            <div className="flex items-center">
+              <FaMoneyBill className="text-orange-600 text-xl mr-3" />
+              <div>
+                <p className="text-xs font-medium text-orange-600">Last Month Revenue</p>
+                <p className="text-lg font-bold text-orange-900">
+                  {formatCurrency(filteredClasses.reduce((sum, c) => {
+                    const stats = calculatePreviousMonthRevenue(c.id);
+                    return sum + stats.totalRevenue;
+                  }, 0))}
+                </p>
+                <div className="flex flex-col space-y-1 text-xs mt-2">
+                  <div className="flex justify-between">
+                    <span className="text-green-600 font-medium">Cash:</span>
+                    <span className="text-green-700">{formatCurrency(filteredClasses.reduce((sum, c) => {
+                      const stats = calculatePreviousMonthRevenue(c.id);
+                      return sum + stats.cashRevenue;
+                    }, 0))}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-blue-600 font-medium">Online:</span>
+                    <span className="text-blue-700">{formatCurrency(filteredClasses.reduce((sum, c) => {
+                      const stats = calculatePreviousMonthRevenue(c.id);
+                      return sum + stats.onlineRevenue;
+                    }, 0))}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -718,7 +1067,7 @@ const ClassPayments = () => {
         {/* Payment Details Modal */}
         {showPaymentDetails && selectedClass && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900">
@@ -748,31 +1097,51 @@ const ClassPayments = () => {
                   onClick={closePaymentDetails}
                   className="text-gray-500 hover:text-gray-700"
                 >
-                  <FaSearch size={24} />
+                  <FaTimes size={24} />
                 </button>
               </div>
               
               {/* Payment Statistics */}
               {(() => {
                 const stats = calculatePaymentStats(selectedClass.enrollments);
+                const classStats = calculateClassPaymentStats(selectedClass.id);
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
                     <div className="bg-blue-50 p-4 rounded-lg">
                       <p className="text-sm font-medium text-blue-600">Total Students</p>
                       <p className="text-xl font-bold text-blue-900">{stats.totalStudents}</p>
                     </div>
                     <div className="bg-green-50 p-4 rounded-lg">
-                      <p className="text-sm font-medium text-green-600">Paid Students</p>
+                      <p className="text-sm font-medium text-green-600">Paid</p>
                       <p className="text-xl font-bold text-green-900">{stats.paidStudents}</p>
                     </div>
                     <div className="bg-yellow-50 p-4 rounded-lg">
-                      <p className="text-sm font-medium text-yellow-600">Pending Payments</p>
+                      <p className="text-sm font-medium text-yellow-600">Pending</p>
                       <p className="text-xl font-bold text-yellow-900">{stats.pendingStudents}</p>
                     </div>
                     <div className="bg-red-50 p-4 rounded-lg">
-                      <p className="text-sm font-medium text-red-600">Overdue</p>
-                      <p className="text-xl font-bold text-red-900">{stats.overdueStudents}</p>
+                      <p className="text-sm font-medium text-red-600">Free Card</p>
+                      <p className="text-xl font-bold text-red-900">{stats.freeStudents}</p>
                     </div>
+                    <div className="bg-orange-50 p-4 rounded-lg">
+                      <p className="text-sm font-medium text-orange-600">Half Card</p>
+                      <p className="text-xl font-bold text-orange-900">{stats.halfPaidStudents}</p>
+                    </div>
+                    <div className="bg-purple-50 p-4 rounded-lg">
+                      <p className="text-sm font-medium text-purple-600">Total Revenue</p>
+                      <p className="text-sm font-bold text-purple-900">{formatCurrency(classStats.totalPayments)}</p>
+                      <div className="flex flex-col space-y-1 text-xs mt-2">
+                        <div className="flex justify-between">
+                          <span className="text-green-600 font-medium">Cash:</span>
+                          <span className="text-green-700">{formatCurrency(classStats.cashRevenue)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-blue-600 font-medium">Online:</span>
+                          <span className="text-blue-700">{formatCurrency(classStats.onlineRevenue)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
                   </div>
                 );
               })()}
@@ -800,67 +1169,82 @@ const ClassPayments = () => {
         {/* Student Details Modal */}
         {selectedStudent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
+            <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold text-gray-900">
-                  Student Details
+                  Payment History - {selectedStudent.firstName} {selectedStudent.lastName}
                 </h2>
                 <button
                   onClick={closeStudentDetails}
                   className="text-gray-500 hover:text-gray-700"
                 >
-                  <FaSearch size={24} />
+                  <FaTimes size={24} />
                 </button>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Personal Information</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="font-medium text-gray-700">Name:</label>
-                      <p className="text-gray-900">{selectedStudent.firstName} {selectedStudent.lastName}</p>
-                    </div>
-                    <div>
-                      <label className="font-medium text-gray-700">Student ID:</label>
-                      <p className="text-gray-900">{selectedStudent.userid}</p>
-                    </div>
-                    <div>
-                      <label className="font-medium text-gray-700">Email:</label>
-                      <p className="text-gray-900">{selectedStudent.email}</p>
-                    </div>
-                    <div>
-                      <label className="font-medium text-gray-700">Mobile:</label>
-                      <p className="text-gray-900">{selectedStudent.mobile}</p>
-                    </div>
-                    <div>
-                      <label className="font-medium text-gray-700">School:</label>
-                      <p className="text-gray-900">{selectedStudent.school}</p>
-                    </div>
-                    <div>
-                      <label className="font-medium text-gray-700">Stream:</label>
-                      <p className="text-gray-900">{selectedStudent.stream}</p>
-                    </div>
+              <div className="space-y-3">
+                {selectedStudent.enrollment && selectedStudent.enrollment.payment_history_details ? (
+                  (() => {
+                    try {
+                      const paymentHistory = selectedStudent.enrollment.payment_history_details.split('|').map(p => {
+                        try { return JSON.parse(p); } catch (e) { return null; }
+                      }).filter(p => p);
+                      
+                      if (paymentHistory.length > 0) {
+                        return paymentHistory.map((payment, index) => (
+                          <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <div className="flex justify-between items-center mb-3">
+                              <span className="text-lg font-semibold text-gray-700">
+                                Payment #{index + 1}
+                              </span>
+                              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                payment.payment_method?.toLowerCase() === 'cash' ? 'bg-green-100 text-green-700' :
+                                payment.payment_method?.toLowerCase() === 'online' ? 'bg-blue-100 text-blue-700' :
+                                payment.payment_method?.toLowerCase() === 'card' ? 'bg-purple-100 text-purple-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {payment.payment_method?.toLowerCase() === 'cash' ? 'Cash' :
+                                 payment.payment_method?.toLowerCase() === 'online' ? 'Online' :
+                                 payment.payment_method?.toLowerCase() === 'card' ? 'Card' :
+                                 payment.payment_method || 'Unknown'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-sm font-medium text-gray-600">Amount:</span>
+                              <span className="text-lg font-bold text-green-600">
+                                {formatCurrency(payment.amount || 0)}
+                              </span>
+                            </div>
+                            {payment.date && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm font-medium text-gray-600">Date:</span>
+                                <span className="text-sm text-gray-700">
+                                  {formatDate(payment.date)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ));
+                      } else {
+                        return (
+                          <div className="text-center py-8">
+                            <div className="text-gray-500 text-lg">No payment history available</div>
+                          </div>
+                        );
+                      }
+                    } catch (error) {
+                      return (
+                        <div className="text-center py-8">
+                          <div className="text-gray-500 text-lg">Error parsing payment history</div>
+                        </div>
+                      );
+                    }
+                  })()
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="text-gray-500 text-lg">No payment history available</div>
                   </div>
-                </div>
-                
-                <div>
-                  <h3 className="text-lg font-semibold mb-3">Payment Information</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="font-medium text-gray-700">Monthly Fee:</label>
-                      <p className="text-gray-900">{formatCurrency(selectedStudent.fee || 0)}</p>
-                    </div>
-                    <div>
-                      <label className="font-medium text-gray-700">Parent Mobile:</label>
-                      <p className="text-gray-900">{selectedStudent.parentMobile || 'Not specified'}</p>
-                    </div>
-                    <div>
-                      <label className="font-medium text-gray-700">Address:</label>
-                      <p className="text-gray-900">{selectedStudent.address || 'Not specified'}</p>
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
               
               <div className="mt-6 flex justify-end">

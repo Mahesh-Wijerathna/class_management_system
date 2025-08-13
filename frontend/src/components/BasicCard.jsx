@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function BasicCard({ title, price, description, image, buttonText, onButtonClick, children }) {
+export default function BasicCard({ title, price, description, image, buttonText, onButtonClick, children, buttonDisabled = false }) {
   return (
     <div className="relative flex flex-col my-2 sm:my-4 bg-[#f7f9ff] shadow-lg rounded-3xl w-full max-w-xs sm:w-80 p-2 sm:p-4 ">
       {image && (
@@ -32,11 +32,16 @@ export default function BasicCard({ title, price, description, image, buttonText
       {children && <div className="w-full">{children}</div>}
       {buttonText && (
         <button
-          className="rounded-md w-full mt-2 bg-cyan-600 py-2 px-4 border border-transparent text-center text-xs sm:text-sm text-white transition-all shadow-md hover:shadow-lg focus:bg-cyan-700 focus:shadow-none active:bg-cyan-700 hover:bg-cyan-700 active:shadow-none disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none"
+          className={`rounded-md w-full mt-2 py-2 px-4 border border-transparent text-center text-xs sm:text-sm transition-all shadow-md ${
+            buttonDisabled
+              ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
+              : 'bg-cyan-600 text-white hover:bg-cyan-700 focus:bg-cyan-700 active:bg-cyan-700 hover:shadow-lg focus:shadow-none active:shadow-none'
+          }`}
           type="button"
           onClick={onButtonClick}
+          disabled={buttonDisabled}
         >
-          {buttonText}
+          {buttonDisabled ? 'Access Restricted' : buttonText}
         </button>
       )}
     </div>
