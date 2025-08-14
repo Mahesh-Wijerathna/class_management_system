@@ -17,5 +17,8 @@ CREATE TABLE IF NOT EXISTS students (
     district VARCHAR(50),
     parent_name VARCHAR(100),
     parent_mobile_number VARCHAR(15),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    barcode_data VARCHAR(255) NULL,
+    barcode_generated_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_barcode_data (barcode_data)
 );

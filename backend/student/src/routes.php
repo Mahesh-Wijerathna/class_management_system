@@ -121,6 +121,21 @@ if ($method === 'PUT' && preg_match('#^\/routes.php\/update-student\/([A-Za-z0-9
     exit;
 }
 
+// Generate barcode for individual student
+if ($method === 'POST' && preg_match('#^\/routes.php\/generate-barcode\/([A-Za-z0-9]+)$#', $path, $matches)) {
+    $user_id = $matches[1];
+    $result = $controller->generateBarcodeForStudent($user_id);
+    echo json_encode($result);
+    exit;
+}
+
+// Generate barcodes for all students
+if ($method === 'POST' && $path === '/routes.php/generate-all-barcodes') {
+    $result = $controller->generateBarcodesForAllStudents();
+    echo json_encode($result);
+    exit;
+}
+
 // =====================================================
 // STUDENT MONITORING ROUTES
 // =====================================================

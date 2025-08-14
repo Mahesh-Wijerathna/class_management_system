@@ -312,7 +312,14 @@ if ($method === 'PUT' && preg_match('#^/routes.php/user/([A-Za-z0-9]+)$#', $path
 // DELETE user by ID (handles both regular users and students)
 if ($method === 'DELETE' && preg_match('#^/routes.php/user/([A-Za-z0-9]+)$#', $path, $matches)) {
     $userid = $matches[1];
-    echo $controller->deleteUser($userid);
+    require_once __DIR__ . '/UserModel.php';
+    $userModel = new UserModel($mysqli);
+    $result = $userModel->deleteUser($userid);
+    if ($result) {
+        echo json_encode(['success' => true, 'message' => 'User deleted successfully']);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Failed to delete user']);
+    }
     exit;
 }
 
@@ -357,6 +364,86 @@ if ($method === 'PUT' && preg_match('#^/routes.php/cashier/([A-Za-z0-9]+)$#', $p
 if ($method === 'POST' && preg_match('#^/routes.php/cashier/([A-Za-z0-9]+)/delete$#', $path, $matches)) {
     $cashierId = $matches[1];
     echo $controller->deleteCashier($cashierId);
+    exit;
+}
+
+// =====================================================
+// TEACHER ROUTES (CENTRALIZED AUTHENTICATION)
+// =====================================================
+
+// CREATE teacher
+if ($method === 'POST' && $path === '/routes.php/teacher') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['password']) || !isset($data['name']) || !isset($data['email']) || !isset($data['phone'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing required fields: password, name, email, phone']);
+        exit;
+    }
+    echo $controller->createTeacher($data);
+    exit;
+}
+
+// GET all teachers
+if ($method === 'GET' && $path === '/routes.php/teachers') {
+    echo $controller->getAllTeachers();
+    exit;
+}
+
+// GET teacher by ID
+if ($method === 'GET' && preg_match('#^/routes.php/teacher/([A-Za-z0-9]+)$#', $path, $matches)) {
+    $teacherId = $matches[1];
+    echo $controller->getTeacher($teacherId);
+    exit;
+}
+
+// UPDATE teacher by ID
+if ($method === 'PUT' && preg_match('#^/routes.php/teacher/([A-Za-z0-9]+)$#', $path, $matches)) {
+    $teacherId = $matches[1];
+    $data = json_decode(file_get_contents('php://input'), true);
+    echo $controller->updateTeacher($teacherId, $data);
+    exit;
+}
+
+// DELETE teacher by ID
+if ($method === 'DELETE' && preg_match('#^/routes.php/teacher/([A-Za-z0-9]+)$#', $path, $matches)) {
+    $teacherId = $matches[1];
+    echo $controller->deleteTeacher($teacherId);
+    exit;
+}
+
+// Teacher login
+if ($method === 'POST' && $path === '/routes.php/teacher/login') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['teacherId']) || !isset($data['password'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Teacher ID and password are required']);
+        exit;
+    }
+    echo $controller->teacherLogin($data['teacherId'], $data['password']);
+    exit;
+}
+
+// Teacher login with email
+if ($method === 'POST' && $path === '/routes.php/teacher/login-email') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['email']) || !isset($data['password'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Email and password are required']);
+        exit;
+    }
+    echo $controller->teacherLoginWithEmail($data['email'], $data['password']);
+    exit;
+}
+
+// Teacher forgot password OTP request
+if ($method === 'POST' && $path === '/routes.php/teacher/forgot-password-otp') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['userid'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Teacher ID is required']);
+        exit;
+    }
+    echo $controller->teacherForgotPasswordRequestOtp($data['userid']);
     exit;
 }
 
@@ -543,20 +630,6 @@ if ($method === 'POST' && $path === '/routes.php/send-welcome-whatsapp') {
         exit;
     }
     echo $controller->sendWelcomeWhatsAppMessage($data['userid'], $data['studentData']);
-    exit;
-}
-
-// Delete user
-if ($method === 'DELETE' && preg_match('#^/routes.php/users/([A-Za-z0-9]+)$#', $path, $matches)) {
-    $userid = $matches[1];
-    require_once __DIR__ . '/UserModel.php';
-    $userModel = new UserModel($mysqli);
-    $result = $userModel->deleteUser($userid);
-    if ($result) {
-        echo json_encode(['success' => true, 'message' => 'User deleted successfully']);
-    } else {
-        echo json_encode(['success' => false, 'message' => 'Failed to delete user']);
-    }
     exit;
 }
 

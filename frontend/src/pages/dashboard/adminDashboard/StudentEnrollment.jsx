@@ -63,119 +63,7 @@ function parseNIC(nic) {
 }
 
 
-const initialStudents = [
-  {
-    studentId: '99985570',
-    nic: '200805202345',
-    firstName: 'Januli',
-    lastName: 'Liyanage',
-    gender: 'Female',
-    age: 17,
-    email: 'januli.liyanage@email.com',
-    phone: '0771234567',
-    parentName: 'Nimal Liyanage',
-    parentPhone: '0778888888',
-    stream: 'A/L-Science',
-    dateOfBirth: '2008-05-02',
-    school: 'Sujatha Vidyalaya',
-    address: '123 Main St, Apt 4B, Matara',
-    district: 'Matara',
-    dateJoined: '2023-09-15',
-    enrolledClasses: [
-      { subject: 'Mathematics', teacher: 'Mr. Perera', schedule: 'Mon 8:00-10:00 AM', hall: 'Hall 1' },
-      { subject: 'Science', teacher: 'Ms. Silva', schedule: 'Wed 10:00-12:00 PM', hall: 'Hall 2' },
-    ],
-  },
-  {
-    studentId: '99965474',
-    nic: '200711223456',
-    firstName: 'Sithum',
-    lastName: 'Prabhashana',
-    gender: 'Male',
-    age: 18,
-    email: 'sithum.prabhashana@email.com',
-    phone: '0772345678',
-    parentName: 'Sunil Prabhashana',
-    parentPhone: '0779999999',
-    stream: 'A/L-Art',
-    dateOfBirth: '2007-11-22',
-    school: 'Rahula College',
-    address: '456 Lake Rd, Floor 2, Matara',
-    district: 'Matara',
-    dateJoined: '2022-11-22',
-    enrolledClasses: [
-      { subject: 'English', teacher: 'Ms. Wickramasinghe', schedule: 'Tue 9:00-11:00 AM', hall: 'Hall 4' },
-      { subject: 'ICT', teacher: 'Ms. Jayasinghe', schedule: 'Sat 9:00-11:00 AM', hall: 'Lab 1' },
-    ],
-  },
-  {
-    studentId: '99935041',
-    nic: '200902123789',
-    firstName: 'Sithnula',
-    lastName: 'Geesan',
-    gender: 'Male',
-    age: 16,
-    email: 'sithnula.geesan@email.com',
-    phone: '0773456789',
-    parentName: 'Ruwan Geesan',
-    parentPhone: '0777777777',
-    stream: 'O/L',
-    dateOfBirth: '2009-02-12',
-    school: 'St. Thomas College',
-    address: '789 River Ave, Block C, Matara',
-    district: 'Matara',
-    dateJoined: '2024-02-12',
-    enrolledClasses: [
-      { subject: 'History', teacher: 'Mr. Bandara', schedule: 'Thu 1:00-3:00 PM', hall: 'Hall 5' },
-      { subject: 'Mathematics', teacher: 'Mr. Perera', schedule: 'Mon 8:00-10:00 AM', hall: 'Hall 1' },
-    ],
-  },
-  {
-    studentId: '99892421',
-    nic: '201007063456',
-    firstName: 'Pasindi',
-    lastName: 'Vidana Pathirana',
-    gender: 'Female',
-    age: 15,
-    email: 'pasindi.vidana@email.com',
-    phone: '0774567890',
-    parentName: 'Kumari Pathirana',
-    parentPhone: '0776666666',
-    stream: 'A/L-Maths',
-    dateOfBirth: '2010-07-06',
-    school: 'Sujatha Vidyalaya',
-    address: '321 Hill Rd, Suite 10, Matara',
-    district: 'Matara',
-    dateJoined: '2023-07-06',
-    enrolledClasses: [
-      { subject: 'Buddhism', teacher: 'Ven. Rathana', schedule: 'Thu 10:00-12:00 PM', hall: 'Hall 7' },
-      { subject: 'Science', teacher: 'Ms. Silva', schedule: 'Wed 10:00-12:00 PM', hall: 'Hall 2' },
-    ],
-  },
-  {
-    studentId: '99820651',
-    nic: '200611033123',
-    firstName: 'Thisuli',
-    lastName: 'Thumalja',
-    gender: 'Female',
-    age: 19,
-    email: 'thisuli.thumalja@email.com',
-    phone: '0775678901',
-    parentName: 'Saman Thumalja',
-    parentPhone: '0775555555',
-    stream: 'A/L-Science',
-    dateOfBirth: '2006-11-03',
-    school: 'Visakha Vidyalaya',
-    address: '654 Ocean View, Colombo 7, Colombo',
-    district: 'Colombo',
-    dateJoined: '2022-03-07',
-    enrolledClasses: [
-      { subject: 'English', teacher: 'Ms. Wickramasinghe', schedule: 'Tue 9:00-11:00 AM', hall: 'Hall 4' },
-      { subject: 'Mathematics', teacher: 'Mr. Perera', schedule: 'Mon 8:00-10:00 AM', hall: 'Hall 1' },
-      { subject: 'Science', teacher: 'Ms. Silva', schedule: 'Wed 10:00-12:00 PM', hall: '' },
-    ],
-  },
-];
+
 
 const streamOptions = [
   'O/L',
@@ -196,7 +84,7 @@ const validationSchema = Yup.object().shape({
   studentId: Yup.string().required('Student ID is required'),
   firstName: Yup.string().min(2, 'First name must be at least 2 characters').required('First name is required'),
   lastName: Yup.string().min(2, 'Last name must be at least 2 characters').required('Last name is required'),
-  email: Yup.string().email('Invalid email address').required('Email is required'),
+
   stream: Yup.string().oneOf(streamOptions, 'Invalid stream').required('Stream is required'),
   dateOfBirth: Yup.string().required('Date of Birth is required'),
   gender: Yup.string().oneOf(genderOptions, 'Invalid gender').required('Gender is required'),
@@ -244,12 +132,21 @@ const StudentEnrollment = () => {
   // Additional filters
   const [streamFilter, setStreamFilter] = useState('all');
   
+  // Date range filters
+  const [dateRangeFilter, setDateRangeFilter] = useState({
+    startDate: '',
+    endDate: ''
+  });
+  
   // Delete confirmation modal
   const [deleteModal, setDeleteModal] = useState({
     show: false,
     studentId: null,
     studentName: ''
   });
+  
+  // Selected students for bulk operations
+  const [selectedStudents, setSelectedStudents] = useState([]);
 
   // Fetch students from backend
   const fetchStudents = async () => {
@@ -280,7 +177,7 @@ const StudentEnrollment = () => {
           address: student.address || '',
           district: student.district || '',
           dateJoined: student.created_at?.split(' ')[0] || student.dateJoined || '',
-          barcodeData: student.barcodeData || '',
+          barcodeData: student.barcode_data || student.barcodeData || '',
           created_at: student.created_at || '',
           // Determine registration type based on user ID pattern
           // S0 + 4 digits = Online registration (new format)
@@ -325,7 +222,24 @@ const StudentEnrollment = () => {
     
     const matchesStream = streamFilter === 'all' || student.stream === streamFilter;
     
-    return matchesRegistrationType && matchesSearch && matchesStream;
+    // Date range filtering
+    const matchesDateRange = !dateRangeFilter.startDate && !dateRangeFilter.endDate || 
+                            (() => {
+                              const studentDate = new Date(student.dateJoined || student.created_at);
+                              const startDate = dateRangeFilter.startDate ? new Date(dateRangeFilter.startDate) : null;
+                              const endDate = dateRangeFilter.endDate ? new Date(dateRangeFilter.endDate) : null;
+                              
+                              if (startDate && endDate) {
+                                return studentDate >= startDate && studentDate <= endDate;
+                              } else if (startDate) {
+                                return studentDate >= startDate;
+                              } else if (endDate) {
+                                return studentDate <= endDate;
+                              }
+                              return true;
+                            })();
+    
+    return matchesRegistrationType && matchesSearch && matchesStream && matchesDateRange;
   });
 
   // Sort students
@@ -401,6 +315,514 @@ const StudentEnrollment = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Generate barcodes for all students
+  const generateAllBarcodes = async () => {
+    try {
+      const studentBackendUrl = 'http://localhost:8086';
+      const response = await fetch(`${studentBackendUrl}/routes.php/generate-all-barcodes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setSaveAlert({
+          open: true,
+          message: result.message,
+          onConfirm: () => {
+            setSaveAlert(a => ({ ...a, open: false }));
+            refreshStudents(); // Refresh data to show updated barcode status
+          },
+          confirmText: 'OK',
+          type: 'success',
+        });
+      } else {
+        throw new Error(result.message || 'Failed to generate barcodes');
+      }
+    } catch (error) {
+      console.error('Error generating barcodes:', error);
+      setSaveAlert({
+        open: true,
+        message: 'Failed to generate barcodes: ' + error.message,
+        onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'danger',
+      });
+    }
+  };
+
+  // Print bulk ID cards for all students
+  const printBulkIDCards = () => {
+    if (sortedStudents.length === 0) {
+      setSaveAlert({
+        open: true,
+        message: 'No students available to print ID cards.',
+        onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'warning',
+      });
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Bulk ID Cards - TCMS</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 20px;
+              background: #f5f5f5;
+            }
+            .id-cards-container {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+              gap: 20px;
+              max-width: 1200px;
+              margin: 0 auto;
+            }
+            .id-card-container {
+              width: 336px;
+              height: 212px;
+              background: linear-gradient(135deg, #1a365d 0%, #3da58a 100%);
+              border-radius: 10px;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+              padding: 12px 15px;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              color: white;
+              position: relative;
+              page-break-inside: avoid;
+            }
+            .id-header {
+              text-align: center;
+              border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+              padding-bottom: 4px;
+            }
+            .id-header h1 {
+              font-size: 13px;
+              color: #ffffff;
+              margin: 0;
+              font-weight: bold;
+              letter-spacing: 0.5px;
+              text-transform: uppercase;
+            }
+            .id-header p {
+              font-size: 8px;
+              margin: 3px 0 0 0;
+              color: #e0e0e0;
+            }
+            .id-content {
+              margin-top: 10px;
+              font-size: 11px;
+              line-height: 1.6;
+            }
+            .id-content p {
+              margin: 6px 0;
+              font-weight: 500;
+            }
+            .barcode-section {
+              background: #ffffff;
+              padding: 5px;
+              border-radius: 6px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              border-top: 1px solid #ddd;
+              color: #000;
+            }
+            .barcode-container svg {
+              width: 100%;
+              max-height: 40px;
+            }
+            .barcode-text {
+              font-size: 8px;
+              font-family: monospace;
+              margin-top: 3px;
+              text-align: center;
+              color: #333;
+              font-weight: bold;
+              word-break: break-all;
+              line-height: 1.1;
+            }
+            .id-footer {
+              font-size: 9px;
+              text-align: right;
+              color: #f0f0f0;
+              opacity: 0.8;
+              margin-top: 5px;
+            }
+            .print-button {
+              position: fixed;
+              top: 20px;
+              right: 20px;
+              background: #3da58a;
+              color: white;
+              border: none;
+              padding: 8px 16px;
+              border-radius: 5px;
+              cursor: pointer;
+              font-weight: bold;
+              z-index: 1000;
+            }
+            .print-button:hover {
+              background: #2d8a6f;
+            }
+            .bulk-header {
+              text-align: center;
+              margin-bottom: 20px;
+              padding: 20px;
+              background: white;
+              border-radius: 10px;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }
+            .bulk-header h1 {
+              color: #1a365d;
+              margin: 0 0 10px 0;
+              font-size: 24px;
+            }
+            .bulk-header p {
+              color: #666;
+              margin: 0;
+              font-size: 14px;
+            }
+            @media print {
+              .print-button {
+                display: none;
+              }
+              body {
+                background: white;
+                padding: 0;
+              }
+              .id-card-container {
+                box-shadow: none;
+                margin: 0;
+              }
+              .bulk-header {
+                box-shadow: none;
+                border: 1px solid #ddd;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <button class="print-button" onclick="window.print()">Print All ID Cards</button>
+          
+          <div class="bulk-header">
+            <h1>TCMS Student ID Cards</h1>
+            <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+            <p>Total Students: ${sortedStudents.length}</p>
+          </div>
+          
+          <div class="id-cards-container">
+            ${sortedStudents.map((student, index) => `
+              <div class="id-card-container">
+                <div class="id-header">
+                  <h1>TCMS STUDENT ID</h1>
+                  <p>Tuition Class Management System</p>
+                </div>
+                <div class="id-content">
+                  <p><strong>Name:</strong> ${student.firstName} ${student.lastName}</p>
+                  <p><strong>ID No:</strong> ${student.studentId}</p>
+                  <p><strong>Stream:</strong> ${student.stream || 'Not Specified'}</p>
+                  <p><strong>Registered On:</strong> ${student.dateJoined || new Date().toLocaleDateString()}</p>
+                </div>
+                <div class="barcode-section">
+                  <div class="barcode-container">
+                    <svg id="barcode-${index}"></svg>
+                  </div>
+                  <div class="barcode-text">${student.studentId}</div>
+                </div>
+                <div class="id-footer">
+                  <p>Powered by TCMS | Valid for attendance</p>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+          <script>
+            setTimeout(() => {
+              ${sortedStudents.map((student, index) => `
+                try {
+                  JsBarcode("#barcode-${index}", "${student.studentId}", {
+                    format: "CODE128",
+                    width: 1.2,
+                    height: 30,
+                    displayValue: false,
+                    margin: 0,
+                    background: "#ffffff",
+                    lineColor: "#000000"
+                  });
+                } catch (error) {
+                  console.error('Error generating barcode for ${student.studentId}:', error);
+                }
+              `).join('')}
+            }, 200);
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  // Print ID cards for filtered students only
+  const printFilteredIDCards = () => {
+    if (sortedStudents.length === 0) {
+      setSaveAlert({
+        open: true,
+        message: 'No students available to print ID cards.',
+        onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'warning',
+      });
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Filtered ID Cards - TCMS</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 20px;
+              background: #f5f5f5;
+            }
+            .id-cards-container {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+              gap: 20px;
+              max-width: 1200px;
+              margin: 0 auto;
+            }
+            .id-card-container {
+              width: 336px;
+              height: 212px;
+              background: linear-gradient(135deg, #1a365d 0%, #3da58a 100%);
+              border-radius: 10px;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+              padding: 12px 15px;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              color: white;
+              position: relative;
+              page-break-inside: avoid;
+            }
+            .id-header {
+              text-align: center;
+              border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+              padding-bottom: 4px;
+            }
+            .id-header h1 {
+              font-size: 13px;
+              color: #ffffff;
+              margin: 0;
+              font-weight: bold;
+              letter-spacing: 0.5px;
+              text-transform: uppercase;
+            }
+            .id-header p {
+              font-size: 8px;
+              margin: 3px 0 0 0;
+              color: #e0e0e0;
+            }
+            .id-content {
+              margin-top: 10px;
+              font-size: 11px;
+              line-height: 1.6;
+            }
+            .id-content p {
+              margin: 6px 0;
+              font-weight: 500;
+            }
+            .barcode-section {
+              background: #ffffff;
+              padding: 5px;
+              border-radius: 6px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              border-top: 1px solid #ddd;
+              color: #000;
+            }
+            .barcode-container svg {
+              width: 100%;
+              max-height: 40px;
+            }
+            .barcode-text {
+              font-size: 8px;
+              font-family: monospace;
+              margin-top: 3px;
+              text-align: center;
+              color: #333;
+              font-weight: bold;
+              word-break: break-all;
+              line-height: 1.1;
+            }
+            .id-footer {
+              font-size: 9px;
+              text-align: right;
+              color: #f0f0f0;
+              opacity: 0.8;
+              margin-top: 5px;
+            }
+            .print-button {
+              position: fixed;
+              top: 20px;
+              right: 20px;
+              background: #3da58a;
+              color: white;
+              border: none;
+              padding: 8px 16px;
+              border-radius: 5px;
+              cursor: pointer;
+              font-weight: bold;
+              z-index: 1000;
+            }
+            .print-button:hover {
+              background: #2d8a6f;
+            }
+            .bulk-header {
+              text-align: center;
+              margin-bottom: 20px;
+              padding: 20px;
+              background: white;
+              border-radius: 10px;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }
+            .bulk-header h1 {
+              color: #1a365d;
+              margin: 0 0 10px 0;
+              font-size: 24px;
+            }
+            .bulk-header p {
+              color: #666;
+              margin: 0;
+              font-size: 14px;
+            }
+            .filter-info {
+              background: #e3f2fd;
+              border: 1px solid #2196f3;
+              border-radius: 5px;
+              padding: 10px;
+              margin-bottom: 20px;
+              text-align: center;
+            }
+            .filter-info h3 {
+              color: #1976d2;
+              margin: 0 0 5px 0;
+              font-size: 16px;
+            }
+            .filter-info p {
+              color: #424242;
+              margin: 0;
+              font-size: 12px;
+            }
+            @media print {
+              .print-button {
+                display: none;
+              }
+              body {
+                background: white;
+                padding: 0;
+              }
+              .id-card-container {
+                box-shadow: none;
+                margin: 0;
+              }
+              .bulk-header, .filter-info {
+                box-shadow: none;
+                border: 1px solid #ddd;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <button class="print-button" onclick="window.print()">Print Filtered ID Cards</button>
+          
+          <div class="bulk-header">
+            <h1>TCMS Student ID Cards</h1>
+            <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+            <p>Filtered Students: ${sortedStudents.length} of ${students.length} total</p>
+          </div>
+
+          <div class="filter-info">
+            <h3>Filter Information</h3>
+            <p>
+              Registration Type: ${registrationFilter === 'all' ? 'All' : registrationFilter.charAt(0).toUpperCase() + registrationFilter.slice(1)} | 
+              Stream: ${streamFilter === 'all' ? 'All' : streamFilter} | 
+              Search: ${searchTerm || 'None'} | 
+              Date Range: ${dateRangeFilter.startDate ? new Date(dateRangeFilter.startDate).toLocaleDateString() : 'Any'} → ${dateRangeFilter.endDate ? new Date(dateRangeFilter.endDate).toLocaleDateString() : 'Any'} | 
+              Sort: ${sortConfig.key} (${sortConfig.direction === 'asc' ? 'A-Z' : 'Z-A'})
+            </p>
+          </div>
+          
+          <div class="id-cards-container">
+            ${sortedStudents.map((student, index) => `
+              <div class="id-card-container">
+                <div class="id-header">
+                  <h1>TCMS STUDENT ID</h1>
+                  <p>Tuition Class Management System</p>
+                </div>
+                <div class="id-content">
+                  <p><strong>Name:</strong> ${student.firstName} ${student.lastName}</p>
+                  <p><strong>ID No:</strong> ${student.studentId}</p>
+                  <p><strong>Stream:</strong> ${student.stream || 'Not Specified'}</p>
+                  <p><strong>Registered On:</strong> ${student.dateJoined || new Date().toLocaleDateString()}</p>
+                </div>
+                <div class="barcode-section">
+                  <div class="barcode-container">
+                    <svg id="barcode-${index}"></svg>
+                  </div>
+                  <div class="barcode-text">${student.studentId}</div>
+                </div>
+                <div class="id-footer">
+                  <p>Powered by TCMS | Valid for attendance</p>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+          <script>
+            setTimeout(() => {
+              ${sortedStudents.map((student, index) => `
+                try {
+                  JsBarcode("#barcode-${index}", "${student.studentId}", {
+                    format: "CODE128",
+                    width: 1.2,
+                    height: 30,
+                    displayValue: false,
+                    margin: 0,
+                    background: "#ffffff",
+                    lineColor: "#000000"
+                  });
+                } catch (error) {
+                  console.error('Error generating barcode for ${student.studentId}:', error);
+                }
+              `).join('')}
+            }, 200);
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   // Generate barcode on canvas
@@ -640,7 +1062,7 @@ const StudentEnrollment = () => {
                           <div class="id-content">
                 <p><strong>Name:</strong> ${selectedStudent.firstName} ${selectedStudent.lastName}</p>
                 <p><strong>ID No:</strong> ${selectedStudent.studentId}</p>
-                <p><strong>Registered On:</strong> ${selectedStudent.barcodeGeneratedAt ? new Date(selectedStudent.barcodeGeneratedAt).toLocaleDateString() : new Date().toLocaleDateString()}</p>
+                <p><strong>Generated On:</strong> ${selectedStudent.barcodeGeneratedAt ? new Date(selectedStudent.barcodeGeneratedAt).toLocaleDateString() : new Date().toLocaleDateString()}</p>
               </div>
             <div class="barcode-section">
               <div class="barcode-container">
@@ -707,7 +1129,8 @@ const StudentEnrollment = () => {
             <div class="student-info">
               <h2>${selectedStudent.firstName} ${selectedStudent.lastName}</h2>
               <p><strong>Student ID:</strong> ${selectedStudent.studentId}</p>
-              <p><strong>Generated:</strong> ${new Date(selectedStudent.barcodeGeneratedAt).toLocaleDateString()}</p>
+              
+               <p><strong>Generated On:</strong> ${selectedStudent.barcodeGeneratedAt ? new Date(selectedStudent.barcodeGeneratedAt).toLocaleDateString() : new Date().toLocaleDateString()}</p>
             </div>
             <div class="barcode-image">
               <canvas id="print-barcode"></canvas>
@@ -835,17 +1258,17 @@ const StudentEnrollment = () => {
       });
 
       if (result.success) {
-        setShowEditModal(false);
-        setSaveAlert({
-          open: true,
+    setShowEditModal(false);
+    setSaveAlert({
+      open: true,
           message: 'Student details updated successfully!',
           onConfirm: () => {
             setSaveAlert(a => ({ ...a, open: false }));
             refreshStudents(); // Refresh data from backend
           },
-          confirmText: 'OK',
-          type: 'success',
-        });
+      confirmText: 'OK',
+      type: 'success',
+    });
       } else {
         throw new Error(result.message || 'Failed to update student');
       }
@@ -866,6 +1289,270 @@ const StudentEnrollment = () => {
     setEditValues({});
   };
 
+  // Handle student selection
+  const handleStudentSelection = (studentId, isSelected) => {
+    if (isSelected) {
+      setSelectedStudents(prev => [...prev, studentId]);
+    } else {
+      setSelectedStudents(prev => prev.filter(id => id !== studentId));
+    }
+  };
+
+  // Select all students
+  const selectAllStudents = () => {
+    setSelectedStudents(sortedStudents.map(student => student.studentId));
+  };
+
+  // Deselect all students
+  const deselectAllStudents = () => {
+    setSelectedStudents([]);
+  };
+
+  // Print ID cards for selected students only
+  const printSelectedIDCards = () => {
+    if (selectedStudents.length === 0) {
+      setSaveAlert({
+        open: true,
+        message: 'Please select students to print ID cards.',
+        onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'warning',
+      });
+      return;
+    }
+
+    const selectedStudentData = sortedStudents.filter(student => 
+      selectedStudents.includes(student.studentId)
+    );
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Selected ID Cards - TCMS</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 20px;
+              background: #f5f5f5;
+            }
+            .id-cards-container {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+              gap: 20px;
+              max-width: 1200px;
+              margin: 0 auto;
+            }
+            .id-card-container {
+              width: 336px;
+              height: 212px;
+              background: linear-gradient(135deg, #1a365d 0%, #3da58a 100%);
+              border-radius: 10px;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+              padding: 12px 15px;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              color: white;
+              position: relative;
+              page-break-inside: avoid;
+            }
+            .id-header {
+              text-align: center;
+              border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+              padding-bottom: 4px;
+            }
+            .id-header h1 {
+              font-size: 13px;
+              color: #ffffff;
+              margin: 0;
+              font-weight: bold;
+              letter-spacing: 0.5px;
+              text-transform: uppercase;
+            }
+            .id-header p {
+              font-size: 8px;
+              margin: 3px 0 0 0;
+              color: #e0e0e0;
+            }
+            .id-content {
+              margin-top: 10px;
+              font-size: 11px;
+              line-height: 1.6;
+            }
+            .id-content p {
+              margin: 6px 0;
+              font-weight: 500;
+            }
+            .barcode-section {
+              background: #ffffff;
+              padding: 5px;
+              border-radius: 6px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              border-top: 1px solid #ddd;
+              color: #000;
+            }
+            .barcode-container svg {
+              width: 100%;
+              max-height: 40px;
+            }
+            .barcode-text {
+              font-size: 8px;
+              font-family: monospace;
+              margin-top: 3px;
+              text-align: center;
+              color: #333;
+              font-weight: bold;
+              word-break: break-all;
+              line-height: 1.1;
+            }
+            .id-footer {
+              font-size: 9px;
+              text-align: right;
+              color: #f0f0f0;
+              opacity: 0.8;
+              margin-top: 5px;
+            }
+            .print-button {
+              position: fixed;
+              top: 20px;
+              right: 20px;
+              background: #3da58a;
+              color: white;
+              border: none;
+              padding: 8px 16px;
+              border-radius: 5px;
+              cursor: pointer;
+              font-weight: bold;
+              z-index: 1000;
+            }
+            .print-button:hover {
+              background: #2d8a6f;
+            }
+            .bulk-header {
+              text-align: center;
+              margin-bottom: 20px;
+              padding: 20px;
+              background: white;
+              border-radius: 10px;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }
+            .bulk-header h1 {
+              color: #1a365d;
+              margin: 0 0 10px 0;
+              font-size: 24px;
+            }
+            .bulk-header p {
+              color: #666;
+              margin: 0;
+              font-size: 14px;
+            }
+            .selection-info {
+              background: #fff3e0;
+              border: 1px solid #ff9800;
+              border-radius: 5px;
+              padding: 10px;
+              margin-bottom: 20px;
+              text-align: center;
+            }
+            .selection-info h3 {
+              color: #e65100;
+              margin: 0 0 5px 0;
+              font-size: 16px;
+            }
+            .selection-info p {
+              color: #424242;
+              margin: 0;
+              font-size: 12px;
+            }
+            @media print {
+              .print-button {
+                display: none;
+              }
+              body {
+                background: white;
+                padding: 0;
+              }
+              .id-card-container {
+                box-shadow: none;
+                margin: 0;
+              }
+              .bulk-header, .selection-info {
+                box-shadow: none;
+                border: 1px solid #ddd;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <button class="print-button" onclick="window.print()">Print Selected ID Cards</button>
+          
+          <div class="bulk-header">
+            <h1>TCMS Student ID Cards</h1>
+            <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+            <p>Selected Students: ${selectedStudentData.length} of ${students.length} total</p>
+          </div>
+
+          <div class="selection-info">
+            <h3>Selection Information</h3>
+            <p>Selected Student IDs: ${selectedStudentData.map(s => s.studentId).join(', ')}</p>
+          </div>
+          
+          <div class="id-cards-container">
+            ${selectedStudentData.map((student, index) => `
+              <div class="id-card-container">
+                <div class="id-header">
+                  <h1>TCMS STUDENT ID</h1>
+                  <p>Tuition Class Management System</p>
+                </div>
+                <div class="id-content">
+                  <p><strong>Name:</strong> ${student.firstName} ${student.lastName}</p>
+                  <p><strong>ID No:</strong> ${student.studentId}</p>
+                  <p><strong>Stream:</strong> ${student.stream || 'Not Specified'}</p>
+                  <p><strong>Registered On:</strong> ${student.dateJoined || new Date().toLocaleDateString()}</p>
+                </div>
+                <div class="barcode-section">
+                  <div class="barcode-container">
+                    <svg id="barcode-${index}"></svg>
+                  </div>
+                  <div class="barcode-text">${student.studentId}</div>
+                </div>
+                <div class="id-footer">
+                  <p>Powered by TCMS | Valid for attendance</p>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+          <script>
+            setTimeout(() => {
+              ${selectedStudentData.map((student, index) => `
+                try {
+                  JsBarcode("#barcode-${index}", "${student.studentId}", {
+                    format: "CODE128",
+                    width: 1.2,
+                    height: 30,
+                    displayValue: false,
+                    margin: 0,
+                    background: "#ffffff",
+                    lineColor: "#000000"
+                  });
+                } catch (error) {
+                  console.error('Error generating barcode for ${student.studentId}:', error);
+                }
+              `).join('')}
+            }, 200);
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   return (
     // <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
       <div className="p-6 bg-white rounded-lg shadow">
@@ -877,6 +1564,30 @@ const StudentEnrollment = () => {
             </p>
           </div>
           <div className="flex gap-3">
+            <button
+              onClick={printFilteredIDCards}
+              disabled={loading || sortedStudents.length === 0}
+              className={`px-4 py-2 text-white rounded transition-colors flex items-center gap-2 ${
+                loading || sortedStudents.length === 0
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
+            >
+              <FaIdCard />
+              Print Filtered ID Cards
+            </button>
+            <button
+              onClick={printSelectedIDCards}
+              disabled={loading || selectedStudents.length === 0}
+              className={`px-4 py-2 text-white rounded transition-colors flex items-center gap-2 ${
+                loading || selectedStudents.length === 0
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-indigo-600 hover:bg-indigo-700'
+              }`}
+            >
+              <FaIdCard />
+              Print Selected ID Cards ({selectedStudents.length})
+            </button>
             <button
               onClick={exportToCSV}
               disabled={loading || sortedStudents.length === 0}
@@ -974,7 +1685,7 @@ const StudentEnrollment = () => {
                 <option value="online">Online Registrations</option>
                 <option value="physical">Physical Registrations</option>
               </select>
-            </div>
+        </div>
             
             {/* Stream Filter */}
             <div className="flex flex-col">
@@ -1008,27 +1719,107 @@ const StudentEnrollment = () => {
               />
             </div>
           </div>
+
+          {/* Date Range Filter */}
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-700 mb-1">Start Date</label>
+              <input
+                type="date"
+                value={dateRangeFilter.startDate}
+                onChange={(e) => setDateRangeFilter(prev => ({ ...prev, startDate: e.target.value }))}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-700 mb-1">End Date</label>
+              <input
+                type="date"
+                value={dateRangeFilter.endDate}
+                onChange={(e) => setDateRangeFilter(prev => ({ ...prev, endDate: e.target.value }))}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
           
           <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
             <div>
               Showing <span className="font-semibold">{sortedStudents.length}</span> of <span className="font-semibold">{students.length}</span> students
             </div>
-            <div className="flex items-center gap-2">
-              <span>Sort by:</span>
-              <span className="font-medium">{sortConfig.key === 'dateJoined' ? 'Date Joined' : 
-                sortConfig.key === 'firstName' ? 'First Name' :
-                sortConfig.key === 'lastName' ? 'Last Name' :
-                sortConfig.key === 'school' ? 'School' :
-                sortConfig.key === 'stream' ? 'Stream' :
-                sortConfig.key === 'dateOfBirth' ? 'Date of Birth' :
-                sortConfig.key}</span>
-              <span className="text-gray-400">({sortConfig.direction === 'asc' ? 'A-Z' : 'Z-A'})</span>
+            <div className="flex items-center gap-4">
+              {/* Selection Controls */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={selectAllStudents}
+                  disabled={sortedStudents.length === 0}
+                  className={`px-2 py-1 text-xs rounded transition-colors ${
+                    sortedStudents.length === 0
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                  }`}
+                >
+                  Select All
+                </button>
+                <button
+                  onClick={deselectAllStudents}
+                  disabled={selectedStudents.length === 0}
+                  className={`px-2 py-1 text-xs rounded transition-colors ${
+                    selectedStudents.length === 0
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-red-100 text-red-700 hover:bg-red-200'
+                  }`}
+                >
+                  Deselect All
+                </button>
+                {selectedStudents.length > 0 && (
+                  <span className="text-xs font-medium text-indigo-600">
+                    {selectedStudents.length} selected
+                  </span>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span>Sort by:</span>
+                <span className="font-medium">{sortConfig.key === 'dateJoined' ? 'Date Joined' : 
+                  sortConfig.key === 'firstName' ? 'First Name' :
+                  sortConfig.key === 'lastName' ? 'Last Name' :
+                  sortConfig.key === 'school' ? 'School' :
+                  sortConfig.key === 'stream' ? 'Stream' :
+                  sortConfig.key === 'dateOfBirth' ? 'Date of Birth' :
+                  sortConfig.key}</span>
+                <span className="text-gray-400">({sortConfig.direction === 'asc' ? 'A-Z' : 'Z-A'})</span>
+              </div>
+
+              {/* Date Range Info */}
+              {(dateRangeFilter.startDate || dateRangeFilter.endDate) && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">Date Range:</span>
+                  <span className="text-xs font-medium text-gray-700">
+                    {dateRangeFilter.startDate ? new Date(dateRangeFilter.startDate).toLocaleDateString() : 'Any'} 
+                    {' → '} 
+                    {dateRangeFilter.endDate ? new Date(dateRangeFilter.endDate).toLocaleDateString() : 'Any'}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         <BasicTable
           columns={[
+            { 
+              key: 'select', 
+              label: '',
+              render: row => (
+                <input
+                  type="checkbox"
+                  checked={selectedStudents.includes(row.studentId)}
+                  onChange={(e) => handleStudentSelection(row.studentId, e.target.checked)}
+                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                />
+              )
+            },
             { 
               key: 'studentId', 
               label: 'Student ID',
@@ -1138,7 +1929,7 @@ const StudentEnrollment = () => {
             },
             { 
               key: 'barcode', 
-              label: 'Barcode Status',
+              label: 'Barcode Status', 
               sortable: true,
               render: row => (
                 <div className="flex items-center gap-2">
@@ -1329,7 +2120,7 @@ const StudentEnrollment = () => {
                             id="email"
                             name="email"
                             type="email"
-                            label="Email *"
+                            label="Email (optional)"
                             value={values.email}
                             onChange={handleChange}
                             error={errors.email}

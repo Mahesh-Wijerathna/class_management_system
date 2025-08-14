@@ -50,9 +50,20 @@ class UserModel {
 
         return $stmt->execute();
     }
+
+    // Create teacher user with all fields
+    public function createTeacherUser($userid, $password, $name, $email, $phone) {
+        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+        $role = 'teacher';
+        
+        $stmt = $this->conn->prepare("INSERT INTO users (userid, password, role, name, email, phone) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("ssssss", $userid, $hashedPassword, $role, $name, $email, $phone);
+        
+        return $stmt->execute();
+    }
     // Get user by ID
     public function getUserById($userid) {
-        $stmt = $this->conn->prepare("SELECT userid, password, role, otp FROM users WHERE userid = ?");
+        $stmt = $this->conn->prepare("SELECT userid, password, role, name, email, phone, otp FROM users WHERE userid = ?");
         $stmt->bind_param("s", $userid);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -104,4 +115,106 @@ class UserModel {
         return false;
     }
     
+    // =====================================================
+    // TEACHER METHODS
+    // =====================================================
+
+    // Get all teachers
+    public function getAllTeachers() {
+        try {
+            $stmt = $this->conn->prepare("SELECT userid, name, email, phone, created_at FROM users WHERE role = 'teacher' ORDER BY created_at DESC");
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            $teachers = [];
+            while ($row = $result->fetch_assoc()) {
+                $teachers[] = $row;
+            }
+            
+            return $teachers;
+        } catch (Exception $e) {
+            error_log("Error getting all teachers: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    // Update teacher
+    public function updateTeacher($teacherId, $data) {
+        try {
+            $updateFields = [];
+            $types = '';
+            $values = [];
+            
+            if (isset($data['name'])) {
+                $updateFields[] = 'name = ?';
+                $types .= 's';
+                $values[] = $data['name'];
+            }
+            
+            if (isset($data['email'])) {
+                $updateFields[] = 'email = ?';
+                $types .= 's';
+                $values[] = $data['email'];
+            }
+            
+            if (isset($data['phone'])) {
+                $updateFields[] = 'phone = ?';
+                $types .= 's';
+                $values[] = $data['phone'];
+            }
+            
+            if (isset($data['password'])) {
+                $updateFields[] = 'password = ?';
+                $types .= 's';
+                $values[] = $data['password'];
+            }
+            
+            if (empty($updateFields)) {
+                return false;
+            }
+            
+            $values[] = $teacherId;
+            $types .= 's';
+            
+            $sql = "UPDATE users SET " . implode(', ', $updateFields) . " WHERE userid = ? AND role = 'teacher'";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bind_param($types, ...$values);
+            
+            return $stmt->execute();
+        } catch (Exception $e) {
+            error_log("Error updating teacher: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    // Get teacher by email
+    public function getTeacherByEmail($email) {
+        try {
+            $stmt = $this->conn->prepare("SELECT * FROM users WHERE email = ? AND role = 'teacher'");
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            return $result->fetch_assoc();
+        } catch (Exception $e) {
+            error_log("Error getting teacher by email: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    // Check if email exists
+    public function emailExists($email) {
+        try {
+            $stmt = $this->conn->prepare("SELECT COUNT(*) as count FROM users WHERE email = ?");
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $row = $result->fetch_assoc();
+            
+            return $row['count'] > 0;
+        } catch (Exception $e) {
+            error_log("Error checking email existence: " . $e->getMessage());
+            return false;
+        }
+    }
 }

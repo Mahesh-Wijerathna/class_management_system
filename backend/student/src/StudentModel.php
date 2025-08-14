@@ -82,14 +82,19 @@ class StudentModel {
         $address = $studentData['address'] ?? '';
         $district = $studentData['district'] ?? '';
 
+        // Auto-generate barcode data using student ID
+        $barcodeData = $userid;
+        $barcodeGeneratedAt = date('Y-m-d H:i:s');
+
         $stmt = $this->conn->prepare("
             INSERT INTO students (
                 user_id, first_name, last_name, nic, gender, age, email, mobile_number, 
-                parent_name, parent_mobile_number, stream, date_of_birth, school, address, district
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                parent_name, parent_mobile_number, stream, date_of_birth, school, address, district,
+                barcode_data, barcode_generated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         
-        $stmt->bind_param("sssssssssssssss", 
+        $stmt->bind_param("sssssssssssssssss", 
             $userid,
             $firstName,
             $lastName,
@@ -104,7 +109,9 @@ class StudentModel {
             $dateOfBirth,
             $school,
             $address,
-            $district
+            $district,
+            $barcodeData,
+            $barcodeGeneratedAt
         );
 
         $result = $stmt->execute();
@@ -151,16 +158,19 @@ class StudentModel {
         $school = $studentData['school'] ?? $existingStudent['school'];
         $address = $studentData['address'] ?? $existingStudent['address'];
         $district = $studentData['district'] ?? $existingStudent['district'];
+        $barcodeData = $studentData['barcodeData'] ?? $existingStudent['barcode_data'];
+        $barcodeGeneratedAt = $studentData['barcodeGeneratedAt'] ?? $existingStudent['barcode_generated_at'];
 
         $stmt = $this->conn->prepare("
             UPDATE students SET 
                 first_name = ?, last_name = ?, nic = ?, gender = ?, age = ?, 
                 email = ?, mobile_number = ?, parent_name = ?, parent_mobile_number = ?, 
-                stream = ?, date_of_birth = ?, school = ?, address = ?, district = ?
+                stream = ?, date_of_birth = ?, school = ?, address = ?, district = ?,
+                barcode_data = ?, barcode_generated_at = ?
             WHERE user_id = ?
         ");
         
-        $stmt->bind_param("sssssssssssssss", 
+        $stmt->bind_param("sssssssssssssssss", 
             $firstName,
             $lastName,
             $nic,
@@ -175,10 +185,53 @@ class StudentModel {
             $school,
             $address,
             $district,
+            $barcodeData,
+            $barcodeGeneratedAt,
             $userid
         );
 
         return $stmt->execute();
+    }
+
+    public function generateBarcodeForStudent($userid) {
+        // Check if student exists
+        $existingStudent = $this->getStudentByUserId($userid);
+        if (!$existingStudent) {
+            return false;
+        }
+
+        // Generate barcode data using student ID
+        $barcodeData = $userid;
+        $barcodeGeneratedAt = date('Y-m-d H:i:s');
+
+        $stmt = $this->conn->prepare("
+            UPDATE students SET 
+                barcode_data = ?, barcode_generated_at = ?
+            WHERE user_id = ?
+        ");
+        
+        $stmt->bind_param("sss", $barcodeData, $barcodeGeneratedAt, $userid);
+        return $stmt->execute();
+    }
+
+    public function generateBarcodesForAllStudents() {
+        // Get all students without barcodes
+        $stmt = $this->conn->prepare("
+            SELECT user_id FROM students 
+            WHERE barcode_data IS NULL OR barcode_data = ''
+        ");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $students = $result->fetch_all(MYSQLI_ASSOC);
+
+        $successCount = 0;
+        foreach ($students as $student) {
+            if ($this->generateBarcodeForStudent($student['user_id'])) {
+                $successCount++;
+            }
+        }
+
+        return $successCount;
     }
 
     public function deleteStudent($userid) {

@@ -31,7 +31,17 @@ const TeacherInfo = () => {
       setLoading(true);
       const response = await getAllTeachers();
       if (response.success) {
-        setTeachers(response.data || []);
+        // Map auth backend format to expected format
+        const mappedTeachers = (response.teachers || []).map(teacher => ({
+          teacherId: teacher.userid, // Map userid to teacherId
+          name: teacher.name,
+          email: teacher.email,
+          phone: teacher.phone,
+          designation: 'Mr.', // Default designation since auth backend doesn't store this
+          stream: 'Not Specified', // Default stream since auth backend doesn't store this
+          created_at: teacher.created_at
+        }));
+        setTeachers(mappedTeachers);
       } else {
         console.error('Failed to load teachers:', response.message);
         setTeachers([]);
@@ -103,10 +113,18 @@ const TeacherInfo = () => {
       // Fetch teacher data with password placeholder for editing
       const response = await getTeacherForEdit(teacher.teacherId);
       if (response.success) {
-        const editData = response.data;
-        // The backend returns '********' as password placeholder
-        // We keep this to show that a password exists
-        setEditValues(editData);
+        const editData = response.teacher; // Auth backend returns 'teacher' instead of 'data'
+        // Map auth backend format to expected format
+        const mappedEditData = {
+          teacherId: editData.userid,
+          name: editData.name,
+          email: editData.email,
+          phone: editData.phone,
+          designation: 'Mr.', // Default designation
+          stream: 'Not Specified', // Default stream
+          password: '********' // Password placeholder
+        };
+        setEditValues(mappedEditData);
         setShowEditModal(true);
       } else {
         console.error('Failed to get teacher for editing:', response.message);
@@ -163,6 +181,11 @@ const TeacherInfo = () => {
       if (!updateData.password || updateData.password.trim() === '' || updateData.password === '********') {
         delete updateData.password;
       }
+      
+      // Remove fields that auth backend doesn't store
+      delete updateData.designation;
+      delete updateData.stream;
+      delete updateData.teacherId; // Remove teacherId from update data
       
       const response = await updateTeacher(values.teacherId, updateData);
       if (response.success) {

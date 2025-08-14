@@ -11,6 +11,17 @@ const teacherApi = axios.create({
   withCredentials: false,
 });
 
+// Auth API for centralized authentication
+const authApi = axios.create({
+  baseURL: process.env.REACT_APP_AUTH_API_BASE_URL || 'http://localhost:8081',
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+  withCredentials: false,
+});
+
 const teacherApiGet = async (endpoint) => {
   try {
     const response = await teacherApi.get(endpoint);
@@ -47,9 +58,51 @@ const teacherApiDelete = async (endpoint) => {
   }
 };
 
+// Auth API functions for centralized authentication
+const authApiPost = async (endpoint, data) => {
+  try {
+    const response = await authApi.post(endpoint, data);
+    return response.data;
+  } catch (error) {
+    throw handleApiError(error);
+  }
+};
+
+const authApiGet = async (endpoint) => {
+  try {
+    const response = await authApi.get(endpoint);
+    return response.data;
+  } catch (error) {
+    throw handleApiError(error);
+  }
+};
+
+const authApiPut = async (endpoint, data) => {
+  try {
+    const response = await authApi.put(endpoint, data);
+    return response.data;
+  } catch (error) {
+    throw handleApiError(error);
+  }
+};
+
+const authApiDelete = async (endpoint) => {
+  try {
+    const response = await authApi.delete(endpoint);
+    return response.data;
+  } catch (error) {
+    throw handleApiError(error);
+  }
+};
+
 // Teacher management functions
 export const getAllTeachers = async () => {
-  return await teacherApiGet('/routes.php/get_all_teachers');
+  try {
+    const response = await authApi.get('/routes.php/teachers');
+    return response.data;
+  } catch (error) {
+    throw new Error(handleApiError(error, 'Failed to fetch teachers'));
+  }
 };
 
 export const getActiveTeachers = async () => {
@@ -61,7 +114,12 @@ export const getTeacherById = async (teacherId) => {
 };
 
 export const getTeacherForEdit = async (teacherId) => {
-  return await teacherApiGet(`/routes.php/get_teacher_for_edit?teacherId=${teacherId}`);
+  try {
+    const response = await authApi.get(`/routes.php/teacher/${teacherId}`);
+    return response.data;
+  } catch (error) {
+    throw new Error(handleApiError(error, 'Failed to fetch teacher details'));
+  }
 };
 
 export const getTeachersByStream = async (stream) => {
@@ -72,24 +130,78 @@ export const getNextTeacherId = async () => {
   return await teacherApiGet('/routes.php/get_next_teacher_id');
 };
 
+// Updated to use centralized auth backend
 export const createTeacher = async (teacherData) => {
-  return await teacherApiPost('/routes.php/create_teacher', teacherData);
+  try {
+    const response = await authApi.post('/routes.php/teacher', teacherData);
+    return response.data;
+  } catch (error) {
+    throw new Error(handleApiError(error, 'Failed to create teacher'));
+  }
 };
 
 export const updateTeacher = async (teacherId, teacherData) => {
-  return await teacherApiPut(`/routes.php/update_teacher/${teacherId}`, teacherData);
+  try {
+    const response = await authApi.put(`/routes.php/teacher/${teacherId}`, teacherData);
+    return response.data;
+  } catch (error) {
+    throw new Error(handleApiError(error, 'Failed to update teacher'));
+  }
 };
 
 export const deleteTeacher = async (teacherId) => {
-  return await teacherApiDelete(`/routes.php/delete_teacher/${teacherId}`);
+  try {
+    const response = await authApi.delete(`/routes.php/teacher/${teacherId}`);
+    return response.data;
+  } catch (error) {
+    throw new Error(handleApiError(error, 'Failed to delete teacher'));
+  }
 };
 
+// Updated to use centralized auth backend
 export const teacherLogin = async (email, password) => {
-  return await teacherApiPost('/routes.php/login', { email, password });
+  try {
+    const response = await authApi.post('/routes.php/teacher/login-email', { email, password });
+    const data = response.data;
+    
+    // If login is successful, map the teacher data to the expected user format
+    if (data.success && data.teacher) {
+      return {
+        success: true,
+        message: data.message,
+        user: data.teacher, // Map teacher data to user field
+        accessToken: data.accessToken || null,
+        refreshToken: data.refreshToken || null
+      };
+    }
+    
+    return data;
+  } catch (error) {
+    throw new Error(handleApiError(error, 'Teacher login failed'));
+  }
 };
 
+// Updated to use centralized auth backend
 export const teacherLoginWithId = async (teacherId, password) => {
-  return await teacherApiPost('/routes.php/login_with_teacher_id', { teacherId, password });
+  try {
+    const response = await authApi.post('/routes.php/teacher/login', { teacherId, password });
+    const data = response.data;
+    
+    // If login is successful, map the teacher data to the expected user format
+    if (data.success && data.teacher) {
+      return {
+        success: true,
+        message: data.message,
+        user: data.teacher, // Map teacher data to user field
+        accessToken: data.accessToken || null,
+        refreshToken: data.refreshToken || null
+      };
+    }
+    
+    return data;
+  } catch (error) {
+    throw new Error(handleApiError(error, 'Teacher login failed'));
+  }
 };
 
 export const changeTeacherPassword = async (teacherId, currentPassword, newPassword) => {
@@ -98,4 +210,17 @@ export const changeTeacherPassword = async (teacherId, currentPassword, newPassw
     currentPassword,
     newPassword
   });
+};
+
+// New centralized auth functions
+export const getAllTeachersFromAuth = async () => {
+  return await authApiGet('/routes.php/teachers');
+};
+
+export const getTeacherFromAuth = async (teacherId) => {
+  return await authApiGet(`/routes.php/teacher/${teacherId}`);
+};
+
+export const teacherForgotPasswordOtp = async (teacherId) => {
+  return await authApiPost('/routes.php/teacher/forgot-password-otp', { userid: teacherId });
 }; 

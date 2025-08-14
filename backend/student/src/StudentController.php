@@ -83,4 +83,18 @@ class StudentController {
         }
     }
 
+    public function generateBarcodeForStudent($user_id) {
+        $result = $this->model->generateBarcodeForStudent($user_id);
+        if ($result) {
+            return ['success' => true, 'message' => 'Barcode generated successfully'];
+        } else {
+            return ['success' => false, 'message' => 'Failed to generate barcode'];
+        }
+    }
+
+    public function generateBarcodesForAllStudents() {
+        $count = $this->model->generateBarcodesForAllStudents();
+        return ['success' => true, 'message' => "Generated barcodes for {$count} students"];
+    }
+
 }

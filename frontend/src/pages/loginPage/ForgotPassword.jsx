@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import * as Yup from 'yup';
 import CustomTextField from '../../components/CustomTextField';
 import CustomButton from '../../components/CustomButton';
 import BasicForm from '../../components/BasicForm';
-import { FaPhone, FaLock, FaGraduationCap, FaKey } from 'react-icons/fa';
+import { FaPhone, FaLock, FaGraduationCap, FaKey, FaRedo } from 'react-icons/fa';
 import { forgotPasswordRequestOtp, resetPassword } from '../../api/auth';
 
 const useridSchema = Yup.object().shape({
@@ -37,6 +37,23 @@ export default function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  
+  // OTP resend functionality
+  const [resendCountdown, setResendCountdown] = useState(0);
+  const [resendLoading, setResendLoading] = useState(false);
+
+  // Countdown timer effect
+  useEffect(() => {
+    let timer;
+    if (resendCountdown > 0) {
+      timer = setTimeout(() => {
+        setResendCountdown(resendCountdown - 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [resendCountdown]);
 
   const handleSendOtp = async (values) => {
     setLoading(true);
@@ -59,6 +76,8 @@ export default function ForgotPassword() {
         setUserid(values.userid);
         setSuccess('OTP sent successfully! Check your phone for the code.');
         setStep(2);
+        // Start countdown timer (60 seconds)
+        setResendCountdown(60);
       } else {
         setError(response.message || 'Failed to send OTP');
       }
@@ -66,6 +85,37 @@ export default function ForgotPassword() {
       setError(error.message || 'Failed to send OTP');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setResendLoading(true);
+    setError('');
+    setSuccess('');
+    
+    try {
+      const response = await forgotPasswordRequestOtp(userid);
+      console.log('OTP resend response:', response);
+      
+      if (response.success) {
+        // Log OTP resent for forgot password
+        console.log('🔄 FORGOT PASSWORD OTP RESENT:', {
+          userid: userid,
+          otp: response.otp,
+          timestamp: new Date().toLocaleString(),
+          message: 'OTP resent successfully for password reset'
+        });
+        
+        setSuccess('OTP resent successfully! Check your phone for the new code.');
+        // Start countdown timer (60 seconds)
+        setResendCountdown(60);
+      } else {
+        setError(response.message || 'Failed to resend OTP');
+      }
+    } catch (error) {
+      setError(error.message || 'Failed to resend OTP');
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -173,6 +223,33 @@ export default function ForgotPassword() {
                     touched={touched.otp}
                     icon={FaKey}
                   />
+                  
+                  {/* Resend OTP Button */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="text-sm text-gray-600">
+                      Didn't receive the code?
+                    </div>
+                    {resendCountdown > 0 ? (
+                      <div className="text-sm text-gray-500">
+                        Resend in {resendCountdown}s
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleResendOtp}
+                        disabled={resendLoading}
+                        className={`flex items-center gap-2 px-3 py-2 text-sm rounded transition-colors ${
+                          resendLoading
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                        }`}
+                      >
+                        <FaRedo className={`text-xs ${resendLoading ? 'animate-spin' : ''}`} />
+                        {resendLoading ? 'Sending...' : 'Resend OTP'}
+                      </button>
+                    )}
+                  </div>
+                  
                   <CustomTextField
                     id="password"
                     name="password"
