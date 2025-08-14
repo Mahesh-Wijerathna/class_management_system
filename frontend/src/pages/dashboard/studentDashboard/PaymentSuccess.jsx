@@ -16,7 +16,7 @@ const PaymentSuccess = () => {
 
   const getPayHerePaymentStatus = async (orderId) => {
     try {
-      const response = await fetch(`http://localhost:8087/routes.php/get_payment_status?order_id=${orderId}`);
+      const response = await fetch(`http://localhost:8090/routes.php/get_payment_status?order_id=${orderId}`);
       return await response.json();
     } catch (e) {
       console.error('Error fetching PayHere payment status:', e);
@@ -70,7 +70,7 @@ const PaymentSuccess = () => {
                 
                 // Auto-complete the payment
                 try {
-                  const autoCompleteResponse = await fetch(`http://localhost:8087/routes.php/dev/auto_complete_payment?order_id=${orderId}`);
+                  const autoCompleteResponse = await fetch(`http://localhost:8090/routes.php/dev/auto_complete_payment?order_id=${orderId}`);
                   const autoCompleteData = await autoCompleteResponse.json();
                   
                   if (autoCompleteData.success) {
@@ -152,7 +152,7 @@ const PaymentSuccess = () => {
                  try {
                    console.log('🔄 Ensuring enrollment is created for transaction:', orderId);
                    
-                   const enrollmentResponse = await fetch(`http://localhost:8087/routes.php/process_payment`, {
+                   const enrollmentResponse = await fetch(`http://localhost:8090/routes.php/process_payment`, {
                      method: 'POST',
                      headers: {
                        'Content-Type': 'application/json',
@@ -199,7 +199,7 @@ const PaymentSuccess = () => {
               if (process.env.NODE_ENV === 'development' && orderId) {
                 console.log('🔄 Development mode: Trying to auto-complete payment...');
                 try {
-                  const autoCompleteResponse = await fetch(`http://localhost:8087/routes.php/dev/auto_complete_payment?order_id=${orderId}`);
+                  const autoCompleteResponse = await fetch(`http://localhost:8090/routes.php/dev/auto_complete_payment?order_id=${orderId}`);
                   const autoCompleteData = await autoCompleteResponse.json();
                   
                   if (autoCompleteData.success) {
@@ -225,7 +225,7 @@ const PaymentSuccess = () => {
             if (process.env.NODE_ENV === 'development' && orderId) {
               console.log('🔄 Development mode: Trying to auto-complete payment after error...');
               try {
-                const autoCompleteResponse = await fetch(`http://localhost:8087/routes.php/dev/auto_complete_payment?order_id=${orderId}`);
+                const autoCompleteResponse = await fetch(`http://localhost:8090/routes.php/dev/auto_complete_payment?order_id=${orderId}`);
                 const autoCompleteData = await autoCompleteResponse.json();
                 
                 if (autoCompleteData.success) {

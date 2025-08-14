@@ -1,1 +1,0 @@
-            $stmt->bind_param("sids", $data["student_id"], $data["class_id"], $data["amount"], $orderId, $orderId);

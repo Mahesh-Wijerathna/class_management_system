@@ -5,12 +5,13 @@ import CustomTextField from '../../components/CustomTextField';
 import CustomButton from '../../components/CustomButton';
 import BasicForm from '../../components/BasicForm';
 import { FaPhone, FaLock, FaGraduationCap, FaKey } from 'react-icons/fa';
-import { sendOtp, forgotPasswordReset } from '../../api/auth';
+import { forgotPasswordRequestOtp, resetPassword } from '../../api/auth';
 
-const mobileSchema = Yup.object().shape({
-  mobile: Yup.string()
-    .required('Mobile number is required')
-    .matches(/^0[1-9][0-9]{8}$/, 'Please enter a valid Sri Lankan mobile number (e.g., 0712345678)'),
+const useridSchema = Yup.object().shape({
+  userid: Yup.string()
+    .required('User ID is required')
+    .min(2, 'User ID must be at least 2 characters')
+    .max(20, 'User ID must be less than 20 characters'),
 });
 
 const otpSchema = Yup.object().shape({
@@ -32,7 +33,7 @@ const otpSchema = Yup.object().shape({
 export default function ForgotPassword() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
-  const [mobile, setMobile] = useState('');
+  const [userid, setUserid] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -43,11 +44,19 @@ export default function ForgotPassword() {
     setSuccess('');
     
     try {
-      const response = await sendOtp(values.mobile);
+      const response = await forgotPasswordRequestOtp(values.userid);
       console.log('OTP response:', response);
       
       if (response.success) {
-        setMobile(values.mobile);
+        // Log OTP sent for forgot password
+        console.log('🔐 FORGOT PASSWORD OTP SENT:', {
+          userid: values.userid,
+          otp: response.otp,
+          timestamp: new Date().toLocaleString(),
+          message: 'OTP sent successfully for password reset'
+        });
+        
+        setUserid(values.userid);
         setSuccess('OTP sent successfully! Check your phone for the code.');
         setStep(2);
       } else {
@@ -66,9 +75,16 @@ export default function ForgotPassword() {
     setSuccess('');
     
     try {
-      const response = await forgotPasswordReset(mobile, values.otp, values.password);
+      const response = await resetPassword(userid, values.otp, values.password);
       
       if (response.success) {
+        // Log password reset success
+        console.log('✅ PASSWORD RESET SUCCESS:', {
+          userid: userid,
+          timestamp: new Date().toLocaleString(),
+          message: 'Password reset successfully'
+        });
+        
         setSuccess('Password reset successfully!');
         setTimeout(() => {
           navigate('/login');
@@ -110,23 +126,23 @@ export default function ForgotPassword() {
           )}
           {step === 1 && (
             <BasicForm
-              initialValues={{ mobile: '' }}
-              validationSchema={mobileSchema}
+              initialValues={{ userid: '' }}
+              validationSchema={useridSchema}
               onSubmit={handleSendOtp}
             >
               {({ errors, touched, handleChange, values }) => (
                 <>
                   <CustomTextField
-                    id="mobile"
-                    name="mobile"
+                    id="userid"
+                    name="userid"
                     type="text"
-                    label="Mobile Number *"
-                    value={values.mobile}
+                    label="User ID *"
+                    value={values.userid}
                     onChange={handleChange}
-                    error={errors.mobile}
-                    touched={touched.mobile}
-                    icon={FaPhone}
-                    placeholder="e.g., 0712345678"
+                    error={errors.userid}
+                    touched={touched.userid}
+                    icon={FaGraduationCap}
+                    placeholder="Enter your User ID (e.g., S001, T001)"
                   />
                   <CustomButton type="submit" disabled={loading}>
                     {loading ? 'Sending OTP...' : 'Send OTP'}
@@ -144,7 +160,7 @@ export default function ForgotPassword() {
               {({ errors, touched, handleChange, values }) => (
                 <>
                   <div className="mb-4 p-3 bg-blue-100 border border-blue-400 text-blue-700 rounded text-sm">
-                    OTP sent to: {mobile}
+                    OTP sent to user: {userid}
                   </div>
                   <CustomTextField
                     id="otp"

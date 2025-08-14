@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS students (
     date_of_birth DATE NOT NULL,
     age INT NOT NULL,
     gender ENUM('Male', 'Female', 'Other') NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
+    email VARCHAR(100) NULL,
     school VARCHAR(100),
     stream VARCHAR(50),
     address VARCHAR(255),

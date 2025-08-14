@@ -4,10 +4,7 @@
 date_default_timezone_set('Asia/Colombo');
 
 require_once __DIR__ . '/UserModel.php';
-require_once __DIR__ . '/StudentModel.php';
 require_once __DIR__ . '/RateLimiter.php';
-require_once __DIR__ . '/WhatsAppService.php';
-require_once __DIR__ . '/StudentMonitoringModel.php';
 
 require_once __DIR__ . '/vendor/autoload.php';
 use Firebase\JWT\JWT;
@@ -23,44 +20,103 @@ class UserController {
     }
 
     public function register($role, $password, $studentData = null) {
-        // If this is a student registration, validate student data first
-        if ($role === 'student' && $studentData) {
-            $student = new StudentModel($this->db);
-            $validationErrors = $student->validateStudentData($studentData);
-            
-            if (!empty($validationErrors)) {
-                return json_encode([
-                    'success' => false, 
-                    'message' => implode(', ', $validationErrors)
-                ]);
-            }
-        }
-        
         $user = new UserModel($this->db);
         if ($user->createUser($role, $password)) {
             $userid = $user->userid;
             
-            // If this is a student registration and we have student data, save it
-            if ($role === 'student' && $studentData) {
-                $student = new StudentModel($this->db);
-                $result = $student->createStudent($userid, $studentData);
-                if (!$result['success']) {
-                    // If student data creation fails, delete the user and return error
-                    $user->deleteUser($userid);
-                    return json_encode([
-                        'success' => false, 
-                        'message' => implode(', ', $result['errors'])
-                    ]);
-                }
-            }
-            
-            return json_encode([
+            // Enhanced response for better user experience
+            $response = [
                 'success' => true,
                 'userid' => $userid,
-                'role' => $user->role
-            ]);
+                'role' => $user->role,
+                'message' => 'Account created successfully in TCMS',
+                'system' => 'TCMS (Tuition Class Management System)',
+                'timestamp' => date('Y-m-d H:i:s'),
+                'status' => 'active'
+            ];
+            
+            // Add student-specific information if available
+            if ($studentData && isset($studentData['firstName']) && isset($studentData['lastName'])) {
+                $response['studentName'] = $studentData['firstName'] . ' ' . $studentData['lastName'];
+                $response['welcomeMessage'] = "Welcome {$studentData['firstName']}! Your account has been successfully created.";
+            }
+            
+            return json_encode($response);
         } else {
             return json_encode(['success' => false, 'message' => 'User creation failed']);
+        }
+    }
+
+    // Send welcome WhatsApp message after successful registration
+    public function sendWelcomeWhatsAppMessage($userid, $studentData) {
+        try {
+            // Create a welcome message in the specified format
+            $welcomeMessage = "🎉 Registration Successful!\n" .
+                "Welcome to TCMS (Tuition Class Management System)\n\n" .
+                "Student ID\n" . $userid . "\n\n" .
+                "Full Name\n" . $studentData['firstName'] . " " . $studentData['lastName'] . "\n\n" .
+                "Next Steps\n" .
+                "• Your account has been successfully created in TCMS\n" .
+                "• You can now login using your Student ID and password\n" .
+                "• For security, please reset your password using 'Forgot Password'\n\n" .
+                "Account Status\n" .
+                "✅ Account Created | ✅ Mobile Verified | ✅ Ready for Login";
+
+            // Format phone number for external service
+            $mobile = $studentData['mobile'];
+            $formatted_phone = $mobile;
+            if (strlen($mobile) === 10 && substr($mobile, 0, 1) === '0') {
+                $formatted_phone = '94' . substr($mobile, 1);
+            } elseif (strlen($mobile) === 9 && substr($mobile, 0, 1) === '0') {
+                $formatted_phone = '94' . substr($mobile, 1);
+            } elseif (strlen($mobile) === 11 && substr($mobile, 0, 2) === '94') {
+                $formatted_phone = $mobile;
+            } elseif (strlen($mobile) === 10 && substr($mobile, 0, 1) === '7') {
+                $formatted_phone = '94' . $mobile;
+            }
+
+            // Send the welcome message using the message as OTP field (like teacher creation)
+            $postData = json_encode([
+                'phoneNumber' => $formatted_phone,
+                'otp' => $welcomeMessage // Using the message as OTP field for welcome message
+            ]);
+
+            $ch = curl_init('https://down-south-front-end.onrender.com/send_otp');
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Content-Length: ' . strlen($postData)
+            ]);
+
+            $response = curl_exec($ch);
+
+            if (curl_errno($ch)) {
+                return json_encode([
+                    'success' => false,
+                    'message' => 'cURL Error: ' . curl_error($ch)
+                ]);
+            }
+
+            $result = json_decode($response, true);
+            
+            if ($result && isset($result['success']) && $result['success']) {
+                return json_encode([
+                    'success' => true,
+                    'message' => 'Welcome WhatsApp message sent successfully'
+                ]);
+            } else {
+                return json_encode([
+                    'success' => false,
+                    'message' => 'Failed to send welcome WhatsApp message: ' . ($result['message'] ?? 'Unknown error')
+                ]);
+            }
+        } catch (Exception $e) {
+            return json_encode([
+                'success' => false,
+                'message' => 'Error sending welcome WhatsApp message: ' . $e->getMessage()
+            ]);
         }
     }
 
@@ -89,39 +145,20 @@ class UserController {
         }
     }
 
-    // Delete user by ID (handles both regular users and students)
+    // Delete user by ID
     public function deleteUser($userid) {
         try {
             // Start transaction
             $this->db->begin_transaction();
             
-            // Check if this is a student (starts with 'S')
-            if (strpos($userid, 'S') === 0) {
-                // Delete from students table
-                $stmt = $this->db->prepare("DELETE FROM students WHERE userid = ?");
-                $stmt->bind_param("s", $userid);
-                $stmt->execute();
-                
-                // Delete from barcodes table
-                $stmt = $this->db->prepare("DELETE FROM barcodes WHERE userid = ?");
-                $stmt->bind_param("s", $userid);
-                $stmt->execute();
-            }
-            
             // Delete from users table (for all users)
-        $user = new UserModel($this->db);
-        $result = $user->deleteUser($userid);
+            $user = new UserModel($this->db);
+            $result = $user->deleteUser($userid);
             
-        if ($result) {
-                // If this is a student, also delete their enrollments from class-db
-                if (strpos($userid, 'S') === 0) {
-                    $this->deleteStudentEnrollments($userid);
-                    $this->deleteStudentPayments($userid);
-                }
-                
+            if ($result) {
                 // Commit transaction
                 $this->db->commit();
-            return json_encode(['success' => true, 'message' => 'User deleted successfully']);
+                return json_encode(['success' => true, 'message' => 'User deleted successfully']);
         } else {
                 // Rollback transaction
                 $this->db->rollback();
@@ -134,91 +171,7 @@ class UserController {
         }
     }
     
-    // Helper method to delete student enrollments from class-db
-    private function deleteStudentEnrollments($studentId) {
-        try {
-            // Call the class backend to delete enrollments
-            $url = 'http://host.docker.internal:8087/routes.php/delete_student_enrollments';
-            $data = json_encode(['studentId' => $studentId]);
-            
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, $url);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
-                'Content-Length: ' . strlen($data)
-            ]);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-            
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-            
-            if ($httpCode === 200) {
-                $result = json_decode($response, true);
-                if ($result && $result['success']) {
-                    error_log("Successfully deleted enrollments for student {$studentId}: " . $result['message']);
-                } else {
-                    error_log("Failed to delete enrollments for student {$studentId}: " . ($result['message'] ?? 'Unknown error'));
-                }
-            } else {
-                error_log("HTTP error {$httpCode} when deleting enrollments for student {$studentId}");
-            }
-        } catch (Exception $e) {
-            error_log("Exception when deleting enrollments for student {$studentId}: " . $e->getMessage());
-        }
-    }
-    
-    // Helper method to delete student payments from class-db
-    private function deleteStudentPayments($studentId) {
-        try {
-            // Get student email first
-            $stmt = $this->db->prepare("SELECT email FROM students WHERE userid = ?");
-            $stmt->bind_param("s", $studentId);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $studentEmail = null;
-            if ($row = $result->fetch_assoc()) {
-                $studentEmail = $row['email'];
-            }
-            
-            if ($studentEmail) {
-                // Call the class backend to delete payments
-                $url = 'http://host.docker.internal:8087/routes.php/delete_student_payments';
-                $data = json_encode(['email' => $studentEmail]);
-                
-                $ch = curl_init();
-                curl_setopt($ch, CURLOPT_URL, $url);
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                    'Content-Type: application/json',
-                    'Content-Length: ' . strlen($data)
-                ]);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-                
-                $response = curl_exec($ch);
-                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                curl_close($ch);
-                
-                if ($httpCode === 200) {
-                    $result = json_decode($response, true);
-                    if ($result && $result['success']) {
-                        error_log("Successfully deleted payments for student {$studentId}: " . $result['message']);
-                    } else {
-                        error_log("Failed to delete payments for student {$studentId}: " . ($result['message'] ?? 'Unknown error'));
-                    }
-                } else {
-                    error_log("HTTP error {$httpCode} when deleting payments for student {$studentId}");
-                }
-            }
-        } catch (Exception $e) {
-            error_log("Exception when deleting payments for student {$studentId}: " . $e->getMessage());
-        }
-    }
+
 
 
     // Get all users
@@ -244,15 +197,19 @@ class UserController {
 
         // Check if student is blocked - do this BEFORE any other processing
         if ($userid && $userid[0] === 'S') { // Check if it's a student
-            require_once __DIR__ . '/StudentMonitoringModel.php';
-            $monitoringModel = new StudentMonitoringModel($this->db);
-            if ($monitoringModel->isStudentBlocked($userid)) {
-                // Record failed login attempt for blocked student
-                $this->rateLimiter->recordAttempt($userid, 0);
-                return json_encode([
-                    'success' => false,
-                    'message' => 'Your account has been blocked by the administrator. Please contact support for assistance.'
-                ]);
+            // Call student backend to check if student is blocked
+            $url = "http://student-backend/routes.php/student-blocked/$userid";
+            $response = file_get_contents($url);
+            if ($response !== FALSE) {
+                $blockedData = json_decode($response, true);
+                if (isset($blockedData['blocked']) && $blockedData['blocked']) {
+                    // Record failed login attempt for blocked student
+                    $this->rateLimiter->recordAttempt($userid, 0);
+                    return json_encode([
+                        'success' => false,
+                        'message' => 'Your account has been blocked by the administrator. Please contact support for assistance.'
+                    ]);
+                }
             }
         }
         
@@ -322,12 +279,28 @@ class UserController {
             
             // Track student login activity for monitoring
             if ($userData['role'] === 'student') {
-                $monitoringModel = new StudentMonitoringModel($this->db);
                 $sessionId = uniqid('session_', true);
                 $ipAddress = $this->getClientIP();
                 $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
                 $loginTime = date('Y-m-d H:i:s');
-                $monitoringModel->trackLoginActivity($userData['userid'], $ipAddress, $userAgent, $sessionId, $loginTime);
+                
+                // Call student backend to track login activity
+                $trackingData = [
+                    'studentId' => $userData['userid'],
+                    'ipAddress' => $ipAddress,
+                    'userAgent' => $userAgent,
+                    'sessionId' => $sessionId,
+                    'loginTime' => $loginTime
+                ];
+                
+                $url = "http://student-backend/routes.php/track-student-login";
+                file_get_contents($url, false, stream_context_create([
+                    'http' => [
+                        'method' => 'POST',
+                        'header' => 'Content-Type: application/json',
+                        'content' => json_encode($trackingData)
+                    ]
+                ]));
             }
             
             return json_encode([
@@ -488,6 +461,18 @@ class UserController {
 
     $phone_number = $userData['mobile_number'];
 
+    // Format phone number for external service (remove leading 0 and add 94)
+    $formatted_phone = $phone_number;
+    if (strlen($phone_number) === 10 && substr($phone_number, 0, 1) === '0') {
+        $formatted_phone = '94' . substr($phone_number, 1);
+    } elseif (strlen($phone_number) === 9 && substr($phone_number, 0, 1) === '0') {
+        $formatted_phone = '94' . substr($phone_number, 1);
+    } elseif (strlen($phone_number) === 11 && substr($phone_number, 0, 2) === '94') {
+        $formatted_phone = $phone_number;
+    } elseif (strlen($phone_number) === 10 && substr($phone_number, 0, 1) === '7') {
+        $formatted_phone = '94' . $phone_number;
+    }
+
     // Step 3: Generate OTP
     $otp = rand(100000, 999999);
 
@@ -499,7 +484,7 @@ class UserController {
     $sendOtpUrl = 'https://down-south-front-end.onrender.com/send_otp';
 
     $postData = json_encode([
-        'phoneNumber' => $phone_number,
+        'phoneNumber' => $formatted_phone,
         'otp' => (string)$otp
     ]);
 
@@ -531,14 +516,127 @@ class UserController {
         ]);
     }
 
+    // Check if external service failed
+    if (isset($otpResponseData['success']) && !$otpResponseData['success']) {
+        return json_encode([
+            'success' => true,
+            'message' => 'OTP generated successfully (External service failed: ' . ($otpResponseData['message'] ?? 'Unknown error') . ')',
+            'otp' => $otp, // Show OTP for testing since external service failed
+            'external_service_error' => $otpResponseData['message'] ?? 'Unknown error'
+        ]);
+    }
+
     // Step 6: Return success
     return json_encode([
         'success' => true,
-        'message' => 'OTP sent to ' . $phone_number
-        // 'otp' => $otp, // Only for testing
-        // 'response_message' => $otpResponseData['message'] ?? 'No message returned'
+        'message' => 'OTP sent to ' . $phone_number,
+        'otp' => $otp // Show OTP for testing
     ]);
 }
+
+    // OTP request for registration verification
+    public function registrationOtpRequest($mobile) {
+        // Step 1: Validate mobile number format
+        if (!preg_match('/^0\d{9}$/', $mobile)) {
+            return json_encode([
+                'success' => false,
+                'message' => 'Invalid mobile number format. Must be 10 digits starting with 0.'
+            ]);
+        }
+
+        // Step 2: Check if mobile number already exists in database
+        // Note: For registration, we'll skip this check since the student doesn't exist yet
+        // The actual duplicate check will be done during registration
+
+        // Step 3: Format phone number for external service (same as forgot password)
+        $formatted_phone = $mobile;
+        if (strlen($mobile) === 10 && substr($mobile, 0, 1) === '0') {
+            $formatted_phone = '94' . substr($mobile, 1);
+        } elseif (strlen($mobile) === 9 && substr($mobile, 0, 1) === '0') {
+            $formatted_phone = '94' . substr($mobile, 1);
+        } elseif (strlen($mobile) === 11 && substr($mobile, 0, 2) === '94') {
+            $formatted_phone = $mobile;
+        } elseif (strlen($mobile) === 10 && substr($mobile, 0, 1) === '7') {
+            $formatted_phone = '94' . $mobile;
+        }
+
+        // Step 4: Generate and store OTP using OtpModel
+        require_once __DIR__ . '/OtpModel.php';
+        $otpModel = new OtpModel($this->db);
+        $otp = $otpModel->createOtp($mobile, 'registration');
+
+        if (!$otp) {
+            return json_encode([
+                'success' => false,
+                'message' => 'Failed to generate OTP. Please try again.'
+            ]);
+        }
+
+        // Step 5: Send OTP to external service
+        $sendOtpUrl = 'https://down-south-front-end.onrender.com/send_otp';
+
+        $postData = json_encode([
+            'phoneNumber' => $formatted_phone,
+            'otp' => (string)$otp
+        ]);
+
+        $ch = curl_init($sendOtpUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Content-Length: ' . strlen($postData)
+        ]);
+
+        $otpResponse = curl_exec($ch);
+
+        if (curl_errno($ch)) {
+            return json_encode([
+                'success' => false,
+                'message' => 'cURL Error: ' . curl_error($ch)
+            ]);
+        }
+
+        $otpResponseData = json_decode($otpResponse, true);
+
+        if ($otpResponseData === null) {
+            return json_encode([
+                'success' => false,
+                'message' => 'Invalid JSON response from OTP service',
+                'raw' => $otpResponse
+            ]);
+        }
+
+        // Check if the external service was successful
+        if (isset($otpResponseData['success']) && $otpResponseData['success'] === false) {
+            return json_encode([
+                'success' => false,
+                'message' => 'OTP service error: ' . ($otpResponseData['message'] ?? 'Unknown error'),
+                'service_response' => $otpResponseData,
+                'otp' => $otp // Show OTP for testing purposes
+            ]);
+        }
+
+        // Step 6: Return success
+        return json_encode([
+            'success' => true,
+            'message' => 'OTP sent to ' . $mobile,
+            'otp' => $otp, // Show OTP for testing purposes
+            'service_response' => $otpResponseData // Show service response for debugging
+        ]);
+    }
+
+    // Verify registration OTP
+    public function verifyRegistrationOtp($mobile, $otp) {
+        // Use OtpModel for proper OTP verification
+        require_once __DIR__ . '/OtpModel.php';
+        $otpModel = new OtpModel($this->db);
+        
+        $result = $otpModel->verifyOtp($mobile, $otp, 'registration');
+        
+        return json_encode($result);
+    }
 
 
 
@@ -570,31 +668,60 @@ public function resetPassword($userid, $otp, $newPassword) {
 
     // Send OTP for forgot password (using mobile number)
     public function sendOtpForForgotPassword($mobile) {
-        // First, find the user by mobile number in local database
-        $stmt = $this->db->prepare("
-            SELECT u.userid, s.mobile 
-            FROM users u 
-            LEFT JOIN students s ON u.userid = s.userid 
-            WHERE s.mobile = ? AND u.role = 'student'
-        ");
-        $stmt->bind_param("s", $mobile);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        // Step 1: Call student backend to find user by mobile number
+        $url = "http://host.docker.internal:8086/routes.php/getAllStudents";
         
-        if ($result->num_rows === 0) {
+        $response = file_get_contents($url);
+        if ($response === FALSE) {
+            return json_encode([
+                'success' => false,
+                'message' => 'Failed to fetch student data'
+            ]);
+        }
+        
+        $students = json_decode($response, true);
+        if (!$students || !is_array($students)) {
+            return json_encode([
+                'success' => false,
+                'message' => 'Invalid response from student service'
+            ]);
+        }
+        
+        // Find student by mobile number
+        $foundStudent = null;
+        foreach ($students as $student) {
+            if ($student['mobile_number'] === $mobile) {
+                $foundStudent = $student;
+                break;
+            }
+        }
+        
+        if (!$foundStudent) {
             return json_encode([
                 'success' => false,
                 'message' => 'No student found with this mobile number'
             ]);
         }
         
-        $user = $result->fetch_assoc();
-        $userid = $user['userid'];
+        $userid = $foundStudent['user_id'];
         
-        // Generate OTP (6 digits)
+        // Step 2: Check if user exists in auth database
+        $stmt = $this->db->prepare("SELECT userid FROM users WHERE userid = ? AND role = 'student'");
+        $stmt->bind_param("s", $userid);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if ($result->num_rows === 0) {
+            return json_encode([
+                'success' => false,
+                'message' => 'User account not found'
+            ]);
+        }
+        
+        // Step 3: Generate OTP (6 digits)
         $otp = sprintf("%06d", mt_rand(0, 999999));
         
-        // Store OTP in database with timestamp
+        // Step 4: Store OTP in auth database with timestamp
         $stmt = $this->db->prepare("
             UPDATE users 
             SET otp = ?, otp_created_at = NOW() 
@@ -603,26 +730,37 @@ public function resetPassword($userid, $otp, $newPassword) {
         $stmt->bind_param("ss", $otp, $userid);
         
         if ($stmt->execute()) {
-            // Send OTP via WhatsApp
-            $whatsappService = new WhatsAppService();
-            $whatsappResult = $whatsappService->sendOtp($mobile, $otp);
-            
-            if ($whatsappResult['success']) {
-                return json_encode([
-                    'success' => true,
-                    'message' => 'OTP sent to WhatsApp successfully',
-                    'otp' => $otp, // Remove this in production
-                    'userid' => $userid
-                ]);
-            } else {
-                // Fallback: return OTP for testing if WhatsApp fails
-                return json_encode([
-                    'success' => true,
-                    'message' => 'OTP sent successfully (WhatsApp failed: ' . $whatsappResult['message'] . ')',
-                    'otp' => $otp, // Remove this in production
-                    'userid' => $userid
-                ]);
+            // Step 5: Send OTP via WhatsApp
+            $formatted_phone = $mobile;
+            if (strlen($mobile) === 10 && substr($mobile, 0, 1) === '0') {
+                $formatted_phone = '94' . substr($mobile, 1);
             }
+            
+            $sendOtpUrl = 'https://down-south-front-end.onrender.com/send_otp';
+            $postData = json_encode([
+                'phoneNumber' => $formatted_phone,
+                'otp' => (string)$otp
+            ]);
+            
+            $ch = curl_init($sendOtpUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Content-Length: ' . strlen($postData)
+            ]);
+            
+            $otpResponse = curl_exec($ch);
+            $otpResponseData = json_decode($otpResponse, true);
+            
+            return json_encode([
+                'success' => true,
+                'message' => 'OTP sent successfully',
+                'otp' => $otp, // Remove this in production
+                'userid' => $userid,
+                'service_response' => $otpResponseData
+            ]);
         } else {
             return json_encode([
                 'success' => false,
@@ -631,42 +769,7 @@ public function resetPassword($userid, $otp, $newPassword) {
         }
     }
 
-    // Send OTP via WhatsApp
-    private function sendWhatsAppOtp($mobile, $otp) {
-        // Option 1: WhatsApp Business API (requires business verification)
-        $whatsappApiUrl = 'https://graph.facebook.com/v17.0/YOUR_PHONE_NUMBER_ID/messages';
-        $accessToken = 'YOUR_ACCESS_TOKEN'; // Get from Meta Developer Console
-        
-        $message = "Your TCMS verification code is: $otp\n\nThis code will expire in 15 minutes.\n\nDo not share this code with anyone.";
-        
-        $data = [
-            'messaging_product' => 'whatsapp',
-            'to' => $mobile,
-            'type' => 'text',
-            'text' => [
-                'body' => $message
-            ]
-        ];
-        
-        $ch = curl_init($whatsappApiUrl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Authorization: Bearer ' . $accessToken,
-            'Content-Type: application/json'
-        ]);
-        
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        if ($httpCode === 200) {
-            return ['success' => true, 'message' => 'WhatsApp message sent'];
-        } else {
-            return ['success' => false, 'message' => 'WhatsApp API error: ' . $response];
-        }
-    }
+
 
     // Reset password using OTP (using mobile number)
     public function resetPasswordWithOtp($mobile, $otp, $newPassword) {
@@ -851,49 +954,6 @@ public function resetPassword($userid, $otp, $newPassword) {
         }
     }
 
-    // Get all students with complete information
-    public function getAllStudents() {
-        $stmt = $this->db->prepare("
-            SELECT 
-                u.userid,
-                u.role,
-                COALESCE(s.firstName, '') as firstName,
-                COALESCE(s.lastName, '') as lastName,
-                COALESCE(s.email, '') as email,
-                COALESCE(s.mobile, '') as mobile,
-                COALESCE(s.nic, '') as nic,
-                COALESCE(s.gender, '') as gender,
-                COALESCE(s.age, '') as age,
-                COALESCE(s.parentName, '') as parentName,
-                COALESCE(s.parentMobile, '') as parentMobile,
-                COALESCE(s.stream, '') as stream,
-                COALESCE(s.dateOfBirth, '') as dateOfBirth,
-                COALESCE(s.school, '') as school,
-                COALESCE(s.address, '') as address,
-                COALESCE(s.district, '') as district,
-                COALESCE(s.dateJoined, '') as dateJoined,
-                COALESCE(b.barcode_data, '') as barcodeData,
-                COALESCE(b.created_at, '') as barcodeCreatedAt
-            FROM users u
-            LEFT JOIN students s ON u.userid = s.userid
-            LEFT JOIN barcodes b ON u.userid = b.userid
-            WHERE u.role = 'student'
-            ORDER BY u.userid
-        ");
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        $students = [];
-        while ($row = $result->fetch_assoc()) {
-            $students[] = $row;
-        }
-        
-        return json_encode([
-            'success' => true,
-            'students' => $students
-        ]);
-    }
-
     // Get student by ID
     public function getStudentById($studentId) {
         $stmt = $this->db->prepare("
@@ -1016,28 +1076,59 @@ public function resetPassword($userid, $otp, $newPassword) {
         $stmt->bind_param("sssss", $cashierId, $hashedPassword, $name, $email, $phone);
         
         if ($stmt->execute()) {
-            // Send WhatsApp message with credentials
-            $whatsappService = new WhatsAppService();
+            // Format phone number for external service
+            $formatted_phone = $phone;
+            if (strlen($phone) === 10 && substr($phone, 0, 1) === '0') {
+                $formatted_phone = '94' . substr($phone, 1);
+            } elseif (strlen($phone) === 9 && substr($phone, 0, 1) === '0') {
+                $formatted_phone = '94' . substr($phone, 1);
+            } elseif (strlen($phone) === 11 && substr($phone, 0, 2) === '94') {
+                $formatted_phone = $phone;
+            } elseif (strlen($phone) === 10 && substr($phone, 0, 1) === '7') {
+                $formatted_phone = '94' . $phone;
+            }
+
+            // Send credentials via external service
+            $sendOtpUrl = 'https://down-south-front-end.onrender.com/send_otp';
             $message = "Hello $name! Your cashier account has been created.\n\nLogin Details:\nUser ID: $cashierId\nPassword: $password\n\nPlease change your password after first login.";
             
-            $whatsappSent = false;
-            $whatsappMessage = '';
-            
-            try {
-                $whatsappResult = $whatsappService->sendCustomMessage($phone, $message);
-                $whatsappSent = $whatsappResult['success'];
-                $whatsappMessage = $whatsappResult['message'];
-            } catch (Exception $e) {
-                $whatsappSent = false;
-                $whatsappMessage = $e->getMessage();
+            $postData = json_encode([
+                'phoneNumber' => $formatted_phone,
+                'otp' => $message // Using the message as OTP field for credentials
+            ]);
+
+            $ch = curl_init($sendOtpUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Content-Length: ' . strlen($postData)
+            ]);
+
+            $otpResponse = curl_exec($ch);
+            $externalServiceSuccess = false;
+            $externalServiceMessage = '';
+
+            if (curl_errno($ch)) {
+                $externalServiceMessage = 'cURL Error: ' . curl_error($ch);
+            } else {
+                $otpResponseData = json_decode($otpResponse, true);
+                if ($otpResponseData && isset($otpResponseData['success'])) {
+                    $externalServiceSuccess = $otpResponseData['success'];
+                    $externalServiceMessage = $otpResponseData['message'] ?? 'No message returned';
+                } else {
+                    $externalServiceMessage = 'Invalid response from external service';
+                }
             }
+            curl_close($ch);
             
             return json_encode([
                 'success' => true,
                 'message' => 'Cashier account created successfully',
                 'cashier_id' => $cashierId,
-                'whatsapp_sent' => $whatsappSent,
-                'whatsapp_message' => $whatsappMessage
+                'credentials_sent' => $externalServiceSuccess,
+                'credentials_message' => $externalServiceMessage
             ]);
         } else {
             return json_encode([

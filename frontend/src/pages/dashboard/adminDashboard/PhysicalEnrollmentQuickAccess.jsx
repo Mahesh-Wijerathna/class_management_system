@@ -177,7 +177,7 @@ const PhysicalEnrollmentQuickAccess = () => {
       const allEnrollments = [];
       for (const student of students) {
         try {
-          const response = await fetch(`http://localhost:8087/routes.php/get_student_enrollments?studentId=${student.userid}`);
+          const response = await fetch(`http://localhost:8087/routes.php/get_enrollments_by_student?studentId=${student.userid}`);
           if (response.ok) {
             const result = await response.json();
             if (result.success && result.data) {
@@ -268,7 +268,7 @@ const PhysicalEnrollmentQuickAccess = () => {
       const receiptNumber = `RCP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       
       // Step 1: Create payment record in the database
-      const paymentResponse = await fetch('http://localhost:8087/routes.php/create_payment', {
+      const paymentResponse = await fetch('http://localhost:8090/routes.php/create_payment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -331,7 +331,7 @@ const PhysicalEnrollmentQuickAccess = () => {
       console.log('Enrollment created:', enrollmentResult);
 
       // Step 3: Verify the enrollment was saved correctly
-      const verifyResponse = await fetch(`http://localhost:8087/routes.php/get_student_enrollments?studentId=${selectedStudent.studentId}`);
+      const verifyResponse = await fetch(`http://localhost:8087/routes.php/get_enrollments_by_student?studentId=${selectedStudent.studentId}`);
       if (verifyResponse.ok) {
         const verifyResult = await verifyResponse.json();
         console.log('Verification - Student enrollments:', verifyResult);

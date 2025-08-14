@@ -11,15 +11,32 @@ class UserModel {
     }
 
     public function generateUserId($role) {
-        $prefix = strtoupper(substr($role, 0, 1));
-        $stmt = $this->conn->prepare("SELECT userid FROM users WHERE userid LIKE ? ORDER BY userid DESC LIMIT 1");
-        $like = $prefix . '%';
-        $stmt->bind_param("s", $like);
-        $stmt->execute();
-        $result = $stmt->get_result()->fetch_assoc();
+        if ($role === 'student') {
+            // Generate S0 + 4 random digits for students
+            do {
+                $randomDigits = str_pad(rand(1000, 9999), 4, '0', STR_PAD_LEFT);
+                $userid = 'S0' . $randomDigits;
+                
+                // Check if this ID already exists
+                $stmt = $this->conn->prepare("SELECT userid FROM users WHERE userid = ?");
+                $stmt->bind_param("s", $userid);
+                $stmt->execute();
+                $result = $stmt->get_result();
+            } while ($result->num_rows > 0); // Keep generating until we get a unique ID
+            
+            return $userid;
+        } else {
+            // Original logic for other roles (admin, teacher, etc.)
+            $prefix = strtoupper(substr($role, 0, 1));
+            $stmt = $this->conn->prepare("SELECT userid FROM users WHERE userid LIKE ? ORDER BY userid DESC LIMIT 1");
+            $like = $prefix . '%';
+            $stmt->bind_param("s", $like);
+            $stmt->execute();
+            $result = $stmt->get_result()->fetch_assoc();
 
-        $lastId = $result ? (int)substr($result['userid'], 1) : 0;
-        return $prefix . str_pad($lastId + 1, 3, "0", STR_PAD_LEFT);
+            $lastId = $result ? (int)substr($result['userid'], 1) : 0;
+            return $prefix . str_pad($lastId + 1, 3, "0", STR_PAD_LEFT);
+        }
     }
 
     public function createUser($role, $password, $otp = null) {

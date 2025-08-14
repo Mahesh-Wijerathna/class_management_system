@@ -4,7 +4,7 @@ date_default_timezone_set('Asia/Colombo');
 
 require_once 'TeacherModel.php';
 require_once 'config.php';
-require_once 'WhatsAppService.php';
+
 
 class TeacherController {
     private $model;
@@ -89,25 +89,65 @@ class TeacherController {
             
             $result = $this->model->createTeacher($data);
             
-            // If teacher creation was successful, send WhatsApp message
+            // If teacher creation was successful, send credentials via external service
             if ($result['success']) {
                 try {
-                    $whatsappService = new WhatsAppService();
-                    $whatsappResult = $whatsappService->sendTeacherCredentials(
-                        $data['phone'],
-                        $data['teacherId'],
-                        $data['name'],
-                        $data['password']
-                    );
+                    // Format phone number for external service
+                    $phone = $data['phone'];
+                    $formatted_phone = $phone;
+                    if (strlen($phone) === 10 && substr($phone, 0, 1) === '0') {
+                        $formatted_phone = '94' . substr($phone, 1);
+                    } elseif (strlen($phone) === 9 && substr($phone, 0, 1) === '0') {
+                        $formatted_phone = '94' . substr($phone, 1);
+                    } elseif (strlen($phone) === 11 && substr($phone, 0, 2) === '94') {
+                        $formatted_phone = $phone;
+                    } elseif (strlen($phone) === 10 && substr($phone, 0, 1) === '7') {
+                        $formatted_phone = '94' . $phone;
+                    }
+
+                    // Send credentials via external service
+                    $sendOtpUrl = 'https://down-south-front-end.onrender.com/send_otp';
+                    $message = "Hello {$data['name']}! Your teacher account has been created.\n\nLogin Details:\nUser ID: {$data['teacherId']}\nPassword: {$data['password']}\n\nPlease change your password after first login.";
                     
-                    // Add WhatsApp result to the response
-                    $result['whatsapp_sent'] = $whatsappResult['success'];
-                    $result['whatsapp_message'] = $whatsappResult['message'];
+                    $postData = json_encode([
+                        'phoneNumber' => $formatted_phone,
+                        'otp' => $message // Using the message as OTP field for credentials
+                    ]);
+
+                    $ch = curl_init($sendOtpUrl);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                        'Content-Type: application/json',
+                        'Content-Length: ' . strlen($postData)
+                    ]);
+
+                    $otpResponse = curl_exec($ch);
+                    $externalServiceSuccess = false;
+                    $externalServiceMessage = '';
+
+                    if (curl_errno($ch)) {
+                        $externalServiceMessage = 'cURL Error: ' . curl_error($ch);
+                    } else {
+                        $otpResponseData = json_decode($otpResponse, true);
+                        if ($otpResponseData && isset($otpResponseData['success'])) {
+                            $externalServiceSuccess = $otpResponseData['success'];
+                            $externalServiceMessage = $otpResponseData['message'] ?? 'No message returned';
+                        } else {
+                            $externalServiceMessage = 'Invalid response from external service';
+                        }
+                    }
+                    curl_close($ch);
+                    
+                    // Add external service result to the response
+                    $result['credentials_sent'] = $externalServiceSuccess;
+                    $result['credentials_message'] = $externalServiceMessage;
                     
                 } catch (Exception $e) {
-                    // WhatsApp sending failed, but teacher was created successfully
-                    $result['whatsapp_sent'] = false;
-                    $result['whatsapp_message'] = 'Failed to send WhatsApp message: ' . $e->getMessage();
+                    // External service sending failed, but teacher was created successfully
+                    $result['credentials_sent'] = false;
+                    $result['credentials_message'] = 'Failed to send credentials: ' . $e->getMessage();
                 }
             }
             

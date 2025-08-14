@@ -1,8 +1,8 @@
 import { handleApiError } from './apiUtils';
 import axios from 'axios';
 
-const classApi = axios.create({
-  baseURL: process.env.REACT_APP_CLASS_API_BASE_URL || 'http://localhost:8087',
+const paymentApi = axios.create({
+  baseURL: process.env.REACT_APP_PAYMENT_API_BASE_URL || 'http://localhost:8090',
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
@@ -14,7 +14,7 @@ const classApi = axios.create({
 // Payment API functions
 export const createPayment = async (paymentData) => {
   try {
-    const response = await classApi.post('/routes.php/create_payment', paymentData);
+    const response = await paymentApi.post('/routes.php/create_payment', paymentData);
     return response.data;
   } catch (error) {
     throw handleApiError(error);
@@ -23,7 +23,7 @@ export const createPayment = async (paymentData) => {
 
 export const processPayment = async (transactionId, paymentData = {}) => {
   try {
-    const response = await classApi.post('/routes.php/process_payment', {
+    const response = await paymentApi.post('/routes.php/process_payment', {
       transactionId,
       ...paymentData
     });
@@ -35,7 +35,7 @@ export const processPayment = async (transactionId, paymentData = {}) => {
 
 export const getPaymentByTransactionId = async (transactionId) => {
   try {
-    const response = await classApi.get(`/routes.php/get_payment_by_transaction?transactionId=${transactionId}`);
+    const response = await paymentApi.get(`/routes.php/get_payment_by_transaction?transactionId=${transactionId}`);
     return response.data;
   } catch (error) {
     throw handleApiError(error);
@@ -46,7 +46,7 @@ export const getStudentPayments = async (studentId) => {
   try {
     // Add cache-busting parameter to prevent browser caching
     const timestamp = Date.now();
-    const response = await classApi.get(`/routes.php/get_student_payments?studentId=${studentId}&_t=${timestamp}`);
+    const response = await paymentApi.get(`/routes.php/get_student_payments?studentId=${studentId}&_t=${timestamp}`);
     return response.data;
   } catch (error) {
     throw handleApiError(error);
@@ -55,7 +55,7 @@ export const getStudentPayments = async (studentId) => {
 
 export const generateInvoice = async (transactionId) => {
   try {
-    const response = await classApi.get(`/routes.php/generate_invoice?transactionId=${transactionId}`);
+    const response = await paymentApi.get(`/routes.php/generate_invoice?transactionId=${transactionId}`);
     return response.data;
   } catch (error) {
     throw handleApiError(error);
@@ -64,7 +64,7 @@ export const generateInvoice = async (transactionId) => {
 
 export const getPaymentStats = async (studentId) => {
   try {
-    const response = await classApi.get(`/routes.php/get_payment_stats?studentId=${studentId}`);
+    const response = await paymentApi.get(`/routes.php/get_payment_stats?studentId=${studentId}`);
     return response.data;
   } catch (error) {
     throw handleApiError(error);

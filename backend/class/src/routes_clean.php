@@ -103,10 +103,10 @@ switch ($method) {
     case 'GET':
         if ($path === '/get_all_classes') {
             $result = $controller->getAllClasses();
-            echo json_encode(['success' => true, 'data' => $result]);
+            echo json_encode($result);
         } elseif ($path === '/get_active_classes') {
             $result = $controller->getActiveClasses();
-            echo json_encode(['success' => true, 'data' => $result]);
+            echo json_encode($result);
         } elseif ($path === '/get_class_by_id' && isset($_GET['id'])) {
             $id = $_GET['id'];
             $result = $controller->getClassById($id);
@@ -114,26 +114,26 @@ switch ($method) {
         } elseif ($path === '/get_classes_by_teacher' && isset($_GET['teacherId'])) {
             $teacherId = $_GET['teacherId'];
             $result = $controller->getClassesByTeacher($teacherId);
-            echo json_encode(['success' => true, 'data' => $result]);
+            echo json_encode($result);
         } elseif ($path === '/get_classes_by_stream' && isset($_GET['stream'])) {
             $stream = $_GET['stream'];
             $result = $controller->getClassesByStream($stream);
-            echo json_encode(['success' => true, 'data' => $result]);
+            echo json_encode($result);
         } elseif ($path === '/get_all_enrollments') {
             $result = $enrollmentController->getAllEnrollments();
             echo json_encode($result);
         } elseif ($path === '/get_enrollments_by_student' && isset($_GET['studentId'])) {
             $studentId = $_GET['studentId'];
-            $result = $enrollmentController->getStudentEnrollments($studentId);
+            $result = $enrollmentController->getEnrollmentsByStudent($studentId);
             echo json_encode($result);
         } elseif ($path === '/get_enrollments_by_class' && isset($_GET['classId'])) {
             $classId = $_GET['classId'];
-            $result = $enrollmentController->getClassEnrollments($classId);
+            $result = $enrollmentController->getEnrollmentsByClass($classId);
             echo json_encode($result);
         } elseif ($path === '/get_enrollment_by_id' && isset($_GET['id'])) {
             $id = $_GET['id'];
             $result = $enrollmentController->getEnrollmentById($id);
-            echo json_encode(['success' => true, 'data' => $result]);
+            echo json_encode($result);
         } else {
             http_response_code(404);
             echo json_encode(['error' => 'Endpoint not found']);

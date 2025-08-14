@@ -786,7 +786,7 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
       };
 
       // Call the payment creation API
-      const response = await fetch('http://localhost:8087/routes.php/create_payment', {
+      const response = await fetch('http://localhost:8090/routes.php/create_payment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1228,7 +1228,7 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
       nextPaymentDate.setDate(1);
       
       // Create payment record
-      const paymentResponse = await fetch('http://localhost:8087/routes.php/create_payment', {
+      const paymentResponse = await fetch('http://localhost:8090/routes.php/create_payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2865,7 +2865,7 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
 
           {/* Payment Status Filter */}
             <div className="min-w-[150px]">
-            <select
+                    <select
               value={paymentStatusFilter}
               onChange={(e) => setPaymentStatusFilter(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -2875,7 +2875,7 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
                 <option value="pending">Pending</option>
                 <option value="partial">Half Card</option>
                 <option value="overdue">Free Card</option>
-            </select>
+                    </select>
             </div>
           </div>
 
@@ -2900,33 +2900,33 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
           <div className="flex items-center">
             <div className="p-1.5 bg-blue-100 rounded-lg">
                <FaUser className="text-blue-600 text-sm" />
-            </div>
+                    </div>
             <div className="ml-2">
               <p className="text-xs font-medium text-gray-600">Total Students</p>
               <p className="text-sm font-bold text-gray-900">{filteredStudents.length}</p>
-            </div>
-          </div>
-        </div>
+                      </div>
+                      </div>
+                      </div>
 
         <div className="bg-white rounded-lg shadow-md p-2">
           <div className="flex items-center">
             <div className="p-1.5 bg-green-100 rounded-lg">
                 <FaGraduationCap className="text-green-600 text-sm" />
-            </div>
+                    </div>
             <div className="ml-2">
               <p className="text-xs font-medium text-gray-600">Paid</p>
               <p className="text-sm font-bold text-gray-900">
                 {filteredStudents.reduce((sum, s) => sum + s.enrollments.filter(e => e.payment_status === 'paid').length, 0)}
               </p>
-            </div>
-          </div>
-        </div>
+                  </div>
+                </div>
+              </div>
 
         <div className="bg-white rounded-lg shadow-md p-2">
           <div className="flex items-center">
             <div className="p-1.5 bg-purple-100 rounded-lg">
                 <FaMoneyBill className="text-purple-600 text-sm" />
-            </div>
+              </div>
             <div className="ml-2">
               <p className="text-xs font-medium text-gray-600">Pending</p>
               <p className="text-sm font-bold text-gray-900">

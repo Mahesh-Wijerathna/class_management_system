@@ -45,8 +45,7 @@ if ($method === 'POST' && $path === '/routes.php/user') {
         exit;
     }
     
-    // Extract student data if this is a student registration
-    $studentData = null;
+    // If this is a student registration, redirect to student backend
     if ($data['role'] === 'student') {
         $studentData = [
             'firstName' => $data['firstName'] ?? '',
@@ -64,9 +63,36 @@ if ($method === 'POST' && $path === '/routes.php/user') {
             'address' => $data['address'] ?? '',
             'district' => $data['district'] ?? ''
         ];
+        
+        // First create the user in auth database
+        $user = new UserModel($mysqli);
+        if ($user->createUser($data['role'], $data['password'])) {
+            $userid = $user->userid;
+            
+            // Then register student data in student backend
+            $studentRegistrationData = [
+                'userid' => $userid,
+                'password' => $data['password'],
+                'studentData' => $studentData
+            ];
+            
+            $response = file_get_contents('http://student-backend/routes.php/register-student', false, stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => 'Content-Type: application/json',
+                    'content' => json_encode($studentRegistrationData)
+                ]
+            ]));
+            
+            echo $response;
+        } else {
+            echo json_encode(['success' => false, 'message' => 'User creation failed']);
+        }
+        exit;
     }
     
-    echo $controller->register($data['role'], $data['password'], $studentData);
+    // For non-student registrations, handle normally
+    echo $controller->register($data['role'], $data['password'], null);
     exit;
 }
 
@@ -111,15 +137,31 @@ if ($method === 'POST' && $path === '/routes.php/logout') {
 // SAVE BARCODE
 if ($method === 'POST' && $path === '/routes.php/barcode/save') {
     $data = json_decode(file_get_contents('php://input'), true);
-    if (!isset($data['userid']) || !isset($data['barcodeData']) || !isset($data['studentName'])) {
+    $controller->saveBarcode($data['userid'], $data['barcodeData'], $data['studentName']);
+    exit;
+}
+
+// REGISTRATION OTP REQUEST
+if ($method === 'POST' && $path === '/routes.php/registration-otp-request') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['mobile'])) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Missing required barcode data']);
+        echo json_encode(['success' => false, 'message' => 'Mobile number is required']);
         exit;
     }
-    
-    require_once __DIR__ . '/BarcodeController.php';
-    $barcodeController = new BarcodeController($mysqli);
-    echo $barcodeController->saveBarcode($data['userid'], $data['barcodeData'], $data['studentName']);
+    echo $controller->registrationOtpRequest($data['mobile']);
+    exit;
+}
+
+// VERIFY REGISTRATION OTP
+if ($method === 'POST' && $path === '/routes.php/verify-registration-otp') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['mobile']) || !isset($data['otp'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Mobile number and OTP are required']);
+        exit;
+    }
+    echo $controller->verifyRegistrationOtp($data['mobile'], $data['otp']);
     exit;
 }
 
@@ -138,12 +180,6 @@ if ($method === 'GET' && $path === '/routes.php/barcodes') {
     require_once __DIR__ . '/BarcodeController.php';
     $barcodeController = new BarcodeController($mysqli);
     echo $barcodeController->getAllBarcodes();
-    exit;
-}
-
-// GET ALL STUDENTS WITH COMPLETE INFORMATION
-if ($method === 'GET' && $path === '/routes.php/students') {
-    echo $controller->getAllStudents();
     exit;
 }
 
@@ -325,45 +361,48 @@ if ($method === 'POST' && preg_match('#^/routes.php/cashier/([A-Za-z0-9]+)/delet
 }
 
 // =====================================================
-// STUDENT MONITORING ROUTES
+// STUDENT MONITORING ROUTES (REDIRECTED TO STUDENT BACKEND)
 // =====================================================
-
-require_once __DIR__ . '/StudentMonitoringController.php';
-$monitoringController = new StudentMonitoringController($mysqli);
 
 // Track student login activity
 if ($method === 'POST' && $path === '/routes.php/track-student-login') {
     $data = json_decode(file_get_contents('php://input'), true);
-    if (!isset($data['studentId']) || !isset($data['sessionId'])) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Missing studentId or sessionId']);
-        exit;
-    }
-    echo json_encode($monitoringController->trackStudentLogin($data['studentId'], $data['sessionId']));
+    $response = file_get_contents('http://student-backend/routes.php/track-student-login', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => 'Content-Type: application/json',
+            'content' => json_encode($data)
+        ]
+    ]));
+    echo $response;
     exit;
 }
 
 // Track concurrent session
 if ($method === 'POST' && $path === '/routes.php/track-concurrent-session') {
     $data = json_decode(file_get_contents('php://input'), true);
-    if (!isset($data['studentId']) || !isset($data['sessionId']) || !isset($data['classId'])) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Missing studentId, sessionId, or classId']);
-        exit;
-    }
-    echo json_encode($monitoringController->trackConcurrentSession($data['studentId'], $data['sessionId'], $data['classId']));
+    $response = file_get_contents('http://student-backend/routes.php/track-concurrent-session', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => 'Content-Type: application/json',
+            'content' => json_encode($data)
+        ]
+    ]));
+    echo $response;
     exit;
 }
 
 // End concurrent session
 if ($method === 'POST' && $path === '/routes.php/end-concurrent-session') {
     $data = json_decode(file_get_contents('php://input'), true);
-    if (!isset($data['sessionId'])) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Missing sessionId']);
-        exit;
-    }
-    echo json_encode($monitoringController->endConcurrentSession($data['sessionId']));
+    $response = file_get_contents('http://student-backend/routes.php/end-concurrent-session', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => 'Content-Type: application/json',
+            'content' => json_encode($data)
+        ]
+    ]));
+    echo $response;
     exit;
 }
 
@@ -371,53 +410,60 @@ if ($method === 'POST' && $path === '/routes.php/end-concurrent-session') {
 if ($method === 'GET' && preg_match('#^/routes.php/student-monitoring/([A-Za-z0-9]+)$#', $path, $matches)) {
     $studentId = $matches[1];
     $limit = $_GET['limit'] ?? 50;
-    echo json_encode($monitoringController->getStudentMonitoringData($studentId, $limit));
+    $response = file_get_contents("http://student-backend/routes.php/student-monitoring/$studentId?limit=$limit");
+    echo $response;
     exit;
 }
 
 // Get suspicious activities
 if ($method === 'GET' && $path === '/routes.php/suspicious-activities') {
     $limit = $_GET['limit'] ?? 100;
-    echo json_encode($monitoringController->getSuspiciousActivities($limit));
+    $response = file_get_contents("http://student-backend/routes.php/suspicious-activities?limit=$limit");
+    echo $response;
     exit;
 }
 
 // Get concurrent session violations
 if ($method === 'GET' && $path === '/routes.php/concurrent-violations') {
     $limit = $_GET['limit'] ?? 100;
-    echo json_encode($monitoringController->getConcurrentSessionViolations($limit));
+    $response = file_get_contents("http://student-backend/routes.php/concurrent-violations?limit=$limit");
+    echo $response;
     exit;
 }
 
 // Block student
 if ($method === 'POST' && $path === '/routes.php/block-student') {
     $data = json_decode(file_get_contents('php://input'), true);
-    if (!isset($data['studentId']) || !isset($data['reason']) || !isset($data['blockedBy'])) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Missing studentId, reason, or blockedBy']);
-        exit;
-    }
-    $blockDuration = $data['blockDuration'] ?? 24;
-    echo json_encode($monitoringController->blockStudent($data['studentId'], $data['reason'], $data['blockedBy'], $blockDuration));
+    $response = file_get_contents('http://student-backend/routes.php/block-student', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => 'Content-Type: application/json',
+            'content' => json_encode($data)
+        ]
+    ]));
+    echo $response;
     exit;
 }
 
 // Unblock student
 if ($method === 'POST' && $path === '/routes.php/unblock-student') {
     $data = json_decode(file_get_contents('php://input'), true);
-    if (!isset($data['studentId'])) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Missing studentId']);
-        exit;
-    }
-    echo json_encode($monitoringController->unblockStudent($data['studentId']));
+    $response = file_get_contents('http://student-backend/routes.php/unblock-student', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => 'Content-Type: application/json',
+            'content' => json_encode($data)
+        ]
+    ]));
+    echo $response;
     exit;
 }
 
 // Check if student is blocked
 if ($method === 'GET' && preg_match('#^/routes.php/student-blocked/([A-Za-z0-9]+)$#', $path, $matches)) {
     $studentId = $matches[1];
-    echo json_encode($monitoringController->isStudentBlocked($studentId));
+    $response = file_get_contents("http://student-backend/routes.php/student-blocked/$studentId");
+    echo $response;
     exit;
 }
 
@@ -485,6 +531,32 @@ if ($method === 'POST' && $path === '/routes.php/detect-multiple-device-login') 
 if ($method === 'GET' && preg_match('#^/routes.php/session-valid/([A-Za-z0-9]+)$#', $path, $matches)) {
     $studentId = $matches[1];
     echo json_encode($monitoringController->isSessionValid($studentId));
+    exit;
+}
+
+// Send welcome WhatsApp message
+if ($method === 'POST' && $path === '/routes.php/send-welcome-whatsapp') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['userid']) || !isset($data['studentData'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing userid or studentData']);
+        exit;
+    }
+    echo $controller->sendWelcomeWhatsAppMessage($data['userid'], $data['studentData']);
+    exit;
+}
+
+// Delete user
+if ($method === 'DELETE' && preg_match('#^/routes.php/users/([A-Za-z0-9]+)$#', $path, $matches)) {
+    $userid = $matches[1];
+    require_once __DIR__ . '/UserModel.php';
+    $userModel = new UserModel($mysqli);
+    $result = $userModel->deleteUser($userid);
+    if ($result) {
+        echo json_encode(['success' => true, 'message' => 'User deleted successfully']);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Failed to delete user']);
+    }
     exit;
 }
 

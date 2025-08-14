@@ -11,7 +11,7 @@ const classApi = axios.create({
 // Get all enrollments for a student
 export const getStudentEnrollments = async (studentId) => {
   try {
-    const response = await classApi.get(`/get_student_enrollments?studentId=${studentId}`);
+    const response = await classApi.get(`/get_enrollments_by_student?studentId=${studentId}`);
     return response.data;
   } catch (error) {
     console.error('Error fetching student enrollments:', error);
