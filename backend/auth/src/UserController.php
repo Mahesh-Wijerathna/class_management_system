@@ -447,29 +447,29 @@ class UserController {
         }
         
         // Handle student forgot password (existing logic)
-        // Step 1: Call internal student API to get details by user_id
-        $url = "http://host.docker.internal:8086/routes.php/get_with_id/$userid"; // Adjust if in Docker
-        
-        $response = file_get_contents($url);
+    // Step 1: Call internal student API to get details by user_id
+    $url = "http://host.docker.internal:8086/routes.php/get_with_id/$userid"; // Adjust if in Docker
+    
+    $response = file_get_contents($url);
 
-        if ($response === FALSE) {
-            return json_encode([
-                'success' => false,
-                'message' => "Failed to fetch student data for user ID: $userid"
-            ]);
-        }
+    if ($response === FALSE) {
+        return json_encode([
+            'success' => false,
+            'message' => "Failed to fetch student data for user ID: $userid"
+        ]);
+    }
 
-        $userData = json_decode($response, true);
+    $userData = json_decode($response, true);
 
-        // Step 2: Check if student data and mobile number exists
-        if (!isset($userData['mobile_number'])) {
-            return json_encode([
-                'success' => false,
-                'message' => "Mobile number not found for user ID: $userid"
-            ]);
-        }
+    // Step 2: Check if student data and mobile number exists
+    if (!isset($userData['mobile_number'])) {
+        return json_encode([
+            'success' => false,
+            'message' => "Mobile number not found for user ID: $userid"
+        ]);
+    }
 
-        $phone_number = $userData['mobile_number'];
+    $phone_number = $userData['mobile_number'];
 
         // Format phone number for external service (remove leading 0 and add 94)
         $formatted_phone = $phone_number;
@@ -483,48 +483,48 @@ class UserController {
             $formatted_phone = '94' . $phone_number;
         }
 
-        // Step 3: Generate OTP
-        $otp = rand(100000, 999999);
+    // Step 3: Generate OTP
+    $otp = rand(100000, 999999);
 
-        // Step 4: Update OTP in your local database
-        $user = new UserModel($this->db);
-        $user->updateUser($userid, null, null, $otp);
+    // Step 4: Update OTP in your local database
+    $user = new UserModel($this->db);
+    $user->updateUser($userid, null, null, $otp);
 
-        // Step 5: Send OTP to frontend endpoint
-        $sendOtpUrl = 'https://down-south-front-end.onrender.com/send_otp';
+    // Step 5: Send OTP to frontend endpoint
+    $sendOtpUrl = 'https://down-south-front-end.onrender.com/send_otp';
 
-        $postData = json_encode([
+    $postData = json_encode([
             'phoneNumber' => $formatted_phone,
-            'otp' => (string)$otp
+        'otp' => (string)$otp
+    ]);
+
+    $ch = curl_init($sendOtpUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'Content-Length: ' . strlen($postData)
+    ]);
+
+    $otpResponse = curl_exec($ch);
+
+    if (curl_errno($ch)) {
+        return json_encode([
+            'success' => false,
+            'message' => 'cURL Error: ' . curl_error($ch)
         ]);
+    }
 
-        $ch = curl_init($sendOtpUrl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-            'Content-Length: ' . strlen($postData)
+    $otpResponseData = json_decode($otpResponse, true);
+
+    if ($otpResponseData === null) {
+        return json_encode([
+            'success' => false,
+            'message' => 'Invalid JSON response from OTP service',
+            'raw' => $otpResponse
         ]);
-
-        $otpResponse = curl_exec($ch);
-
-        if (curl_errno($ch)) {
-            return json_encode([
-                'success' => false,
-                'message' => 'cURL Error: ' . curl_error($ch)
-            ]);
-        }
-
-        $otpResponseData = json_decode($otpResponse, true);
-
-        if ($otpResponseData === null) {
-            return json_encode([
-                'success' => false,
-                'message' => 'Invalid JSON response from OTP service',
-                'raw' => $otpResponse
-            ]);
-        }
+    }
 
         // Check if the external service was successful
         if (isset($otpResponseData['success']) && $otpResponseData['success'] === false) {
@@ -536,9 +536,9 @@ class UserController {
             ]);
         }
 
-        // Step 6: Return success
-        return json_encode([
-            'success' => true,
+    // Step 6: Return success
+    return json_encode([
+        'success' => true,
             'message' => 'OTP sent to ' . $phone_number,
             'otp' => $otp, // Show OTP for testing purposes
             'service_response' => $otpResponseData // Show service response for debugging

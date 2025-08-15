@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaSun, FaMoon, FaSignOutAlt } from 'react-icons/fa';
+import { FaSun, FaMoon, FaSignOutAlt, FaBars } from 'react-icons/fa';
 import CustomButton from '../CustomButton';
 import CustomButton2 from '../CustomButton2';
 import BasicAlertBox from '../BasicAlertBox';
 import { logout } from '../../api/apiUtils';
 
-const Navbar = ({ onLogout }) => {
+const Navbar = ({ onLogout, onToggleSidebar, isSidebarOpen }) => {
   const navigate = useNavigate();
   const [isScrolled, setIsScrolled] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
@@ -36,11 +36,17 @@ const Navbar = ({ onLogout }) => {
     >
       <div className="w-full px-4">
         <div className="flex justify-between h-16 items-center">
-          {/* Left side - Logo/Brand */}
+          {/* Left side - Logo/Brand and Mobile Menu Button */}
           <div className="flex items-center">
-            <div className="w-8 h-8 rounded-full bg-[#3da58a] flex items-center justify-center mr-3">
-              <span className="text-white font-bold text-sm">TCMS</span>
-            </div>
+            {/* Mobile Menu Button */}
+            <button
+              onClick={onToggleSidebar}
+              className="lg:hidden p-2 rounded-md hover:bg-gray-200 transition-colors text-gray-700 mr-3"
+              aria-label="Toggle sidebar"
+            >
+              <FaBars className="h-5 w-5" />
+            </button>
+            
           </div>
           
           {/* Right side - Actions */}
@@ -70,7 +76,7 @@ const Navbar = ({ onLogout }) => {
 };
 
 // Render the alert box outside the nav component to ensure proper positioning
-const NavbarWithAlert = ({ onLogout }) => {
+const NavbarWithAlert = ({ onLogout, onToggleSidebar, isSidebarOpen }) => {
   const [showLogoutAlert, setShowLogoutAlert] = useState(false);
 
   const handleLogout = async () => {
@@ -107,7 +113,7 @@ const NavbarWithAlert = ({ onLogout }) => {
 
   return (
     <>
-      <Navbar onLogout={openLogoutAlert} />
+      <Navbar onLogout={openLogoutAlert} onToggleSidebar={onToggleSidebar} isSidebarOpen={isSidebarOpen} />
       
       <BasicAlertBox
         open={showLogoutAlert}

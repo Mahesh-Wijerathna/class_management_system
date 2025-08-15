@@ -1,31 +1,39 @@
-import React, { useState } from 'react';
+import React from 'react';
 import NavbarWithAlert from './Navbar';
 import Sidebar from './Sidebar';
+import { useSidebar } from './SidebarContext';
 
 const DashboardLayout = ({ 
   children, 
   userRole, 
-  sidebarItems
+  sidebarItems,
+  onLogout
 }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-
-  const handleSidebarToggle = (newState) => {
-    setIsSidebarOpen(newState);
-  };
+  const { isSidebarOpen, isMobile, toggleSidebar, setSidebarOpen } = useSidebar();
 
   return (
     <div className="min-h-screen bg-gray-100">
       <NavbarWithAlert 
         userRole={userRole} 
         isSidebarOpen={isSidebarOpen}
+        onToggleSidebar={toggleSidebar}
+        onLogout={onLogout}
       />
       <Sidebar 
         items={sidebarItems} 
-        onToggle={handleSidebarToggle}
+        onToggle={setSidebarOpen}
+        isMobile={isMobile}
+        isOpen={isSidebarOpen}
       />
       
-      <main className={`pt-16 transition-all duration-300 ${isSidebarOpen ? 'pl-64' : 'pl-16'}`}>
-        <div className="p-6">
+      <main className={`pt-16 transition-all duration-300 ${
+        isMobile 
+          ? 'pl-0' // No left padding on mobile
+          : isSidebarOpen 
+            ? 'pl-64' 
+            : 'pl-16'
+      }`}>
+        <div className="p-2 sm:p-4 lg:p-6">
           {children}
         </div>
       </main>
