@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS classes (
     teacher VARCHAR(100) NOT NULL,
     teacher_id VARCHAR(50),
     stream VARCHAR(50) NOT NULL,
-    delivery_method ENUM('online', 'physical', 'hybrid', 'other') NOT NULL,
+    delivery_method ENUM('online', 'physical', 'hybrid1', 'hybrid2', 'hybrid3', 'hybrid4') NOT NULL,
     delivery_other VARCHAR(100),
     schedule_day VARCHAR(20) NOT NULL,
     schedule_start_time TIME NOT NULL,
@@ -22,12 +22,17 @@ CREATE TABLE IF NOT EXISTS classes (
     payment_tracking JSON,
     payment_tracking_free_days INT DEFAULT 7,
     zoom_link TEXT,
+    video_url TEXT,
     description TEXT,
     course_type ENUM('theory', 'revision') NOT NULL DEFAULT 'theory',
     revision_discount_price DECIMAL(10,2) DEFAULT 0.00,
     related_theory_id INT,
     status ENUM('active', 'inactive', 'archived') NOT NULL DEFAULT 'active',
     current_students INT DEFAULT 0,
+    enable_tute_collection BOOLEAN DEFAULT FALSE,
+    tute_collection_type ENUM('speed_post', 'physical_class', 'both') DEFAULT 'speed_post',
+    speed_post_fee DECIMAL(10,2) DEFAULT 300.00,
+    class_medium ENUM('Sinhala', 'English', 'Both') DEFAULT 'Sinhala',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_status (status),
@@ -35,6 +40,9 @@ CREATE TABLE IF NOT EXISTS classes (
     INDEX idx_delivery_method (delivery_method),
     INDEX idx_stream (stream),
     INDEX idx_teacher (teacher),
+    INDEX idx_tute_collection (enable_tute_collection),
+    INDEX idx_tute_collection_type (tute_collection_type),
+    INDEX idx_class_medium (class_medium),
     FOREIGN KEY (related_theory_id) REFERENCES classes(id) ON DELETE SET NULL
 );
 
@@ -66,6 +74,14 @@ CREATE TABLE IF NOT EXISTS attendance (
     attendance_date DATE NOT NULL,
     status ENUM('present', 'absent', 'late', 'excused') NOT NULL,
     marked_by VARCHAR(10),
+    marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT,
+    FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_attendance (student_id, class_id, attendance_date),
+    INDEX idx_student_date (student_id, attendance_date),
+    INDEX idx_class_date (class_id, attendance_date)
+);
+
     marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     notes TEXT,
     FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,

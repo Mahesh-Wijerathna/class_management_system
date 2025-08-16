@@ -1,6 +1,11 @@
 <?php
 class ClassModel {
     private $conn;
+    
+    // Helper function to convert form values to boolean integer
+    private function toBoolean($value) {
+        return (!empty($value) && $value !== 'false' && $value !== false) ? 1 : 0;
+    }
 
     public function __construct($db) {
         $this->conn = $db;
@@ -28,8 +33,9 @@ class ClassModel {
                 class_name, subject, teacher, teacher_id, stream, delivery_method, delivery_other,
                 schedule_day, schedule_start_time, schedule_end_time, schedule_frequency,
                 start_date, end_date, max_students, fee, payment_tracking, payment_tracking_free_days,
-                zoom_link, description, course_type, revision_discount_price, related_theory_id, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                zoom_link, video_url, description, course_type, revision_discount_price, related_theory_id, status,
+                enable_tute_collection, tute_collection_type, speed_post_fee, class_medium
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
         // Ensure all variables are properly defined
@@ -71,6 +77,7 @@ class ClassModel {
         $fee = $data['fee'] ?? 0;
         $paymentTrackingFreeDays = $data['paymentTrackingFreeDays'] ?? 7;
         $zoomLink = $data['zoomLink'] ?? null;
+        $videoUrl = $data['videoUrl'] ?? null;
         $description = $data['description'] ?? null;
         $courseType = $data['courseType'] ?? 'theory';
         $revisionDiscountPrice = $data['revisionDiscountPrice'] ?? 0;
@@ -86,8 +93,16 @@ class ClassModel {
             $relatedTheoryId = null;
         }
         $status = $data['status'] ?? 'active';
+        
+        // New tute collection fields
+        $enableTuteCollection = $this->toBoolean($data['enableTuteCollection'] ?? false);
+        $tuteCollectionType = $data['tuteCollectionType'] ?? 'speed_post';
+        $speedPostFee = $data['speedPostFee'] ?? 300.00;
+        
+        // New medium field
+        $classMedium = $data['classMedium'] ?? 'Sinhala';
 
-        $stmt->bind_param("sssssssssssssssssssssss", 
+        $stmt->bind_param("ssssssssssssssssssssssssssss", 
             $className,
             $subject,
             $teacher,
@@ -106,11 +121,16 @@ class ClassModel {
             $paymentTracking,
             $paymentTrackingFreeDays,
             $zoomLink,
+            $videoUrl,
             $description,
             $courseType,
             $revisionDiscountPrice,
             $relatedTheoryId,
-            $status
+            $status,
+            $enableTuteCollection,
+            $tuteCollectionType,
+            $speedPostFee,
+            $classMedium
         );
 
         if ($stmt->execute()) {
@@ -159,8 +179,8 @@ class ClassModel {
                 delivery_method = ?, delivery_other = ?, schedule_day = ?, schedule_start_time = ?, 
                 schedule_end_time = ?, schedule_frequency = ?, start_date = ?, end_date = ?, 
                 max_students = ?, fee = ?, payment_tracking = ?, payment_tracking_free_days = ?,
-                zoom_link = ?, description = ?, course_type = ?, revision_discount_price = ?, 
-                related_theory_id = ?, status = ?
+                zoom_link = ?, video_url = ?, description = ?, course_type = ?, revision_discount_price = ?, 
+                related_theory_id = ?, status = ?, enable_tute_collection = ?, tute_collection_type = ?, speed_post_fee = ?, class_medium = ?
             WHERE id = ?
         ");
 
@@ -203,6 +223,7 @@ class ClassModel {
         $fee = $data['fee'] ?? 0;
         $paymentTrackingFreeDays = $data['paymentTrackingFreeDays'] ?? 7;
         $zoomLink = $data['zoomLink'] ?? null;
+        $videoUrl = $data['videoUrl'] ?? null;
         $description = $data['description'] ?? null;
         $courseType = $data['courseType'] ?? 'theory';
         $revisionDiscountPrice = $data['revisionDiscountPrice'] ?? 0;
@@ -218,8 +239,16 @@ class ClassModel {
             $relatedTheoryId = null;
         }
         $status = $data['status'] ?? 'active';
+        
+        // New tute collection fields
+        $enableTuteCollection = $this->toBoolean($data['enableTuteCollection'] ?? false);
+        $tuteCollectionType = $data['tuteCollectionType'] ?? 'speed_post';
+        $speedPostFee = $data['speedPostFee'] ?? 300.00;
+        
+        // New medium field
+        $classMedium = $data['classMedium'] ?? 'Sinhala';
 
-        $stmt->bind_param("sssssssssssssssssssssssi", 
+        $stmt->bind_param("ssssssssssssssssssssssssssssi", 
             $className,
             $subject,
             $teacher,
@@ -238,11 +267,16 @@ class ClassModel {
             $paymentTracking,
             $paymentTrackingFreeDays,
             $zoomLink,
+            $videoUrl,
             $description,
             $courseType,
             $revisionDiscountPrice,
             $relatedTheoryId,
             $status,
+            $enableTuteCollection,
+            $tuteCollectionType,
+            $speedPostFee,
+            $classMedium,
             $id
         );
 
@@ -309,6 +343,19 @@ class ClassModel {
     public function getClassesByTeacher($teacherId) {
         $stmt = $this->conn->prepare("SELECT * FROM classes WHERE teacher_id = ? AND status = 'active' ORDER BY created_at DESC");
         $stmt->bind_param("s", $teacherId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        $classes = [];
+        while ($row = $result->fetch_assoc()) {
+            $classes[] = $this->formatClassData($row);
+        }
+        return $classes;
+    }
+
+    public function getClassesByStream($stream) {
+        $stmt = $this->conn->prepare("SELECT * FROM classes WHERE stream = ? AND status = 'active' ORDER BY created_at DESC");
+        $stmt->bind_param("s", $stream);
         $stmt->execute();
         $result = $stmt->get_result();
         
@@ -493,6 +540,7 @@ class ClassModel {
             'paymentTracking' => $paymentTracking,
             'paymentTrackingFreeDays' => (int)$row['payment_tracking_free_days'],
             'zoomLink' => $row['zoom_link'],
+            'videoUrl' => $row['video_url'],
             'description' => $row['description'],
             'courseType' => $row['course_type'],
             'revisionDiscountPrice' => (float)$row['revision_discount_price'],
@@ -500,7 +548,13 @@ class ClassModel {
             'status' => $row['status'],
             'currentStudents' => (int)$row['current_students'],
             'createdAt' => $row['created_at'],
-            'updatedAt' => $row['updated_at']
+            'updatedAt' => $row['updated_at'],
+            // New tute collection fields
+            'enableTuteCollection' => (bool)$row['enable_tute_collection'],
+            'tuteCollectionType' => $row['tute_collection_type'],
+            'speedPostFee' => (float)$row['speed_post_fee'],
+            // New medium field
+            'classMedium' => $row['class_medium']
         ];
     }
 }

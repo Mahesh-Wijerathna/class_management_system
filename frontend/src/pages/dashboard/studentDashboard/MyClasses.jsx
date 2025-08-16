@@ -23,11 +23,39 @@ const MyClasses = ({ onLogout }) => {
   const [selectedClassForRequest, setSelectedClassForRequest] = useState(null);
   const [showSecureZoomModal, setShowSecureZoomModal] = useState(false);
   const [selectedClassForZoom, setSelectedClassForZoom] = useState(null);
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [selectedClassForVideo, setSelectedClassForVideo] = useState(null);
+  const [videoTimeRemaining, setVideoTimeRemaining] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [detailsActiveTab, setDetailsActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+
+  // Timer effect for video access
+  useEffect(() => {
+    if (showVideoModal && selectedClassForVideo) {
+      const timer = setInterval(() => {
+        if (!isClassCurrentlyScheduled(selectedClassForVideo)) {
+          // Class time has ended, close video
+          setShowVideoModal(false);
+          setSelectedClassForVideo(null);
+          setVideoTimeRemaining(null);
+          alert('Class time has ended. Video access has been closed.');
+        } else {
+          // Update remaining time
+          const now = new Date();
+          const [endHours, endMinutes] = selectedClassForVideo.schedule.endTime.split(':').map(Number);
+          const classEndTime = new Date();
+          classEndTime.setHours(endHours, endMinutes, 0, 0);
+          const remaining = Math.max(0, Math.floor((classEndTime - now) / (1000 * 60)));
+          setVideoTimeRemaining(remaining);
+        }
+      }, 1000); // Check every second
+
+      return () => clearInterval(timer);
+    }
+  }, [showVideoModal, selectedClassForVideo]);
 
   const loadMyClasses = async () => {
     try {
@@ -522,9 +550,17 @@ const MyClasses = ({ onLogout }) => {
   const getDeliveryMethodInfo = (method) => {
     switch (method) {
       case 'online':
-        return { color: 'text-purple-600', icon: <FaVideo />, text: 'Online' };
+        return { color: 'text-purple-600', icon: <FaVideo />, text: 'Online Only' };
       case 'physical':
-        return { color: 'text-orange-600', icon: <FaMapMarkerAlt />, text: 'Physical' };
+        return { color: 'text-orange-600', icon: <FaMapMarkerAlt />, text: 'Physical Only' };
+      case 'hybrid1':
+        return { color: 'text-indigo-600', icon: <FaUsers />, text: 'Hybrid (Physical + Online)' };
+      case 'hybrid2':
+        return { color: 'text-green-600', icon: <FaVideo />, text: 'Hybrid (Physical + Recorded)' };
+      case 'hybrid3':
+        return { color: 'text-blue-600', icon: <FaVideo />, text: 'Hybrid (Online + Recorded)' };
+      case 'hybrid4':
+        return { color: 'text-teal-600', icon: <FaUsers />, text: 'Hybrid (Physical + Online + Recorded)' };
       case 'hybrid':
         return { color: 'text-indigo-600', icon: <FaUsers />, text: 'Hybrid' };
       default:
@@ -567,7 +603,7 @@ const MyClasses = ({ onLogout }) => {
   // Get class priority/urgency
   const getClassPriority = (cls) => {
     // If class is inactive, it should be high priority
-    if (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid') return { priority: 'high', text: 'Online', color: 'text-red-600', bgColor: 'bg-red-50' };
+    if (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid1' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') return { priority: 'high', text: 'Online', color: 'text-red-600', bgColor: 'bg-red-50' };
     
     const nextPayment = new Date(cls.nextPaymentDate);
     const today = new Date();
@@ -770,7 +806,7 @@ const MyClasses = ({ onLogout }) => {
       return;
     }
     
-    if (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid') {
+    if (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid1' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') {
       if (cls.zoomLink) {
         // Use secure zoom meeting modal instead of opening link directly
         setSelectedClassForZoom(cls);
@@ -781,6 +817,153 @@ const MyClasses = ({ onLogout }) => {
     } else {
       alert('This is a physical class. Please attend at the specified location.');
     }
+  };
+
+  // Check if class is currently scheduled (within class time window)
+  const isClassCurrentlyScheduled = (cls) => {
+    if (!cls.schedule || !cls.schedule.day || !cls.schedule.startTime || !cls.schedule.endTime) return false;
+    
+    const now = new Date();
+    const today = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayName = dayNames[today];
+    
+    // Check if today matches the class day
+    if (cls.schedule.day !== todayName) return false;
+    
+    // Parse class start and end times
+    const [startHours, startMinutes] = cls.schedule.startTime.split(':').map(Number);
+    const [endHours, endMinutes] = cls.schedule.endTime.split(':').map(Number);
+    
+    const classStartTime = new Date();
+    classStartTime.setHours(startHours, startMinutes, 0, 0);
+    
+    const classEndTime = new Date();
+    classEndTime.setHours(endHours, endMinutes, 0, 0);
+    
+    // Return true if current time is within class time window
+    return now >= classStartTime && now <= classEndTime;
+  };
+
+  // Calculate video start time based on when student joins
+  const getVideoStartTime = (cls) => {
+    if (!cls.schedule || !cls.schedule.startTime) return 0;
+    
+    const now = new Date();
+    const [startHours, startMinutes] = cls.schedule.startTime.split(':').map(Number);
+    const classStartTime = new Date();
+    classStartTime.setHours(startHours, startMinutes, 0, 0);
+    
+    // Calculate how many seconds have passed since class started
+    const secondsPassed = Math.max(0, (now - classStartTime) / 1000);
+    
+    return Math.floor(secondsPassed);
+  };
+
+  // Format time in MM:SS format
+  const formatTimeMMSS = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  // Get time until class starts or ends
+  const getClassTimeStatus = (cls) => {
+    if (!cls.schedule || !cls.schedule.day || !cls.schedule.startTime || !cls.schedule.endTime) return null;
+    
+    const now = new Date();
+    const today = now.getDay();
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayName = dayNames[today];
+    
+    if (cls.schedule.day !== todayName) return null;
+    
+    const [startHours, startMinutes] = cls.schedule.startTime.split(':').map(Number);
+    const [endHours, endMinutes] = cls.schedule.endTime.split(':').map(Number);
+    
+    const classStartTime = new Date();
+    classStartTime.setHours(startHours, startMinutes, 0, 0);
+    
+    const classEndTime = new Date();
+    classEndTime.setHours(endHours, endMinutes, 0, 0);
+    
+    const timeToStart = (classStartTime - now) / (1000 * 60); // minutes
+    const timeToEnd = (classEndTime - now) / (1000 * 60); // minutes
+    
+    if (timeToStart > 0) {
+      if (timeToStart < 60) {
+        return `Class starts in ${Math.round(timeToStart)} minutes`;
+      } else {
+        return `Class starts in ${Math.floor(timeToStart / 60)}h ${Math.round(timeToStart % 60)}m`;
+      }
+    } else if (timeToEnd > 0) {
+      if (timeToEnd < 60) {
+        return `Class ends in ${Math.round(timeToEnd)} minutes`;
+      } else {
+        return `Class ends in ${Math.floor(timeToEnd / 60)}h ${Math.round(timeToEnd % 60)}m`;
+      }
+    } else {
+      return 'Class has ended for today';
+    }
+  };
+
+  // Handle video viewing
+  const handleVideoView = (cls) => {
+    // Check enrollment status first
+    if (cls.status === 'suspended') {
+      alert('Access to this class has been suspended. Please contact the administrator for more information.');
+      return;
+    }
+    
+    if (cls.status === 'completed') {
+      alert('This course has been completed. No further access is available.');
+      return;
+    }
+    
+    if (cls.status === 'dropped') {
+      alert('You have dropped this course. No access is available.');
+      return;
+    }
+    
+    // Check payment tracking and grace period
+    const paymentTrackingInfo = getPaymentTrackingInfo(cls);
+    if (!paymentTrackingInfo.canAccess) {
+      if (paymentTrackingInfo.status === 'payment-required') {
+        alert('Payment required - grace period has expired. Please make payment to restore access to this class.');
+      } else if (paymentTrackingInfo.status === 'no-payment') {
+        alert('No payment history found. Please make payment to access this class.');
+      } else {
+        alert('Access restricted due to payment issues. Please contact the administrator.');
+      }
+      return;
+    }
+    
+    // Check if class has video URL
+    if (!cls.videoUrl) {
+      alert('No video available for this class.');
+      return;
+    }
+    
+    // Check if delivery method supports video
+    if (!['hybrid2', 'hybrid3', 'hybrid4'].includes(cls.deliveryMethod)) {
+      alert('This class does not support recorded video content.');
+      return;
+    }
+    
+    // Check if class is currently scheduled
+    if (!isClassCurrentlyScheduled(cls)) {
+      const timeStatus = getClassTimeStatus(cls);
+      if (timeStatus) {
+        alert(`Video access is only available during class time. ${timeStatus}`);
+      } else {
+        alert('Video access is only available during scheduled class time.');
+      }
+      return;
+    }
+    
+    // Open video modal
+    setSelectedClassForVideo(cls);
+    setShowVideoModal(true);
   };
 
   // Handle attendance marking
@@ -1257,6 +1440,20 @@ const MyClasses = ({ onLogout }) => {
                         <span className={deliveryInfo.color}>{deliveryInfo.icon}</span>
                         <span>{deliveryInfo.text}</span>
                       </div>
+                      {cls.zoomLink && (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid1' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') && (
+                        <div className="flex items-center gap-1 text-blue-600">
+                          <FaVideo />
+                          <span className="text-xs">Zoom Available</span>
+                        </div>
+                      )}
+                      {cls.videoUrl && (cls.deliveryMethod === 'hybrid2' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') && (
+                        <div className="flex items-center gap-1 text-green-600">
+                          <FaVideo />
+                          <span className="text-xs">
+                            {isClassCurrentlyScheduled(cls) ? '🕐 Video Access Now!' : 'Video Available During Class Time'}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-1">
                         <span className={courseTypeInfo.color}>{courseTypeInfo.icon}</span>
                         <span>{courseTypeInfo.text}</span>
@@ -1519,6 +1716,37 @@ const MyClasses = ({ onLogout }) => {
                           }
                         </button>
                       )}
+                      
+                      {/* Watch Video Button - Show for classes with video URLs */}
+                      {cls.videoUrl && (cls.deliveryMethod === 'hybrid2' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') && (
+                        <button
+                          onClick={() => handleVideoView(cls)}
+                          disabled={isSuspended || isCompleted || isDropped || !paymentTrackingInfo.canAccess || !isClassCurrentlyScheduled(cls)}
+                          className={`px-3 py-1 rounded-lg text-sm flex items-center gap-1 ${
+                            isSuspended || isCompleted || isDropped || !paymentTrackingInfo.canAccess || !isClassCurrentlyScheduled(cls)
+                              ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                              : isClassCurrentlyScheduled(cls)
+                              ? 'bg-red-600 text-white hover:bg-red-700 animate-pulse'
+                              : 'bg-green-600 text-white hover:bg-green-700'
+                          }`}
+                          title={
+                            isSuspended ? 'Access suspended - contact admin' :
+                            isCompleted ? 'Course completed' :
+                            isDropped ? 'Course dropped' :
+                            !paymentTrackingInfo.canAccess ? 'Payment required - grace period expired' :
+                            !isClassCurrentlyScheduled(cls) ? `Video access only during class time. ${getClassTimeStatus(cls) || 'Not scheduled for today'}` :
+                            'Watch live video now!'
+                          }
+                        >
+                          <FaVideo /> 
+                          {isSuspended ? 'Suspended' : 
+                           isCompleted ? 'Completed' : 
+                           isDropped ? 'Dropped' : 
+                           !paymentTrackingInfo.canAccess ? 'Payment Required' :
+                           !isClassCurrentlyScheduled(cls) ? 'Not Available' :
+                           '🕐 Watch Now'}
+                        </button>
+                      )}
                   </div>
                 </BasicCard>
               );
@@ -1608,6 +1836,144 @@ const MyClasses = ({ onLogout }) => {
             }}
             isOpen={showSecureZoomModal}
           />
+        )}
+
+        {/* Video Player Modal */}
+        {showVideoModal && selectedClassForVideo && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-green-600 to-teal-600 text-white p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <FaVideo className="text-2xl" />
+                    <div>
+                      <h2 className="text-2xl font-bold">Live Class Video</h2>
+                      <p className="text-green-100">{selectedClassForVideo.className} • {selectedClassForVideo.subject}</p>
+                      <div className="text-yellow-200 text-sm mt-1">
+                        🕐 Currently Scheduled: {selectedClassForVideo.schedule?.day} {selectedClassForVideo.schedule?.startTime}-{selectedClassForVideo.schedule?.endTime}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowVideoModal(false);
+                      setSelectedClassForVideo(null);
+                    }}
+                    className="text-white hover:text-gray-200 transition-colors"
+                  >
+                    <FaTimesCircle size={24} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Security Warning */}
+              <div className="bg-red-50 border border-red-200 p-4 mx-6 mt-4 rounded-lg">
+                <div className="flex items-center gap-2 text-red-700">
+                  <FaExclamationTriangle className="text-lg" />
+                  <div>
+                    <div className="font-semibold">Security Notice</div>
+                    <div className="text-sm">
+                      This video is protected. Recording, downloading, or screen capture is prohibited and may result in disciplinary action.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Video Player with Student Overlay */}
+              <div className="p-6">
+                <div className="bg-black rounded-lg overflow-hidden aspect-video relative">
+                  {/* Student Identification Overlay */}
+                  <div className="absolute top-4 left-4 z-10 bg-black bg-opacity-70 text-white px-3 py-2 rounded-lg text-sm font-mono">
+                    <div>Student ID: {getUserData()?.userid || 'Unknown'}</div>
+                    <div>Name: {getUserData()?.firstName || 'Unknown'} {getUserData()?.lastName || ''}</div>
+                    <div>Class: {selectedClassForVideo.className}</div>
+                    <div>Time: {new Date().toLocaleString()}</div>
+                    <div>Video Start: {formatTimeMMSS(getVideoStartTime(selectedClassForVideo))}</div>
+                  </div>
+                  
+                  {/* Anti-Cheat Overlay */}
+                  <div className="absolute top-4 right-4 z-10 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">
+                    TCMS SECURED
+                  </div>
+                  
+                  {/* Countdown Timer */}
+                  {videoTimeRemaining !== null && (
+                    <div className="absolute bottom-4 right-4 z-10 bg-yellow-600 text-white px-3 py-2 rounded-lg text-sm font-bold">
+                      ⏰ {Math.floor(videoTimeRemaining / 60)}:{(videoTimeRemaining % 60).toString().padStart(2, '0')} remaining
+                    </div>
+                  )}
+                  
+                  <video
+                    controls
+                    className="w-full h-full"
+                    src={selectedClassForVideo.videoUrl}
+                    poster="/assets/video-poster.jpg"
+                    onContextMenu={(e) => e.preventDefault()}
+                    onDragStart={(e) => e.preventDefault()}
+                    style={{
+                      WebkitUserSelect: 'none',
+                      userSelect: 'none',
+                      pointerEvents: 'auto'
+                    }}
+                    onLoadedMetadata={(e) => {
+                      // Set video to start from the appropriate time
+                      const startTime = getVideoStartTime(selectedClassForVideo);
+                      if (startTime > 0) {
+                        e.target.currentTime = startTime;
+                      }
+                    }}
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                </div>
+                
+                {/* Video Information */}
+                <div className="mt-6 space-y-4">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h3 className="font-semibold text-lg mb-2">Class Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div><strong>Class:</strong> {selectedClassForVideo.className}</div>
+                      <div><strong>Subject:</strong> {selectedClassForVideo.subject}</div>
+                      <div><strong>Teacher:</strong> {selectedClassForVideo.teacher}</div>
+                      <div><strong>Stream:</strong> {selectedClassForVideo.stream}</div>
+                      <div><strong>Schedule:</strong> {selectedClassForVideo.schedule?.day} {selectedClassForVideo.schedule?.startTime}-{selectedClassForVideo.schedule?.endTime}</div>
+                      <div><strong>Delivery Method:</strong> {getDeliveryMethodInfo(selectedClassForVideo.deliveryMethod).text}</div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <h3 className="font-semibold text-lg mb-2">Security & Access Information</h3>
+                    <ul className="text-sm space-y-2 text-gray-700">
+                      <li>• Video access is restricted to scheduled class time only</li>
+                      <li>• Your student ID and name are displayed on the video for security</li>
+                      <li>• Recording, downloading, or screen capture is strictly prohibited</li>
+                      <li>• Violations may result in immediate suspension of video access</li>
+                      <li>• Video will automatically stop when class time ends</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <h3 className="font-semibold text-lg mb-2">Video Timing Information</h3>
+                    <div className="text-sm space-y-2 text-gray-700">
+                      <div className="flex items-center gap-2">
+                        <FaClock className="text-green-600" />
+                        <span><strong>Class Schedule:</strong> {selectedClassForVideo.schedule?.day} {selectedClassForVideo.schedule?.startTime}-{selectedClassForVideo.schedule?.endTime}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <FaVideo className="text-green-600" />
+                        <span><strong>Video Start Time:</strong> {formatTimeMMSS(getVideoStartTime(selectedClassForVideo))} (based on when you joined)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <FaInfoCircle className="text-blue-600" />
+                        <span><strong>Note:</strong> Video will start from the point in time when you joined the class session</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Modern Class Details Modal */}
@@ -1748,6 +2114,12 @@ const MyClasses = ({ onLogout }) => {
                         <div><strong>Stream:</strong> {selectedClassForDetails.stream}</div>
                         <div><strong>Course Type:</strong> {getCourseTypeInfo(selectedClassForDetails.courseType).text}</div>
                         <div><strong>Delivery Method:</strong> {getDeliveryMethodInfo(selectedClassForDetails.deliveryMethod).text}</div>
+                        {selectedClassForDetails.zoomLink && (selectedClassForDetails.deliveryMethod === 'online' || selectedClassForDetails.deliveryMethod === 'hybrid1' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && (
+                          <div><strong>Zoom Link:</strong> <span className="text-blue-600">Available</span></div>
+                        )}
+                        {selectedClassForDetails.videoUrl && (selectedClassForDetails.deliveryMethod === 'hybrid2' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && (
+                          <div><strong>Recorded Video:</strong> <span className="text-green-600">Available</span></div>
+                        )}
                         <div><strong>Students:</strong> {selectedClassForDetails.currentStudents || 0}/{selectedClassForDetails.maxStudents}</div>
                         <div><strong>Fee:</strong> LKR {selectedClassForDetails.fee?.toLocaleString()}</div>
                         <div><strong>Purchase Date:</strong> {new Date(selectedClassForDetails.purchaseDate).toLocaleDateString()}</div>
@@ -1776,7 +2148,7 @@ const MyClasses = ({ onLogout }) => {
                                )}
                                
                                {/* Join Class Button - Only if access is granted */}
-                               {(selectedClassForDetails.deliveryMethod === 'online' || selectedClassForDetails.deliveryMethod === 'hybrid') && selectedClassForDetails.zoomLink && paymentInfo.canAccess && (
+                               {(selectedClassForDetails.deliveryMethod === 'online' || selectedClassForDetails.deliveryMethod === 'hybrid1' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && selectedClassForDetails.zoomLink && paymentInfo.canAccess && (
                                  <button
                                    onClick={() => {
                                      setShowDetailsModal(false);
@@ -1786,6 +2158,31 @@ const MyClasses = ({ onLogout }) => {
                                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
                                  >
                                    <FaVideo /> Join Class
+                                 </button>
+                               )}
+                               
+                               {/* Watch Video Button - Only if access is granted and video is available */}
+                               {selectedClassForDetails.videoUrl && (selectedClassForDetails.deliveryMethod === 'hybrid2' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && paymentInfo.canAccess && (
+                                 <button
+                                   onClick={() => {
+                                     setShowDetailsModal(false);
+                                     setSelectedClassForVideo(selectedClassForDetails);
+                                     setShowVideoModal(true);
+                                   }}
+                                   disabled={!isClassCurrentlyScheduled(selectedClassForDetails)}
+                                   className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                                     !isClassCurrentlyScheduled(selectedClassForDetails)
+                                       ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                                       : 'bg-green-600 text-white hover:bg-green-700'
+                                   }`}
+                                   title={
+                                     !isClassCurrentlyScheduled(selectedClassForDetails) 
+                                       ? `Video access only during class time. ${getClassTimeStatus(selectedClassForDetails) || 'Not scheduled for today'}`
+                                       : 'Watch live video now!'
+                                   }
+                                 >
+                                   <FaVideo /> 
+                                   {!isClassCurrentlyScheduled(selectedClassForDetails) ? 'Not Available' : '🕐 Watch Now'}
                                  </button>
                                )}
                                

@@ -57,6 +57,11 @@ class ClassController {
         return $this->model->getClassesByTeacher($teacherId);
     }
 
+    // Get classes by stream
+    public function getClassesByStream($stream) {
+        return $this->model->getClassesByStream($stream);
+    }
+
     // Session Schedule Methods
     public function createSessionSchedule($data) {
         return $this->model->createSessionSchedule($data);

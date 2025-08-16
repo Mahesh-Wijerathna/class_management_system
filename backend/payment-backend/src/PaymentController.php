@@ -443,6 +443,7 @@ class PaymentController {
     // Get student's payment history
     public function getStudentPayments($studentId) {
         try {
+            // Get payments from financial_records table
             $stmt = $this->db->prepare("
                 SELECT 
                     fr.transaction_id,
@@ -475,6 +476,43 @@ class PaymentController {
                 }
                 $payments[] = $row;
             }
+
+            // Also get payments from payments table (PayHere payments)
+            $stmt2 = $this->db->prepare("
+                SELECT 
+                    p.order_id as transaction_id,
+                    p.created_at as date,
+                    p.amount,
+                    p.payment_method,
+                    p.status,
+                    p.student_id as user_id,
+                    p.class_id
+                FROM payments p
+                WHERE p.student_id = ?
+                ORDER BY p.created_at DESC
+            ");
+
+            $stmt2->bind_param("s", $studentId);
+            $stmt2->execute();
+            $result2 = $stmt2->get_result();
+
+            while ($row = $result2->fetch_assoc()) {
+                // Get class details from class backend
+                if (isset($row['class_id'])) {
+                    $classDetails = $this->getClassFromClassBackend($row['class_id']);
+                    if ($classDetails) {
+                        $row['class_name'] = $classDetails['className'] ?? '';
+                        $row['subject'] = $classDetails['subject'] ?? '';
+                        $row['teacher'] = $classDetails['teacher'] ?? '';
+                    }
+                }
+                $payments[] = $row;
+            }
+
+            // Sort all payments by date (newest first)
+            usort($payments, function($a, $b) {
+                return strtotime($b['date']) - strtotime($a['date']);
+            });
 
             return ['success' => true, 'data' => $payments];
 
@@ -587,6 +625,44 @@ class PaymentController {
             // Class backend returns data directly, not wrapped in success/data structure
             if ($classData && isset($classData['id'])) {
                 return $classData;
+            }
+            
+            return null;
+        } catch (Exception $e) {
+            error_log("Error fetching class from class backend: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    // Helper method to check student enrollment from class backend
+    private function checkStudentEnrollmentFromClassBackend($studentId, $classId) {
+        try {
+            $url = "http://class-backend/routes.php/get_enrollments_by_student?studentId=" . $studentId;
+            $response = file_get_contents($url);
+            
+            if ($response === FALSE) {
+                error_log("Failed to fetch enrollments from class backend for student: " . $studentId);
+                return false;
+            }
+            
+            $enrollmentData = json_decode($response, true);
+            
+            if (isset($enrollmentData['success']) && $enrollmentData['success'] && isset($enrollmentData['data'])) {
+                foreach ($enrollmentData['data'] as $enrollment) {
+                    if ($enrollment['class_id'] == $classId && $enrollment['payment_status'] === 'paid') {
+                        return true;
+                    }
+                }
+            }
+            
+            return false;
+        } catch (Exception $e) {
+            error_log("Error checking enrollment from class backend: " . $e->getMessage());
+            return false;
+        }
+    }
+}
+?> 
             }
             
             return null;

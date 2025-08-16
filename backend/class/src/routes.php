@@ -110,7 +110,11 @@ switch ($method) {
         } elseif ($path === '/get_class_by_id' && isset($_GET['id'])) {
             $id = $_GET['id'];
             $result = $controller->getClassById($id);
-            echo json_encode($result);
+            if ($result) {
+                echo json_encode(['success' => true, 'data' => $result]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Class not found']);
+            }
         } elseif ($path === '/get_classes_by_teacher' && isset($_GET['teacherId'])) {
             $teacherId = $_GET['teacherId'];
             $result = $controller->getClassesByTeacher($teacherId);

@@ -7,12 +7,11 @@ import { getUserData } from '../../../api/apiUtils';
 
 const columns = [
   { key: 'date', label: 'Date' },
-  { key: 'userId', label: 'User ID' },
   { key: 'className', label: 'Class' },
   { key: 'amount', label: 'Amount' },
-  { key: 'method', label: 'Method' },
+  { key: 'method', label: 'Payment Method' },
   { key: 'status', label: 'Status' },
-  { key: 'invoiceId', label: 'Invoice ID' },
+  { key: 'invoiceId', label: 'Transaction ID' },
 ];
 
 const MyPayments = ({ onLogout }) => {
@@ -40,9 +39,13 @@ const MyPayments = ({ onLogout }) => {
       if (response.success && response.data) {
         // Map the data to ensure all fields are present
         const mappedPayments = response.data.map((p, index) => ({
-          date: p.date || '',
+          date: p.date ? new Date(p.date).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          }) : '',
           userId: p.user_id || p.userId || p.student_id || studentId || '', // Use user_id from backend
-          className: p.class_name || p.className || '',
+          className: p.class_name || p.className || (p.subject ? `${p.class_name || p.className} - ${p.subject}` : ''),
           amount: `LKR ${parseFloat(p.amount || 0).toLocaleString()}`,
           method: (p.payment_method || p.method || 'Online').charAt(0).toUpperCase() + (p.payment_method || p.method || 'Online').slice(1),
           status: (p.status || 'Paid').charAt(0).toUpperCase() + (p.status || 'Paid').slice(1),

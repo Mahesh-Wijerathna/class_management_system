@@ -533,8 +533,8 @@ class UserController {
                 'message' => 'OTP service error: ' . ($otpResponseData['message'] ?? 'Unknown error'),
                 'service_response' => $otpResponseData,
                 'otp' => $otp // Show OTP for testing purposes
-            ]);
-        }
+        ]);
+    }
 
     // Step 6: Return success
     return json_encode([
