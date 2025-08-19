@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS classes (
     tute_collection_type ENUM('speed_post', 'physical_class', 'both') DEFAULT 'speed_post',
     speed_post_fee DECIMAL(10,2) DEFAULT 300.00,
     class_medium ENUM('Sinhala', 'English', 'Both') DEFAULT 'Sinhala',
+    enable_new_window_join BOOLEAN DEFAULT TRUE,
+    enable_overlay_join BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_status (status),

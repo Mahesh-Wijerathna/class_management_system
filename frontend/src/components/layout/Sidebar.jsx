@@ -370,7 +370,7 @@ const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen }) => {
       )}
 
       {/* Add CSS animations */}
-      <style jsx>{`
+      <style>{`
         @keyframes fadeIn {
           from { opacity: 0; }
           to { opacity: 1; }

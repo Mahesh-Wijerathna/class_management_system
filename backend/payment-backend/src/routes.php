@@ -86,6 +86,10 @@ switch ($method) {
         } elseif ($path === '/dev/clear_all_payments') {
             $result = $devPaymentHelper->clearAllPayments();
             echo json_encode($result);
+        } elseif ($path === '/dev/clear_student_payments') {
+            $studentId = $input['studentId'] ?? '';
+            $result = $devPaymentHelper->clearStudentPayments($studentId);
+            echo json_encode($result);
         } elseif ($path === '/dev/recover_failed_enrollments') {
             $result = $devPaymentHelper->recoverFailedEnrollments();
             echo json_encode($result);
@@ -106,7 +110,12 @@ switch ($method) {
         if ($path === '/get_payment_status' && isset($_GET['order_id'])) {
             $orderId = $_GET['order_id'];
             $result = $payHereController->getPaymentStatus($orderId);
-            echo json_encode(['success' => true, 'data' => $result]);
+            
+            if (is_string($result) && ($result === 'not_found' || $result === 'error')) {
+                echo json_encode(['success' => false, 'message' => $result]);
+            } else {
+                echo json_encode(['success' => true, 'data' => $result]);
+            }
         } elseif ($path === '/get_student_payments' && isset($_GET['studentId'])) {
             $studentId = $_GET['studentId'];
             $result = $paymentController->getStudentPayments($studentId);
@@ -114,6 +123,9 @@ switch ($method) {
         } elseif ($path === '/get_payment_by_transaction' && isset($_GET['transactionId'])) {
             $transactionId = $_GET['transactionId'];
             $result = $paymentController->getPaymentByTransactionId($transactionId);
+            echo json_encode($result);
+        } elseif ($path === '/get_all_payments') {
+            $result = $paymentController->getAllPayments();
             echo json_encode($result);
         } elseif ($path === '/get_payment_stats') {
             $result = $paymentController->getPaymentStats();

@@ -14,9 +14,74 @@ const paymentApi = axios.create({
 // Payment API functions
 export const createPayment = async (paymentData) => {
   try {
+    console.log('🔧 Creating payment with data:', paymentData);
     const response = await paymentApi.post('/routes.php/create_payment', paymentData);
-    return response.data;
+    console.log('🔧 Raw response:', response);
+    console.log('🔧 Response data type:', typeof response.data);
+    console.log('🔧 Response data:', response.data);
+    
+    // Handle case where response might include PHP code before JSON
+    let responseData = response.data;
+    
+    // If response is a string and contains JSON, try to extract it
+    if (typeof responseData === 'string') {
+      console.log('🔧 Response is string, extracting JSON...');
+      
+      // Try to find the complete JSON response (should start with {"success":)
+      const successIndex = responseData.indexOf('{"success":');
+      if (successIndex !== -1) {
+        // Find the complete JSON object
+        let braceCount = 0;
+        let startIndex = -1;
+        let endIndex = -1;
+        
+        for (let i = successIndex; i < responseData.length; i++) {
+          if (responseData[i] === '{') {
+            if (startIndex === -1) startIndex = i;
+            braceCount++;
+          } else if (responseData[i] === '}') {
+            braceCount--;
+            if (braceCount === 0) {
+              endIndex = i;
+              break;
+            }
+          }
+        }
+        
+        if (startIndex !== -1 && endIndex !== -1) {
+          const jsonString = responseData.substring(startIndex, endIndex + 1);
+          console.log('🔧 Extracted complete JSON string:', jsonString);
+          try {
+            responseData = JSON.parse(jsonString);
+            console.log('🔧 Parsed complete JSON:', responseData);
+          } catch (parseError) {
+            console.error('Failed to parse complete JSON from response:', parseError);
+            throw new Error('Invalid response format from server');
+          }
+        }
+      } else {
+        // Fallback: try to find any JSON object
+        const lastBraceIndex = responseData.lastIndexOf('}');
+        const firstBraceIndex = responseData.lastIndexOf('{', lastBraceIndex);
+        
+        if (firstBraceIndex !== -1 && lastBraceIndex !== -1) {
+          const jsonString = responseData.substring(firstBraceIndex, lastBraceIndex + 1);
+          console.log('🔧 Extracted fallback JSON string:', jsonString);
+          try {
+            responseData = JSON.parse(jsonString);
+            console.log('🔧 Parsed fallback JSON:', responseData);
+          } catch (parseError) {
+            console.error('Failed to parse fallback JSON from response:', parseError);
+            throw new Error('Invalid response format from server');
+          }
+        }
+      }
+    }
+    
+    console.log('🔧 Final response data:', responseData);
+    return responseData;
   } catch (error) {
+    console.error('🔧 Payment creation error:', error);
     throw handleApiError(error);
   }
 };

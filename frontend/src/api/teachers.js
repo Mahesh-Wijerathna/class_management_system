@@ -149,12 +149,30 @@ export const updateTeacher = async (teacherId, teacherData) => {
   }
 };
 
+export const updateTeacherDetails = async (teacherId, teacherData) => {
+  try {
+    const response = await teacherApi.put(`/routes.php/update_teacher/${teacherId}`, teacherData);
+    return response.data;
+  } catch (error) {
+    throw new Error(handleApiError(error, 'Failed to update teacher details'));
+  }
+};
+
 export const deleteTeacher = async (teacherId) => {
   try {
     const response = await authApi.delete(`/routes.php/teacher/${teacherId}`);
     return response.data;
   } catch (error) {
     throw new Error(handleApiError(error, 'Failed to delete teacher'));
+  }
+};
+
+export const deleteTeacherFromTeacherBackend = async (teacherId) => {
+  try {
+    const response = await teacherApi.delete(`/routes.php/delete_teacher/${teacherId}`);
+    return response.data;
+  } catch (error) {
+    throw new Error(handleApiError(error, 'Failed to delete teacher from teacher backend'));
   }
 };
 

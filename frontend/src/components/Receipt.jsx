@@ -99,6 +99,8 @@ const Receipt = ({ paymentData, onClose }) => {
         ['Name:', `${paymentData.firstName || ''} ${paymentData.lastName || ''}`.trim() || paymentData.fullName || 'N/A'],
         ['Email:', paymentData.email || 'N/A'],
         ['Mobile:', paymentData.phone || paymentData.mobile || 'N/A'],
+        ['Address:', paymentData.address || 'N/A'],
+        ['City:', paymentData.city || 'N/A'],
       ];
       
       autoTable(doc, {
@@ -359,6 +361,14 @@ const Receipt = ({ paymentData, onClose }) => {
                     <span class="info-label">Mobile:</span>
                     <span class="info-value">${paymentData.phone || paymentData.mobile || 'N/A'}</span>
                   </div>
+                  <div class="info-item">
+                    <span class="info-label">Address:</span>
+                    <span class="info-value">${paymentData.address || 'N/A'}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">City:</span>
+                    <span class="info-value">${paymentData.city || 'N/A'}</span>
+                  </div>
                 </div>
               </div>
               
@@ -511,6 +521,14 @@ const Receipt = ({ paymentData, onClose }) => {
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Mobile:</span>
                     <span className="font-medium">{paymentData.phone || paymentData.mobile || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Address:</span>
+                    <span className="font-medium">{paymentData.address || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">City:</span>
+                    <span className="font-medium">{paymentData.city || 'N/A'}</span>
                   </div>
                 </div>
               </div>

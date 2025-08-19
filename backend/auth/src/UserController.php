@@ -295,10 +295,17 @@ class UserController {
                 ];
                 
                 $url = "http://student-backend/routes.php/track-student-login";
+                
+                // Pass through the original User-Agent header
+                $headers = ['Content-Type: application/json'];
+                if (isset($_SERVER['HTTP_USER_AGENT'])) {
+                    $headers[] = 'User-Agent: ' . $_SERVER['HTTP_USER_AGENT'];
+                }
+                
                 file_get_contents($url, false, stream_context_create([
                     'http' => [
                         'method' => 'POST',
-                        'header' => 'Content-Type: application/json',
+                        'header' => implode("\r\n", $headers),
                         'content' => json_encode($trackingData)
                     ]
                 ]));
@@ -1614,7 +1621,7 @@ public function resetPassword($userid, $otp, $newPassword) {
     }
 
     // Send welcome message to teacher
-    private function sendTeacherWelcomeMessage($teacherId, $name, $phone, $password) {
+    public function sendTeacherWelcomeMessage($teacherId, $name, $phone, $password) {
         try {
             $message = "🎓 Welcome to TCMS!\n\n";
             $message .= "Teacher ID: {$teacherId}\n";

@@ -552,6 +552,30 @@ class TeacherController {
         }
     }
     
+    // Check if phone number exists
+    public function checkPhoneExists($phone) {
+        try {
+            if (empty($phone)) {
+                return [
+                    'success' => false,
+                    'message' => 'Phone number is required'
+                ];
+            }
+            
+            $exists = $this->model->phoneExists($phone);
+            return [
+                'success' => true,
+                'exists' => $exists,
+                'message' => $exists ? 'Phone number already exists' : 'Phone number is available'
+            ];
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Error checking phone number: ' . $e->getMessage()
+            ];
+        }
+    }
+    
     public function __destruct() {
         if ($this->conn) {
             $this->conn->close();

@@ -3,6 +3,7 @@ import { FaUsers, FaMoneyBill, FaCalendar, FaSearch, FaFilter, FaDownload, FaPri
 import { getAllClasses } from '../../../api/classes';
 import { getClassEnrollments } from '../../../api/enrollments';
 import { getAllStudents } from '../../../api/students';
+import axios from 'axios';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import adminSidebarSections from './AdminDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
@@ -48,22 +49,51 @@ const ClassPayments = () => {
         if (studentsResponse.success && studentsResponse.students) {
           const studentsMap = {};
           studentsResponse.students.forEach(student => {
-            studentsMap[student.userid] = student;
+            studentsMap[student.user_id] = student;
           });
           setStudentsData(studentsMap);
         }
 
-        // Load payment data for each class
+        // Load enrollment and payment data for each class
         const paymentData = {};
+        const globalPaymentData = {};
+        
+        // First, fetch all payments from payment backend
+        try {
+          const paymentsResponse = await axios.get(`http://localhost:8090/routes.php/get_all_payments`);
+          if (paymentsResponse.data.success && paymentsResponse.data.data) {
+            // Group payments by class_id
+            paymentsResponse.data.data.forEach(payment => {
+              const classId = payment.class_id;
+              if (!globalPaymentData[classId]) {
+                globalPaymentData[classId] = [];
+              }
+              globalPaymentData[classId].push(payment);
+            });
+          }
+        } catch (error) {
+          console.error('Error loading global payment data:', error);
+        }
+        
         for (const classItem of classesList) {
           try {
             const enrollmentsResponse = await getClassEnrollments(classItem.id);
             if (enrollmentsResponse.success) {
-              paymentData[classItem.id] = enrollmentsResponse.data || [];
+              const enrollments = enrollmentsResponse.data || [];
+              const classPayments = globalPaymentData[classItem.id] || [];
+              
+              // Combine enrollment data with payment data
+              paymentData[classItem.id] = {
+                enrollments: enrollments,
+                payments: classPayments
+              };
             }
           } catch (error) {
-            console.error(`Error loading payments for class ${classItem.id}:`, error);
-            paymentData[classItem.id] = [];
+            console.error(`Error loading data for class ${classItem.id}:`, error);
+            paymentData[classItem.id] = {
+              enrollments: [],
+              payments: []
+            };
           }
         }
         setClassPaymentData(paymentData);
@@ -82,46 +112,69 @@ const ClassPayments = () => {
     try {
       const enrollmentsResponse = await getClassEnrollments(classItem.id);
       if (enrollmentsResponse.success) {
-        let filteredEnrollments = enrollmentsResponse.data || [];
+        const enrollments = enrollmentsResponse.data || [];
         
-        // Apply date filters to the enrollments
+        // Fetch student data for each enrollment
+        const studentPromises = enrollments.map(async (enrollment) => {
+          try {
+            const studentResponse = await axios.get(`http://localhost:8086/routes.php/get_with_id/${enrollment.student_id}`);
+            return { studentId: enrollment.student_id, data: studentResponse.data };
+          } catch (error) {
+            console.error('Error fetching student data for', enrollment.student_id, ':', error);
+            return { studentId: enrollment.student_id, data: null };
+          }
+        });
+        
+        const studentResults = await Promise.all(studentPromises);
+        const studentDataMap = {};
+        studentResults.forEach(result => {
+          if (result.data) {
+            studentDataMap[result.studentId] = result.data;
+          }
+        });
+        
+        // Fetch payment data for this class
+        let classPayments = [];
+        try {
+          const paymentsResponse = await axios.get(`http://localhost:8090/routes.php/get_all_payments`);
+          if (paymentsResponse.data.success && paymentsResponse.data.data) {
+            classPayments = paymentsResponse.data.data.filter(payment => payment.class_id == classItem.id);
+          }
+        } catch (paymentError) {
+          console.error('Error fetching payments for class', classItem.id, ':', paymentError);
+        }
+        
+        // Apply date filters to the enrollments using payment data
+        let filteredEnrollments = enrollments;
+        
         if (dateFilter) {
-          // Filter by specific date
+          // Filter by specific date using payment data
           const targetDate = new Date(dateFilter);
           targetDate.setHours(0, 0, 0, 0);
           
-          filteredEnrollments = filteredEnrollments.filter(enrollment => {
-            if (!enrollment.payment_history_details) return false;
-            
-            try {
-              const paymentHistory = JSON.parse(enrollment.payment_history_details);
-              if (!paymentHistory.date) return false;
-              
-              const paymentDate = new Date(paymentHistory.date);
+          filteredEnrollments = enrollments.filter(enrollment => {
+            const studentPayments = classPayments.filter(payment => 
+              payment.user_id === enrollment.student_id
+            );
+            return studentPayments.some(payment => {
+              const paymentDate = new Date(payment.date);
               paymentDate.setHours(0, 0, 0, 0);
-              
               return paymentDate.getTime() === targetDate.getTime();
-            } catch (error) {
-              return false;
-            }
+            });
           });
         } else if (monthFilter && yearFilter) {
-          // Filter by month and year
+          // Filter by month and year using payment data
           const targetMonth = parseInt(monthFilter);
           const targetYear = parseInt(yearFilter);
           
-          filteredEnrollments = filteredEnrollments.filter(enrollment => {
-            if (!enrollment.payment_history_details) return false;
-            
-            try {
-              const paymentHistory = JSON.parse(enrollment.payment_history_details);
-              if (!paymentHistory.date) return false;
-              
-              const paymentDate = new Date(paymentHistory.date);
+          filteredEnrollments = enrollments.filter(enrollment => {
+            const studentPayments = classPayments.filter(payment => 
+              payment.user_id === enrollment.student_id
+            );
+            return studentPayments.some(payment => {
+              const paymentDate = new Date(payment.date);
               return paymentDate.getMonth() + 1 === targetMonth && paymentDate.getFullYear() === targetYear;
-            } catch (error) {
-              return false;
-            }
+            });
           });
         }
         
@@ -132,7 +185,7 @@ const ClassPayments = () => {
             if (studentsResponse.success && studentsResponse.students) {
               const studentsMap = {};
               studentsResponse.students.forEach(student => {
-                studentsMap[student.userid] = student;
+                studentsMap[student.user_id] = student;
               });
               setStudentsData(studentsMap);
             }
@@ -143,7 +196,9 @@ const ClassPayments = () => {
         
         setSelectedClass({
           ...classItem,
-          enrollments: filteredEnrollments
+          enrollments: filteredEnrollments,
+          studentData: studentDataMap,
+          payments: classPayments
         });
         setShowPaymentDetails(true);
       }
@@ -249,9 +304,13 @@ const ClassPayments = () => {
       }
     });
     
-    const totalRevenue = enrollments.reduce((sum, e) => sum + parseFloat(e.paid_amount || 0), 0);
+    // Calculate revenue from payment backend data
+    const totalRevenue = selectedClass?.payments?.reduce((sum, payment) => {
+      return sum + parseFloat(payment.amount || 0);
+    }, 0) || 0;
+    
     const expectedRevenue = enrollments.reduce((sum, e) => {
-      const student = studentsData[e.student_id];
+      const student = selectedClass?.studentData?.[e.student_id] || studentsData[e.student_id];
       return sum + parseFloat(student?.fee || 0);
     }, 0);
 
@@ -269,7 +328,8 @@ const ClassPayments = () => {
 
   // Calculate current month revenue for a class
   const calculateCurrentMonthRevenue = (classId) => {
-    const enrollments = classPaymentData[classId] || [];
+    const classData = classPaymentData[classId] || { enrollments: [], payments: [] };
+    const payments = classData.payments || [];
     const currentDate = new Date();
     const currentMonth = currentDate.getMonth() + 1;
     const currentYear = currentDate.getFullYear();
@@ -277,36 +337,17 @@ const ClassPayments = () => {
     let cashRevenue = 0;
     let onlineRevenue = 0;
     
-    enrollments.forEach(enrollment => {
-      if (enrollment.payment_history_details) {
-        try {
-          const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
-            try { return JSON.parse(p); } catch (e) { return null; }
-          }).filter(p => p);
+    payments.forEach(payment => {
+      if (payment.date) {
+        const paymentDate = new Date(payment.date);
+        if (paymentDate.getMonth() + 1 === currentMonth && paymentDate.getFullYear() === currentYear) {
+          const amount = parseFloat(payment.amount || 0);
+          const method = payment.payment_method?.toLowerCase() || 'unknown';
           
-          paymentHistory.forEach(payment => {
-            if (payment.date) {
-              const paymentDate = new Date(payment.date);
-              if (paymentDate.getMonth() + 1 === currentMonth && paymentDate.getFullYear() === currentYear) {
-                const amount = parseFloat(payment.amount || 0);
-                const method = payment.payment_method?.toLowerCase() || 'unknown';
-                
-                if (method === 'cash') {
-                  cashRevenue += amount;
-                } else if (method === 'online' || method === 'card') {
-                  onlineRevenue += amount;
-                }
-              }
-            }
-          });
-        } catch (error) {
-          // Fallback to enrollment payment_method
-          const method = enrollment.payment_method?.toLowerCase() || 'unknown';
-          const paidAmount = parseFloat(enrollment.paid_amount || 0);
           if (method === 'cash') {
-            cashRevenue += paidAmount;
+            cashRevenue += amount;
           } else if (method === 'online' || method === 'card') {
-            onlineRevenue += paidAmount;
+            onlineRevenue += amount;
           }
         }
       }
@@ -321,7 +362,8 @@ const ClassPayments = () => {
 
   // Calculate previous month revenue for a class
   const calculatePreviousMonthRevenue = (classId) => {
-    const enrollments = classPaymentData[classId] || [];
+    const classData = classPaymentData[classId] || { enrollments: [], payments: [] };
+    const payments = classData.payments || [];
     const currentDate = new Date();
     const previousMonth = currentDate.getMonth() === 0 ? 12 : currentDate.getMonth();
     const previousYear = currentDate.getMonth() === 0 ? currentDate.getFullYear() - 1 : currentDate.getFullYear();
@@ -329,36 +371,17 @@ const ClassPayments = () => {
     let cashRevenue = 0;
     let onlineRevenue = 0;
     
-    enrollments.forEach(enrollment => {
-      if (enrollment.payment_history_details) {
-        try {
-          const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
-            try { return JSON.parse(p); } catch (e) { return null; }
-          }).filter(p => p);
+    payments.forEach(payment => {
+      if (payment.date) {
+        const paymentDate = new Date(payment.date);
+        if (paymentDate.getMonth() + 1 === previousMonth && paymentDate.getFullYear() === previousYear) {
+          const amount = parseFloat(payment.amount || 0);
+          const method = payment.payment_method?.toLowerCase() || 'unknown';
           
-          paymentHistory.forEach(payment => {
-            if (payment.date) {
-              const paymentDate = new Date(payment.date);
-              if (paymentDate.getMonth() + 1 === previousMonth && paymentDate.getFullYear() === previousYear) {
-                const amount = parseFloat(payment.amount || 0);
-                const method = payment.payment_method?.toLowerCase() || 'unknown';
-                
-                if (method === 'cash') {
-                  cashRevenue += amount;
-                } else if (method === 'online' || method === 'card') {
-                  onlineRevenue += amount;
-                }
-              }
-            }
-          });
-        } catch (error) {
-          // Fallback to enrollment payment_method
-          const method = enrollment.payment_method?.toLowerCase() || 'unknown';
-          const paidAmount = parseFloat(enrollment.paid_amount || 0);
           if (method === 'cash') {
-            cashRevenue += paidAmount;
+            cashRevenue += amount;
           } else if (method === 'online' || method === 'card') {
-            onlineRevenue += paidAmount;
+            onlineRevenue += amount;
           }
         }
       }
@@ -373,48 +396,31 @@ const ClassPayments = () => {
 
   // Calculate payment statistics for a class based on date filters with revenue breakdown
   const calculateClassPaymentStats = (classId) => {
-    const enrollments = classPaymentData[classId] || [];
+    const classData = classPaymentData[classId] || { enrollments: [], payments: [] };
+    const enrollments = classData.enrollments || [];
+    const payments = classData.payments || [];
     
-    // Filter enrollments based on date filters
-    let filteredEnrollments = enrollments;
+    // Filter payments based on date filters
+    let filteredPayments = payments;
     
     if (dateFilter) {
       // Filter by specific date
       const targetDate = new Date(dateFilter);
       targetDate.setHours(0, 0, 0, 0);
       
-      filteredEnrollments = enrollments.filter(enrollment => {
-        if (!enrollment.payment_history_details) return false;
-        
-        try {
-          const paymentHistory = JSON.parse(enrollment.payment_history_details);
-          if (!paymentHistory.date) return false;
-          
-          const paymentDate = new Date(paymentHistory.date);
-          paymentDate.setHours(0, 0, 0, 0);
-          
-          return paymentDate.getTime() === targetDate.getTime();
-        } catch (error) {
-          return false;
-        }
+      filteredPayments = payments.filter(payment => {
+        const paymentDate = new Date(payment.date);
+        paymentDate.setHours(0, 0, 0, 0);
+        return paymentDate.getTime() === targetDate.getTime();
       });
     } else if (monthFilter && yearFilter) {
       // Filter by month and year
       const targetMonth = parseInt(monthFilter);
       const targetYear = parseInt(yearFilter);
       
-      filteredEnrollments = enrollments.filter(enrollment => {
-        if (!enrollment.payment_history_details) return false;
-        
-        try {
-          const paymentHistory = JSON.parse(enrollment.payment_history_details);
-          if (!paymentHistory.date) return false;
-          
-          const paymentDate = new Date(paymentHistory.date);
-          return paymentDate.getMonth() + 1 === targetMonth && paymentDate.getFullYear() === targetYear;
-        } catch (error) {
-          return false;
-        }
+      filteredPayments = payments.filter(payment => {
+        const paymentDate = new Date(payment.date);
+        return paymentDate.getMonth() + 1 === targetMonth && paymentDate.getFullYear() === targetYear;
       });
     }
     
@@ -423,53 +429,21 @@ const ClassPayments = () => {
     let onlineRevenue = 0;
     const paymentMethods = {};
     
-    filteredEnrollments.forEach(enrollment => {
-      const paidAmount = parseFloat(enrollment.paid_amount || 0);
-      if (paidAmount > 0) {
-        // Try to get payment method from payment_history_details
-        if (enrollment.payment_history_details) {
-          try {
-            const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
-              try { return JSON.parse(p); } catch (e) { return null; }
-            }).filter(p => p);
-            
-            paymentHistory.forEach(payment => {
-              const amount = parseFloat(payment.amount || 0);
-              const method = payment.payment_method?.toLowerCase() || 'unknown';
-              
-              if (method === 'cash') {
-                cashRevenue += amount;
-              } else if (method === 'online' || method === 'card') {
-                onlineRevenue += amount;
-              }
-              
-              paymentMethods[method] = (paymentMethods[method] || 0) + 1;
-            });
-          } catch (error) {
-            // Fallback to enrollment payment_method
-            const method = enrollment.payment_method?.toLowerCase() || 'unknown';
-            if (method === 'cash') {
-              cashRevenue += paidAmount;
-            } else if (method === 'online' || method === 'card') {
-              onlineRevenue += paidAmount;
-            }
-            paymentMethods[method] = (paymentMethods[method] || 0) + 1;
-          }
-        } else {
-          // Fallback to enrollment payment_method
-          const method = enrollment.payment_method?.toLowerCase() || 'unknown';
-          if (method === 'cash') {
-            cashRevenue += paidAmount;
-          } else if (method === 'online' || method === 'card') {
-            onlineRevenue += paidAmount;
-          }
-          paymentMethods[method] = (paymentMethods[method] || 0) + 1;
-        }
+    filteredPayments.forEach(payment => {
+      const amount = parseFloat(payment.amount || 0);
+      const method = payment.payment_method?.toLowerCase() || 'unknown';
+      
+      if (method === 'cash') {
+        cashRevenue += amount;
+      } else if (method === 'online' || method === 'card') {
+        onlineRevenue += amount;
       }
+      
+      paymentMethods[method] = (paymentMethods[method] || 0) + 1;
     });
     
     const totalPayments = cashRevenue + onlineRevenue;
-    const studentsWithPayments = filteredEnrollments.filter(e => parseFloat(e.paid_amount || 0) > 0).length;
+    const studentsWithPayments = filteredPayments.length;
     
     return {
       totalPayments,
@@ -634,11 +608,11 @@ const ClassPayments = () => {
       key: 'studentInfo',
       label: 'Student Info',
       render: (row) => {
-        const student = studentsData[row.student_id];
+        const student = selectedClass?.studentData?.[row.student_id] || studentsData[row.student_id];
         return (
           <div className="flex flex-col space-y-1">
             <div className="font-semibold text-gray-900 text-sm">
-              {student ? `${student.firstName} ${student.lastName}` : row.student_id}
+              {student ? `${student.first_name} ${student.last_name}` : row.student_id}
             </div>
             <div className="text-xs text-gray-700">{student?.school || 'School not specified'}</div>
             <div className="text-xs text-gray-500 bg-gray-100 px-1 py-0.5 rounded inline-block w-fit">
@@ -652,7 +626,7 @@ const ClassPayments = () => {
       key: 'contact',
       label: 'Contact',
       render: (row) => {
-        const student = studentsData[row.student_id];
+        const student = selectedClass?.studentData?.[row.student_id] || studentsData[row.student_id];
         return (
           <div className="flex flex-col space-y-1">
             <div className="flex items-center space-x-1">
@@ -661,7 +635,7 @@ const ClassPayments = () => {
             </div>
             <div className="flex items-center space-x-1">
               <FaPhone className="text-green-500 text-xs" />
-              <span className="text-xs text-gray-800">{student?.mobile || 'N/A'}</span>
+              <span className="text-xs text-gray-800">{student?.mobile_number || 'N/A'}</span>
             </div>
           </div>
         );
@@ -686,29 +660,17 @@ const ClassPayments = () => {
       key: 'paymentStatus',
       label: 'Payment Status',
       render: (row) => {
-        // Get payment method from payment_history_details
+        // Get payment method from payment backend data
         let paymentMethod = 'Unknown';
-        if (row.payment_history_details) {
-          try {
-            const paymentHistory = row.payment_history_details.split('|').map(p => {
-              try { return JSON.parse(p); } catch (e) { return null; }
-            }).filter(p => p);
-            
-            if (paymentHistory.length > 0) {
-              const method = paymentHistory[0].payment_method?.toLowerCase() || 'unknown';
-              paymentMethod = method === 'cash' ? 'Cash' : 
-                             method === 'online' ? 'Online' : 
-                             method === 'card' ? 'Card' : 
-                             method;
-            }
-          } catch (error) {
-            // Fallback to enrollment payment_method
-            const method = row.payment_method?.toLowerCase() || 'unknown';
-            paymentMethod = method === 'cash' ? 'Cash' : 
-                           method === 'online' ? 'Online' : 
-                           method === 'card' ? 'Card' : 
-                           method;
-          }
+        const classData = selectedClass?.payments || [];
+        const studentPayments = classData.filter(payment => payment.user_id === row.student_id);
+        
+        if (studentPayments.length > 0) {
+          const method = studentPayments[0].payment_method?.toLowerCase() || 'unknown';
+          paymentMethod = method === 'cash' ? 'Cash' : 
+                         method === 'online' ? 'Online' : 
+                         method === 'card' ? 'Card' : 
+                         method;
         } else {
           // Fallback to enrollment payment_method
           const method = row.payment_method?.toLowerCase() || 'unknown';
@@ -747,8 +709,12 @@ const ClassPayments = () => {
       key: 'amount',
       label: 'Amount',
       render: (row) => {
+        // Get payment data from payment backend
+        const classData = selectedClass?.payments || [];
+        const studentPayments = classData.filter(payment => payment.user_id === row.student_id);
+        
         const fee = parseFloat(row.fee || 0);
-        const paid = parseFloat(row.paid_amount || 0);
+        const paid = studentPayments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
         
         return (
           <div className="flex flex-col space-y-1">
@@ -766,7 +732,7 @@ const ClassPayments = () => {
 
   // Define actions for students table
   const studentActions = (row) => {
-    const student = studentsData[row.student_id];
+    const student = selectedClass?.studentData?.[row.student_id] || studentsData[row.student_id];
     return (
       <div className="flex flex-col space-y-1">
         <button
@@ -1172,7 +1138,7 @@ const ClassPayments = () => {
             <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold text-gray-900">
-                  Payment History - {selectedStudent.firstName} {selectedStudent.lastName}
+                  Payment History - {selectedStudent.first_name} {selectedStudent.last_name}
                 </h2>
                 <button
                   onClick={closeStudentDetails}
@@ -1183,68 +1149,64 @@ const ClassPayments = () => {
               </div>
               
               <div className="space-y-3">
-                {selectedStudent.enrollment && selectedStudent.enrollment.payment_history_details ? (
-                  (() => {
-                    try {
-                      const paymentHistory = selectedStudent.enrollment.payment_history_details.split('|').map(p => {
-                        try { return JSON.parse(p); } catch (e) { return null; }
-                      }).filter(p => p);
-                      
-                      if (paymentHistory.length > 0) {
-                        return paymentHistory.map((payment, index) => (
-                          <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                            <div className="flex justify-between items-center mb-3">
-                              <span className="text-lg font-semibold text-gray-700">
-                                Payment #{index + 1}
-                              </span>
-                              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                                payment.payment_method?.toLowerCase() === 'cash' ? 'bg-green-100 text-green-700' :
-                                payment.payment_method?.toLowerCase() === 'online' ? 'bg-blue-100 text-blue-700' :
-                                payment.payment_method?.toLowerCase() === 'card' ? 'bg-purple-100 text-purple-700' :
-                                'bg-gray-100 text-gray-700'
-                              }`}>
-                                {payment.payment_method?.toLowerCase() === 'cash' ? 'Cash' :
-                                 payment.payment_method?.toLowerCase() === 'online' ? 'Online' :
-                                 payment.payment_method?.toLowerCase() === 'card' ? 'Card' :
-                                 payment.payment_method || 'Unknown'}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="text-sm font-medium text-gray-600">Amount:</span>
-                              <span className="text-lg font-bold text-green-600">
-                                {formatCurrency(payment.amount || 0)}
-                              </span>
-                            </div>
-                            {payment.date && (
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm font-medium text-gray-600">Date:</span>
-                                <span className="text-sm text-gray-700">
-                                  {formatDate(payment.date)}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        ));
-                      } else {
-                        return (
-                          <div className="text-center py-8">
-                            <div className="text-gray-500 text-lg">No payment history available</div>
-                          </div>
-                        );
-                      }
-                    } catch (error) {
-                      return (
-                        <div className="text-center py-8">
-                          <div className="text-gray-500 text-lg">Error parsing payment history</div>
+                {(() => {
+                  // Get payment data from payment backend for this student and class
+                  const classPayments = selectedClass?.payments || [];
+                  const studentPayments = classPayments.filter(payment => 
+                    payment.user_id === selectedStudent.enrollment?.student_id
+                  );
+                  
+                  if (studentPayments.length > 0) {
+                    return studentPayments.map((payment, index) => (
+                      <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-lg font-semibold text-gray-700">
+                            Payment #{index + 1}
+                          </span>
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            payment.payment_method?.toLowerCase() === 'cash' ? 'bg-green-100 text-green-700' :
+                            payment.payment_method?.toLowerCase() === 'online' ? 'bg-blue-100 text-blue-700' :
+                            payment.payment_method?.toLowerCase() === 'card' ? 'bg-purple-100 text-purple-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {payment.payment_method?.toLowerCase() === 'cash' ? 'Cash' :
+                             payment.payment_method?.toLowerCase() === 'online' ? 'Online' :
+                             payment.payment_method?.toLowerCase() === 'card' ? 'Card' :
+                             payment.payment_method || 'Unknown'}
+                          </span>
                         </div>
-                      );
-                    }
-                  })()
-                ) : (
-                  <div className="text-center py-8">
-                    <div className="text-gray-500 text-lg">No payment history available</div>
-                  </div>
-                )}
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-medium text-gray-600">Amount:</span>
+                          <span className="text-lg font-bold text-green-600">
+                            {formatCurrency(payment.amount || 0)}
+                          </span>
+                        </div>
+                        {payment.date && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-gray-600">Date:</span>
+                            <span className="text-sm text-gray-700">
+                              {formatDate(payment.date)}
+                            </span>
+                          </div>
+                        )}
+                        {payment.transaction_id && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-gray-600">Transaction ID:</span>
+                            <span className="text-sm text-gray-700">
+                              {payment.transaction_id}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ));
+                  } else {
+                    return (
+                      <div className="text-center py-8">
+                        <div className="text-gray-500 text-lg">No payment history available</div>
+                      </div>
+                    );
+                  }
+                })()}
               </div>
               
               <div className="mt-6 flex justify-end">

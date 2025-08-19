@@ -5,7 +5,7 @@ import DashboardLayout from '../../../components/layout/DashboardLayout';
 import studentSidebarSections from './StudentDashboardSidebar';
 import SecureZoomMeeting from '../../../components/SecureZoomMeeting';
 import { getStudentCard, getCardTypeInfo, getCardStatus, isCardValid } from '../../../utils/cardUtils';
-import { getStudentEnrollments, markAttendance, requestForgetCard, requestLatePayment, convertEnrollmentToMyClass } from '../../../api/enrollments';
+import { getStudentEnrollments, markAttendance, requestForgetCard, requestLatePayment, convertEnrollmentToMyClass, getPaymentHistoryForClass } from '../../../api/enrollments';
 import { getUserData } from '../../../api/apiUtils';
 import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt, FaCalendarWeek, FaTasks, FaFilePdf, FaFileWord, FaFilePowerpoint, FaUpload, FaRedo, FaPauseCircle } from 'react-icons/fa';
 
@@ -398,6 +398,19 @@ const MyClasses = ({ onLogout }) => {
     
     const result = getPaymentTrackingStatus(cls);
     console.log('Result:', result);
+    
+    // Test grace period logic
+    const today = new Date();
+    const currentDay = today.getDate();
+    const freeDays = cls.paymentTrackingFreeDays || 7;
+    const isFreePeriod = currentDay <= freeDays;
+    
+    console.log('=== GRACE PERIOD TEST ===');
+    console.log('Current Date:', today.toDateString());
+    console.log('Current Day of Month:', currentDay);
+    console.log('Free Days:', freeDays);
+    console.log('Is Free Period:', isFreePeriod);
+    console.log('Grace Period Logic:', `Day ${currentDay} <= ${freeDays} = ${isFreePeriod}`);
   };
 
   // Test function to simulate different dates for payment tracking
@@ -600,7 +613,7 @@ const MyClasses = ({ onLogout }) => {
     }
   };
 
-  // Get class priority/urgency
+  // Get class priority/urgency for display
   const getClassPriority = (cls) => {
     // If class is inactive, it should be high priority
     if (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid1' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') return { priority: 'high', text: 'Online', color: 'text-red-600', bgColor: 'bg-red-50' };
@@ -613,6 +626,25 @@ const MyClasses = ({ onLogout }) => {
     if (cls.paymentStatus === 'pending' && daysUntilPayment <= 3) return { priority: 'medium', text: 'Due Soon', color: 'text-orange-600', bgColor: 'bg-orange-50' };
     if (cls.paymentStatus === 'paid') return { priority: 'low', text: 'Active', color: 'text-green-600', bgColor: 'bg-green-50' };
     return { priority: 'normal', text: 'Normal', color: 'text-gray-600', bgColor: 'bg-gray-50' };
+  };
+
+  // Get numeric priority for sorting
+  const getClassPriorityValue = (cls) => {
+    const priority = getClassPriority(cls);
+    switch (priority.priority) {
+      case 'high': return 3;
+      case 'medium': return 2;
+      case 'low': return 1;
+      default: return 0;
+    }
+  };
+
+  // Debug function to log sorting information
+  const debugSorting = (classes, sortBy) => {
+    console.log(`🔍 Sorting ${classes.length} classes by: ${sortBy}`);
+    classes.slice(0, 3).forEach((cls, index) => {
+      console.log(`  ${index + 1}. ${cls.className} - Priority: ${getClassPriorityValue(cls)}, Status: ${cls.paymentStatus}, Due: ${cls.nextPaymentDate}`);
+    });
   };
 
   // Filter and sort classes
@@ -713,22 +745,37 @@ const MyClasses = ({ onLogout }) => {
     .sort((a, b) => {
       switch (sortBy) {
         case 'name':
-          return a.className.localeCompare(b.className);
+          const nameA = a.className || '';
+          const nameB = b.className || '';
+          return nameA.localeCompare(nameB);
         case 'purchased-date':
           // Sort by enrollment date (assuming we have this data)
           const dateA = a.enrollmentDate ? new Date(a.enrollmentDate) : new Date(0);
           const dateB = b.enrollmentDate ? new Date(b.enrollmentDate) : new Date(0);
+          // Handle invalid dates
+          if (isNaN(dateA.getTime()) && isNaN(dateB.getTime())) return 0;
+          if (isNaN(dateA.getTime())) return 1;
+          if (isNaN(dateB.getTime())) return -1;
           return dateB - dateA; // Most recent first
         case 'payment-due':
           // Sort by payment due date
           const dueA = a.nextPaymentDate ? new Date(a.nextPaymentDate) : new Date(9999, 11, 31);
           const dueB = b.nextPaymentDate ? new Date(b.nextPaymentDate) : new Date(9999, 11, 31);
+          // Handle invalid dates
+          if (isNaN(dueA.getTime()) && isNaN(dueB.getTime())) return 0;
+          if (isNaN(dueA.getTime())) return 1;
+          if (isNaN(dueB.getTime())) return -1;
           return dueA - dueB; // Earliest due date first
         case 'status':
         default:
-          return getClassPriority(b) - getClassPriority(a);
+          return getClassPriorityValue(b) - getClassPriorityValue(a);
       }
   });
+
+  // Debug sorting results
+  if (filteredAndSortedClasses.length > 0) {
+    debugSorting(filteredAndSortedClasses, sortBy);
+  }
 
   // Handle make payment
   const handleMakePayment = (cls) => {
@@ -745,7 +792,7 @@ const MyClasses = ({ onLogout }) => {
   };
 
   // Handle view details - modern modal approach
-  const handleViewDetails = (cls) => {
+  const handleViewDetails = async (cls) => {
     // Check enrollment status first
     if (cls.status === 'suspended') {
       alert('Access to this class has been suspended. Please contact the administrator for more information.');
@@ -770,9 +817,27 @@ const MyClasses = ({ onLogout }) => {
       return;
     }
     
+    // Fetch payment history for this class
+    try {
+      const userData = getUserData();
+      const paymentHistory = await getPaymentHistoryForClass(userData.userid, cls.id);
+      
+      // Update the class with payment history
+      const updatedClass = {
+        ...cls,
+        paymentHistory: paymentHistory
+      };
+      
+      setSelectedClassForDetails(updatedClass);
+      setDetailsActiveTab('overview');
+      setShowDetailsModal(true);
+    } catch (error) {
+      console.error('Error fetching payment history:', error);
+      // Still show the class details even if payment history fails to load
     setSelectedClassForDetails(cls);
     setDetailsActiveTab('overview');
     setShowDetailsModal(true);
+    }
   };
 
   // Handle join class
@@ -1747,6 +1812,17 @@ const MyClasses = ({ onLogout }) => {
                            '🕐 Watch Now'}
                         </button>
                       )}
+                      
+                      {/* Debug Button - Only show in development */}
+                      {process.env.NODE_ENV === 'development' && (
+                        <button
+                          onClick={() => debugPaymentTracking(cls)}
+                          className="px-3 py-1 rounded-lg text-sm flex items-center gap-1 bg-purple-600 text-white hover:bg-purple-700"
+                          title="Debug payment tracking (development only)"
+                        >
+                          <FaCog /> Debug
+                        </button>
+                      )}
                   </div>
                 </BasicCard>
               );
@@ -1835,6 +1911,16 @@ const MyClasses = ({ onLogout }) => {
               setSelectedClassForZoom(null);
             }}
             isOpen={showSecureZoomModal}
+            enableNewWindowJoin={(() => {
+              const value = Boolean(selectedClassForZoom.enableNewWindowJoin);
+              console.log('MyClasses - enableNewWindowJoin:', selectedClassForZoom.enableNewWindowJoin, '->', value);
+              return value;
+            })()}
+            enableOverlayJoin={(() => {
+              const value = Boolean(selectedClassForZoom.enableOverlayJoin);
+              console.log('MyClasses - enableOverlayJoin:', selectedClassForZoom.enableOverlayJoin, '->', value);
+              return value;
+            })()}
           />
         )}
 
@@ -2366,28 +2452,30 @@ const MyClasses = ({ onLogout }) => {
                                 <div>
                                   <div className="font-semibold">Payment #{index + 1}</div>
                                   <div className="text-sm text-gray-600">
-                                    {new Date(payment.date).toLocaleDateString()} 
+                                    {payment.date ? new Date(payment.date).toLocaleDateString() : 'No date'} 
                                   </div>
                                   {payment.invoiceId && (
                                     <div className="text-xs text-gray-500">Invoice: {payment.invoiceId}</div>
                                   )}
                                 </div>
                                 <div className="text-right">
-                                  <div className="font-bold text-lg">LKR {parseInt(payment.amount).toLocaleString()}</div>
+                                  <div className="font-bold text-lg">LKR {payment.amount ? parseInt(payment.amount).toLocaleString() : '0'}</div>
                                   <div className={`text-sm px-2 py-1 rounded-full inline-block ${
                                     payment.status === 'paid' ? 'bg-green-100 text-green-700' : 
                                     payment.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 
                                     'bg-red-100 text-red-700'
                                   }`}>
-                                    {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                                    {payment.status ? payment.status.charAt(0).toUpperCase() + payment.status.slice(1) : 'Unknown'}
                                   </div>
                                 </div>
                               </div>
                               <div className="mt-2 text-sm text-gray-600">
-                                Method: {payment.payment_method === 'online' ? 'Online Payment' : 
+                                Method: {payment.payment_method ? (
+                                  payment.payment_method === 'online' ? 'Online Payment' : 
                                          payment.payment_method === 'cash' ? 'Cash Payment' : 
                                          payment.payment_method === 'test' ? 'Test Payment' :
-                                         payment.payment_method || 'Not specified'}
+                                  payment.payment_method
+                                ) : 'Not specified'}
                               </div>
                             </div>
                           ))}

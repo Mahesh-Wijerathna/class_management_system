@@ -22,6 +22,10 @@ const Invoice = () => {
   const [paid, setPaid] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Debug: Log the received data
+  console.log('📄 Invoice received data:', data);
+  console.log('📄 Payment data:', data?.paymentData);
+
   if (!data) {
     return <div className="p-8 text-center text-gray-500">No invoice data. Please complete checkout first.</div>;
   }
@@ -53,26 +57,29 @@ const Invoice = () => {
       let transactionId = data.transactionId;
       console.log('🔍 Current transactionId:', transactionId);
       
-      // If no transactionId exists, create the payment first
-      if (!transactionId && data.paymentData) {
-        console.log('📝 Creating payment first...');
-        console.log('📊 Payment data to create:', data.paymentData);
-        
-        const paymentResponse = await createPayment(data.paymentData);
-        console.log('✅ Payment created:', paymentResponse);
-        
-        if (paymentResponse.success) {
-          transactionId = paymentResponse.data.transactionId;
-          console.log('✅ Transaction ID generated:', transactionId);
-        } else {
-          alert('Failed to create payment: ' + paymentResponse.message);
-          setLoading(false);
-          return;
-        }
-      } else if (!transactionId && !data.paymentData) {
+      // If no transactionId exists, we'll create the payment later with student details
+      if (!transactionId && !data.paymentData) {
+        console.error('❌ Payment data is missing:', data);
         alert('Payment data is missing. Please try again.');
         setLoading(false);
         return;
+      }
+
+      // Fetch actual student details from student backend
+      let studentDetails = null;
+      try {
+        console.log('🔍 Fetching student details for user ID:', userData.userid);
+        const studentResponse = await fetch(`http://localhost:8086/routes.php/get_with_id/${userData.userid}`);
+        const studentResult = await studentResponse.json();
+        console.log('🔍 Student API response:', studentResult);
+        if (studentResult && studentResult.user_id) {
+          studentDetails = studentResult;
+          console.log('✅ Student details fetched successfully:', studentDetails);
+        } else {
+          console.warn('⚠️ Student details not found or invalid response');
+        }
+      } catch (e) {
+        console.error('❌ Error fetching student details:', e);
       }
 
       // Create PayHere payment data
@@ -80,14 +87,17 @@ const Invoice = () => {
         order_id: transactionId,
         amount: data.amount || data.finalAmount || data.basePrice, // Use the total amount that includes all fees
         currency: 'LKR',
-        first_name: userData.firstName || userData.name?.split(' ')[0] || 'Student',
-        last_name: userData.lastName || userData.name?.split(' ').slice(1).join(' ') || 'User',
-        email: userData.email || 'student@example.com',
-        phone: userData.phone || '+94123456789',
-        address: userData.address || 'Student Address',
-        city: userData.city || 'Colombo',
+        first_name: studentDetails?.first_name || userData.firstName || userData.name?.split(' ')[0] || 'Student',
+        last_name: studentDetails?.last_name || userData.lastName || userData.name?.split(' ').slice(1).join(' ') || 'User',
+        email: studentDetails?.email || userData.email || 'student@example.com',
+        phone: studentDetails?.mobile || userData.phone || '+94123456789',
+        address: studentDetails?.address || userData.address || 'Student Address',
+        city: studentDetails?.district || userData.city || 'Colombo',
         country: 'Sri Lanka',
-        items: `${data.className} - ${data.subject || 'Course'}`
+        items: `${data.className} - ${data.subject || 'Course'}`,
+        // Custom fields for tracking
+        student_id: data.paymentData?.studentId || userData.userid,
+        class_id: data.paymentData?.classId || data.classId
       };
 
       console.log('💳 Creating PayHere payment:', payHereData);
@@ -100,6 +110,47 @@ const Invoice = () => {
         usedAmount: payHereData.amount
       });
 
+      // Create or update the payment record in our database with student details
+      const paymentRecordData = {
+        studentId: userData.userid,
+        studentName: `${studentDetails?.first_name || ''} ${studentDetails?.last_name || ''}`.trim() || 'Student',
+        classId: data.paymentData?.classId || data.classId,
+        amount: payHereData.amount,
+        paymentMethod: 'online',
+        notes: `Promo: ${data.discount || 0}, Theory Discount: 0, Speed Post: ${data.speedPostFee || 0}`,
+        // Include student details for database storage
+        firstName: studentDetails?.first_name,
+        lastName: studentDetails?.last_name,
+        email: studentDetails?.email,
+        mobile: studentDetails?.mobile_number,
+        address: studentDetails?.address,
+        district: studentDetails?.district
+      };
+
+      console.log('💾 Creating payment record with student details:', paymentRecordData);
+      
+      let paymentRecordResponse;
+      if (transactionId) {
+        // If we already have a transactionId, update the existing payment
+        console.log('🔄 Updating existing payment with transactionId:', transactionId);
+        paymentRecordResponse = await processPayment(transactionId, paymentRecordData);
+      } else {
+        // Create new payment record
+        paymentRecordResponse = await createPayment(paymentRecordData);
+      }
+      
+      if (!paymentRecordResponse.success) {
+        throw new Error(paymentRecordResponse.message || 'Failed to create/update payment record');
+      }
+
+      console.log('✅ Payment record created/updated:', paymentRecordResponse);
+      
+      // Update transactionId if it was generated
+      if (paymentRecordResponse.data && paymentRecordResponse.data.transactionId) {
+        transactionId = paymentRecordResponse.data.transactionId;
+        payHereData.order_id = transactionId;
+      }
+
       // Call PayHere API using the proper function
       const payHereResponse = await createPayHerePayment(payHereData);
       
@@ -108,6 +159,8 @@ const Invoice = () => {
       }
 
       console.log('✅ PayHere payment created:', payHereResponse);
+
+
 
       // Redirect to PayHere checkout
       const paymentData = payHereResponse.data;

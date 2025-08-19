@@ -104,6 +104,9 @@ const validationSchema = Yup.object().shape({
   }),
   // New field for Class Medium
   classMedium: Yup.string().oneOf(['Sinhala', 'English', 'Both'], 'Invalid medium').required('Class medium is required'),
+  // New fields for Zoom Join Methods
+  enableNewWindowJoin: Yup.boolean().required('New window join setting is required'),
+  enableOverlayJoin: Yup.boolean().required('Overlay join setting is required'),
 });
 
 const initialValues = {
@@ -138,6 +141,9 @@ const initialValues = {
   speedPostFee: 300, // Default speed post fee
   // New field for Class Medium
   classMedium: 'Sinhala', // Default medium
+  // New fields for Zoom Join Methods
+  enableNewWindowJoin: true, // Default to enabled
+  enableOverlayJoin: true, // Default to enabled
 };
 
 function formatTime(timeStr) {
@@ -193,27 +199,26 @@ const CreateClass = ({ onLogout }) => {
     }
   };
 
-  // Load teachers from backend
+  // Load teachers from teacher backend directly (same pattern as student system)
   const loadTeachers = async () => {
     try {
       setLoadingTeachers(true);
-      console.log('Loading teachers...');
+      console.log('Loading teachers from teacher backend...');
+      
+      // Get all teacher data from teacher backend directly
       const response = await getActiveTeachers();
-      console.log('Teachers response:', response);
-      if (response.success) {
-        console.log('Teachers loaded successfully:', response.data?.length || 0, 'teachers');
-        // Remove duplicates based on teacherId
-        const uniqueTeachers = response.data?.filter((teacher, index, self) => 
-          index === self.findIndex(t => t.teacherId === teacher.teacherId)
-        ) || [];
-        console.log('Unique teachers after filtering:', uniqueTeachers.length);
-        setTeacherList(uniqueTeachers);
+      console.log('Teacher backend response:', response);
+      
+      if (response.success && response.data) {
+        console.log('Teachers loaded successfully from teacher backend:', response.data.length, 'teachers');
+        console.log('Teachers data:', response.data);
+        setTeacherList(response.data);
       } else {
-        console.error('Failed to load teachers:', response.message);
+        console.error('Failed to load teachers from teacher backend:', response.message);
         setTeacherList([]);
       }
     } catch (error) {
-      console.error('Error loading teachers:', error);
+      console.error('Error loading teachers from teacher backend:', error);
       setTeacherList([]);
     } finally {
       setLoadingTeachers(false);
@@ -295,7 +300,7 @@ const CreateClass = ({ onLogout }) => {
     }
   };
 
-  // Get teacher list from localStorage (from TeacherInfo.jsx)
+  // Create teacher options from API data
   const teacherOptions = [
     { value: '', label: 'Select Teacher', key: 'select-teacher' },
     ...teacherList.map(t => ({ 
@@ -435,6 +440,9 @@ const CreateClass = ({ onLogout }) => {
                   speedPostFee: normalizedSubmitValues.speedPostFee,
                   // New field for Class Medium
                   classMedium: normalizedSubmitValues.classMedium,
+                  // New fields for Zoom Join Methods
+                  enableNewWindowJoin: normalizedSubmitValues.enableNewWindowJoin,
+                  enableOverlayJoin: normalizedSubmitValues.enableOverlayJoin,
                   // Preserve student-specific data
                   // paymentStatus, paymentMethod, purchaseDate, attendance, etc. remain unchanged
                 };
@@ -581,8 +589,11 @@ const CreateClass = ({ onLogout }) => {
         enableTuteCollection: cls.enableTuteCollection || false,
         tuteCollectionType: cls.tuteCollectionType || 'speed_post',
         speedPostFee: cls.speedPostFee || 300,
-        // New field for Class Medium
-        classMedium: cls.classMedium || 'Sinhala'
+                  // New field for Class Medium
+          classMedium: cls.classMedium || 'Sinhala',
+          // New fields for Zoom Join Methods
+          enableNewWindowJoin: cls.enableNewWindowJoin !== undefined ? cls.enableNewWindowJoin : true,
+          enableOverlayJoin: cls.enableOverlayJoin !== undefined ? cls.enableOverlayJoin : true
       };
       
       console.log('Mapped class data for form:', mappedClassData);
@@ -1435,6 +1446,55 @@ const CreateClass = ({ onLogout }) => {
                         <FaVideo className="inline mr-1" />
                         <strong>Zoom Link Required:</strong> For online and hybrid classes with online component, you must provide a zoom link. You can either enter one manually or click "Create Zoom Link" to generate one automatically.
                       </div>
+                    </div>
+                    
+                    {/* Zoom Join Method Settings */}
+                    <div className="border-t pt-4 mb-4">
+                      <h3 className="text-lg font-semibold mb-4 text-gray-800">Zoom Join Method Settings</h3>
+                      <div className="text-sm text-gray-600 mb-4">
+                        Choose which join methods students can use when joining this class:
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex items-center p-3 border rounded-lg">
+                          <input
+                            type="checkbox"
+                            name="enableNewWindowJoin"
+                            checked={values.enableNewWindowJoin}
+                            onChange={handleChange}
+                            className="mr-3"
+                          />
+                          <div>
+                            <label className="text-sm font-medium text-gray-700">
+                              New Window (Recommended) ⭐
+                            </label>
+                            <div className="text-xs text-gray-500">
+                              Opens in a separate window with full features - Default selection for students
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center p-3 border rounded-lg">
+                          <input
+                            type="checkbox"
+                            name="enableOverlayJoin"
+                            checked={values.enableOverlayJoin}
+                            onChange={handleChange}
+                            className="mr-3"
+                          />
+                          <div>
+                            <label className="text-sm font-medium text-gray-700">
+                              Overlay View
+                            </label>
+                            <div className="text-xs text-gray-500">
+                              Opens as an overlay on the current page
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      {!values.enableNewWindowJoin && !values.enableOverlayJoin && (
+                        <div className="text-sm text-red-600 bg-red-50 p-2 rounded border border-red-200 mt-2">
+                          ⚠️ At least one join method must be enabled for students to join the class.
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <CustomTextField

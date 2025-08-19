@@ -19,8 +19,15 @@ class PaymentController {
             
             // Get student information
             $studentId = $data['studentId'] ?? '';
-            // For now, we'll use a simple student lookup or create a placeholder
-            $studentName = $data['studentName'] ?? 'Student';
+            // Use actual student details if provided
+            $firstName = $data['firstName'] ?? '';
+            $lastName = $data['lastName'] ?? '';
+            $email = $data['email'] ?? '';
+            $mobile = $data['mobile'] ?? '';
+            $address = $data['address'] ?? '';
+            $district = $data['district'] ?? '';
+            
+            $studentName = trim($firstName . ' ' . $lastName) ?: ($data['studentName'] ?? 'Student');
 
             // Get class information from class backend
             $classId = $data['classId'] ?? '';
@@ -57,10 +64,25 @@ class PaymentController {
             $personRole = 'student';
             $className = $class['className'] ?? '';
             $classId = $classId; // Include class_id
-            $status = 'pending';
+            // For cash payments, status should be 'paid' immediately
+            $status = ($data['paymentMethod'] === 'cash' || $data['status'] === 'paid') ? 'paid' : 'pending';
             $paymentMethod = $data['paymentMethod'] ?? 'online';
             $referenceNumber = $transactionId;
-            $notes = $data['notes'] ?? '';
+            
+            // Create comprehensive notes with student details
+            $studentDetails = [];
+            if ($firstName) $studentDetails[] = "First Name: $firstName";
+            if ($lastName) $studentDetails[] = "Last Name: $lastName";
+            if ($email) $studentDetails[] = "Email: $email";
+            if ($mobile) $studentDetails[] = "Mobile: $mobile";
+            if ($address) $studentDetails[] = "Address: $address";
+            if ($district) $studentDetails[] = "District: $district";
+            
+            $baseNotes = $data['notes'] ?? '';
+            $notes = $baseNotes;
+            if (!empty($studentDetails)) {
+                $notes = $baseNotes . (empty($baseNotes) ? '' : ' | ') . implode(', ', $studentDetails);
+            }
 
             $stmt->bind_param("ssssssssidsssss", 
                 $transactionId, $date, $type, $category, $personName, $userId, $personRole,
@@ -140,10 +162,10 @@ class PaymentController {
                 $paymentHistory = json_encode([[
                     'date' => date('Y-m-d'),
                     'amount' => $payment['amount'],
-                    'method' => $paymentData['paymentMethod'],
+                    'method' => $paymentData['paymentMethod'] ?? 'online',
                     'status' => 'completed',
                     'transactionId' => $transactionId,
-                    'referenceNumber' => $paymentData['referenceNumber'],
+                    'referenceNumber' => $paymentData['referenceNumber'] ?? $transactionId,
                     'paymentTrackingEnabled' => $paymentTrackingEnabled,
                     'freeDays' => $freeDays,
                     'nextPaymentDate' => $nextPaymentDate,
@@ -578,6 +600,54 @@ class PaymentController {
         }
     }
 
+    // Get all payments
+    public function getAllPayments() {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT 
+                    fr.transaction_id,
+                    fr.date,
+                    fr.person_name,
+                    fr.user_id,
+                    fr.class_name,
+                    fr.class_id,
+                    fr.amount,
+                    fr.status,
+                    fr.payment_method,
+                    fr.reference_number,
+                    fr.notes
+                FROM financial_records fr
+                WHERE fr.type = 'income' AND fr.category = 'class_enrollment'
+                ORDER BY fr.date DESC
+            ");
+
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $payments = [];
+
+            while ($row = $result->fetch_assoc()) {
+                $payments[] = [
+                    'transaction_id' => $row['transaction_id'],
+                    'date' => $row['date'],
+                    'person_name' => $row['person_name'],
+                    'user_id' => $row['user_id'],
+                    'class_name' => $row['class_name'],
+                    'class_id' => $row['class_id'],
+                    'amount' => $row['amount'],
+                    'status' => $row['status'],
+                    'payment_method' => $row['payment_method'],
+                    'reference_number' => $row['reference_number'],
+                    'notes' => $row['notes']
+                ];
+            }
+
+            return ['success' => true, 'data' => $payments];
+
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error retrieving payments: ' . $e->getMessage()];
+        }
+    }
+
     // Get payment statistics
     public function getPaymentStats($studentId = null) {
         try {
@@ -622,47 +692,9 @@ class PaymentController {
             
             $classData = json_decode($response, true);
             
-            // Class backend returns data directly, not wrapped in success/data structure
-            if ($classData && isset($classData['id'])) {
-                return $classData;
-            }
-            
-            return null;
-        } catch (Exception $e) {
-            error_log("Error fetching class from class backend: " . $e->getMessage());
-            return null;
-        }
-    }
-
-    // Helper method to check student enrollment from class backend
-    private function checkStudentEnrollmentFromClassBackend($studentId, $classId) {
-        try {
-            $url = "http://class-backend/routes.php/get_enrollments_by_student?studentId=" . $studentId;
-            $response = file_get_contents($url);
-            
-            if ($response === FALSE) {
-                error_log("Failed to fetch enrollments from class backend for student: " . $studentId);
-                return false;
-            }
-            
-            $enrollmentData = json_decode($response, true);
-            
-            if (isset($enrollmentData['success']) && $enrollmentData['success'] && isset($enrollmentData['data'])) {
-                foreach ($enrollmentData['data'] as $enrollment) {
-                    if ($enrollment['class_id'] == $classId && $enrollment['payment_status'] === 'paid') {
-                        return true;
-                    }
-                }
-            }
-            
-            return false;
-        } catch (Exception $e) {
-            error_log("Error checking enrollment from class backend: " . $e->getMessage());
-            return false;
-        }
-    }
-}
-?> 
+            // Class backend returns data wrapped in success/data structure
+            if ($classData && isset($classData['success']) && $classData['success'] && isset($classData['data'])) {
+                return $classData['data'];
             }
             
             return null;

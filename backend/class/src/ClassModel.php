@@ -34,8 +34,9 @@ class ClassModel {
                 schedule_day, schedule_start_time, schedule_end_time, schedule_frequency,
                 start_date, end_date, max_students, fee, payment_tracking, payment_tracking_free_days,
                 zoom_link, video_url, description, course_type, revision_discount_price, related_theory_id, status,
-                enable_tute_collection, tute_collection_type, speed_post_fee, class_medium
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                               enable_tute_collection, tute_collection_type, speed_post_fee, class_medium,
+                               enable_new_window_join, enable_overlay_join
+                                           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
         // Ensure all variables are properly defined
@@ -101,8 +102,12 @@ class ClassModel {
         
         // New medium field
         $classMedium = $data['classMedium'] ?? 'Sinhala';
+        
+        // New zoom join method fields
+        $enableNewWindowJoin = $this->toBoolean($data['enableNewWindowJoin'] ?? true);
+        $enableOverlayJoin = $this->toBoolean($data['enableOverlayJoin'] ?? true);
 
-        $stmt->bind_param("ssssssssssssssssssssssssssss", 
+        $stmt->bind_param("ssssssssssssssssssssssssssssss", 
             $className,
             $subject,
             $teacher,
@@ -130,7 +135,9 @@ class ClassModel {
             $enableTuteCollection,
             $tuteCollectionType,
             $speedPostFee,
-            $classMedium
+            $classMedium,
+            $enableNewWindowJoin,
+            $enableOverlayJoin
         );
 
         if ($stmt->execute()) {
@@ -180,7 +187,7 @@ class ClassModel {
                 schedule_end_time = ?, schedule_frequency = ?, start_date = ?, end_date = ?, 
                 max_students = ?, fee = ?, payment_tracking = ?, payment_tracking_free_days = ?,
                 zoom_link = ?, video_url = ?, description = ?, course_type = ?, revision_discount_price = ?, 
-                related_theory_id = ?, status = ?, enable_tute_collection = ?, tute_collection_type = ?, speed_post_fee = ?, class_medium = ?
+                related_theory_id = ?, status = ?, enable_tute_collection = ?, tute_collection_type = ?, speed_post_fee = ?, class_medium = ?, enable_new_window_join = ?, enable_overlay_join = ?
             WHERE id = ?
         ");
 
@@ -247,8 +254,12 @@ class ClassModel {
         
         // New medium field
         $classMedium = $data['classMedium'] ?? 'Sinhala';
+        
+        // New zoom join method fields
+        $enableNewWindowJoin = $this->toBoolean($data['enableNewWindowJoin'] ?? true);
+        $enableOverlayJoin = $this->toBoolean($data['enableOverlayJoin'] ?? true);
 
-        $stmt->bind_param("ssssssssssssssssssssssssssssi", 
+        $stmt->bind_param("ssssssssssssssssssssssssssssssi", 
             $className,
             $subject,
             $teacher,
@@ -277,6 +288,8 @@ class ClassModel {
             $tuteCollectionType,
             $speedPostFee,
             $classMedium,
+            $enableNewWindowJoin,
+            $enableOverlayJoin,
             $id
         );
 
@@ -554,7 +567,10 @@ class ClassModel {
             'tuteCollectionType' => $row['tute_collection_type'],
             'speedPostFee' => (float)$row['speed_post_fee'],
             // New medium field
-            'classMedium' => $row['class_medium']
+            'classMedium' => $row['class_medium'],
+            // New zoom join method fields
+            'enableNewWindowJoin' => (bool)$row['enable_new_window_join'],
+            'enableOverlayJoin' => (bool)$row['enable_overlay_join']
         ];
     }
 }

@@ -55,11 +55,29 @@ const TeacherClassPayments = () => {
         const classesList = classesResponse.data || [];
         setClasses(classesList);
         
-        if (studentsResponse.success && studentsResponse.students) {
+        // Handle both array response and object with students property
+        if (studentsResponse && Array.isArray(studentsResponse)) {
+          const studentsMap = {};
+          studentsResponse.forEach(student => {
+            // Map user_id to userid for consistency
+            const mappedStudent = {
+              ...student,
+              userid: student.user_id || student.userid,
+              firstName: student.first_name || student.firstName,
+              lastName: student.last_name || student.lastName,
+              mobile: student.mobile_number || student.mobile,
+              email: student.email || ''
+            };
+            studentsMap[mappedStudent.userid] = mappedStudent;
+          });
+          console.log('Students data loaded:', studentsMap);
+          setStudentsData(studentsMap);
+        } else if (studentsResponse.success && studentsResponse.students) {
           const studentsMap = {};
           studentsResponse.students.forEach(student => {
             studentsMap[student.userid] = student;
           });
+          console.log('Students data loaded (object format):', studentsMap);
           setStudentsData(studentsMap);
         }
 
@@ -649,12 +667,31 @@ const TeacherClassPayments = () => {
       label: 'Student Info',
       render: (row) => {
         const student = studentsData[row.student_id];
+        if (!student) {
+          return (
+            <div className="flex flex-col space-y-1">
+              <div className="font-semibold text-gray-900 text-sm">
+                {row.student_id}
+              </div>
+              <div className="text-xs text-gray-700">Student not found</div>
+              <div className="text-xs text-gray-500 bg-gray-100 px-1 py-0.5 rounded inline-block w-fit">
+                ID: {row.student_id}
+              </div>
+            </div>
+          );
+        }
+        
+        // Handle different field name variations
+        const firstName = student.firstName || student.first_name || '';
+        const lastName = student.lastName || student.last_name || '';
+        const school = student.school || student.school_name || 'School not specified';
+        
         return (
           <div className="flex flex-col space-y-1">
             <div className="font-semibold text-gray-900 text-sm">
-              {student ? `${student.firstName} ${student.lastName}` : row.student_id}
+              {firstName && lastName ? `${firstName} ${lastName}` : row.student_id}
             </div>
-            <div className="text-xs text-gray-700">{student?.school || 'School not specified'}</div>
+            <div className="text-xs text-gray-700">{school}</div>
             <div className="text-xs text-gray-500 bg-gray-100 px-1 py-0.5 rounded inline-block w-fit">
               ID: {row.student_id}
             </div>
@@ -667,15 +704,38 @@ const TeacherClassPayments = () => {
       label: 'Contact',
       render: (row) => {
         const student = studentsData[row.student_id];
+        console.log('Contact render - student_id:', row.student_id, 'student:', student, 'studentsData keys:', Object.keys(studentsData));
+        
+        if (!student) {
+          return (
+            <div className="flex flex-col space-y-1">
+              <div className="flex items-center space-x-1">
+                <FaEnvelope className="text-blue-500 text-xs" />
+                <span className="text-xs text-gray-800">Student not found</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <FaPhone className="text-green-500 text-xs" />
+                <span className="text-xs text-gray-800">Student not found</span>
+              </div>
+            </div>
+          );
+        }
+        
+        // Handle different field name variations
+        const email = student.email || student.email_address || '';
+        const mobile = student.mobile || student.mobile_number || student.phone || '';
+        
+        console.log('Contact data - email:', email, 'mobile:', mobile);
+        
         return (
           <div className="flex flex-col space-y-1">
             <div className="flex items-center space-x-1">
               <FaEnvelope className="text-blue-500 text-xs" />
-              <span className="text-xs text-gray-800">{student?.email || 'N/A'}</span>
+              <span className="text-xs text-gray-800">{email || 'N/A'}</span>
             </div>
             <div className="flex items-center space-x-1">
               <FaPhone className="text-green-500 text-xs" />
-              <span className="text-xs text-gray-800">{student?.mobile || 'N/A'}</span>
+              <span className="text-xs text-gray-800">{mobile || 'N/A'}</span>
             </div>
           </div>
         );

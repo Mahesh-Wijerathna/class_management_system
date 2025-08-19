@@ -11,7 +11,7 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import BasicAlertBox from '../../../components/BasicAlertBox';
-import { getAllTeachers, updateTeacher, deleteTeacher, getTeacherForEdit } from '../../../api/teachers';
+import { getActiveTeachers, updateTeacherDetails, deleteTeacherFromTeacherBackend, getTeacherForEdit, deleteTeacher } from '../../../api/teachers';
 
 
 const TeacherInfo = () => {
@@ -25,29 +25,26 @@ const TeacherInfo = () => {
   // For save notification
   const [saveAlert, setSaveAlert] = useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
 
-  // Load teachers from backend
+  // Load teachers from teacher backend (getActiveTeachers)
   const loadTeachers = async () => {
     try {
       setLoading(true);
-      const response = await getAllTeachers();
-      if (response.success) {
-        // Map auth backend format to expected format
-        const mappedTeachers = (response.teachers || []).map(teacher => ({
-          teacherId: teacher.userid, // Map userid to teacherId
-          name: teacher.name,
-          email: teacher.email,
-          phone: teacher.phone,
-          designation: 'Mr.', // Default designation since auth backend doesn't store this
-          stream: 'Not Specified', // Default stream since auth backend doesn't store this
-          created_at: teacher.created_at
-        }));
-        setTeachers(mappedTeachers);
+      console.log('Loading teachers from teacher backend...');
+      
+      // Get all teacher data from teacher backend
+      const response = await getActiveTeachers();
+      console.log('Teacher backend response:', response);
+      
+      if (response.success && response.data) {
+        console.log('Teachers loaded successfully from teacher backend:', response.data.length, 'teachers');
+        console.log('Teachers data:', response.data);
+        setTeachers(response.data);
       } else {
-        console.error('Failed to load teachers:', response.message);
+        console.error('Failed to load teachers from teacher backend:', response.message);
         setTeachers([]);
       }
     } catch (error) {
-      console.error('Error loading teachers:', error);
+      console.error('Error loading teachers from teacher backend:', error);
       setTeachers([]);
     } finally {
       setLoading(false);
@@ -67,27 +64,48 @@ const TeacherInfo = () => {
   
   const confirmDelete = async () => {
     try {
-      const response = await deleteTeacher(alertTeacherId);
-      if (response.success) {
+      console.log('Deleting teacher:', alertTeacherId);
+      
+      // Delete from both teacher backend and auth backend
+      const [teacherResponse, authResponse] = await Promise.all([
+        deleteTeacherFromTeacherBackend(alertTeacherId),
+        deleteTeacher(alertTeacherId)
+      ]);
+      
+      console.log('Teacher backend delete response:', teacherResponse);
+      console.log('Auth backend delete response:', authResponse);
+      
+      // Check if both deletions were successful
+      if (teacherResponse.success && authResponse.success) {
         // Reload teachers from backend
         await loadTeachers();
         setSaveAlert({
           open: true,
-          message: 'Teacher deleted successfully!',
+          message: 'Teacher deleted successfully from both systems!',
           onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
           confirmText: 'OK',
           type: 'success'
         });
       } else {
+        // Handle partial deletion
+        let errorMessage = 'Failed to delete teacher completely. ';
+        if (!teacherResponse.success) {
+          errorMessage += `Teacher backend: ${teacherResponse.message}. `;
+        }
+        if (!authResponse.success) {
+          errorMessage += `Auth backend: ${authResponse.message}. `;
+        }
+        
         setSaveAlert({
           open: true,
-          message: response.message || 'Failed to delete teacher',
+          message: errorMessage,
           onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
           confirmText: 'OK',
           type: 'error'
         });
       }
     } catch (error) {
+      console.error('Error deleting teacher:', error);
       setSaveAlert({
         open: true,
         message: 'Error deleting teacher. Please try again.',
@@ -110,35 +128,32 @@ const TeacherInfo = () => {
     try {
       setEditingTeacher(teacher.teacherId);
       
-      // Fetch teacher data with password placeholder for editing
-      const response = await getTeacherForEdit(teacher.teacherId);
-      if (response.success) {
-        const editData = response.teacher; // Auth backend returns 'teacher' instead of 'data'
-        // Map auth backend format to expected format
-        const mappedEditData = {
-          teacherId: editData.userid,
-          name: editData.name,
-          email: editData.email,
-          phone: editData.phone,
-          designation: 'Mr.', // Default designation
-          stream: 'Not Specified', // Default stream
-          password: '********' // Password placeholder
-        };
-        setEditValues(mappedEditData);
-        setShowEditModal(true);
-      } else {
-        console.error('Failed to get teacher for editing:', response.message);
-        // Fallback to current data if API fails
-        const editData = { ...teacher };
-        editData.password = '********';
-        setEditValues(editData);
-        setShowEditModal(true);
-      }
+      // Use the current teacher data from teacher backend
+      const editData = { 
+        teacherId: teacher.teacherId,
+        name: teacher.name,
+        email: teacher.email,
+        phone: teacher.phone,
+        designation: teacher.designation,
+        stream: teacher.stream,
+        password: '********' // Password placeholder
+      };
+      
+      console.log('Setting edit values:', editData);
+      setEditValues(editData);
+      setShowEditModal(true);
     } catch (error) {
-      console.error('Error getting teacher for editing:', error);
-      // Fallback to current data if API fails
-      const editData = { ...teacher };
-      editData.password = '********';
+      console.error('Error setting up teacher for editing:', error);
+      // Fallback to current data if there's an error
+      const editData = { 
+        teacherId: teacher.teacherId,
+        name: teacher.name,
+        email: teacher.email,
+        phone: teacher.phone,
+        designation: teacher.designation,
+        stream: teacher.stream,
+        password: '********'
+      };
       setEditValues(editData);
       setShowEditModal(true);
     }
@@ -176,43 +191,41 @@ const TeacherInfo = () => {
   // Handle save (submit)
   const handleEditSubmit = async (values) => {
     try {
-      // If password is empty or placeholder, remove it from the update data (don't change password)
+      console.log('Updating teacher with values:', values);
+      
+      // Prepare data for teacher backend update
       const updateData = { ...values };
       if (!updateData.password || updateData.password.trim() === '' || updateData.password === '********') {
         delete updateData.password;
       }
-      
-      // Remove fields that auth backend doesn't store
-      delete updateData.designation;
-      delete updateData.stream;
       delete updateData.teacherId; // Remove teacherId from update data
       
-      const response = await updateTeacher(values.teacherId, updateData);
-      if (response.success) {
-        // Reload teachers from backend
-        await loadTeachers();
-        setEditingTeacher(null);
-        setShowEditModal(false);
-        setSaveAlert({
-          open: true,
-          message: 'Teacher details updated successfully!',
-          onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
-          confirmText: 'OK',
-          type: 'success'
-        });
-      } else {
-        setSaveAlert({
-          open: true,
-          message: response.message || 'Failed to update teacher',
-          onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
-          confirmText: 'OK',
-          type: 'error'
-        });
+      // Update teacher backend
+      console.log('Updating teacher backend with:', updateData);
+      const response = await updateTeacherDetails(values.teacherId, updateData);
+      console.log('Teacher backend response:', response);
+      
+      if (!response || !response.success) {
+        throw new Error(`Teacher backend update failed: ${response?.message || 'Unknown error'}`);
       }
-    } catch (error) {
+      
+      // Reload teachers from backend
+      await loadTeachers();
+      setEditingTeacher(null);
+      setShowEditModal(false);
       setSaveAlert({
         open: true,
-        message: 'Error updating teacher. Please try again.',
+        message: 'Teacher details updated successfully!',
+        onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'success'
+      });
+      
+    } catch (error) {
+      console.error('Error updating teacher:', error);
+      setSaveAlert({
+        open: true,
+        message: `Error updating teacher: ${error.message || 'Unknown error occurred'}`,
         onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
         confirmText: 'OK',
         type: 'error'
@@ -227,15 +240,27 @@ const TeacherInfo = () => {
     setShowEditModal(false);
   };
 
-  // Save to localStorage whenever teachers changes
-  useEffect(() => {
-    localStorage.setItem('teachers', JSON.stringify(teachers));
-  }, [teachers]);
+  // Note: Teachers are now loaded from database, not localStorage
 
-  return (
-      <div className="p-6 bg-white rounded-lg shadow">
-        <h1 className="text-2xl font-bold mb-4">Teachers Information</h1>
-        <p className="mb-6 text-gray-700">View, edit and delete teacher details.</p>
+      return (
+        <div className="p-6 bg-white rounded-lg shadow">
+         <div className="flex justify-between items-center mb-4">
+           <div>
+             <h1 className="text-2xl font-bold">Teachers Information</h1>
+             <p className="text-gray-700">View, edit and delete teacher details.</p>
+           </div>
+           <button
+             onClick={loadTeachers}
+             disabled={loading}
+             className={`px-4 py-2 rounded-md text-white font-medium ${
+               loading 
+                 ? 'bg-gray-400 cursor-not-allowed' 
+                 : 'bg-blue-600 hover:bg-blue-700'
+             }`}
+           >
+             {loading ? 'Loading...' : 'Refresh Teachers'}
+           </button>
+         </div>
         <BasicTable
           columns={[
             {
@@ -245,7 +270,13 @@ const TeacherInfo = () => {
                 <span className="flex items-center gap-1"><FaIdCard className="inline mr-1 text-gray-500" />{row.teacherId}</span>
               ),
             },
-            { key: 'designation', label: 'Designation' },
+            { 
+              key: 'designation', 
+              label: 'Designation',
+              render: (row) => (
+                <span className="text-gray-700">{row.designation}</span>
+              )
+            },
             {
               key: 'name',
               label: 'Name',
@@ -253,7 +284,13 @@ const TeacherInfo = () => {
                 <span className="flex items-center gap-1"><FaUser className="inline mr-1 text-gray-500" />{row.name}</span>
               ),
             },
-            { key: 'stream', label: 'Stream' },
+            { 
+              key: 'stream', 
+              label: 'Stream',
+              render: (row) => (
+                <span className="text-gray-700">{row.stream}</span>
+              )
+            },
             {
               key: 'email',
               label: 'Email',

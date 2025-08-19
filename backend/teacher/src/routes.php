@@ -43,6 +43,9 @@ try {
             } elseif (preg_match('/^\/get_teachers_by_stream\?stream=(.+)$/', $path, $matches)) {
                 $stream = $matches[1];
                 $response = $controller->getTeachersByStream($stream);
+            } elseif (preg_match('/^\/check_phone_exists/', $path)) {
+                $phone = $_GET['phone'] ?? '';
+                $response = $controller->checkPhoneExists($phone);
             } else {
                 $response = [
                     'success' => false,

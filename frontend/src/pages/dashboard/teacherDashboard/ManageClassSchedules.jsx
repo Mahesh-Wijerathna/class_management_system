@@ -91,7 +91,7 @@ function ManageClassSchedules() {
         const teacherData = getUserData();
         
         // Check if we have teacher data with teacherId
-        const teacherId = teacherData?.teacherId || teacherData?.id || null;
+        const teacherId = teacherData?.teacherId || teacherData?.id || teacherData?.userid || null;
         
         if (teacherId) {
           // Fetch teacher's classes (for dropdown options)
@@ -157,9 +157,9 @@ function ManageClassSchedules() {
   const handleSubmit = async (values, { resetForm }) => {
     try {
       console.log('Form submitted with values:', values);
-      const teacherData = getUserData();
-      const teacherId = teacherData?.teacherId || teacherData?.id;
-      console.log('Teacher ID:', teacherId);
+              const teacherData = getUserData();
+        const teacherId = teacherData?.teacherId || teacherData?.id || teacherData?.userid;
+        console.log('Teacher ID:', teacherId);
       
       // Always ensure teacherId is set if teacher is selected
       let submitValues = { ...values };
@@ -244,9 +244,9 @@ function ManageClassSchedules() {
           const response = await deleteSessionSchedule(id);
           if (response.success) {
             // Refresh schedules
-            const teacherData = getUserData();
-            const teacherId = teacherData?.teacherId || teacherData?.id;
-            const schedulesResponse = await getSessionSchedulesByTeacher(teacherId);
+                    const teacherData = getUserData();
+        const teacherId = teacherData?.teacherId || teacherData?.id || teacherData?.userid;
+        const schedulesResponse = await getSessionSchedulesByTeacher(teacherId);
             if (schedulesResponse.success) {
               setSchedules(schedulesResponse.data || []);
             }

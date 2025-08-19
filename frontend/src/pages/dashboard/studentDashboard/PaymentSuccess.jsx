@@ -4,6 +4,7 @@ import DashboardLayout from '../../../components/layout/DashboardLayout';
 import studentSidebarSections from './StudentDashboardSidebar';
 import Receipt from '../../../components/Receipt';
 import { FaCheckCircle, FaPrint, FaDownload, FaHome, FaList, FaMapMarkerAlt } from 'react-icons/fa';
+import { getUserData } from '../../../api/apiUtils';
 
 const PaymentSuccess = () => {
   const location = useLocation();
@@ -35,14 +36,7 @@ const PaymentSuccess = () => {
     }
   };
 
-  const getUserData = () => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    if (!user) {
-      console.error('User data not found in localStorage');
-      return null;
-    }
-    return user;
-  };
+
 
   useEffect(() => {
     const initializePaymentData = async () => {
@@ -70,7 +64,13 @@ const PaymentSuccess = () => {
                 
                 // Auto-complete the payment
                 try {
-                  const autoCompleteResponse = await fetch(`http://localhost:8090/routes.php/dev/auto_complete_payment?order_id=${orderId}`);
+                  const autoCompleteResponse = await fetch(`http://localhost:8090/routes.php/dev/auto_complete_payment`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ order_id: orderId })
+                  });
                   const autoCompleteData = await autoCompleteResponse.json();
                   
                   if (autoCompleteData.success) {
@@ -88,6 +88,23 @@ const PaymentSuccess = () => {
               
               if (backendPaymentData.status === 'paid' || backendPaymentData.status === 'completed') {
                 const userData = getUserData();
+                
+                // Fetch actual student details from student backend
+                let studentDetails = null;
+                try {
+                  console.log('🔍 Fetching student details for user ID:', userData.userid);
+                  const studentResponse = await fetch(`http://localhost:8086/routes.php/get_with_id/${userData.userid}`);
+                  const studentResult = await studentResponse.json();
+                  console.log('🔍 Student API response:', studentResult);
+                  if (studentResult && studentResult.user_id) {
+                    studentDetails = studentResult;
+                    console.log('✅ Student details fetched successfully:', studentDetails);
+                  } else {
+                    console.warn('⚠️ Student details not found or invalid response');
+                  }
+                } catch (e) {
+                  console.error('❌ Error fetching student details:', e);
+                }
                 
                 // Fetch actual class details
                 let classDetails = null;
@@ -126,20 +143,21 @@ const PaymentSuccess = () => {
                    subject: classDetails?.subject || 'Course',
                    teacher: classDetails?.teacher || 'Instructor',
                    stream: classDetails?.stream || 'General',
-                   courseType: classDetails?.course_type || 'Regular',
+                   courseType: classDetails?.courseType || 'Regular',
                    amount: parseFloat(backendPaymentData.amount) || 0,
                    basePrice: basePrice,
                    discount: totalDiscount,
                    speedPostFee: speedPostFee,
                    isSpeedPost: isSpeedPost,
                    currency: backendPaymentData.currency || 'LKR',
-                   firstName: backendPaymentData.first_name,
-                   lastName: backendPaymentData.last_name,
-                   email: backendPaymentData.email,
-                   phone: backendPaymentData.phone,
-                   address: backendPaymentData.address,
-                   city: backendPaymentData.city,
-                   country: backendPaymentData.country,
+                   // Use actual student details from student backend
+                   firstName: studentDetails?.first_name || userData?.firstName || backendPaymentData.first_name,
+                   lastName: studentDetails?.last_name || userData?.lastName || backendPaymentData.last_name,
+                   email: studentDetails?.email || userData?.email || backendPaymentData.email,
+                                        phone: studentDetails?.mobile_number || userData?.mobile || backendPaymentData.phone,
+                   address: studentDetails?.address || userData?.address || backendPaymentData.address,
+                   city: studentDetails?.district || userData?.district || backendPaymentData.city,
+                   country: backendPaymentData.country || 'Sri Lanka',
                  };
 
                                  setPaymentData(payHerePaymentData);
@@ -147,6 +165,13 @@ const PaymentSuccess = () => {
                  console.log('🔍 Student Name:', `${payHerePaymentData.firstName} ${payHerePaymentData.lastName}`);
                  console.log('🔍 Mobile:', payHerePaymentData.phone);
                  console.log('🔍 Email:', payHerePaymentData.email);
+                 console.log('🔍 Address:', payHerePaymentData.address);
+                 console.log('🔍 City:', payHerePaymentData.city);
+                 console.log('🔍 Student Details Source:', {
+                   studentDetails: studentDetails ? 'API' : 'None',
+                   userData: userData ? 'Local' : 'None',
+                   backendPaymentData: backendPaymentData ? 'Backend' : 'None'
+                 });
                  
                  // GUARANTEED ENROLLMENT: Ensure enrollment is created automatically
                  try {

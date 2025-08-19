@@ -21,6 +21,9 @@ class StudentMonitoringModel {
 
     // Track student login activity
     public function trackLoginActivity($studentId, $ipAddress, $userAgent, $sessionId, $loginTime) {
+        // First, ensure the student exists in the auth database students table
+        $this->ensureStudentExistsInAuthDB($studentId);
+        
         $stmt = $this->authConn->prepare("
             INSERT INTO student_login_activity (
                 student_id, ip_address, user_agent, session_id, login_time, 
@@ -228,10 +231,10 @@ class StudentMonitoringModel {
 
     // Block student for suspicious activity
     public function blockStudent($studentId, $reason, $blockedBy, $blockDuration = 24) {
-        // Start transaction
-        $this->conn->begin_transaction();
-        
         try {
+            // First, ensure the student exists in the auth database students table
+            $this->ensureStudentExistsInAuthDB($studentId);
+            
             // Insert block record
             $stmt = $this->authConn->prepare("
                 INSERT INTO student_blocks (
@@ -241,35 +244,61 @@ class StudentMonitoringModel {
             ");
             
             $stmt->bind_param("sssi", $studentId, $reason, $blockedBy, $blockDuration);
-            $stmt->execute();
+            $result = $stmt->execute();
             
-            // Invalidate all active sessions for this student
-            $stmt2 = $this->authConn->prepare("
-                UPDATE concurrent_sessions 
-                SET is_active = 0, session_end_time = NOW() 
-                WHERE student_id = ? AND is_active = 1
-            ");
+            if ($result) {
+                // Invalidate all active sessions for this student
+                $stmt2 = $this->authConn->prepare("
+                    UPDATE concurrent_sessions 
+                    SET is_active = 0, session_end_time = NOW() 
+                    WHERE student_id = ? AND is_active = 1
+                ");
+                
+                $stmt2->bind_param("s", $studentId);
+                $stmt2->execute();
+                
+                // Invalidate all refresh tokens for this student
+                $stmt3 = $this->authConn->prepare("
+                    DELETE FROM refresh_tokens 
+                    WHERE userid = ?
+                ");
+                
+                $stmt3->bind_param("s", $studentId);
+                $stmt3->execute();
+            }
             
-            $stmt2->bind_param("s", $studentId);
-            $stmt2->execute();
-            
-            // Invalidate all refresh tokens for this student
-            $stmt3 = $this->authConn->prepare("
-                DELETE FROM refresh_tokens 
-                WHERE userid = ?
-            ");
-            
-            $stmt3->bind_param("s", $studentId);
-            $stmt3->execute();
-            
-            // Commit transaction
-            $this->conn->commit();
-            return true;
+            return $result;
             
         } catch (Exception $e) {
-            // Rollback on error
-            $this->conn->rollback();
+            error_log("Error blocking student: " . $e->getMessage());
             return false;
+        }
+    }
+
+    // Ensure student exists in auth database
+    private function ensureStudentExistsInAuthDB($studentId) {
+        // Check if student exists in auth database students table
+        $stmt = $this->authConn->prepare("
+            SELECT userid FROM students WHERE userid = ?
+        ");
+        
+        $stmt->bind_param("s", $studentId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if ($result->num_rows === 0) {
+            // Student doesn't exist in auth database, create a basic record
+            $stmt2 = $this->authConn->prepare("
+                INSERT INTO students (userid, firstName, lastName, mobile) 
+                VALUES (?, ?, ?, ?)
+            ");
+            
+            $firstName = "Student";
+            $lastName = $studentId;
+            $mobile = "N/A";
+            
+            $stmt2->bind_param("ssss", $studentId, $firstName, $lastName, $mobile);
+            $stmt2->execute();
         }
     }
 
@@ -466,6 +495,106 @@ class StudentMonitoringModel {
             'multiple_devices' => $multipleDevices,
             'device_count' => $deviceCount,
             'devices' => $devices
+        ];
+    }
+
+    // Detect cheating
+    public function detectCheating($studentId, $classId, $sessionId) {
+        // Check for multiple devices in the same class session
+        $stmt = $this->authConn->prepare("
+            SELECT COUNT(DISTINCT device_fingerprint) as device_count
+            FROM student_login_activity
+            WHERE student_id = ?
+            AND session_id = ?
+            AND login_time > DATE_SUB(NOW(), INTERVAL 2 HOUR)
+        ");
+        
+        $stmt->bind_param("ss", $studentId, $sessionId);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        
+        $deviceCount = $result['device_count'];
+        $cheatingDetected = $deviceCount > 1;
+        
+        // Get detailed activity for this session
+        $stmt = $this->authConn->prepare("
+            SELECT 
+                ip_address,
+                user_agent,
+                device_fingerprint,
+                login_time,
+                session_id
+            FROM student_login_activity
+            WHERE student_id = ?
+            AND session_id = ?
+            AND login_time > DATE_SUB(NOW(), INTERVAL 2 HOUR)
+            ORDER BY login_time DESC
+        ");
+        
+        $stmt->bind_param("ss", $studentId, $sessionId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        $activities = [];
+        while ($row = $result->fetch_assoc()) {
+            $activities[] = $row;
+        }
+        
+        return [
+            'cheating_detected' => $cheatingDetected,
+            'device_count' => $deviceCount,
+            'class_id' => $classId,
+            'session_id' => $sessionId,
+            'activities' => $activities,
+            'risk_level' => $cheatingDetected ? 'HIGH' : 'LOW'
+        ];
+    }
+
+    // Check for concurrent logins
+    public function checkConcurrentLogins($studentId) {
+        // Check for multiple active sessions in the last 30 minutes
+        $stmt = $this->authConn->prepare("
+            SELECT COUNT(DISTINCT session_id) as session_count
+            FROM student_login_activity
+            WHERE student_id = ?
+            AND login_time > DATE_SUB(NOW(), INTERVAL 30 MINUTE)
+        ");
+        
+        $stmt->bind_param("s", $studentId);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        
+        $sessionCount = $result['session_count'];
+        $concurrentLogins = $sessionCount > 1;
+        
+        // Get active sessions
+        $stmt = $this->authConn->prepare("
+            SELECT 
+                session_id,
+                ip_address,
+                user_agent,
+                device_fingerprint,
+                login_time
+            FROM student_login_activity
+            WHERE student_id = ?
+            AND login_time > DATE_SUB(NOW(), INTERVAL 30 MINUTE)
+            ORDER BY login_time DESC
+        ");
+        
+        $stmt->bind_param("s", $studentId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        $sessions = [];
+        while ($row = $result->fetch_assoc()) {
+            $sessions[] = $row;
+        }
+        
+        return [
+            'concurrent_logins' => $concurrentLogins,
+            'session_count' => $sessionCount,
+            'sessions' => $sessions,
+            'violation' => $concurrentLogins
         ];
     }
 }

@@ -233,6 +233,73 @@ if ($method === 'GET' && preg_match('#^/routes.php/student-blocked/([A-Za-z0-9]+
     exit;
 }
 
+// Get student block history
+if ($method === 'GET' && preg_match('#^/routes.php/student-block-history/([A-Za-z0-9]+)$#', $path, $matches)) {
+    $studentId = $matches[1];
+    echo json_encode($monitoringController->getStudentBlockHistory($studentId));
+    exit;
+}
+
+// Get monitoring statistics
+if ($method === 'GET' && $path === '/routes.php/monitoring-statistics') {
+    echo json_encode($monitoringController->getMonitoringStatistics());
+    exit;
+}
+
+// Detect cheating
+if ($method === 'POST' && $path === '/routes.php/detect-cheating') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['studentId']) || !isset($data['classId']) || !isset($data['sessionId'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing studentId, classId, or sessionId']);
+        exit;
+    }
+    echo json_encode($monitoringController->detectCheating($data['studentId'], $data['classId'], $data['sessionId']));
+    exit;
+}
+
+// Get detailed monitoring report
+if ($method === 'GET' && $path === '/routes.php/monitoring-report') {
+    $studentId = $_GET['studentId'] ?? null;
+    $dateFrom = $_GET['dateFrom'] ?? null;
+    $dateTo = $_GET['dateTo'] ?? null;
+    echo json_encode($monitoringController->getDetailedMonitoringReport($studentId, $dateFrom, $dateTo));
+    exit;
+}
+
+// Check for concurrent logins
+if ($method === 'GET' && preg_match('#^/routes.php/check-concurrent-logins/([A-Za-z0-9]+)$#', $path, $matches)) {
+    $studentId = $matches[1];
+    echo json_encode($monitoringController->checkConcurrentLogins($studentId));
+    exit;
+}
+
+// Get student devices
+if ($method === 'GET' && preg_match('#^/routes.php/student-devices/([A-Za-z0-9]+)$#', $path, $matches)) {
+    $studentId = $matches[1];
+    echo json_encode($monitoringController->getStudentDevices($studentId));
+    exit;
+}
+
+// Detect multiple device login
+if ($method === 'POST' && $path === '/routes.php/detect-multiple-device-login') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['studentId']) || !isset($data['deviceFingerprint'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing studentId or deviceFingerprint']);
+        exit;
+    }
+    echo json_encode($monitoringController->detectMultipleDeviceLogin($data['studentId'], $data['deviceFingerprint']));
+    exit;
+}
+
+// Check if session is valid (for real-time session validation)
+if ($method === 'GET' && preg_match('#^/routes.php/session-valid/([A-Za-z0-9]+)$#', $path, $matches)) {
+    $studentId = $matches[1];
+    echo json_encode($monitoringController->isSessionValid($studentId));
+    exit;
+}
+
 // Delete student
 if ($method === 'DELETE' && preg_match('#^/routes.php/delete-student/([A-Za-z0-9]+)$#', $path, $matches)) {
     $userid = $matches[1];

@@ -54,10 +54,9 @@ const getStudentData = async (cls) => {
         mobile: studentProfile.mobile_number || userData.mobile || '',
         otherMobile: studentProfile.parent_mobile_number || userData.parentMobile || '',
         email: studentProfile.email || userData.email || '',
-        homeCity: studentProfile.district || userData.district || '',
         medium: cls?.classMedium === 'Both' ? 'Sinhala' : (cls?.classMedium || 'Sinhala'), // Default to Sinhala if class medium is 'Both'
         address: studentProfile.address || userData.address || '',
-        tuteType: getDefaultTuteType(cls), // Use default based on class settings
+        tuteType: cls?.enableTuteCollection ? getDefaultTuteType(cls) : '', // Only set if tute collection is enabled
       paymentNote: ''
     };
   }
@@ -70,26 +69,18 @@ const getStudentData = async (cls) => {
     mobile: userData?.mobile || '',
     otherMobile: userData?.parentMobile || '',
     email: userData?.email || '',
-    homeCity: userData?.district || '',
     medium: cls?.classMedium === 'Both' ? 'Sinhala' : (cls?.classMedium || 'Sinhala'),
     address: userData?.address || '',
-    tuteType: getDefaultTuteType(cls),
+    tuteType: cls?.enableTuteCollection ? getDefaultTuteType(cls) : '',
   paymentNote: ''
   };
 };
 
-const cityOptions = [
-  { value: '', label: 'Select Home City' },
-  { value: 'Colombo', label: 'Colombo' },
-  { value: 'Kandy', label: 'Kandy' },
-  { value: 'Galle', label: 'Galle' },
-  { value: 'Kurunegala', label: 'Kurunegala' },
-];
+
 
 const mediumOptions = [
   { value: 'Sinhala', label: 'Sinhala' },
   { value: 'English', label: 'English' },
-  { value: 'Both', label: 'Both Sinhala & English' },
 ];
 
 // Dynamic tute type options based on class settings
@@ -143,16 +134,19 @@ const isTuteTypeReadOnly = (cls) => {
   return cls.tuteCollectionType === 'speed_post' || cls.tuteCollectionType === 'physical_class';
 };
 
-const getValidationSchema = (isStudyPack) =>
+const getValidationSchema = (isStudyPack, cls) =>
   Yup.object().shape({
     firstName: Yup.string().required('Required'),
     lastName: Yup.string().required('Required'),
     mobile: Yup.string().required('Required').matches(/^0[1-9][0-9]{8}$/, 'Invalid mobile number'),
     email: Yup.string().email('Invalid email').required('Required'),
-    homeCity: Yup.string().required('Required'),
     medium: Yup.string().required('Required'),
     ...(isStudyPack ? {} : {
-      tuteType: Yup.string().required('Required'),
+      tuteType: Yup.string().when('$enableTuteCollection', {
+        is: true,
+        then: (schema) => schema.required('Required'),
+        otherwise: (schema) => schema.notRequired(),
+      }),
       address: Yup.string().when('tuteType', {
           is: 'Speed Post',
         then: (schema) => schema.required('Address is required for Speed Post'),
@@ -469,7 +463,11 @@ const Checkout = () => {
             </div>
           </div>
         )}
-        <BasicForm initialValues={studentData || {}} validationSchema={getValidationSchema(isStudyPack)} onSubmit={async values => {
+        <BasicForm 
+          initialValues={studentData || {}} 
+          validationSchema={getValidationSchema(isStudyPack, cls)}
+          context={{ enableTuteCollection: cls?.enableTuteCollection }}
+          onSubmit={async values => {
           try {
             setLoading(true);
             
@@ -539,6 +537,8 @@ const Checkout = () => {
             maxStudents: cls.maxStudents || 50,
           };
 
+              console.log('📤 Navigating to invoice with orderData:', orderData);
+              console.log('📤 Payment data being passed:', paymentData);
               navigate('/student/invoice', { state: orderData });
             } else {
               // For study packs, use the old flow for now
@@ -719,18 +719,7 @@ const Checkout = () => {
                         touched={touched.email}
                         icon={FaEnvelope}
                       />
-                      <CustomSelectField
-                        id="homeCity"
-                        name="homeCity"
-                        label="Home City *"
-                        value={values.homeCity}
-                        onChange={handleChange}
-                        options={cityOptions}
-                        error={errors.homeCity}
-                        touched={touched.homeCity}
-                        icon={FaMapMarkerAlt}
-                        required
-                      />
+
                       <CustomSelectField
                         id="medium"
                         name="medium"

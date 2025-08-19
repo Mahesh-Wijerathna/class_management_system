@@ -3,6 +3,7 @@ import { FaUsers, FaGraduationCap, FaCalendar, FaSearch, FaFilter, FaDownload, F
 import { getAllClasses } from '../../../api/classes';
 import { getClassEnrollments } from '../../../api/enrollments';
 import { getAllStudents } from '../../../api/students';
+import axios from 'axios';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import adminSidebarSections from './AdminDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
@@ -68,9 +69,43 @@ const ClassEnrollments = () => {
     try {
       const enrollmentsResponse = await getClassEnrollments(classItem.id);
       if (enrollmentsResponse.success) {
+        const enrollments = enrollmentsResponse.data || [];
+        
+        // Fetch student data for each enrollment
+        const studentPromises = enrollments.map(async (enrollment) => {
+          try {
+            const studentResponse = await axios.get(`http://localhost:8086/routes.php/get_with_id/${enrollment.student_id}`);
+            return { studentId: enrollment.student_id, data: studentResponse.data };
+          } catch (error) {
+            console.error('Error fetching student data for', enrollment.student_id, ':', error);
+            return { studentId: enrollment.student_id, data: null };
+          }
+        });
+        
+        const studentResults = await Promise.all(studentPromises);
+        const studentDataMap = {};
+        studentResults.forEach(result => {
+          if (result.data) {
+            studentDataMap[result.studentId] = result.data;
+          }
+        });
+        
+        // Fetch payment data for this class
+        let classPayments = [];
+        try {
+          const paymentsResponse = await axios.get(`http://localhost:8090/routes.php/get_all_payments`);
+          if (paymentsResponse.data.success && paymentsResponse.data.data) {
+            classPayments = paymentsResponse.data.data.filter(payment => payment.class_id == classItem.id);
+          }
+        } catch (paymentError) {
+          console.error('Error fetching payments for class', classItem.id, ':', paymentError);
+        }
+        
         setSelectedClass({
           ...classItem,
-          enrollments: enrollmentsResponse.data || []
+          enrollments: enrollments,
+          studentData: studentDataMap,
+          payments: classPayments
         });
         setShowEnrollmentDetails(true);
       }
@@ -117,7 +152,7 @@ const ClassEnrollments = () => {
     if (!enrollments) return [];
     
     return enrollments.filter(enrollment => {
-      const student = studentsData[enrollment.student_id];
+      const student = selectedClass?.studentData?.[enrollment.student_id] || studentsData[enrollment.student_id];
       if (!student) return false;
       
       // Filter by status
@@ -129,10 +164,10 @@ const ClassEnrollments = () => {
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch = (
-          student.firstName?.toLowerCase().includes(searchLower) ||
-          student.lastName?.toLowerCase().includes(searchLower) ||
+          student.first_name?.toLowerCase().includes(searchLower) ||
+          student.last_name?.toLowerCase().includes(searchLower) ||
           student.email?.toLowerCase().includes(searchLower) ||
-          student.userid?.toLowerCase().includes(searchLower)
+          student.user_id?.toLowerCase().includes(searchLower)
         );
         if (!matchesSearch) return false;
       }
@@ -217,10 +252,11 @@ const ClassEnrollments = () => {
     const completedStudents = enrollments.filter(e => e.status === 'completed').length;
     const droppedStudents = enrollments.filter(e => e.status === 'dropped').length;
     const suspendedStudents = enrollments.filter(e => e.status === 'suspended').length;
-    const totalRevenue = enrollments.reduce((sum, e) => {
-      const student = studentsData[e.student_id];
-      return sum + parseFloat(student?.fee || 0);
-    }, 0);
+    
+    // Calculate revenue from payment data
+    const totalRevenue = selectedClass?.payments?.reduce((sum, payment) => {
+      return sum + parseFloat(payment.amount || 0);
+    }, 0) || 0;
 
     return {
       totalStudents,
@@ -342,11 +378,11 @@ const ClassEnrollments = () => {
       key: 'studentInfo',
       label: 'Student Info',
       render: (row) => {
-        const student = studentsData[row.student_id];
+        const student = selectedClass?.studentData?.[row.student_id] || studentsData[row.student_id];
         return (
           <div className="flex flex-col space-y-1">
             <div className="font-semibold text-gray-900 text-sm">
-              {student ? `${student.firstName} ${student.lastName}` : row.student_id}
+              {student ? `${student.first_name} ${student.last_name}` : row.student_id}
             </div>
             <div className="text-xs text-gray-700">{student?.school || 'School not specified'}</div>
             <div className="text-xs text-gray-500 bg-gray-100 px-1 py-0.5 rounded inline-block w-fit">
@@ -360,7 +396,7 @@ const ClassEnrollments = () => {
       key: 'contact',
       label: 'Contact',
       render: (row) => {
-        const student = studentsData[row.student_id];
+        const student = selectedClass?.studentData?.[row.student_id] || studentsData[row.student_id];
         return (
           <div className="flex flex-col space-y-1">
             <div className="flex items-center space-x-1">
@@ -369,7 +405,7 @@ const ClassEnrollments = () => {
             </div>
             <div className="flex items-center space-x-1">
               <FaPhone className="text-green-500 text-xs" />
-              <span className="text-xs text-gray-800">{student?.mobile || 'N/A'}</span>
+              <span className="text-xs text-gray-800">{student?.mobile_number || 'N/A'}</span>
             </div>
           </div>
         );
@@ -394,7 +430,7 @@ const ClassEnrollments = () => {
 
   // Define actions for students table
   const studentActions = (row) => {
-    const student = studentsData[row.student_id];
+    const student = selectedClass?.studentData?.[row.student_id] || studentsData[row.student_id];
     return (
       <div className="flex flex-col space-y-1">
         <button
@@ -784,11 +820,11 @@ const ClassEnrollments = () => {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between py-2 border-b border-gray-200">
                     <span className="text-sm font-medium text-gray-600">Full Name</span>
-                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.firstName} {selectedStudent.lastName}</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.first_name} {selectedStudent.last_name}</span>
                   </div>
                   <div className="flex items-center justify-between py-2 border-b border-gray-200">
                     <span className="text-sm font-medium text-gray-600">Student ID</span>
-                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.userid}</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.user_id}</span>
                   </div>
                   <div className="flex items-center justify-between py-2 border-b border-gray-200">
                     <span className="text-sm font-medium text-gray-600">Email</span>
@@ -796,7 +832,7 @@ const ClassEnrollments = () => {
                   </div>
                   <div className="flex items-center justify-between py-2 border-b border-gray-200">
                     <span className="text-sm font-medium text-gray-600">Mobile</span>
-                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.mobile}</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.mobile_number}</span>
                   </div>
                   <div className="flex items-center justify-between py-2 border-b border-gray-200">
                     <span className="text-sm font-medium text-gray-600">Address</span>
@@ -816,7 +852,7 @@ const ClassEnrollments = () => {
                   </div>
                   <div className="flex items-center justify-between py-2 border-b border-gray-200">
                     <span className="text-sm font-medium text-gray-600">Date of Birth</span>
-                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.dateOfBirth || 'Not specified'}</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.date_of_birth ? formatDate(selectedStudent.date_of_birth) : 'Not specified'}</span>
                   </div>
                   <div className="flex items-center justify-between py-2 border-b border-gray-200">
                     <span className="text-sm font-medium text-gray-600">School</span>
@@ -828,15 +864,15 @@ const ClassEnrollments = () => {
                   </div>
                   <div className="flex items-center justify-between py-2 border-b border-gray-200">
                     <span className="text-sm font-medium text-gray-600">Registration Date</span>
-                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.dateJoined || 'Not specified'}</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.created_at ? formatDate(selectedStudent.created_at) : 'Not specified'}</span>
                   </div>
                   <div className="flex items-center justify-between py-2 border-b border-gray-200">
                     <span className="text-sm font-medium text-gray-600">Parent Name</span>
-                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.parentName || 'Not specified'}</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.parent_name || 'Not specified'}</span>
                   </div>
                   <div className="flex items-center justify-between py-2 border-b border-gray-200">
                     <span className="text-sm font-medium text-gray-600">Parent Mobile</span>
-                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.parentMobile || 'Not specified'}</span>
+                    <span className="text-sm font-semibold text-gray-900">{selectedStudent.parent_mobile_number || 'Not specified'}</span>
                   </div>
                 </div>
               </div>

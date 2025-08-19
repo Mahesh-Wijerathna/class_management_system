@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/UserController.php';
+require_once __DIR__ . '/UserModel.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -379,7 +380,87 @@ if ($method === 'POST' && $path === '/routes.php/teacher') {
         echo json_encode(['success' => false, 'message' => 'Missing required fields: password, name, email, phone']);
         exit;
     }
-    echo $controller->createTeacher($data);
+    
+    // First create the teacher in auth database
+    $user = new UserModel($mysqli);
+    $teacherId = $user->generateUserId('teacher');
+    
+    // Check if teacher ID already exists
+    if ($user->getUserById($teacherId)) {
+        echo json_encode(['success' => false, 'message' => 'Teacher ID already exists']);
+        exit;
+    }
+    
+    // Check if email already exists
+    if ($user->emailExists($data['email'])) {
+        echo json_encode(['success' => false, 'message' => 'Email already exists']);
+        exit;
+    }
+    
+    // Check if phone number already exists in teacher backend
+    $phoneCheckResponse = file_get_contents('http://host.docker.internal:8088/routes.php/check_phone_exists?phone=' . urlencode($data['phone']));
+    if ($phoneCheckResponse !== false) {
+        $phoneCheckResult = json_decode($phoneCheckResponse, true);
+        if ($phoneCheckResult && $phoneCheckResult['exists']) {
+            echo json_encode(['success' => false, 'message' => 'Phone number already exists']);
+            exit;
+        }
+    }
+    
+    // Create teacher in auth database
+    $result = $user->createTeacherUser($teacherId, $data['password'], $data['name'], $data['email'], $data['phone']);
+    
+    if ($result) {
+        // Then register teacher data in teacher backend
+        $teacherRegistrationData = [
+            'teacherId' => $teacherId,
+            'designation' => $data['designation'] ?? 'Mr.',
+            'name' => $data['name'],
+            'stream' => $data['stream'] ?? 'Not Specified',
+            'email' => $data['email'],
+            'phone' => $data['phone'],
+            'password' => $data['password'],
+            'status' => 'active'
+        ];
+        
+        $response = file_get_contents('http://host.docker.internal:8088/routes.php/create_teacher', false, stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => 'Content-Type: application/json',
+                'content' => json_encode($teacherRegistrationData)
+            ]
+        ]));
+        
+        if ($response !== false) {
+            $teacherBackendResponse = json_decode($response, true);
+            if ($teacherBackendResponse && $teacherBackendResponse['success']) {
+                // Send welcome message via WhatsApp
+                $whatsappResult = $controller->sendTeacherWelcomeMessage($teacherId, $data['name'], $data['phone'], $data['password']);
+                
+                echo json_encode([
+                    'success' => true, 
+                    'message' => 'Teacher created successfully',
+                    'teacherId' => $teacherId,
+                    'whatsapp_sent' => $whatsappResult,
+                    'whatsapp_message' => $whatsappResult ? 'Welcome message sent successfully' : 'WhatsApp service unavailable'
+                ]);
+            } else {
+                // Teacher backend failed, but auth backend succeeded
+                echo json_encode([
+                    'success' => false, 
+                    'message' => 'Teacher created in auth system but failed to create in teacher backend: ' . ($teacherBackendResponse['message'] ?? 'Unknown error')
+                ]);
+            }
+        } else {
+            // Teacher backend call failed
+            echo json_encode([
+                'success' => false, 
+                'message' => 'Teacher created in auth system but failed to connect to teacher backend'
+            ]);
+        }
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Failed to create teacher in auth system']);
+    }
     exit;
 }
 
@@ -454,10 +535,17 @@ if ($method === 'POST' && $path === '/routes.php/teacher/forgot-password-otp') {
 // Track student login activity
 if ($method === 'POST' && $path === '/routes.php/track-student-login') {
     $data = json_decode(file_get_contents('php://input'), true);
+    
+    // Pass through the original User-Agent header
+    $headers = ['Content-Type: application/json'];
+    if (isset($_SERVER['HTTP_USER_AGENT'])) {
+        $headers[] = 'User-Agent: ' . $_SERVER['HTTP_USER_AGENT'];
+    }
+    
     $response = file_get_contents('http://student-backend/routes.php/track-student-login', false, stream_context_create([
         'http' => [
             'method' => 'POST',
-            'header' => 'Content-Type: application/json',
+            'header' => implode("\r\n", $headers),
             'content' => json_encode($data)
         ]
     ]));
@@ -468,10 +556,17 @@ if ($method === 'POST' && $path === '/routes.php/track-student-login') {
 // Track concurrent session
 if ($method === 'POST' && $path === '/routes.php/track-concurrent-session') {
     $data = json_decode(file_get_contents('php://input'), true);
+    
+    // Pass through the original User-Agent header
+    $headers = ['Content-Type: application/json'];
+    if (isset($_SERVER['HTTP_USER_AGENT'])) {
+        $headers[] = 'User-Agent: ' . $_SERVER['HTTP_USER_AGENT'];
+    }
+    
     $response = file_get_contents('http://student-backend/routes.php/track-concurrent-session', false, stream_context_create([
         'http' => [
             'method' => 'POST',
-            'header' => 'Content-Type: application/json',
+            'header' => implode("\r\n", $headers),
             'content' => json_encode($data)
         ]
     ]));
@@ -557,13 +652,15 @@ if ($method === 'GET' && preg_match('#^/routes.php/student-blocked/([A-Za-z0-9]+
 // Get student block history
 if ($method === 'GET' && preg_match('#^/routes.php/student-block-history/([A-Za-z0-9]+)$#', $path, $matches)) {
     $studentId = $matches[1];
-    echo json_encode($monitoringController->getStudentBlockHistory($studentId));
+    $response = file_get_contents("http://student-backend/routes.php/student-block-history/$studentId");
+    echo $response;
     exit;
 }
 
 // Get monitoring statistics
 if ($method === 'GET' && $path === '/routes.php/monitoring-statistics') {
-    echo json_encode($monitoringController->getMonitoringStatistics());
+    $response = file_get_contents("http://student-backend/routes.php/monitoring-statistics");
+    echo $response;
     exit;
 }
 
@@ -575,7 +672,14 @@ if ($method === 'POST' && $path === '/routes.php/detect-cheating') {
         echo json_encode(['success' => false, 'message' => 'Missing studentId, classId, or sessionId']);
         exit;
     }
-    echo json_encode($monitoringController->detectCheating($data['studentId'], $data['classId'], $data['sessionId']));
+    $response = file_get_contents('http://student-backend/routes.php/detect-cheating', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => 'Content-Type: application/json',
+            'content' => json_encode($data)
+        ]
+    ]));
+    echo $response;
     exit;
 }
 
@@ -584,21 +688,31 @@ if ($method === 'GET' && $path === '/routes.php/monitoring-report') {
     $studentId = $_GET['studentId'] ?? null;
     $dateFrom = $_GET['dateFrom'] ?? null;
     $dateTo = $_GET['dateTo'] ?? null;
-    echo json_encode($monitoringController->getDetailedMonitoringReport($studentId, $dateFrom, $dateTo));
+    $params = [];
+    if ($studentId) $params[] = "studentId=$studentId";
+    if ($dateFrom) $params[] = "dateFrom=$dateFrom";
+    if ($dateTo) $params[] = "dateTo=$dateTo";
+    $queryString = implode('&', $params);
+    $url = "http://student-backend/routes.php/monitoring-report";
+    if ($queryString) $url .= "?$queryString";
+    $response = file_get_contents($url);
+    echo $response;
     exit;
 }
 
 // Check for concurrent logins
 if ($method === 'GET' && preg_match('#^/routes.php/check-concurrent-logins/([A-Za-z0-9]+)$#', $path, $matches)) {
     $studentId = $matches[1];
-    echo json_encode($monitoringController->checkConcurrentLogins($studentId));
+    $response = file_get_contents("http://student-backend/routes.php/check-concurrent-logins/$studentId");
+    echo $response;
     exit;
 }
 
 // Get student devices
 if ($method === 'GET' && preg_match('#^/routes.php/student-devices/([A-Za-z0-9]+)$#', $path, $matches)) {
     $studentId = $matches[1];
-    echo json_encode($monitoringController->getStudentDevices($studentId));
+    $response = file_get_contents("http://student-backend/routes.php/student-devices/$studentId");
+    echo $response;
     exit;
 }
 
@@ -610,14 +724,22 @@ if ($method === 'POST' && $path === '/routes.php/detect-multiple-device-login') 
         echo json_encode(['success' => false, 'message' => 'Missing studentId or deviceFingerprint']);
         exit;
     }
-    echo json_encode($monitoringController->detectMultipleDeviceLogin($data['studentId'], $data['deviceFingerprint']));
+    $response = file_get_contents('http://student-backend/routes.php/detect-multiple-device-login', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => 'Content-Type: application/json',
+            'content' => json_encode($data)
+        ]
+    ]));
+    echo $response;
     exit;
 }
 
 // Check if session is valid (for real-time session validation)
 if ($method === 'GET' && preg_match('#^/routes.php/session-valid/([A-Za-z0-9]+)$#', $path, $matches)) {
     $studentId = $matches[1];
-    echo json_encode($monitoringController->isSessionValid($studentId));
+    $response = file_get_contents("http://student-backend/routes.php/session-valid/$studentId");
+    echo $response;
     exit;
 }
 
