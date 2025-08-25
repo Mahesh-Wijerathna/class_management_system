@@ -647,6 +647,72 @@ const MyClasses = ({ onLogout }) => {
     });
   };
 
+  // Debug function to log live tab filtering
+  const debugLiveTabFiltering = () => {
+    console.log('🔍 DEBUG: Live Tab Filtering');
+    console.log('Total classes:', myClasses.length);
+    console.log('Current time:', new Date().toLocaleString());
+    
+    const now = new Date();
+    const today = now.getDay();
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayName = dayNames[today];
+    
+    console.log(`Today is: ${todayName}`);
+    console.log('---');
+    
+    myClasses.forEach((cls, index) => {
+      const hasSchedule = cls.schedule && cls.schedule.frequency !== 'no-schedule';
+      const hasOnlineDelivery = ['online', 'hybrid1', 'hybrid3', 'hybrid4'].includes(cls.deliveryMethod);
+      const hasDayAndTime = cls.schedule && cls.schedule.day && cls.schedule.startTime;
+      
+      const isToday = cls.schedule && cls.schedule.day === todayName;
+      
+      const [hours, minutes] = cls.schedule?.startTime?.split(':').map(Number) || [0, 0];
+      const classStartTime = new Date();
+      classStartTime.setHours(hours, minutes, 0, 0);
+      const timeDiff = (classStartTime - now) / (1000 * 60);
+      const isWithinTimeWindow = timeDiff >= -30 && timeDiff <= 30;
+      
+      const wouldShowInLiveTab = hasSchedule && hasOnlineDelivery && hasDayAndTime && isToday && isWithinTimeWindow;
+      
+      console.log(`  ${index + 1}. ${cls.className}:`);
+      console.log(`     - Delivery Method: ${cls.deliveryMethod} (supports online: ${hasOnlineDelivery})`);
+      console.log(`     - Has Schedule: ${hasSchedule} (frequency: ${cls.schedule?.frequency})`);
+      console.log(`     - Has Day & Time: ${hasDayAndTime} (${cls.schedule?.day} ${cls.schedule?.startTime})`);
+      console.log(`     - Is Today: ${isToday} (${cls.schedule?.day} vs ${todayName})`);
+      console.log(`     - Time Diff: ${timeDiff.toFixed(1)} minutes (within window: ${isWithinTimeWindow})`);
+      console.log(`     - Would Show in Live Tab: ${wouldShowInLiveTab}`);
+      
+      if (!wouldShowInLiveTab) {
+        console.log(`     - REASON: ${!hasSchedule ? 'No schedule' : !hasOnlineDelivery ? 'Not online delivery' : !hasDayAndTime ? 'No day/time' : !isToday ? 'Not today' : !isWithinTimeWindow ? 'Outside time window' : 'Unknown'}`);
+      }
+      console.log('');
+    });
+    
+    // Show summary
+    const liveClasses = myClasses.filter(cls => {
+      if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
+      if (!['online', 'hybrid1', 'hybrid3', 'hybrid4'].includes(cls.deliveryMethod)) return false;
+      if (!cls.schedule.day || !cls.schedule.startTime) return false;
+      
+      const isToday = cls.schedule.day === todayName;
+      if (!isToday) return false;
+      
+      const [hours, minutes] = cls.schedule.startTime.split(':').map(Number);
+      const classStartTime = new Date();
+      classStartTime.setHours(hours, minutes, 0, 0);
+      const timeDiff = (classStartTime - now) / (1000 * 60);
+      
+      return timeDiff >= -30 && timeDiff <= 30;
+    });
+    
+    console.log(`📊 SUMMARY: ${liveClasses.length} classes would show in Live Tab`);
+    liveClasses.forEach((cls, index) => {
+      console.log(`  ${index + 1}. ${cls.className} (${cls.deliveryMethod}) - ${cls.schedule.day} ${cls.schedule.startTime}`);
+    });
+  };
+
   // Filter and sort classes
   const filteredAndSortedClasses = myClasses
         .filter(cls => {
@@ -654,7 +720,8 @@ const MyClasses = ({ onLogout }) => {
     if (selectedTab === 'all') return true;
     if (selectedTab === 'live') {
       if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
-      if (cls.deliveryMethod !== 'online' && cls.deliveryMethod !== 'hybrid') return false;
+      // Check if delivery method supports online classes
+      if (!['online', 'hybrid1', 'hybrid3', 'hybrid4'].includes(cls.deliveryMethod)) return false;
       if (!cls.schedule.day || !cls.schedule.startTime) return false;
       
       // Check if class is starting within 15 minutes
@@ -674,8 +741,8 @@ const MyClasses = ({ onLogout }) => {
       // Calculate time difference in minutes
       const timeDiff = (classStartTime - now) / (1000 * 60);
       
-      // Show if class starts within 15 minutes and hasn't started yet
-      return timeDiff >= -15 && timeDiff <= 15;
+      // Show if class starts within 30 minutes before or is currently running (within 30 minutes of start)
+      return timeDiff >= -30 && timeDiff <= 30;
     }
     if (selectedTab === 'today') {
       if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
@@ -1176,7 +1243,8 @@ const MyClasses = ({ onLogout }) => {
     { key: 'all', label: 'All Classes', icon: <FaEye />, count: myClasses.length },
     { key: 'live', label: 'Live Classes', icon: <FaVideo />, count: myClasses.filter(cls => {
       if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
-      if (cls.deliveryMethod !== 'online' && cls.deliveryMethod !== 'hybrid') return false;
+      // Check if delivery method supports online classes
+      if (!['online', 'hybrid1', 'hybrid3', 'hybrid4'].includes(cls.deliveryMethod)) return false;
       if (!cls.schedule.day || !cls.schedule.startTime) return false;
       
       // Check if class is starting within 15 minutes
@@ -1196,8 +1264,8 @@ const MyClasses = ({ onLogout }) => {
       // Calculate time difference in minutes
       const timeDiff = (classStartTime - now) / (1000 * 60);
       
-      // Show if class starts within 15 minutes and hasn't started yet
-      return timeDiff >= -15 && timeDiff <= 15;
+      // Show if class starts within 30 minutes before or is currently running (within 30 minutes of start)
+      return timeDiff >= -30 && timeDiff <= 30;
     }).length },
     { key: 'today', label: "Today's Classes", icon: <FaCalendar />, count: myClasses.filter(cls => {
       if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
@@ -1408,6 +1476,15 @@ const MyClasses = ({ onLogout }) => {
             >
               <FaSync /> Refresh Data
             </button>
+            {process.env.NODE_ENV === 'development' && (
+              <button
+                onClick={debugLiveTabFiltering}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                title="Debug Live Tab Filtering (Development Only)"
+              >
+                <FaCog /> Debug Live Tab
+              </button>
+            )}
           </div>
         </div>
         
