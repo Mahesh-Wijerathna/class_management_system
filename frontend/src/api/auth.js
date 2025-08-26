@@ -131,13 +131,24 @@ export const forgotPasswordReset = async (mobile, otp, newPassword) => {
 // Update student profile
 export const updateStudentProfile = async (userid, profileData) => {
   try {
-    const response = await apiPut('/routes.php/student/profile', {
-      userid,
-      profileData
+    // Call student backend directly for profile updates
+    const response = await fetch(`http://localhost:8086/routes.php/update-student/${userid}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(profileData)
     });
-    return response;
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to update profile');
+    }
+    
+    return data;
   } catch (error) {
-    throw handleApiError(error);
+    throw new Error(error.message || 'Failed to update profile');
   }
 };
 

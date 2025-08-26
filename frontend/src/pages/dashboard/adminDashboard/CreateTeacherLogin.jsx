@@ -7,7 +7,7 @@ import BasicForm from '../../../components/BasicForm';
 import { useNavigate } from 'react-router-dom';
 import * as Yup from 'yup';
 import { FaUser, FaLock, FaPhone, FaIdCard, FaEnvelope } from 'react-icons/fa';
-import { createTeacher, getNextTeacherId } from '../../../api/teachers';
+import { createTeacher } from '../../../api/teachers';
 
 const streamOptions = [
   'O/L',
@@ -46,35 +46,18 @@ const CreateTeacherLogin = () => {
   const navigate = useNavigate();
   const [submitCount, setSubmitCount] = React.useState(0);
   const [alertBox, setAlertBox] = React.useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
-  const [nextTeacherId, setNextTeacherId] = React.useState('');
-  const [loadingId, setLoadingId] = React.useState(false);
-
-  // Load next teacher ID on component mount
-  React.useEffect(() => {
-    const loadNextTeacherId = async () => {
-      try {
-        setLoadingId(true);
-        const response = await getNextTeacherId();
-        if (response.success) {
-          setNextTeacherId(response.data);
-        } else {
-          console.error('Failed to load next teacher ID:', response.message);
-        }
-      } catch (error) {
-        console.error('Error loading next teacher ID:', error);
-      } finally {
-        setLoadingId(false);
-      }
-    };
-    
-    loadNextTeacherId();
-  }, []);
 
   const handleSubmit = async (values) => {
     try {
       const response = await createTeacher(values);
+      
       if (response.success) {
         let message = 'Teacher account created successfully!';
+        
+        // Add teacher ID to the message
+        if (response.teacherId) {
+          message += `\n\nTeacher ID: ${response.teacherId}`;
+        }
         
         // Add WhatsApp status to the message
         if (response.whatsapp_sent !== undefined) {
@@ -149,17 +132,6 @@ const CreateTeacherLogin = () => {
               )}
           {/* Responsive grid for two columns on md+ screens */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <CustomTextField
-              id="teacherId"
-              name="teacherId"
-              type="text"
-              label="Teacher ID *"
-              value={nextTeacherId}
-              onChange={() => {}} // Read-only
-              disabled={true}
-              icon={FaIdCard}
-              placeholder={loadingId ? "Loading..." : "Auto-generated"}
-            />
             <CustomTextField
               id="email"
               name="email"

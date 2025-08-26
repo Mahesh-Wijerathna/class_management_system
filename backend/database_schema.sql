@@ -332,6 +332,66 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 -- =====================================================
+-- STUDENT MONITORING TABLES
+-- =====================================================
+
+-- Student login activity tracking
+CREATE TABLE IF NOT EXISTS student_login_activity (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id VARCHAR(10) NOT NULL,
+    ip_address VARCHAR(45) NOT NULL,
+    user_agent TEXT,
+    device_fingerprint VARCHAR(255),
+    session_id VARCHAR(255),
+    login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    location_data JSON,
+    is_suspicious BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES users(userid) ON DELETE CASCADE,
+    INDEX idx_student (student_id),
+    INDEX idx_login_time (login_time),
+    INDEX idx_suspicious (is_suspicious),
+    INDEX idx_session (session_id)
+);
+
+-- Student blocks table
+CREATE TABLE IF NOT EXISTS student_blocks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id VARCHAR(10) NOT NULL,
+    reason TEXT NOT NULL,
+    blocked_by VARCHAR(10) NOT NULL,
+    block_start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    block_end_time TIMESTAMP NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES users(userid) ON DELETE CASCADE,
+    FOREIGN KEY (blocked_by) REFERENCES users(userid) ON DELETE SET NULL,
+    INDEX idx_student (student_id),
+    INDEX idx_active (is_active),
+    INDEX idx_end_time (block_end_time)
+);
+
+-- Concurrent sessions tracking
+CREATE TABLE IF NOT EXISTS concurrent_sessions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id VARCHAR(10) NOT NULL,
+    session_id VARCHAR(255) NOT NULL,
+    class_id INT,
+    ip_address VARCHAR(45) NOT NULL,
+    device_info JSON,
+    session_start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    session_end_time TIMESTAMP NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES users(userid) ON DELETE CASCADE,
+    FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE SET NULL,
+    INDEX idx_student (student_id),
+    INDEX idx_session (session_id),
+    INDEX idx_active (is_active),
+    INDEX idx_start_time (session_start_time)
+);
+
+-- =====================================================
 -- SYSTEM CONFIGURATION TABLES
 -- =====================================================
 

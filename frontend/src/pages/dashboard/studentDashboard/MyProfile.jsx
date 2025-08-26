@@ -9,12 +9,31 @@ import DashboardLayout from '../../../components/layout/DashboardLayout';
 import studentSidebarSections from './StudentDashboardSidebar';
 import { useNavigate } from 'react-router-dom';
 import { changePassword, updateStudentProfile } from '../../../api/auth';
+import axios from 'axios';
 
 // Helper function to get the appropriate storage
 const getStorage = () => {
   const usePersistentStorage = sessionStorage.getItem('usePersistentStorage');
   return usePersistentStorage === 'true' ? localStorage : sessionStorage;
 };
+
+  // Helper function to fetch student profile from backend
+  const fetchStudentProfile = async (userid) => {
+    try {
+      const response = await axios.get(`http://localhost:8086/routes.php/get_with_id/${userid}`, {
+        timeout: 5000
+      });
+      if (response.data && !response.data.error) {
+        return response.data;
+      } else {
+        console.error('Error fetching student profile:', response.data);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error fetching student profile:', error);
+      return null;
+    }
+  };
 
 const profileSchema = Yup.object().shape({
   firstName: Yup.string()
@@ -69,8 +88,8 @@ const profileSchema = Yup.object().shape({
   stream: Yup.string()
     .required('Stream is required')
     .oneOf([
-      'AL-Maths', 'AL-Science', 'AL-Art', 'AL-Tech', 'AL-Common', 
-      'OL', 'Primary', 'Other'
+      'A/L-Maths', 'A/L-Science', 'A/L-Art', 'A/L-Technology', 'A/L-Commerce', 
+      'O/L', 'Primary', 'Other'
     ], 'Please select a valid stream'),
   
   address: Yup.string()
@@ -139,6 +158,7 @@ const genders = ['Male', 'Female', 'Other'];
 
 const MyProfile = ({ onLogout }) => {
   const [currentStudent, setCurrentStudent] = useState(null);
+  const [studentProfile, setStudentProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState('');
@@ -146,68 +166,92 @@ const MyProfile = ({ onLogout }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Load authenticated user data from appropriate storage
-    const storage = getStorage();
-    const userData = storage.getItem('userData');
-    if (userData) {
+    const loadStudentData = async () => {
       try {
-        const user = JSON.parse(userData);
+        // Load authenticated user data from appropriate storage
+        const storage = getStorage();
+        const userData = storage.getItem('userData');
         
-        // Check if user is a student
-        if (user.role === 'student') {
-          setCurrentStudent(user);
+        if (userData) {
+          const user = JSON.parse(userData);
+          
+          // Check if user is a student
+          if (user.role === 'student') {
+            setCurrentStudent(user);
+            
+            // Fetch complete student profile from backend
+            const profile = await fetchStudentProfile(user.userid);
+            if (profile) {
+              setStudentProfile(profile);
+            }
+          } else {
+            console.log("User is not a student, redirecting...");
+            navigate('/login');
+          }
         } else {
-          // If not a student, redirect to appropriate dashboard
-          console.log("User is not a student, redirecting...");
+          console.log("No user data found, redirecting to login");
           navigate('/login');
         }
       } catch (error) {
-        console.error("Error parsing user data:", error);
+        console.error("Error loading student data:", error);
         navigate('/login');
+      } finally {
+        setLoading(false);
       }
-    } else {
-      // If no user data, redirect to login
-      console.log("No user data found, redirecting to login");
-      navigate('/login');
-    }
-    setLoading(false);
+    };
+
+    loadStudentData();
   }, [navigate]);
 
   // Show loading while checking authentication
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
-      </div>
+      <DashboardLayout
+        userRole="Student"
+        sidebarItems={studentSidebarSections}
+        onLogout={onLogout}
+      >
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-lg">Loading profile...</div>
+        </div>
+      </DashboardLayout>
     );
   }
 
   // Show loading or redirect if no student data
   if (!currentStudent) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Redirecting to login...</div>
-      </div>
+      <DashboardLayout
+        userRole="Student"
+        sidebarItems={studentSidebarSections}
+        onLogout={onLogout}
+      >
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-lg">Redirecting to login...</div>
+        </div>
+      </DashboardLayout>
     );
   }
 
-  // Create initial profile from authenticated user data
+  // Create initial profile from complete student data
   const initialProfile = {
-    firstName: currentStudent.firstName || '',
-    lastName: currentStudent.lastName || '',
-    idNumber: currentStudent.nic || '',
-    mobile: currentStudent.mobile || '',
-    dob: currentStudent.dateOfBirth || '',
-    age: currentStudent.age || '',
-    gender: currentStudent.gender || '',
-    email: currentStudent.email || '',
-    school: currentStudent.school || '',
-    stream: currentStudent.stream || '',
-    address: currentStudent.address || '',
-    district: currentStudent.district || '',
-    parentName: currentStudent.parentName || '',
-    parentMobile: currentStudent.parentMobile || '',
+    firstName: studentProfile?.first_name || currentStudent.firstName || '',
+    lastName: studentProfile?.last_name || currentStudent.lastName || '',
+    idNumber: studentProfile?.nic || currentStudent.nic || '',
+    mobile: studentProfile?.mobile_number || currentStudent.mobile || '',
+    dob: studentProfile?.date_of_birth || currentStudent.dateOfBirth || '',
+    age: studentProfile?.age || currentStudent.age || '',
+    gender: studentProfile?.gender || currentStudent.gender || '',
+    email: studentProfile?.email || currentStudent.email || '',
+    school: studentProfile?.school || currentStudent.school || '',
+    stream: studentProfile?.stream || currentStudent.stream || '',
+    address: studentProfile?.address || currentStudent.address || '',
+    district: studentProfile?.district || currentStudent.district || '',
+    parentName: studentProfile?.parent_name || currentStudent.parentName || '',
+    parentMobile: studentProfile?.parent_mobile_number || currentStudent.parentMobile || '',
   };
+
+
 
   const initialPasswordForm = {
     currentPassword: '',
@@ -344,18 +388,18 @@ const MyProfile = ({ onLogout }) => {
         showCloseButton={true}
       />
       
-      <div className="p-6 max-w-6xl mx-auto">
-        <h2 className="text-xl font-semibold mb-4 text-[#1a365d]">Edit Profile</h2>
+      <div className="p-2 sm:p-4 lg:p-6 max-w-6xl mx-auto">
+        <h2 className="text-lg sm:text-xl font-semibold mb-4 text-[#1a365d]">Edit Profile</h2>
         
         {/* Password Change Section */}
-        <div className="bg-white rounded-2xl shadow-md p-6 mb-6 border border-gray-100">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-[#1a365d]">Change Password</h3>
-            <button 
-              type="button" 
-              onClick={() => setShowPasswordForm(!showPasswordForm)}
-              className="px-4 py-2 bg-[#1a365d] text-white text-xs font-bold rounded-lg hover:bg-[#13294b] active:bg-[#0f2038] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#1a365d] focus:ring-opacity-50 shadow-md hover:shadow-xl"
-            >
+        <div className="bg-white rounded-2xl shadow-md p-4 sm:p-6 mb-6 border border-gray-100">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+            <h3 className="text-base sm:text-lg font-semibold text-[#1a365d]">Change Password</h3>
+                          <button 
+                type="button" 
+                onClick={() => setShowPasswordForm(!showPasswordForm)}
+                className="px-3 sm:px-4 py-2 bg-[#1a365d] text-white text-xs font-bold rounded-lg hover:bg-[#13294b] active:bg-[#0f2038] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#1a365d] focus:ring-opacity-50 shadow-md hover:shadow-xl"
+              >
               {showPasswordForm ? 'Cancel' : 'Change Password'}
             </button>
           </div>
@@ -378,7 +422,7 @@ const MyProfile = ({ onLogout }) => {
             >
               {({ errors, touched, handleChange, values, handleSubmit, isSubmitting }) => (
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
                     <CustomTextField
                       id="currentPassword"
                       name="currentPassword"
@@ -442,8 +486,8 @@ const MyProfile = ({ onLogout }) => {
         </div>
         
         {/* Profile Information Section */}
-        <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-100">
-          <h3 className="text-lg font-semibold mb-4 text-[#1a365d]">Profile Information</h3>
+        <div className="bg-white rounded-2xl shadow-md p-4 sm:p-6 border border-gray-100">
+          <h3 className="text-base sm:text-lg font-semibold mb-4 text-[#1a365d]">Profile Information</h3>
           
           {/* Editable Profile Form */}
           <Formik
@@ -455,7 +499,7 @@ const MyProfile = ({ onLogout }) => {
           >
             {({ errors, touched, handleChange, values, handleSubmit, isSubmitting, isValid, dirty }) => (
               <form className="space-y-6" onSubmit={handleSubmit}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
                   <CustomTextField
                     id="firstName"
                     name="firstName"

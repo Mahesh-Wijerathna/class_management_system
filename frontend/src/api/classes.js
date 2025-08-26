@@ -97,9 +97,9 @@ export const createClass = async (classData) => {
 };
 
 export const updateClass = async (id, classData) => {
-  return await classApiPut(`/routes.php/classes/${id}`, classData);
+  return await classApiPut(`/routes.php/update_class/${id}`, classData);
 };
 
 export const deleteClass = async (id) => {
-  return await classApiDelete(`/routes.php/classes/${id}`);
+  return await classApiDelete(`/routes.php/delete_class/${id}`);
 }; 

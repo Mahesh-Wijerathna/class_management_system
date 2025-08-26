@@ -14,70 +14,139 @@ import CustomButton from '../../../components/CustomButton';
 import { getClassById } from '../../../api/classes';
 import { getUserData } from '../../../api/apiUtils';
 import { getStudentEnrollments, convertEnrollmentToMyClass } from '../../../api/enrollments';
+import axios from 'axios';
 
 // Remove dummyStudent - we'll get real data from getUserData()
 
+// Function to fetch complete student profile from backend
+const fetchStudentProfile = async (userid) => {
+  try {
+    console.log('Fetching student profile for checkout:', userid);
+    const response = await axios.get(`http://localhost:8086/routes.php/get_with_id/${userid}`, {
+      timeout: 5000
+    });
+    
+    console.log('Student profile response for checkout:', response.data);
+    
+    if (response.data && !response.data.error) {
+      return response.data;
+    } else {
+      console.error('Error fetching student profile for checkout:', response.data);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error fetching student profile for checkout:', error);
+    return null;
+  }
+};
+
 // Function to get student data from logged-in user
-const getStudentData = () => {
+const getStudentData = async (cls) => {
   const userData = getUserData();
-  if (userData) {
+  if (userData && userData.userid) {
+    // Fetch complete student profile from backend
+    const studentProfile = await fetchStudentProfile(userData.userid);
+    
+    if (studentProfile) {
     return {
-      firstName: userData.firstName || '',
-      lastName: userData.lastName || '',
-      mobile: userData.mobile || '',
-      otherMobile: userData.parentMobile || '',
-      email: userData.email || '',
-      homeCity: userData.district || '',
-      medium: 'Sinhala', // Default value
-      address: userData.address || '',
-      tuteType: '',
+        firstName: studentProfile.first_name || userData.firstName || '',
+        lastName: studentProfile.last_name || userData.lastName || '',
+        mobile: studentProfile.mobile_number || userData.mobile || '',
+        otherMobile: studentProfile.parent_mobile_number || userData.parentMobile || '',
+        email: studentProfile.email || userData.email || '',
+        medium: cls?.classMedium === 'Both' ? 'Sinhala' : (cls?.classMedium || 'Sinhala'), // Default to Sinhala if class medium is 'Both'
+        address: studentProfile.address || userData.address || '',
+        tuteType: cls?.enableTuteCollection ? getDefaultTuteType(cls) : '', // Only set if tute collection is enabled
       paymentNote: ''
     };
   }
-  // Fallback if no user data
+  }
+  
+  // Fallback if no user data or profile fetch failed
   return {
-    firstName: '',
-    lastName: '',
-    mobile: '',
-  otherMobile: '',
-    email: '',
-  homeCity: '',
-  medium: 'Sinhala',
-  address: '',
-  tuteType: '',
+    firstName: userData?.firstName || '',
+    lastName: userData?.lastName || '',
+    mobile: userData?.mobile || '',
+    otherMobile: userData?.parentMobile || '',
+    email: userData?.email || '',
+    medium: cls?.classMedium === 'Both' ? 'Sinhala' : (cls?.classMedium || 'Sinhala'),
+    address: userData?.address || '',
+    tuteType: cls?.enableTuteCollection ? getDefaultTuteType(cls) : '',
   paymentNote: ''
   };
 };
 
-const cityOptions = [
-  { value: '', label: 'Select Home City' },
-  { value: 'Colombo', label: 'Colombo' },
-  { value: 'Kandy', label: 'Kandy' },
-  { value: 'Galle', label: 'Galle' },
-  { value: 'Kurunegala', label: 'Kurunegala' },
-];
+
 
 const mediumOptions = [
   { value: 'Sinhala', label: 'Sinhala' },
   { value: 'English', label: 'English' },
 ];
 
-const tuteTypeOptions = [
-  { value: '', label: 'Select Tute and Paper Collection Type' },
-  { value: 'Speed Post', label: 'Speed Post' },
-  { value: 'Physical Class', label: 'Physical Class' },
-];
+// Dynamic tute type options based on class settings
+const getTuteTypeOptions = (cls) => {
+  if (!cls || !cls.enableTuteCollection) {
+    return [];
+  }
+  
+  const options = [];
+  
+  if (cls.tuteCollectionType === 'speed_post' || cls.tuteCollectionType === 'both') {
+    options.push({ value: 'Speed Post', label: 'Speed Post' });
+  }
+  
+  if (cls.tuteCollectionType === 'physical_class' || cls.tuteCollectionType === 'both') {
+    options.push({ value: 'Physical Class', label: 'Physical Class' });
+  }
+  
+  return options;
+};
 
-const getValidationSchema = (isStudyPack) =>
+// Get default tute type based on class settings
+const getDefaultTuteType = (cls) => {
+  if (!cls || !cls.enableTuteCollection) {
+    return '';
+  }
+  
+  // If only one option is available, use that as default
+  if (cls.tuteCollectionType === 'speed_post') {
+    return 'Speed Post';
+  }
+  if (cls.tuteCollectionType === 'physical_class') {
+    return 'Physical Class';
+  }
+  
+  // If both options are available, default to Speed Post
+  if (cls.tuteCollectionType === 'both') {
+    return 'Speed Post';
+  }
+  
+  return '';
+};
+
+// Check if tute type field should be read-only
+const isTuteTypeReadOnly = (cls) => {
+  if (!cls || !cls.enableTuteCollection) {
+    return true;
+  }
+  
+  // If only one option is available, make it read-only
+  return cls.tuteCollectionType === 'speed_post' || cls.tuteCollectionType === 'physical_class';
+};
+
+const getValidationSchema = (isStudyPack, cls) =>
   Yup.object().shape({
     firstName: Yup.string().required('Required'),
     lastName: Yup.string().required('Required'),
     mobile: Yup.string().required('Required').matches(/^0[1-9][0-9]{8}$/, 'Invalid mobile number'),
     email: Yup.string().email('Invalid email').required('Required'),
-    homeCity: Yup.string().required('Required'),
     medium: Yup.string().required('Required'),
     ...(isStudyPack ? {} : {
-      tuteType: Yup.string().required('Required'),
+      tuteType: Yup.string().when('$enableTuteCollection', {
+        is: true,
+        then: (schema) => schema.required('Required'),
+        otherwise: (schema) => schema.notRequired(),
+      }),
       address: Yup.string().when('tuteType', {
           is: 'Speed Post',
         then: (schema) => schema.required('Address is required for Speed Post'),
@@ -122,9 +191,17 @@ const formatDay = (day) => {
 const getDeliveryMethodInfo = (method) => {
   switch (method) {
     case 'online':
-      return { color: 'text-blue-600', icon: <FaVideo />, text: 'Online' };
+      return { color: 'text-blue-600', icon: <FaVideo />, text: 'Online Only' };
     case 'physical':
-      return { color: 'text-orange-600', icon: <FaMapMarkerAlt />, text: 'Physical' };
+      return { color: 'text-orange-600', icon: <FaMapMarkerAlt />, text: 'Physical Only' };
+    case 'hybrid1':
+      return { color: 'text-indigo-600', icon: <FaUsers />, text: 'Hybrid (Physical + Online)' };
+    case 'hybrid2':
+      return { color: 'text-green-600', icon: <FaVideo />, text: 'Hybrid (Physical + Recorded)' };
+    case 'hybrid3':
+      return { color: 'text-blue-600', icon: <FaVideo />, text: 'Hybrid (Online + Recorded)' };
+    case 'hybrid4':
+      return { color: 'text-teal-600', icon: <FaUsers />, text: 'Hybrid (Physical + Online + Recorded)' };
     case 'hybrid':
       return { color: 'text-indigo-600', icon: <FaUsers />, text: 'Hybrid' };
     default:
@@ -181,6 +258,29 @@ const Checkout = () => {
   const [loading, setLoading] = useState(false);
   const [theoryStudentDiscount, setTheoryStudentDiscount] = useState(0);
   const [discountReason, setDiscountReason] = useState('');
+  const [studentData, setStudentData] = useState(null);
+  const [studentDataLoading, setStudentDataLoading] = useState(true);
+
+  // Load student data after class data is loaded
+  useEffect(() => {
+    const loadStudentData = async () => {
+      if (!cls) return; // Wait for class data to be loaded
+      
+      try {
+        setStudentDataLoading(true);
+        const data = await getStudentData(cls);
+        setStudentData(data);
+        console.log('Loaded student data for checkout:', data);
+      } catch (error) {
+        console.error('Error loading student data:', error);
+        setStudentData(null);
+      } finally {
+        setStudentDataLoading(false);
+      }
+    };
+
+    loadStudentData();
+  }, [cls]); // Depend on cls state
 
   // Load class data from backend API
   useEffect(() => {
@@ -216,11 +316,11 @@ const Checkout = () => {
             setCls(response.data);
           } else {
             console.error('Failed to load class:', response.message);
-          }
-        } else {
-          // For study packs, use the static data
-          const foundStudyPack = studyPacks[parseInt(id, 10)];
-          setCls(foundStudyPack);
+      }
+    } else {
+      // For study packs, use the static data
+      const foundStudyPack = studyPacks[parseInt(id, 10)];
+      setCls(foundStudyPack);
     }
 
         // Load student's purchased classes from localStorage (for now)
@@ -317,6 +417,16 @@ const Checkout = () => {
     );
   }
 
+  if (studentDataLoading) {
+    return (
+      <DashboardLayout userRole="Student" sidebarItems={studentSidebarSections}>
+        <div className="p-6 max-w-2xl mx-auto text-center text-gray-500">
+          Loading student information...
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   const handleApplyPromo = () => {
     if (promo.trim() === '') {
       alert('Please enter a promo code');
@@ -353,12 +463,17 @@ const Checkout = () => {
             </div>
           </div>
         )}
-        <BasicForm initialValues={getStudentData()} validationSchema={getValidationSchema(isStudyPack)} onSubmit={async values => {
+        <BasicForm 
+          initialValues={studentData || {}} 
+          validationSchema={getValidationSchema(isStudyPack, cls)}
+          context={{ enableTuteCollection: cls?.enableTuteCollection }}
+          onSubmit={async values => {
           try {
             setLoading(true);
             
           const isSpeedPost = values.tuteType === 'Speed Post';
-          const speedPostFee = isSpeedPost ? 300 : 0;
+          // Only apply speed post fee if student selected Speed Post AND class allows it
+          const speedPostFee = (isSpeedPost && (cls.tuteCollectionType === 'speed_post' || cls.tuteCollectionType === 'both')) ? (cls.speedPostFee || 300) : 0;
           const basePrice = isStudyPack ? parseInt(cls.price.replace(/\D/g, '')) : parseInt(cls.fee);
           const promoDiscount = appliedPromo || 0;
           const totalDiscount = promoDiscount + theoryStudentDiscount;
@@ -422,6 +537,8 @@ const Checkout = () => {
             maxStudents: cls.maxStudents || 50,
           };
 
+              console.log('📤 Navigating to invoice with orderData:', orderData);
+              console.log('📤 Payment data being passed:', paymentData);
               navigate('/student/invoice', { state: orderData });
             } else {
               // For study packs, use the old flow for now
@@ -456,7 +573,8 @@ const Checkout = () => {
         }}>
           {({ errors, touched, handleChange, values }) => {
             const isSpeedPost = values.tuteType === 'Speed Post';
-            const speedPostFee = isSpeedPost ? 300 : 0;
+            // Only apply speed post fee if student selected Speed Post AND class allows it
+            const speedPostFee = (isSpeedPost && (cls.tuteCollectionType === 'speed_post' || cls.tuteCollectionType === 'both')) ? (cls.speedPostFee || 300) : 0;
             const price = isStudyPack ? parseInt(cls.price.replace(/\D/g, '')) : parseInt(cls.fee);
             const promoDiscount = appliedPromo || 0;
             const totalDiscount = promoDiscount + theoryStudentDiscount;
@@ -601,43 +719,37 @@ const Checkout = () => {
                         touched={touched.email}
                         icon={FaEnvelope}
                       />
-                      <CustomSelectField
-                        id="homeCity"
-                        name="homeCity"
-                        label="Home City *"
-                        value={values.homeCity}
-                        onChange={handleChange}
-                        options={cityOptions}
-                        error={errors.homeCity}
-                        touched={touched.homeCity}
-                        icon={FaMapMarkerAlt}
-                        required
-                      />
+
                       <CustomSelectField
                         id="medium"
                         name="medium"
-                        label="Medium *"
-                        value={values.medium}
-                        onChange={handleChange}
-                        options={mediumOptions}
+                        label={cls?.classMedium === 'Both' ? "Choose Your Medium *" : "Class Medium *"}
+                        value={cls?.classMedium === 'Both' ? values.medium : (cls?.classMedium || 'Sinhala')}
+                        onChange={cls?.classMedium === 'Both' ? handleChange : () => {}} // Editable only if class medium is 'Both'
+                        options={cls?.classMedium === 'Both' ? [
+                          { value: 'Sinhala', label: 'Sinhala' },
+                          { value: 'English', label: 'English' }
+                        ] : mediumOptions}
                         error={errors.medium}
                         touched={touched.medium}
                         required
+                        disabled={cls?.classMedium !== 'Both'}
                       />
-                      {!isStudyPack && (
+                      {!isStudyPack && cls.enableTuteCollection && (
                         <>
                           <CustomSelectField
                             id="tuteType"
                             name="tuteType"
-                            label="Tute and Paper Collection Type *"
+                            label={isTuteTypeReadOnly(cls) ? "Tute Collection Method *" : "Choose Tute Collection Method *"}
                             value={values.tuteType}
-                            onChange={handleChange}
-                            options={tuteTypeOptions}
+                            onChange={isTuteTypeReadOnly(cls) ? () => {} : handleChange}
+                            options={getTuteTypeOptions(cls)}
                             error={errors.tuteType}
                             touched={touched.tuteType}
                             required
+                            disabled={isTuteTypeReadOnly(cls)}
                           />
-                          {values.tuteType === 'Speed Post' && (
+                          {(values.tuteType === 'Speed Post' || cls.tuteCollectionType === 'speed_post' || cls.tuteCollectionType === 'both') && (
                             <CustomTextField
                               id="address"
                               name="address"

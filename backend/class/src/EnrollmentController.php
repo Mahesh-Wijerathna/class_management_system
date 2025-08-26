@@ -37,6 +37,8 @@ class EnrollmentController {
                     c.current_students,
                     c.payment_tracking,
                     c.payment_tracking_free_days,
+                    c.enable_new_window_join,
+                    c.enable_overlay_join,
                     GROUP_CONCAT(
                         JSON_OBJECT(
                             'transaction_id', fr.transaction_id,
@@ -111,6 +113,8 @@ class EnrollmentController {
                     c.current_students,
                     c.payment_tracking,
                     c.payment_tracking_free_days,
+                    c.enable_new_window_join,
+                    c.enable_overlay_join,
                     GROUP_CONCAT(
                         JSON_OBJECT(
                             'transaction_id', fr.transaction_id,
@@ -184,7 +188,9 @@ class EnrollmentController {
                     c.end_date,
                     c.current_students,
                     c.payment_tracking,
-                    c.payment_tracking_free_days
+                    c.payment_tracking_free_days,
+                    c.enable_new_window_join,
+                    c.enable_overlay_join
                 FROM enrollments e
                 LEFT JOIN classes c ON e.class_id = c.id
                 ORDER BY e.created_at DESC

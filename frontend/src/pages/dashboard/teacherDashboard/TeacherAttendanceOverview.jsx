@@ -27,13 +27,14 @@ const TeacherAttendanceOverview = () => {
       setLoading(true);
       setError(null);
       
-      if (!currentTeacher || !currentTeacher.teacherId) {
+      if (!currentTeacher || !(currentTeacher.teacherId || currentTeacher.id || currentTeacher.userid)) {
         setError('Teacher information not found');
         setLoading(false);
         return;
       }
 
-      const response = await getClassesByTeacher(currentTeacher.teacherId);
+              const teacherId = currentTeacher.teacherId || currentTeacher.id || currentTeacher.userid;
+        const response = await getClassesByTeacher(teacherId);
       
       if (response.success && response.data) {
         // Transform the data to match the expected format

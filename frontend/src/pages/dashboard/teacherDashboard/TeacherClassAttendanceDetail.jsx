@@ -30,7 +30,7 @@ const TeacherClassAttendanceDetail = () => {
       setLoading(true);
       setError(null);
 
-      if (!currentTeacher || !currentTeacher.teacherId) {
+      if (!currentTeacher || !(currentTeacher.teacherId || currentTeacher.id || currentTeacher.userid)) {
         setError('Teacher information not found');
         setLoading(false);
         return;
@@ -43,7 +43,8 @@ const TeacherClassAttendanceDetail = () => {
         const classData = classResponse.data;
         
         // Verify this class belongs to the current teacher
-        if (classData.teacherId !== currentTeacher.teacherId) {
+        const teacherId = currentTeacher.teacherId || currentTeacher.id || currentTeacher.userid;
+        if (classData.teacherId !== teacherId) {
           setError('You do not have access to this class');
           setLoading(false);
           return;

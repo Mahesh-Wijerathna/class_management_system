@@ -1,4 +1,5 @@
 
+import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { authRoutes, adminRoutes, adminDashboardRoutes, teacherRoutes, studentRoutes, cashierRoutes } from './routes';
 
@@ -6,6 +7,7 @@ import AuthGuard from './components/AuthGuard';
 import PublicRoute from './components/PublicRoute';
 import LogoutSync from './components/LogoutSync';
 import LogoutHandler from './components/LogoutHandler';
+import { SidebarProvider } from './components/layout/SidebarContext';
 
 function App() {
   return (
@@ -28,7 +30,15 @@ function App() {
           <Route 
             key={index} 
             path={route.path} 
-            element={<AuthGuard requiredRole="admin">{route.element}</AuthGuard>} 
+            element={
+              <AuthGuard requiredRole="admin">
+                <SidebarProvider>
+                  <LogoutHandler>
+                    {route.element}
+                  </LogoutHandler>
+                </SidebarProvider>
+              </AuthGuard>
+            } 
           />
         ))}
 
@@ -37,7 +47,15 @@ function App() {
           <Route 
             key={index} 
             path={route.path} 
-            element={<AuthGuard requiredRole="admin">{route.element}</AuthGuard>}
+            element={
+              <AuthGuard requiredRole="admin">
+                <SidebarProvider>
+                  <LogoutHandler>
+                    {route.element}
+                  </LogoutHandler>
+                </SidebarProvider>
+              </AuthGuard>
+            }
           >
             {route.children?.map((child, childIndex) => (
               <Route 
@@ -55,16 +73,32 @@ function App() {
           <Route 
             key={index} 
             path={route.path} 
-            element={<AuthGuard requiredRole="teacher">{route.element}</AuthGuard>} 
+            element={
+              <AuthGuard requiredRole="teacher">
+                <SidebarProvider>
+                  <LogoutHandler>
+                    {route.element}
+                  </LogoutHandler>
+                </SidebarProvider>
+              </AuthGuard>
+            } 
           />
         ))}
 
-        {/* Student Routes - Protected */}
+        {/* Student Routes - Protected with SidebarProvider */}
         {studentRoutes.map((route, index) => (
           <Route 
-            key={index} 
+            key={index}
             path={route.path} 
-            element={<AuthGuard requiredRole="student">{route.element}</AuthGuard>} 
+            element={
+              <AuthGuard requiredRole="student">
+                <SidebarProvider>
+                  <LogoutHandler>
+                    {route.element}
+                  </LogoutHandler>
+                </SidebarProvider>
+              </AuthGuard>
+            } 
           />
         ))}
 
@@ -73,7 +107,15 @@ function App() {
           <Route 
             key={index} 
             path={route.path} 
-            element={<AuthGuard requiredRole="cashier">{route.element}</AuthGuard>} 
+            element={
+              <AuthGuard requiredRole="cashier">
+                <SidebarProvider>
+                  <LogoutHandler>
+                    {route.element}
+                  </LogoutHandler>
+                </SidebarProvider>
+              </AuthGuard>
+            } 
           />
         ))}
       </Routes>

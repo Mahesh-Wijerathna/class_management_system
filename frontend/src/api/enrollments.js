@@ -11,7 +11,7 @@ const classApi = axios.create({
 // Get all enrollments for a student
 export const getStudentEnrollments = async (studentId) => {
   try {
-    const response = await classApi.get(`/get_student_enrollments?studentId=${studentId}`);
+    const response = await classApi.get(`/get_enrollments_by_student?studentId=${studentId}`);
     return response.data;
   } catch (error) {
     console.error('Error fetching student enrollments:', error);
@@ -26,7 +26,7 @@ export const getStudentEnrollments = async (studentId) => {
 // Get all enrollments for a class
 export const getClassEnrollments = async (classId) => {
   try {
-    const response = await classApi.get(`/get_class_enrollments?classId=${classId}`);
+    const response = await classApi.get(`/get_enrollments_by_class?classId=${classId}`);
     return response.data;
   } catch (error) {
     console.error('Error fetching class enrollments:', error);
@@ -137,6 +137,30 @@ export const requestLatePayment = async (classId, studentId) => {
   }
 };
 
+// Fetch payment history for a specific class from payment backend
+export const getPaymentHistoryForClass = async (studentId, classId) => {
+  try {
+    const response = await axios.get(`http://localhost:8090/routes.php/get_student_payments?studentId=${studentId}`);
+    if (response.data.success && response.data.data) {
+      // Filter payments for this specific class
+      const classPayments = response.data.data.filter(payment => payment.class_id === classId);
+      return classPayments.map(payment => ({
+        date: payment.date,
+        amount: payment.amount,
+        status: payment.status,
+        payment_method: payment.payment_method,
+        transaction_id: payment.transaction_id,
+        reference_number: payment.reference_number,
+        notes: payment.notes || ''
+      }));
+    }
+    return [];
+  } catch (error) {
+    console.error('Error fetching payment history:', error);
+    return [];
+  }
+};
+
 // Utility function to convert enrollment data to MyClasses format
 export const convertEnrollmentToMyClass = (enrollment) => {
 
@@ -160,8 +184,6 @@ export const convertEnrollmentToMyClass = (enrollment) => {
     }
   }
 
-
-  
   const convertedClass = {
     id: enrollment.class_id,
     className: enrollment.class_name,
@@ -187,15 +209,8 @@ export const convertEnrollmentToMyClass = (enrollment) => {
     amountPaid: enrollment.amount_paid,
     nextPaymentDate: enrollment.next_payment_date,
     attendance: enrollment.attendance_data ? JSON.parse(enrollment.attendance_data) : [],
-    paymentHistory: enrollment.payment_history_details ? 
-      enrollment.payment_history_details.split('|').map(payment => {
-        try {
-          return JSON.parse(payment);
-        } catch (e) {
-          return null;
-        }
-      }).filter(payment => payment !== null) : 
-      (enrollment.payment_history ? JSON.parse(enrollment.payment_history) : []),
+    // Payment history will be populated separately by the component
+    paymentHistory: [],
     forgetCardRequested: enrollment.forget_card_requested === '1',
     latePaymentRequested: enrollment.late_payment_requested === '1',
     enrollmentDate: enrollment.enrollment_date,
@@ -210,9 +225,11 @@ export const convertEnrollmentToMyClass = (enrollment) => {
     studentCard: null,
     cardInfo: null,
     cardStatus: null,
-    cardValidity: null
+    cardValidity: null,
+    // Add zoom join method settings
+    enableNewWindowJoin: enrollment.enable_new_window_join,
+    enableOverlayJoin: enrollment.enable_overlay_join
   };
-  
 
   return convertedClass;
 }; 

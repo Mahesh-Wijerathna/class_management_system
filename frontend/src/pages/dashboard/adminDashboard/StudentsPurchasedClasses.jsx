@@ -141,12 +141,12 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
         getAllClasses()
       ]);
 
-      if (studentsResponse.success && classesResponse.success) {
-        setStudents(studentsResponse.students || []);
+      if (studentsResponse && classesResponse.success) {
+        setStudents(studentsResponse || []);
         setClasses(classesResponse.data || []);
         
         // Load detailed data for each student
-        await loadStudentDetails(studentsResponse.students || [], classesResponse.data || []);
+        await loadStudentDetails(studentsResponse || [], classesResponse.data || []);
     } else {
         setError('Failed to load data');
       }
@@ -166,8 +166,8 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
       try {
         // Load enrollments and payments for this student
         const [enrollmentsResponse, paymentsResponse] = await Promise.all([
-          getStudentEnrollments(student.userid),
-          getStudentPayments(student.userid)
+          getStudentEnrollments(student.user_id),
+          getStudentPayments(student.user_id)
         ]);
 
         const enrollments = enrollmentsResponse.success ? enrollmentsResponse.data || [] : [];
@@ -176,20 +176,20 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
         // Create detailed student record
         const studentDetail = {
           // Student Information
-          studentId: student.userid,
-          studentName: `${student.firstName} ${student.lastName}`,
+          studentId: student.user_id,
+          studentName: `${student.first_name} ${student.last_name}`,
           email: student.email,
-          mobile: student.mobile,
+          mobile: student.mobile_number,
           stream: student.stream,
           school: student.school,
           district: student.district,
-          dateJoined: student.dateJoined,
+          dateJoined: student.created_at,
           gender: student.gender,
           age: student.age,
-          parentName: student.parentName,
-          parentMobile: student.parentMobile,
+          parentName: student.parent_name,
+          parentMobile: student.parent_mobile_number,
           nic: student.nic,
-          dateOfBirth: student.dateOfBirth,
+          dateOfBirth: student.date_of_birth,
           address: student.address,
           
           // Enrollment Summary
@@ -211,23 +211,23 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
 
         details.push(studentDetail);
       } catch (error) {
-        console.error(`Error loading details for student ${student.userid}:`, error);
+        console.error(`Error loading details for student ${student.user_id}:`, error);
         // Add student with basic info even if details fail to load
         details.push({
-          studentId: student.userid,
-          studentName: `${student.firstName} ${student.lastName}`,
+          studentId: student.user_id,
+          studentName: `${student.first_name} ${student.last_name}`,
           email: student.email,
-          mobile: student.mobile,
+          mobile: student.mobile_number,
           stream: student.stream,
           school: student.school,
           district: student.district,
-          dateJoined: student.dateJoined,
+          dateJoined: student.created_at,
           gender: student.gender,
           age: student.age,
-          parentName: student.parentName,
-          parentMobile: student.parentMobile,
+          parentName: student.parent_name,
+          parentMobile: student.parent_mobile_number,
           nic: student.nic,
-          dateOfBirth: student.dateOfBirth,
+          dateOfBirth: student.date_of_birth,
           address: student.address,
           totalEnrollments: 0,
           activeEnrollments: 0,
@@ -601,15 +601,38 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
   // New Enrollment Handlers
   const handleNewEnrollment = async (student) => {
     console.log('Opening new enrollment for student:', student);
-    setSelectedStudent(student);
+    
+    // Reload student data to get fresh enrollment information
+    try {
+      const [enrollmentsResponse, paymentsResponse] = await Promise.all([
+        getStudentEnrollments(student.studentId),
+        getStudentPayments(student.studentId)
+      ]);
+
+      const enrollments = enrollmentsResponse.success ? enrollmentsResponse.data || [] : [];
+      const payments = paymentsResponse.success ? paymentsResponse.data || [] : [];
+
+      // Update student with fresh enrollment data
+      const updatedStudent = {
+        ...student,
+        enrollments: enrollments,
+        payments: payments,
+        totalEnrollments: enrollments.length,
+        activeEnrollments: enrollments.filter(e => e.status === 'active').length,
+        totalPayments: payments.length,
+        totalAmount: payments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0),
+        lastPaymentDate: payments.length > 0 ? payments[0].date : null,
+      };
+
+      console.log('Updated student with fresh enrollment data:', updatedStudent);
+      setSelectedStudent(updatedStudent);
     setShowNewEnrollmentModal(true);
     
     // Load available classes for enrollment
-    try {
       await loadAvailableClasses();
     } catch (error) {
-      console.error('Error loading classes for new enrollment:', error);
-      showMessage('error', 'Failed to load available classes');
+      console.error('Error loading student data for new enrollment:', error);
+      showMessage('error', 'Failed to load student enrollment data');
     }
   };
 
@@ -634,13 +657,14 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
       setLoadingClasses(true);
       console.log('Loading available classes for student:', selectedStudent);
       console.log('Student stream:', selectedStudent.stream);
+      console.log('Student enrollments:', selectedStudent.enrollments);
       
       const response = await getAllClasses();
       console.log('Classes response:', response);
       
       if (response.success && response.data) {
         // Get student's current enrollment class IDs to exclude already enrolled classes
-        const enrolledClassIds = selectedStudent.enrollments?.map(enrollment => enrollment.class_id) || [];
+        const enrolledClassIds = selectedStudent.enrollments?.map(enrollment => parseInt(enrollment.class_id)) || [];
         console.log('Student enrolled class IDs:', enrolledClassIds);
         
         // Filter active classes that match student's stream and are NOT already enrolled
@@ -653,9 +677,18 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
           
           // Check if student is already enrolled in this class - EXCLUDE these
           // Convert both to numbers for comparison since enrollment class_id is number, class id is string
-          const isAlreadyEnrolled = enrolledClassIds.includes(parseInt(cls.id));
-          if (isAlreadyEnrolled) {
-            console.log(`Skipping ${cls.class_name || cls.className} - already enrolled`);
+          const classId = parseInt(cls.id);
+          const isAlreadyEnrolled = enrolledClassIds.includes(classId);
+          
+          // Additional check: also compare as strings in case of type mismatches
+          const isAlreadyEnrolledString = enrolledClassIds.some(enrolledId => 
+            enrolledId.toString() === cls.id.toString()
+          );
+          
+          const isEnrolled = isAlreadyEnrolled || isAlreadyEnrolledString;
+          
+          if (isEnrolled) {
+            console.log(`Skipping ${cls.class_name || cls.className} (ID: ${classId}) - already enrolled`);
             return false;
           }
           
@@ -684,12 +717,23 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
         console.log('Student enrollments:', selectedStudent.enrollments);
         console.log('Enrolled class IDs:', enrolledClassIds);
         
+        // Debug: Show all classes and their enrollment status
+        console.log('=== DEBUG: All Classes Enrollment Status ===');
+        response.data.forEach(cls => {
+          const classId = parseInt(cls.id);
+          const isEnrolled = enrolledClassIds.includes(classId);
+          console.log(`Class: ${cls.class_name || cls.className} (ID: ${classId}) - Enrolled: ${isEnrolled}`);
+        });
+        
         if (availableClasses.length === 0) {
           console.log('No available classes found. Debugging info:');
           console.log('- Student stream:', selectedStudent.stream);
           console.log('- Total classes:', response.data.length);
           console.log('- Active classes:', response.data.filter(cls => cls.status === 'active').length);
           console.log('- Enrolled classes:', enrolledClassIds.length);
+          
+          // Show user-friendly message
+          showMessage('info', 'Student is already enrolled in all available classes for their stream.');
         }
         
         setAvailableClasses(availableClasses);
@@ -749,6 +793,17 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
       return;
     }
 
+    // Check if student is already enrolled in the selected class
+    const selectedClassId = parseInt(newEnrollmentData.classId);
+    const isAlreadyEnrolled = selectedStudent.enrollments?.some(enrollment => 
+      parseInt(enrollment.class_id) === selectedClassId
+    );
+
+    if (isAlreadyEnrolled) {
+      showMessage('error', 'Student is already enrolled in this class. Please select a different class.');
+      return;
+    }
+
     try {
       setNewEnrollmentLoading(true);
       
@@ -786,7 +841,7 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
       };
 
       // Call the payment creation API
-      const response = await fetch('http://localhost:8087/routes.php/create_payment', {
+      const response = await fetch('http://localhost:8090/routes.php/create_payment', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -797,45 +852,30 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
       const result = await response.json();
 
       if (result.success) {
-        // Create enrollment directly
-        const enrollmentData = {
-          class_id: parseInt(newEnrollmentData.classId),
-          student_id: selectedStudent.studentId,
-          enrollment_date: (() => {
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const day = String(now.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`; // Current local date in YYYY-MM-DD format
-          })(),
-          status: 'active',
-          payment_status: 'paid',
-          total_fee: totalAmount,
-          paid_amount: totalAmount,
-          next_payment_date: (() => {
-            const now = new Date();
-            const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-            const year = nextMonth.getFullYear();
-            const month = String(nextMonth.getMonth() + 1).padStart(2, '0');
-            const day = String(nextMonth.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`; // 1st of next month in local time
-          })()
-        };
-
-
-
-        const enrollmentResponse = await fetch('http://localhost:8087/routes.php/create_enrollment', {
+        // For cash payments, automatically process the payment
+        // This will also create the enrollment automatically in the payment backend
+        if (newEnrollmentData.paymentMethod === 'cash') {
+          try {
+            const processResponse = await fetch('http://localhost:8090/routes.php/process_payment', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(enrollmentData)
-        });
-
-        const enrollmentResult = await enrollmentResponse.json();
-        console.log('Enrollment creation result:', enrollmentResult);
-
-        if (enrollmentResult.success) {
+              body: JSON.stringify({
+                transactionId: result.data.transactionId,
+                paymentData: paymentData
+              })
+            });
+            
+            const processResult = await processResponse.json();
+            console.log('Payment processing result:', processResult);
+          } catch (processError) {
+            console.error('Error processing payment:', processError);
+          }
+        }
+        
+        // Payment backend automatically creates enrollment, so we don't need to create it manually
+        // Just show success message and reload data
           showMessage('success', `Enrollment created successfully! Payment: Rs. ${totalAmount}`);
           
           // Generate receipt with proper class data
@@ -843,11 +883,8 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
           generateReceipt(selectedStudent, selectedClass, paymentData, result.data, totalAmount);
           
           await loadData(); // Reload data to show new enrollment
-          // Navigate to the students purchased classes page
-          window.location.href = 'http://localhost:3000/admin/students/purchased-classes';
-        } else {
-          showMessage('error', enrollmentResult.message || 'Payment created but enrollment failed');
-        }
+        // Navigate to the students purchased classes page
+        window.location.href = 'http://localhost:3000/admin/students/purchased-classes';
       } else {
         showMessage('error', result.message || 'Failed to create enrollment');
       }
@@ -1228,7 +1265,7 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
       nextPaymentDate.setDate(1);
       
       // Create payment record
-      const paymentResponse = await fetch('http://localhost:8087/routes.php/create_payment', {
+      const paymentResponse = await fetch('http://localhost:8090/routes.php/create_payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2467,6 +2504,24 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
                       </div>
                     )}
                     
+                    {/* No Available Classes Message */}
+                    {!loadingClasses && availableClasses.length === 0 && (
+                      <div className="text-center py-8">
+                        <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <FaExclamationTriangle className="text-yellow-600 text-2xl" />
+                        </div>
+                        <h4 className="text-lg font-semibold text-gray-900 mb-2">No Available Classes</h4>
+                        <p className="text-gray-600 mb-4">
+                          Student is already enrolled in all available classes for the <strong>{selectedStudent.stream}</strong> stream.
+                        </p>
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                          <p className="text-sm text-blue-800">
+                            <strong>Current Enrollments:</strong> {selectedStudent.enrollments?.length || 0} classes
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Available Classes List */}
                     {!loadingClasses && availableClasses.length > 0 && (
                       <div className="space-y-2">
@@ -2865,7 +2920,7 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
 
           {/* Payment Status Filter */}
             <div className="min-w-[150px]">
-            <select
+                    <select
               value={paymentStatusFilter}
               onChange={(e) => setPaymentStatusFilter(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -2875,7 +2930,7 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
                 <option value="pending">Pending</option>
                 <option value="partial">Half Card</option>
                 <option value="overdue">Free Card</option>
-            </select>
+                    </select>
             </div>
           </div>
 
@@ -2900,33 +2955,33 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
           <div className="flex items-center">
             <div className="p-1.5 bg-blue-100 rounded-lg">
                <FaUser className="text-blue-600 text-sm" />
-            </div>
+                    </div>
             <div className="ml-2">
               <p className="text-xs font-medium text-gray-600">Total Students</p>
               <p className="text-sm font-bold text-gray-900">{filteredStudents.length}</p>
-            </div>
-          </div>
-        </div>
+                      </div>
+                      </div>
+                      </div>
 
         <div className="bg-white rounded-lg shadow-md p-2">
           <div className="flex items-center">
             <div className="p-1.5 bg-green-100 rounded-lg">
                 <FaGraduationCap className="text-green-600 text-sm" />
-            </div>
+                    </div>
             <div className="ml-2">
               <p className="text-xs font-medium text-gray-600">Paid</p>
               <p className="text-sm font-bold text-gray-900">
                 {filteredStudents.reduce((sum, s) => sum + s.enrollments.filter(e => e.payment_status === 'paid').length, 0)}
               </p>
-            </div>
-          </div>
-        </div>
+                  </div>
+                </div>
+              </div>
 
         <div className="bg-white rounded-lg shadow-md p-2">
           <div className="flex items-center">
             <div className="p-1.5 bg-purple-100 rounded-lg">
                 <FaMoneyBill className="text-purple-600 text-sm" />
-            </div>
+              </div>
             <div className="ml-2">
               <p className="text-xs font-medium text-gray-600">Pending</p>
               <p className="text-sm font-bold text-gray-900">

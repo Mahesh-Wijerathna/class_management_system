@@ -8,6 +8,7 @@ import { FaCalendar, FaClock, FaMoneyBill, FaUser, FaBook, FaVideo, FaMapMarkerA
 import { getActiveClasses } from '../../../api/classes';
 import { getStudentEnrollments, convertEnrollmentToMyClass } from '../../../api/enrollments';
 import { getUserData } from '../../../api/apiUtils';
+import axios from 'axios';
 
 const PurchaseClasses = ({ onLogout }) => {
   const [search, setSearch] = useState('');
@@ -17,7 +18,26 @@ const PurchaseClasses = ({ onLogout }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [studentProfile, setStudentProfile] = useState(null);
   const navigate = useNavigate();
+
+  // Helper function to fetch student profile from backend
+  const fetchStudentProfile = async (userid) => {
+    try {
+      const response = await axios.get(`http://localhost:8086/routes.php/get_with_id/${userid}`, {
+        timeout: 5000
+      });
+      if (response.data && !response.data.error) {
+        return response.data;
+      } else {
+        console.error('Error fetching student profile:', response.data);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error fetching student profile:', error);
+      return null;
+    }
+  };
 
   // Load classes from backend API
   const loadClasses = async () => {
@@ -28,9 +48,28 @@ const PurchaseClasses = ({ onLogout }) => {
       const response = await getActiveClasses();
       
       if (response.success) {
-        // Get student's stream from user data
+        // Get student's stream from complete profile data
         const userData = getUserData();
-        const studentStream = userData?.stream;
+        let studentStream = null;
+        
+        // Try to get stream from complete profile first
+        if (userData?.userid && !studentProfile) {
+          const profile = await fetchStudentProfile(userData.userid);
+          if (profile) {
+            setStudentProfile(profile);
+            studentStream = profile.stream;
+          }
+        } else if (studentProfile) {
+          studentStream = studentProfile.stream;
+        }
+        
+        // Fallback to auth data if profile not available
+        if (!studentStream) {
+          studentStream = userData?.stream;
+        }
+        
+        console.log('Student stream for filtering:', studentStream);
+        console.log('Available classes before filtering:', response.data?.length || 0);
         
         // Process classes with student card information and filter by stream
         const currentStudent = JSON.parse(localStorage.getItem('currentStudent') || '{}');
@@ -46,7 +85,14 @@ const PurchaseClasses = ({ onLogout }) => {
             }
             
             // If student has specific stream, show only classes that match their stream
-            return cls.stream === studentStream;
+            // Handle both formats: "A/L-Science" and "AL-Science"
+            const classStream = cls.stream || '';
+            const normalizedStudentStream = studentStream.replace('/', '');
+            const normalizedClassStream = classStream.replace('/', '');
+            
+            const matches = normalizedClassStream === normalizedStudentStream || classStream === studentStream;
+            console.log(`Class: ${cls.className}, Class Stream: ${classStream}, Student Stream: ${studentStream}, Matches: ${matches}`);
+            return matches;
           })
           .map(cls => {
           // Get student's card for this class
@@ -93,6 +139,7 @@ const PurchaseClasses = ({ onLogout }) => {
           };
         });
         
+        console.log('Filtered classes count:', processedClasses.length);
         setClasses(processedClasses);
       } else {
         setError('Failed to load classes from server');
@@ -231,7 +278,7 @@ const PurchaseClasses = ({ onLogout }) => {
       const matchesTab = selectedTab === 'all' || 
                         (selectedTab === 'online' && cls.deliveryMethod === 'online') ||
                         (selectedTab === 'physical' && cls.deliveryMethod === 'physical') ||
-                        (selectedTab === 'hybrid' && cls.deliveryMethod === 'hybrid') ||
+                        (selectedTab === 'hybrid' && (cls.deliveryMethod === 'hybrid' || cls.deliveryMethod === 'hybrid1' || cls.deliveryMethod === 'hybrid2' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4')) ||
                         (selectedTab === 'theory' && cls.courseType === 'theory') ||
                         (selectedTab === 'revision' && cls.courseType === 'revision');
       
@@ -303,9 +350,17 @@ const PurchaseClasses = ({ onLogout }) => {
     
     switch (method) {
       case 'online':
-        return { color: 'text-purple-600', icon: <FaVideo />, text: 'Online' };
+        return { color: 'text-purple-600', icon: <FaVideo />, text: 'Online Only' };
       case 'physical':
-        return { color: 'text-orange-600', icon: <FaMapMarkerAlt />, text: 'Physical' };
+        return { color: 'text-orange-600', icon: <FaMapMarkerAlt />, text: 'Physical Only' };
+      case 'hybrid1':
+        return { color: 'text-indigo-600', icon: <FaUsers />, text: 'Hybrid (Physical + Online)' };
+      case 'hybrid2':
+        return { color: 'text-green-600', icon: <FaVideo />, text: 'Hybrid (Physical + Recorded)' };
+      case 'hybrid3':
+        return { color: 'text-blue-600', icon: <FaVideo />, text: 'Hybrid (Online + Recorded)' };
+      case 'hybrid4':
+        return { color: 'text-teal-600', icon: <FaUsers />, text: 'Hybrid (Physical + Online + Recorded)' };
       case 'hybrid':
         return { color: 'text-indigo-600', icon: <FaUsers />, text: 'Hybrid' };
       case 'other':
@@ -359,8 +414,13 @@ const PurchaseClasses = ({ onLogout }) => {
   if (loading) {
     return (
       <DashboardLayout userRole="Student" sidebarItems={studentSidebarSections}>
-        <div className="p-2 sm:p-4 md:p-6">
-          <div className="text-center text-gray-500 mt-8">Loading classes...</div>
+        <div className="p-2 sm:p-4 lg:p-6">
+          <div className="flex items-center justify-center min-h-[50vh]">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <div className="text-gray-500 text-sm sm:text-base">Loading classes...</div>
+            </div>
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -369,8 +429,13 @@ const PurchaseClasses = ({ onLogout }) => {
   if (error) {
     return (
       <DashboardLayout userRole="Student" sidebarItems={studentSidebarSections}>
-        <div className="p-2 sm:p-4 md:p-6">
-          <div className="text-center text-red-500 mt-8">{error}</div>
+        <div className="p-2 sm:p-4 lg:p-6">
+          <div className="flex items-center justify-center min-h-[50vh]">
+            <div className="text-center">
+              <div className="text-red-500 text-sm sm:text-base mb-2">⚠️ Error Loading Classes</div>
+              <div className="text-gray-600 text-xs sm:text-sm">{error}</div>
+            </div>
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -382,27 +447,28 @@ const PurchaseClasses = ({ onLogout }) => {
       sidebarItems={studentSidebarSections}
       onLogout={onLogout}
     >
-      <div className="p-2 sm:p-4 md:p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-lg font-bold">
+      <div className="p-2 sm:p-4 lg:p-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3">
+          <h1 className="text-lg sm:text-xl font-bold text-gray-800">
             {selectedTab === 'purchased' ? 'Purchased Classes' : 'Available Classes'}
           </h1>
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm"
           >
-            <FaSync className={`${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Refreshing...' : 'Refresh'}
+            <FaSync className={`${refreshing ? 'animate-spin' : ''} h-4 w-4`} />
+            <span className="hidden sm:inline">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+            <span className="sm:hidden">{refreshing ? '...' : '↻'}</span>
           </button>
         </div>
         
         {/* Tab Navigation */}
-        <div className="flex justify-center gap-2 mb-6 flex-wrap">
+        <div className="flex justify-center gap-1 sm:gap-2 mb-4 sm:mb-6 flex-wrap">
           {tabOptions.map(tab => (
             <button
               key={tab.key}
-              className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-150 border-2
+              className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-150 border-2
                 ${selectedTab === tab.key
                   ? 'bg-cyan-600 text-white border-cyan-600 shadow-md'
                   : 'bg-white text-cyan-700 border-cyan-200 hover:bg-cyan-50'}
@@ -414,7 +480,7 @@ const PurchaseClasses = ({ onLogout }) => {
           ))}
         </div>
 
-        <div className="flex justify-center mb-6">
+        <div className="flex justify-center mb-4 sm:mb-6">
           <input
             type="text"
             placeholder={selectedTab === 'purchased' ? 
@@ -423,11 +489,11 @@ const PurchaseClasses = ({ onLogout }) => {
             }
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="border border-gray-300 rounded px-4 py-2 w-full max-w-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="border border-gray-300 rounded-lg px-3 sm:px-4 py-2 w-full max-w-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200"
           />
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6 gap-y-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
           {filteredClasses.map((cls) => {
             try {
               const deliveryInfo = getDeliveryMethodInfo(cls.deliveryMethod);
@@ -505,10 +571,16 @@ const PurchaseClasses = ({ onLogout }) => {
                         <FaUsers className="text-gray-400" />
                         <strong>Students:</strong> {cls.currentStudents || 0}/{cls.maxStudents || 50}
                       </div>
-                      {cls.zoomLink && (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid') && (
+                      {cls.zoomLink && (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid1' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') && (
                         <div className="flex items-center gap-1 text-blue-600">
                           <FaVideo />
                           <span className="text-xs">Zoom Available</span>
+                        </div>
+                      )}
+                      {cls.videoUrl && (cls.deliveryMethod === 'hybrid2' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') && (
+                        <div className="flex items-center gap-1 text-green-600">
+                          <FaVideo />
+                          <span className="text-xs">Recorded Video Available</span>
                         </div>
                       )}
                       {(cls.paymentTracking && (cls.paymentTracking.enabled || cls.paymentTracking === true)) && (
@@ -594,8 +666,16 @@ const PurchaseClasses = ({ onLogout }) => {
         </div>
         
         {filteredClasses.length === 0 && (
-          <div className="text-center text-gray-500 mt-8">
-            {selectedTab === 'all' ? 'No classes available for purchase.' : `No ${selectedTab} classes found.`}
+          <div className="flex items-center justify-center min-h-[40vh]">
+            <div className="text-center">
+              <div className="text-gray-400 text-4xl mb-4">📚</div>
+              <div className="text-gray-500 text-sm sm:text-base">
+                {selectedTab === 'all' ? 'No classes available for purchase.' : `No ${selectedTab} classes found.`}
+              </div>
+              <div className="text-gray-400 text-xs mt-2">
+                Try changing your search terms or selecting a different tab.
+              </div>
+            </div>
           </div>
         )}
       </div>

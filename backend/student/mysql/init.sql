@@ -10,12 +10,15 @@ CREATE TABLE IF NOT EXISTS students (
     date_of_birth DATE NOT NULL,
     age INT NOT NULL,
     gender ENUM('Male', 'Female', 'Other') NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
+    email VARCHAR(100) NULL,
     school VARCHAR(100),
     stream VARCHAR(50),
     address VARCHAR(255),
     district VARCHAR(50),
     parent_name VARCHAR(100),
     parent_mobile_number VARCHAR(15),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    barcode_data VARCHAR(255) NULL,
+    barcode_generated_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_barcode_data (barcode_data)
 );

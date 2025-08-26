@@ -8,6 +8,7 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import BasicTable from '../../../components/BasicTable';
+import { getActiveTeachers } from '../../../api/teachers';
 
 
 const ClassHalls = () => {
@@ -20,6 +21,8 @@ const ClassHalls = () => {
     const stored = localStorage.getItem('hallRequests');
     return stored ? JSON.parse(stored) : [];
   });
+  const [teachers, setTeachers] = useState([]);
+  const [loadingTeachers, setLoadingTeachers] = useState(false);
   const [newHall, setNewHall] = useState({
     name: '',
     status: 'Select Status',
@@ -48,27 +51,43 @@ const ClassHalls = () => {
   };
   const closeAlert = () => setAlertBox(a => ({ ...a, open: false }));
 
-  // Teacher list from localStorage or fallback to dummy data
-  const teacherList = (() => {
-    const stored = localStorage.getItem('teachers');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        // Accepts array of objects with at least a 'name' property
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].name) {
-          return parsed;
-        }
-      } catch (e) {}
+  // Load teachers from teacher backend directly (same pattern as student system)
+  const loadTeachers = async () => {
+    try {
+      setLoadingTeachers(true);
+      console.log('Loading teachers from teacher backend...');
+      
+      // Get all teacher data from teacher backend directly
+      const response = await getActiveTeachers();
+      console.log('Teacher backend response:', response);
+      
+      if (response.success && response.data) {
+        console.log('Teachers loaded successfully from teacher backend:', response.data.length, 'teachers');
+        setTeachers(response.data);
+      } else {
+        console.error('Failed to load teachers from teacher backend:', response.message);
+        setTeachers([]);
+      }
+    } catch (error) {
+      console.error('Error loading teachers from teacher backend:', error);
+      setTeachers([]);
+    } finally {
+      setLoadingTeachers(false);
     }
-    // Fallback dummy data
-    return [
-      { id: 'T001', name: 'Mr. Silva' },
-      { id: 'T002', name: 'Ms. Perera' },
-    ];
-  })();
+  };
+
+  // Load teachers on component mount
+  useEffect(() => {
+    loadTeachers();
+  }, []);
+
+  // Create teacher options from database
   const teacherOptions = [
     { value: '', label: 'Select Teacher' },
-    ...teacherList.map(t => ({ value: t.name, label: t.name }))
+    ...teachers.map(t => ({ 
+      value: `${t.designation} ${t.name}`, 
+      label: `${t.designation} ${t.name}` 
+    }))
   ];
 
   // Create a new hall

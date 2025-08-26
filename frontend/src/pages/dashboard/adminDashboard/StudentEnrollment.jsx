@@ -8,12 +8,12 @@ import BasicTable from '../../../components/BasicTable';
 import BasicForm from '../../../components/BasicForm';
 import { FieldArray } from 'formik';
 import CustomTextField from '../../../components/CustomTextField';
-import { FaEdit, FaTrash, FaUser, FaEnvelope, FaPhone, FaIdCard, FaUserGraduate, FaBook, FaCalendar, FaBarcode, FaDownload, FaPrint, FaEye, FaQrcode, FaSync } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaUser, FaEnvelope, FaPhone, FaIdCard, FaUserGraduate, FaBook, FaCalendar, FaBarcode, FaDownload, FaPrint, FaQrcode, FaSync, FaFileExport, FaChartBar,FaEye } from 'react-icons/fa';
 import * as Yup from 'yup';
 import CustomSelectField from '../../../components/CustomSelectField';
 import JsBarcode from 'jsbarcode';
 import { getAllBarcodes, getBarcode } from '../../../api/auth';
-import { getAllStudents, deleteStudent } from '../../../api/students';
+import { getAllStudents, deleteStudent, updateStudent } from '../../../api/students';
 
 // Helper to parse NIC (Sri Lankan)
 function parseNIC(nic) {
@@ -63,119 +63,7 @@ function parseNIC(nic) {
 }
 
 
-const initialStudents = [
-  {
-    studentId: '99985570',
-    nic: '200805202345',
-    firstName: 'Januli',
-    lastName: 'Liyanage',
-    gender: 'Female',
-    age: 17,
-    email: 'januli.liyanage@email.com',
-    phone: '0771234567',
-    parentName: 'Nimal Liyanage',
-    parentPhone: '0778888888',
-    stream: 'A/L-Science',
-    dateOfBirth: '2008-05-02',
-    school: 'Sujatha Vidyalaya',
-    address: '123 Main St, Apt 4B, Matara',
-    district: 'Matara',
-    dateJoined: '2023-09-15',
-    enrolledClasses: [
-      { subject: 'Mathematics', teacher: 'Mr. Perera', schedule: 'Mon 8:00-10:00 AM', hall: 'Hall 1' },
-      { subject: 'Science', teacher: 'Ms. Silva', schedule: 'Wed 10:00-12:00 PM', hall: 'Hall 2' },
-    ],
-  },
-  {
-    studentId: '99965474',
-    nic: '200711223456',
-    firstName: 'Sithum',
-    lastName: 'Prabhashana',
-    gender: 'Male',
-    age: 18,
-    email: 'sithum.prabhashana@email.com',
-    phone: '0772345678',
-    parentName: 'Sunil Prabhashana',
-    parentPhone: '0779999999',
-    stream: 'A/L-Art',
-    dateOfBirth: '2007-11-22',
-    school: 'Rahula College',
-    address: '456 Lake Rd, Floor 2, Matara',
-    district: 'Matara',
-    dateJoined: '2022-11-22',
-    enrolledClasses: [
-      { subject: 'English', teacher: 'Ms. Wickramasinghe', schedule: 'Tue 9:00-11:00 AM', hall: 'Hall 4' },
-      { subject: 'ICT', teacher: 'Ms. Jayasinghe', schedule: 'Sat 9:00-11:00 AM', hall: 'Lab 1' },
-    ],
-  },
-  {
-    studentId: '99935041',
-    nic: '200902123789',
-    firstName: 'Sithnula',
-    lastName: 'Geesan',
-    gender: 'Male',
-    age: 16,
-    email: 'sithnula.geesan@email.com',
-    phone: '0773456789',
-    parentName: 'Ruwan Geesan',
-    parentPhone: '0777777777',
-    stream: 'O/L',
-    dateOfBirth: '2009-02-12',
-    school: 'St. Thomas College',
-    address: '789 River Ave, Block C, Matara',
-    district: 'Matara',
-    dateJoined: '2024-02-12',
-    enrolledClasses: [
-      { subject: 'History', teacher: 'Mr. Bandara', schedule: 'Thu 1:00-3:00 PM', hall: 'Hall 5' },
-      { subject: 'Mathematics', teacher: 'Mr. Perera', schedule: 'Mon 8:00-10:00 AM', hall: 'Hall 1' },
-    ],
-  },
-  {
-    studentId: '99892421',
-    nic: '201007063456',
-    firstName: 'Pasindi',
-    lastName: 'Vidana Pathirana',
-    gender: 'Female',
-    age: 15,
-    email: 'pasindi.vidana@email.com',
-    phone: '0774567890',
-    parentName: 'Kumari Pathirana',
-    parentPhone: '0776666666',
-    stream: 'A/L-Maths',
-    dateOfBirth: '2010-07-06',
-    school: 'Sujatha Vidyalaya',
-    address: '321 Hill Rd, Suite 10, Matara',
-    district: 'Matara',
-    dateJoined: '2023-07-06',
-    enrolledClasses: [
-      { subject: 'Buddhism', teacher: 'Ven. Rathana', schedule: 'Thu 10:00-12:00 PM', hall: 'Hall 7' },
-      { subject: 'Science', teacher: 'Ms. Silva', schedule: 'Wed 10:00-12:00 PM', hall: 'Hall 2' },
-    ],
-  },
-  {
-    studentId: '99820651',
-    nic: '200611033123',
-    firstName: 'Thisuli',
-    lastName: 'Thumalja',
-    gender: 'Female',
-    age: 19,
-    email: 'thisuli.thumalja@email.com',
-    phone: '0775678901',
-    parentName: 'Saman Thumalja',
-    parentPhone: '0775555555',
-    stream: 'A/L-Science',
-    dateOfBirth: '2006-11-03',
-    school: 'Visakha Vidyalaya',
-    address: '654 Ocean View, Colombo 7, Colombo',
-    district: 'Colombo',
-    dateJoined: '2022-03-07',
-    enrolledClasses: [
-      { subject: 'English', teacher: 'Ms. Wickramasinghe', schedule: 'Tue 9:00-11:00 AM', hall: 'Hall 4' },
-      { subject: 'Mathematics', teacher: 'Mr. Perera', schedule: 'Mon 8:00-10:00 AM', hall: 'Hall 1' },
-      { subject: 'Science', teacher: 'Ms. Silva', schedule: 'Wed 10:00-12:00 PM', hall: '' },
-    ],
-  },
-];
+
 
 const streamOptions = [
   'O/L',
@@ -196,7 +84,7 @@ const validationSchema = Yup.object().shape({
   studentId: Yup.string().required('Student ID is required'),
   firstName: Yup.string().min(2, 'First name must be at least 2 characters').required('First name is required'),
   lastName: Yup.string().min(2, 'Last name must be at least 2 characters').required('Last name is required'),
-  email: Yup.string().email('Invalid email address').required('Email is required'),
+
   stream: Yup.string().oneOf(streamOptions, 'Invalid stream').required('Stream is required'),
   dateOfBirth: Yup.string().required('Date of Birth is required'),
   gender: Yup.string().oneOf(genderOptions, 'Invalid gender').required('Gender is required'),
@@ -231,38 +119,76 @@ const StudentEnrollment = () => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [barcodeGenerated, setBarcodeGenerated] = useState(false);
 
+  // Filter state
+  const [registrationFilter, setRegistrationFilter] = useState('all'); // 'all', 'online', 'physical'
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState({
+    key: 'dateJoined',
+    direction: 'desc'
+  });
+  
+  // Additional filters
+  const [streamFilter, setStreamFilter] = useState('all');
+  
+  // Date range filters
+  const [dateRangeFilter, setDateRangeFilter] = useState({
+    startDate: '',
+    endDate: ''
+  });
+  
+  // Delete confirmation modal
+  const [deleteModal, setDeleteModal] = useState({
+    show: false,
+    studentId: null,
+    studentName: ''
+  });
+  
+  // Selected students for bulk operations
+  const [selectedStudents, setSelectedStudents] = useState([]);
+
   // Fetch students from backend
   const fetchStudents = async () => {
     try {
       setLoading(true);
       const response = await getAllStudents();
-      if (response.success) {
+      console.log('Raw response from getAllStudents:', response);
+      
+      // Handle both array response and object with students property
+      const studentsArray = Array.isArray(response) ? response : (response.students || []);
+      
+      if (studentsArray.length >= 0) {
         // Transform student data to match the expected format
-        const studentData = response.students.map(student => ({
-          studentId: student.userid,
-          firstName: student.firstName || '',
-          lastName: student.lastName || '',
+        const studentData = studentsArray.map(student => ({
+          studentId: student.user_id || student.userid,
+          firstName: student.first_name || student.firstName || '',
+          lastName: student.last_name || student.lastName || '',
           email: student.email || '',
-          phone: student.mobile || '', // Using mobile as phone
+          phone: student.mobile_number || student.mobile || '', // Using mobile_number as phone
           nic: student.nic || '',
           gender: student.gender || '',
           age: student.age || '',
-          parentName: student.parentName || '',
-          parentPhone: student.parentMobile || '',
+          parentName: student.parent_name || student.parentName || '',
+          parentPhone: student.parent_mobile_number || student.parentMobile || '',
           stream: student.stream || '',
-          dateOfBirth: student.dateOfBirth || '',
+          dateOfBirth: student.date_of_birth || student.dateOfBirth || '',
           school: student.school || '',
           address: student.address || '',
           district: student.district || '',
-          dateJoined: student.dateJoined || student.barcodeCreatedAt?.split(' ')[0] || '',
-          barcodeData: student.barcodeData || '',
-          created_at: student.barcodeCreatedAt || '',
+          dateJoined: student.created_at?.split(' ')[0] || student.dateJoined || '',
+          barcodeData: student.barcode_data || student.barcodeData || '',
+          created_at: student.created_at || '',
+          // Determine registration type based on user ID pattern
+          // S0 + 4 digits = Online registration (new format)
+          // Other patterns = Physical registration (old format)
+          registrationType: (student.user_id || student.userid)?.match(/^S0\d{4}$/) ? 'Online' : 'Physical',
           enrolledClasses: []
         }));
         setStudents(studentData);
         console.log('Students loaded from backend:', studentData);
       } else {
-        console.error('Failed to fetch students:', response.message);
+        console.error('Failed to fetch students: No data received');
         setStudents([]);
       }
     } catch (error) {
@@ -281,6 +207,622 @@ const StudentEnrollment = () => {
   // Refresh students data from backend
   const refreshStudents = () => {
     fetchStudents();
+  };
+
+  // Filter students based on registration type and search term
+  const filteredStudents = students.filter(student => {
+    const matchesRegistrationType = registrationFilter === 'all' || 
+                                   student.registrationType?.toLowerCase() === registrationFilter.toLowerCase();
+    
+    const matchesSearch = !searchTerm || 
+                         student.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         student.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         student.studentId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         student.school?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStream = streamFilter === 'all' || student.stream === streamFilter;
+    
+    // Date range filtering
+    const matchesDateRange = !dateRangeFilter.startDate && !dateRangeFilter.endDate || 
+                            (() => {
+                              const studentDate = new Date(student.dateJoined || student.created_at);
+                              const startDate = dateRangeFilter.startDate ? new Date(dateRangeFilter.startDate) : null;
+                              const endDate = dateRangeFilter.endDate ? new Date(dateRangeFilter.endDate) : null;
+                              
+                              if (startDate && endDate) {
+                                return studentDate >= startDate && studentDate <= endDate;
+                              } else if (startDate) {
+                                return studentDate >= startDate;
+                              } else if (endDate) {
+                                return studentDate <= endDate;
+                              }
+                              return true;
+                            })();
+    
+    return matchesRegistrationType && matchesSearch && matchesStream && matchesDateRange;
+  });
+
+  // Sort students
+  const sortedStudents = [...filteredStudents].sort((a, b) => {
+    if (!a[sortConfig.key] && !b[sortConfig.key]) return 0;
+    if (!a[sortConfig.key]) return 1;
+    if (!b[sortConfig.key]) return -1;
+    
+    let aValue = a[sortConfig.key];
+    let bValue = b[sortConfig.key];
+    
+    // Handle date sorting
+    if (sortConfig.key === 'dateJoined' || sortConfig.key === 'dateOfBirth') {
+      aValue = new Date(aValue);
+      bValue = new Date(bValue);
+    }
+    
+    // Handle string sorting
+    if (typeof aValue === 'string') {
+      aValue = aValue.toLowerCase();
+      bValue = bValue.toLowerCase();
+    }
+    
+    if (aValue < bValue) {
+      return sortConfig.direction === 'asc' ? -1 : 1;
+    }
+    if (aValue > bValue) {
+      return sortConfig.direction === 'asc' ? 1 : -1;
+    }
+    return 0;
+  });
+
+  // Handle sorting
+  const handleSort = (key) => {
+    setSortConfig(prevConfig => ({
+      key,
+      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  // Calculate statistics
+  const statistics = {
+    total: students.length,
+    online: students.filter(s => s.registrationType === 'Online').length,
+    physical: students.filter(s => s.registrationType === 'Physical').length,
+  };
+
+  // Export functionality
+  const exportToCSV = () => {
+    const headers = ['Student ID', 'First Name', 'Last Name', 'Date of Birth', 'School', 'District', 'Date Joined', 'Stream', 'Registration Type', 'Barcode Status'];
+    const csvContent = [
+      headers.join(','),
+      ...sortedStudents.map(student => [
+        student.studentId,
+        student.firstName || '',
+        student.lastName || '',
+        student.dateOfBirth || '',
+        student.school || '',
+        student.district || '',
+        student.dateJoined || '',
+        student.stream || '',
+        student.registrationType || '',
+        student.barcodeData ? 'Active' : 'Pending'
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `students_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Generate barcodes for all students
+  const generateAllBarcodes = async () => {
+    try {
+      const studentBackendUrl = 'http://localhost:8086';
+      const response = await fetch(`${studentBackendUrl}/routes.php/generate-all-barcodes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setSaveAlert({
+          open: true,
+          message: result.message,
+          onConfirm: () => {
+            setSaveAlert(a => ({ ...a, open: false }));
+            refreshStudents(); // Refresh data to show updated barcode status
+          },
+          confirmText: 'OK',
+          type: 'success',
+        });
+      } else {
+        throw new Error(result.message || 'Failed to generate barcodes');
+      }
+    } catch (error) {
+      console.error('Error generating barcodes:', error);
+      setSaveAlert({
+        open: true,
+        message: 'Failed to generate barcodes: ' + error.message,
+        onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'danger',
+      });
+    }
+  };
+
+  // Print bulk ID cards for all students
+  const printBulkIDCards = () => {
+    if (sortedStudents.length === 0) {
+      setSaveAlert({
+        open: true,
+        message: 'No students available to print ID cards.',
+        onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'warning',
+      });
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Bulk ID Cards - TCMS</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 20px;
+              background: #f5f5f5;
+            }
+            .id-cards-container {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+              gap: 20px;
+              max-width: 1200px;
+              margin: 0 auto;
+            }
+            .id-card-container {
+              width: 336px;
+              height: 212px;
+              background: linear-gradient(135deg, #1a365d 0%, #3da58a 100%);
+              border-radius: 10px;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+              padding: 12px 15px;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              color: white;
+              position: relative;
+              page-break-inside: avoid;
+            }
+            .id-header {
+              text-align: center;
+              border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+              padding-bottom: 4px;
+            }
+            .id-header h1 {
+              font-size: 13px;
+              color: #ffffff;
+              margin: 0;
+              font-weight: bold;
+              letter-spacing: 0.5px;
+              text-transform: uppercase;
+            }
+            .id-header p {
+              font-size: 8px;
+              margin: 3px 0 0 0;
+              color: #e0e0e0;
+            }
+            .id-content {
+              margin-top: 10px;
+              font-size: 11px;
+              line-height: 1.6;
+            }
+            .id-content p {
+              margin: 6px 0;
+              font-weight: 500;
+            }
+            .barcode-section {
+              background: #ffffff;
+              padding: 5px;
+              border-radius: 6px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              border-top: 1px solid #ddd;
+              color: #000;
+            }
+            .barcode-container svg {
+              width: 100%;
+              max-height: 40px;
+            }
+            .barcode-text {
+              font-size: 8px;
+              font-family: monospace;
+              margin-top: 3px;
+              text-align: center;
+              color: #333;
+              font-weight: bold;
+              word-break: break-all;
+              line-height: 1.1;
+            }
+            .id-footer {
+              font-size: 9px;
+              text-align: right;
+              color: #f0f0f0;
+              opacity: 0.8;
+              margin-top: 5px;
+            }
+            .print-button {
+              position: fixed;
+              top: 20px;
+              right: 20px;
+              background: #3da58a;
+              color: white;
+              border: none;
+              padding: 8px 16px;
+              border-radius: 5px;
+              cursor: pointer;
+              font-weight: bold;
+              z-index: 1000;
+            }
+            .print-button:hover {
+              background: #2d8a6f;
+            }
+            .bulk-header {
+              text-align: center;
+              margin-bottom: 20px;
+              padding: 20px;
+              background: white;
+              border-radius: 10px;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }
+            .bulk-header h1 {
+              color: #1a365d;
+              margin: 0 0 10px 0;
+              font-size: 24px;
+            }
+            .bulk-header p {
+              color: #666;
+              margin: 0;
+              font-size: 14px;
+            }
+            @media print {
+              .print-button {
+                display: none;
+              }
+              body {
+                background: white;
+                padding: 0;
+              }
+              .id-card-container {
+                box-shadow: none;
+                margin: 0;
+              }
+              .bulk-header {
+                box-shadow: none;
+                border: 1px solid #ddd;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <button class="print-button" onclick="window.print()">Print All ID Cards</button>
+          
+          <div class="bulk-header">
+            <h1>TCMS Student ID Cards</h1>
+            <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+            <p>Total Students: ${sortedStudents.length}</p>
+          </div>
+          
+          <div class="id-cards-container">
+            ${sortedStudents.map((student, index) => `
+              <div class="id-card-container">
+                <div class="id-header">
+                  <h1>TCMS STUDENT ID</h1>
+                  <p>Tuition Class Management System</p>
+                </div>
+                <div class="id-content">
+                  <p><strong>Name:</strong> ${student.firstName} ${student.lastName}</p>
+                  <p><strong>ID No:</strong> ${student.studentId}</p>
+                  <p><strong>Stream:</strong> ${student.stream || 'Not Specified'}</p>
+                  <p><strong>Registered On:</strong> ${student.dateJoined || new Date().toLocaleDateString()}</p>
+                </div>
+                <div class="barcode-section">
+                  <div class="barcode-container">
+                    <svg id="barcode-${index}"></svg>
+                  </div>
+                  <div class="barcode-text">${student.studentId}</div>
+                </div>
+                <div class="id-footer">
+                  <p>Powered by TCMS | Valid for attendance</p>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+          <script>
+            setTimeout(() => {
+              ${sortedStudents.map((student, index) => `
+                try {
+                  JsBarcode("#barcode-${index}", "${student.studentId}", {
+                    format: "CODE128",
+                    width: 1.2,
+                    height: 30,
+                    displayValue: false,
+                    margin: 0,
+                    background: "#ffffff",
+                    lineColor: "#000000"
+                  });
+                } catch (error) {
+                  console.error('Error generating barcode for ${student.studentId}:', error);
+                }
+              `).join('')}
+            }, 200);
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  // Print ID cards for filtered students only
+  const printFilteredIDCards = () => {
+    if (sortedStudents.length === 0) {
+      setSaveAlert({
+        open: true,
+        message: 'No students available to print ID cards.',
+        onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'warning',
+      });
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Filtered ID Cards - TCMS</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 20px;
+              background: #f5f5f5;
+            }
+            .id-cards-container {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+              gap: 20px;
+              max-width: 1200px;
+              margin: 0 auto;
+            }
+            .id-card-container {
+              width: 336px;
+              height: 212px;
+              background: linear-gradient(135deg, #1a365d 0%, #3da58a 100%);
+              border-radius: 10px;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+              padding: 12px 15px;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              color: white;
+              position: relative;
+              page-break-inside: avoid;
+            }
+            .id-header {
+              text-align: center;
+              border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+              padding-bottom: 4px;
+            }
+            .id-header h1 {
+              font-size: 13px;
+              color: #ffffff;
+              margin: 0;
+              font-weight: bold;
+              letter-spacing: 0.5px;
+              text-transform: uppercase;
+            }
+            .id-header p {
+              font-size: 8px;
+              margin: 3px 0 0 0;
+              color: #e0e0e0;
+            }
+            .id-content {
+              margin-top: 10px;
+              font-size: 11px;
+              line-height: 1.6;
+            }
+            .id-content p {
+              margin: 6px 0;
+              font-weight: 500;
+            }
+            .barcode-section {
+              background: #ffffff;
+              padding: 5px;
+              border-radius: 6px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              border-top: 1px solid #ddd;
+              color: #000;
+            }
+            .barcode-container svg {
+              width: 100%;
+              max-height: 40px;
+            }
+            .barcode-text {
+              font-size: 8px;
+              font-family: monospace;
+              margin-top: 3px;
+              text-align: center;
+              color: #333;
+              font-weight: bold;
+              word-break: break-all;
+              line-height: 1.1;
+            }
+            .id-footer {
+              font-size: 9px;
+              text-align: right;
+              color: #f0f0f0;
+              opacity: 0.8;
+              margin-top: 5px;
+            }
+            .print-button {
+              position: fixed;
+              top: 20px;
+              right: 20px;
+              background: #3da58a;
+              color: white;
+              border: none;
+              padding: 8px 16px;
+              border-radius: 5px;
+              cursor: pointer;
+              font-weight: bold;
+              z-index: 1000;
+            }
+            .print-button:hover {
+              background: #2d8a6f;
+            }
+            .bulk-header {
+              text-align: center;
+              margin-bottom: 20px;
+              padding: 20px;
+              background: white;
+              border-radius: 10px;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }
+            .bulk-header h1 {
+              color: #1a365d;
+              margin: 0 0 10px 0;
+              font-size: 24px;
+            }
+            .bulk-header p {
+              color: #666;
+              margin: 0;
+              font-size: 14px;
+            }
+            .filter-info {
+              background: #e3f2fd;
+              border: 1px solid #2196f3;
+              border-radius: 5px;
+              padding: 10px;
+              margin-bottom: 20px;
+              text-align: center;
+            }
+            .filter-info h3 {
+              color: #1976d2;
+              margin: 0 0 5px 0;
+              font-size: 16px;
+            }
+            .filter-info p {
+              color: #424242;
+              margin: 0;
+              font-size: 12px;
+            }
+            @media print {
+              .print-button {
+                display: none;
+              }
+              body {
+                background: white;
+                padding: 0;
+              }
+              .id-card-container {
+                box-shadow: none;
+                margin: 0;
+              }
+              .bulk-header, .filter-info {
+                box-shadow: none;
+                border: 1px solid #ddd;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <button class="print-button" onclick="window.print()">Print Filtered ID Cards</button>
+          
+          <div class="bulk-header">
+            <h1>TCMS Student ID Cards</h1>
+            <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+            <p>Filtered Students: ${sortedStudents.length} of ${students.length} total</p>
+          </div>
+
+          <div class="filter-info">
+            <h3>Filter Information</h3>
+            <p>
+              Registration Type: ${registrationFilter === 'all' ? 'All' : registrationFilter.charAt(0).toUpperCase() + registrationFilter.slice(1)} | 
+              Stream: ${streamFilter === 'all' ? 'All' : streamFilter} | 
+              Search: ${searchTerm || 'None'} | 
+              Date Range: ${dateRangeFilter.startDate ? new Date(dateRangeFilter.startDate).toLocaleDateString() : 'Any'} → ${dateRangeFilter.endDate ? new Date(dateRangeFilter.endDate).toLocaleDateString() : 'Any'} | 
+              Sort: ${sortConfig.key} (${sortConfig.direction === 'asc' ? 'A-Z' : 'Z-A'})
+            </p>
+          </div>
+          
+          <div class="id-cards-container">
+            ${sortedStudents.map((student, index) => `
+              <div class="id-card-container">
+                <div class="id-header">
+                  <h1>TCMS STUDENT ID</h1>
+                  <p>Tuition Class Management System</p>
+                </div>
+                <div class="id-content">
+                  <p><strong>Name:</strong> ${student.firstName} ${student.lastName}</p>
+                  <p><strong>ID No:</strong> ${student.studentId}</p>
+                  <p><strong>Stream:</strong> ${student.stream || 'Not Specified'}</p>
+                  <p><strong>Registered On:</strong> ${student.dateJoined || new Date().toLocaleDateString()}</p>
+                </div>
+                <div class="barcode-section">
+                  <div class="barcode-container">
+                    <svg id="barcode-${index}"></svg>
+                  </div>
+                  <div class="barcode-text">${student.studentId}</div>
+                </div>
+                <div class="id-footer">
+                  <p>Powered by TCMS | Valid for attendance</p>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+          <script>
+            setTimeout(() => {
+              ${sortedStudents.map((student, index) => `
+                try {
+                  JsBarcode("#barcode-${index}", "${student.studentId}", {
+                    format: "CODE128",
+                    width: 1.2,
+                    height: 30,
+                    displayValue: false,
+                    margin: 0,
+                    background: "#ffffff",
+                    lineColor: "#000000"
+                  });
+                } catch (error) {
+                  console.error('Error generating barcode for ${student.studentId}:', error);
+                }
+              `).join('')}
+            }, 200);
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   // Generate barcode on canvas
@@ -520,7 +1062,7 @@ const StudentEnrollment = () => {
                           <div class="id-content">
                 <p><strong>Name:</strong> ${selectedStudent.firstName} ${selectedStudent.lastName}</p>
                 <p><strong>ID No:</strong> ${selectedStudent.studentId}</p>
-                <p><strong>Registered On:</strong> ${selectedStudent.barcodeGeneratedAt ? new Date(selectedStudent.barcodeGeneratedAt).toLocaleDateString() : new Date().toLocaleDateString()}</p>
+                <p><strong>Generated On:</strong> ${selectedStudent.barcodeGeneratedAt ? new Date(selectedStudent.barcodeGeneratedAt).toLocaleDateString() : new Date().toLocaleDateString()}</p>
               </div>
             <div class="barcode-section">
               <div class="barcode-container">
@@ -587,7 +1129,8 @@ const StudentEnrollment = () => {
             <div class="student-info">
               <h2>${selectedStudent.firstName} ${selectedStudent.lastName}</h2>
               <p><strong>Student ID:</strong> ${selectedStudent.studentId}</p>
-              <p><strong>Generated:</strong> ${new Date(selectedStudent.barcodeGeneratedAt).toLocaleDateString()}</p>
+              
+               <p><strong>Generated On:</strong> ${selectedStudent.barcodeGeneratedAt ? new Date(selectedStudent.barcodeGeneratedAt).toLocaleDateString() : new Date().toLocaleDateString()}</p>
             </div>
             <div class="barcode-image">
               <canvas id="print-barcode"></canvas>
@@ -641,51 +1184,46 @@ const StudentEnrollment = () => {
   };
 
   // --- ALERT HANDLERS ---
+  // Show delete alert
   const showDeleteAlert = (studentId) => {
-    openAlert(
-      'Are you sure you want to delete this student?',
-      async () => {
-        try {
-          setAlertBox(a => ({ ...a, open: false }));
-          
-          // Call the backend API to delete the student
-          const response = await deleteStudent(studentId);
-          
-          if (response.success) {
-            // Remove from local state only after successful API call
-            setStudents(students.filter(s => s.userid !== studentId));
-            
-            // Show success message
-            setSaveAlert({
-              open: true,
-              message: 'Student deleted successfully!',
-              onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
-              confirmText: 'OK',
-              type: 'success',
-            });
-          } else {
-            // Show error message
-            setSaveAlert({
-              open: true,
-              message: response.message || 'Failed to delete student',
-              onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
-              confirmText: 'OK',
-              type: 'error',
-            });
-          }
-        } catch (error) {
-          console.error('Error deleting student:', error);
-          setSaveAlert({
-            open: true,
-            message: 'Error deleting student. Please try again.',
-            onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
-            confirmText: 'OK',
-            type: 'error',
-          });
-        }
-      },
-      { confirmText: 'Delete', cancelText: 'Cancel', type: 'danger' }
-    );
+    const student = students.find(s => s.studentId === studentId);
+    setDeleteModal({
+      show: true,
+      studentId,
+      studentName: student ? `${student.firstName} ${student.lastName}` : studentId
+    });
+  };
+
+  // Handle delete confirmation
+  const handleDeleteConfirm = async () => {
+    if (!deleteModal.studentId) return;
+    
+    try {
+      await deleteStudent(deleteModal.studentId);
+      setDeleteModal({ show: false, studentId: null, studentName: '' });
+      refreshStudents();
+      setSaveAlert({
+        open: true,
+        message: 'Student deleted successfully!',
+        onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'success',
+      });
+    } catch (error) {
+      console.error('Error deleting student:', error);
+      setSaveAlert({
+        open: true,
+        message: 'Failed to delete student: ' + error.message,
+        onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'danger',
+      });
+    }
+  };
+
+  // Handle delete cancellation
+  const handleDeleteCancel = () => {
+    setDeleteModal({ show: false, studentId: null, studentName: '' });
   };
 
   const showRemoveClassAlert = (remove, idx) => {
@@ -699,22 +1237,320 @@ const StudentEnrollment = () => {
     );
   };
 
-  const handleEditSubmit = (values) => {
-    setStudents(students.map(s => s.studentId === values.studentId ? values : s));
-    setEditingStudent(null);
+  const handleEditSubmit = async (values) => {
+    try {
+      // Call backend API to update student
+      const result = await updateStudent(values.studentId, {
+        firstName: values.firstName,
+        lastName: values.lastName,
+        nic: values.nic || '',
+        gender: values.gender || 'Male',
+        age: values.age || '0',
+        email: values.email || '',
+        mobile: values.phone,
+        parentName: values.parentName || '',
+        parentMobile: values.parentPhone || '',
+        stream: values.stream,
+        dateOfBirth: values.dateOfBirth || '1900-01-01',
+        school: values.school || '',
+        address: values.address || '',
+        district: values.district,
+      });
+
+      if (result.success) {
     setShowEditModal(false);
     setSaveAlert({
       open: true,
-      message: 'Student details saved successfully!',
-      onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+          message: 'Student details updated successfully!',
+          onConfirm: () => {
+            setSaveAlert(a => ({ ...a, open: false }));
+            refreshStudents(); // Refresh data from backend
+          },
       confirmText: 'OK',
       type: 'success',
     });
+      } else {
+        throw new Error(result.message || 'Failed to update student');
+      }
+    } catch (error) {
+      console.error('Error updating student:', error);
+      setSaveAlert({
+        open: true,
+        message: 'Failed to update student: ' + error.message,
+        onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'danger',
+      });
+    }
   };
 
   const handleCancel = () => {
     setShowEditModal(false);
     setEditValues({});
+  };
+
+  // Handle student selection
+  const handleStudentSelection = (studentId, isSelected) => {
+    if (isSelected) {
+      setSelectedStudents(prev => [...prev, studentId]);
+    } else {
+      setSelectedStudents(prev => prev.filter(id => id !== studentId));
+    }
+  };
+
+  // Select all students
+  const selectAllStudents = () => {
+    setSelectedStudents(sortedStudents.map(student => student.studentId));
+  };
+
+  // Deselect all students
+  const deselectAllStudents = () => {
+    setSelectedStudents([]);
+  };
+
+  // Print ID cards for selected students only
+  const printSelectedIDCards = () => {
+    if (selectedStudents.length === 0) {
+      setSaveAlert({
+        open: true,
+        message: 'Please select students to print ID cards.',
+        onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'warning',
+      });
+      return;
+    }
+
+    const selectedStudentData = sortedStudents.filter(student => 
+      selectedStudents.includes(student.studentId)
+    );
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Selected ID Cards - TCMS</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 20px;
+              background: #f5f5f5;
+            }
+            .id-cards-container {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+              gap: 20px;
+              max-width: 1200px;
+              margin: 0 auto;
+            }
+            .id-card-container {
+              width: 336px;
+              height: 212px;
+              background: linear-gradient(135deg, #1a365d 0%, #3da58a 100%);
+              border-radius: 10px;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+              padding: 12px 15px;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              color: white;
+              position: relative;
+              page-break-inside: avoid;
+            }
+            .id-header {
+              text-align: center;
+              border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+              padding-bottom: 4px;
+            }
+            .id-header h1 {
+              font-size: 13px;
+              color: #ffffff;
+              margin: 0;
+              font-weight: bold;
+              letter-spacing: 0.5px;
+              text-transform: uppercase;
+            }
+            .id-header p {
+              font-size: 8px;
+              margin: 3px 0 0 0;
+              color: #e0e0e0;
+            }
+            .id-content {
+              margin-top: 10px;
+              font-size: 11px;
+              line-height: 1.6;
+            }
+            .id-content p {
+              margin: 6px 0;
+              font-weight: 500;
+            }
+            .barcode-section {
+              background: #ffffff;
+              padding: 5px;
+              border-radius: 6px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              border-top: 1px solid #ddd;
+              color: #000;
+            }
+            .barcode-container svg {
+              width: 100%;
+              max-height: 40px;
+            }
+            .barcode-text {
+              font-size: 8px;
+              font-family: monospace;
+              margin-top: 3px;
+              text-align: center;
+              color: #333;
+              font-weight: bold;
+              word-break: break-all;
+              line-height: 1.1;
+            }
+            .id-footer {
+              font-size: 9px;
+              text-align: right;
+              color: #f0f0f0;
+              opacity: 0.8;
+              margin-top: 5px;
+            }
+            .print-button {
+              position: fixed;
+              top: 20px;
+              right: 20px;
+              background: #3da58a;
+              color: white;
+              border: none;
+              padding: 8px 16px;
+              border-radius: 5px;
+              cursor: pointer;
+              font-weight: bold;
+              z-index: 1000;
+            }
+            .print-button:hover {
+              background: #2d8a6f;
+            }
+            .bulk-header {
+              text-align: center;
+              margin-bottom: 20px;
+              padding: 20px;
+              background: white;
+              border-radius: 10px;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }
+            .bulk-header h1 {
+              color: #1a365d;
+              margin: 0 0 10px 0;
+              font-size: 24px;
+            }
+            .bulk-header p {
+              color: #666;
+              margin: 0;
+              font-size: 14px;
+            }
+            .selection-info {
+              background: #fff3e0;
+              border: 1px solid #ff9800;
+              border-radius: 5px;
+              padding: 10px;
+              margin-bottom: 20px;
+              text-align: center;
+            }
+            .selection-info h3 {
+              color: #e65100;
+              margin: 0 0 5px 0;
+              font-size: 16px;
+            }
+            .selection-info p {
+              color: #424242;
+              margin: 0;
+              font-size: 12px;
+            }
+            @media print {
+              .print-button {
+                display: none;
+              }
+              body {
+                background: white;
+                padding: 0;
+              }
+              .id-card-container {
+                box-shadow: none;
+                margin: 0;
+              }
+              .bulk-header, .selection-info {
+                box-shadow: none;
+                border: 1px solid #ddd;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <button class="print-button" onclick="window.print()">Print Selected ID Cards</button>
+          
+          <div class="bulk-header">
+            <h1>TCMS Student ID Cards</h1>
+            <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+            <p>Selected Students: ${selectedStudentData.length} of ${students.length} total</p>
+          </div>
+
+          <div class="selection-info">
+            <h3>Selection Information</h3>
+            <p>Selected Student IDs: ${selectedStudentData.map(s => s.studentId).join(', ')}</p>
+          </div>
+          
+          <div class="id-cards-container">
+            ${selectedStudentData.map((student, index) => `
+              <div class="id-card-container">
+                <div class="id-header">
+                  <h1>TCMS STUDENT ID</h1>
+                  <p>Tuition Class Management System</p>
+                </div>
+                <div class="id-content">
+                  <p><strong>Name:</strong> ${student.firstName} ${student.lastName}</p>
+                  <p><strong>ID No:</strong> ${student.studentId}</p>
+                  <p><strong>Stream:</strong> ${student.stream || 'Not Specified'}</p>
+                  <p><strong>Registered On:</strong> ${student.dateJoined || new Date().toLocaleDateString()}</p>
+                </div>
+                <div class="barcode-section">
+                  <div class="barcode-container">
+                    <svg id="barcode-${index}"></svg>
+                  </div>
+                  <div class="barcode-text">${student.studentId}</div>
+                </div>
+                <div class="id-footer">
+                  <p>Powered by TCMS | Valid for attendance</p>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+          <script>
+            setTimeout(() => {
+              ${selectedStudentData.map((student, index) => `
+                try {
+                  JsBarcode("#barcode-${index}", "${student.studentId}", {
+                    format: "CODE128",
+                    width: 1.2,
+                    height: 30,
+                    displayValue: false,
+                    margin: 0,
+                    background: "#ffffff",
+                    lineColor: "#000000"
+                  });
+                } catch (error) {
+                  console.error('Error generating barcode for ${student.studentId}:', error);
+                }
+              `).join('')}
+            }, 200);
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   return (
@@ -724,10 +1560,46 @@ const StudentEnrollment = () => {
           <div>
             <h1 className="text-2xl font-bold">Student Enrollment</h1>
             <p className="text-gray-700">
-              {loading ? 'Loading students from database...' : `View, edit and remove registered students. (${students.length} students)`}
+              {loading ? 'Loading students from database...' : `View, edit and remove registered students. (${sortedStudents.length} of ${students.length} students)`}
             </p>
           </div>
           <div className="flex gap-3">
+            <button
+              onClick={printFilteredIDCards}
+              disabled={loading || sortedStudents.length === 0}
+              className={`px-4 py-2 text-white rounded transition-colors flex items-center gap-2 ${
+                loading || sortedStudents.length === 0
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
+            >
+              <FaIdCard />
+              Print Filtered ID Cards
+            </button>
+            <button
+              onClick={printSelectedIDCards}
+              disabled={loading || selectedStudents.length === 0}
+              className={`px-4 py-2 text-white rounded transition-colors flex items-center gap-2 ${
+                loading || selectedStudents.length === 0
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-indigo-600 hover:bg-indigo-700'
+              }`}
+            >
+              <FaIdCard />
+              Print Selected ID Cards ({selectedStudents.length})
+            </button>
+            <button
+              onClick={exportToCSV}
+              disabled={loading || sortedStudents.length === 0}
+              className={`px-4 py-2 text-white rounded transition-colors flex items-center gap-2 ${
+                loading || sortedStudents.length === 0
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-green-600 hover:bg-green-700'
+              }`}
+            >
+              <FaFileExport />
+              Export CSV
+            </button>
             <button
               onClick={refreshStudents}
               disabled={loading}
@@ -740,40 +1612,335 @@ const StudentEnrollment = () => {
               <FaSync className={loading ? 'animate-spin' : ''} />
               {loading ? 'Loading...' : 'Refresh Data'}
             </button>
-            <button
-              onClick={() => {
-                console.log('Current students from backend:', students);
-                alert(`Current students from database: ${students.length}`);
-              }}
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center gap-2"
-            >
-              Debug Data
-            </button>
+            
           </div>
         </div>
+
+        {/* Statistics Cards */}
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Students</p>
+                <p className="text-2xl font-bold text-gray-900">{statistics.total}</p>
+              </div>
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <FaUser className="w-5 h-5 text-blue-600" />
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Online</p>
+                <p className="text-2xl font-bold text-blue-600">{statistics.online}</p>
+              </div>
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <FaUser className="w-5 h-5 text-blue-600" />
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Physical</p>
+                <p className="text-2xl font-bold text-green-600">{statistics.physical}</p>
+              </div>
+              <div className="p-2 bg-green-100 rounded-lg">
+                <FaUser className="w-5 h-5 text-green-600" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Enhanced Filter Section */}
+        <div className="mb-6 p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-800">Filters & Search</h3>
+            <button
+              onClick={() => {
+                setRegistrationFilter('all');
+                setSearchTerm('');
+                setStreamFilter('all');
+                setSortConfig({ key: 'dateJoined', direction: 'desc' });
+              }}
+              className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            >
+              Clear All Filters
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Registration Type Filter */}
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-700 mb-1">Registration Type</label>
+              <select
+                value={registrationFilter}
+                onChange={(e) => setRegistrationFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Registrations</option>
+                <option value="online">Online Registrations</option>
+                <option value="physical">Physical Registrations</option>
+              </select>
+        </div>
+            
+            {/* Stream Filter */}
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-700 mb-1">Stream</label>
+              <select
+                value={streamFilter}
+                onChange={(e) => setStreamFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Streams</option>
+                <option value="A/L-Maths">A/L-Maths</option>
+                <option value="A/L-Science">A/L-Science</option>
+                <option value="A/L-Art">A/L-Art</option>
+                <option value="A/L-Technology">A/L-Technology</option>
+                <option value="A/L-Commerce">A/L-Commerce</option>
+                <option value="O/L">O/L</option>
+                <option value="Primary">Primary</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            
+            {/* Search */}
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-700 mb-1">Search</label>
+              <input
+                type="text"
+                placeholder="Search by name, ID, or school..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* Date Range Filter */}
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-700 mb-1">Start Date</label>
+              <input
+                type="date"
+                value={dateRangeFilter.startDate}
+                onChange={(e) => setDateRangeFilter(prev => ({ ...prev, startDate: e.target.value }))}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-700 mb-1">End Date</label>
+              <input
+                type="date"
+                value={dateRangeFilter.endDate}
+                onChange={(e) => setDateRangeFilter(prev => ({ ...prev, endDate: e.target.value }))}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+          
+          <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
+            <div>
+              Showing <span className="font-semibold">{sortedStudents.length}</span> of <span className="font-semibold">{students.length}</span> students
+            </div>
+            <div className="flex items-center gap-4">
+              {/* Selection Controls */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={selectAllStudents}
+                  disabled={sortedStudents.length === 0}
+                  className={`px-2 py-1 text-xs rounded transition-colors ${
+                    sortedStudents.length === 0
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                  }`}
+                >
+                  Select All
+                </button>
+                <button
+                  onClick={deselectAllStudents}
+                  disabled={selectedStudents.length === 0}
+                  className={`px-2 py-1 text-xs rounded transition-colors ${
+                    selectedStudents.length === 0
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-red-100 text-red-700 hover:bg-red-200'
+                  }`}
+                >
+                  Deselect All
+                </button>
+                {selectedStudents.length > 0 && (
+                  <span className="text-xs font-medium text-indigo-600">
+                    {selectedStudents.length} selected
+                  </span>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span>Sort by:</span>
+                <span className="font-medium">{sortConfig.key === 'dateJoined' ? 'Date Joined' : 
+                  sortConfig.key === 'firstName' ? 'First Name' :
+                  sortConfig.key === 'lastName' ? 'Last Name' :
+                  sortConfig.key === 'school' ? 'School' :
+                  sortConfig.key === 'stream' ? 'Stream' :
+                  sortConfig.key === 'dateOfBirth' ? 'Date of Birth' :
+                  sortConfig.key}</span>
+                <span className="text-gray-400">({sortConfig.direction === 'asc' ? 'A-Z' : 'Z-A'})</span>
+              </div>
+
+              {/* Date Range Info */}
+              {(dateRangeFilter.startDate || dateRangeFilter.endDate) && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">Date Range:</span>
+                  <span className="text-xs font-medium text-gray-700">
+                    {dateRangeFilter.startDate ? new Date(dateRangeFilter.startDate).toLocaleDateString() : 'Any'} 
+                    {' → '} 
+                    {dateRangeFilter.endDate ? new Date(dateRangeFilter.endDate).toLocaleDateString() : 'Any'}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         <BasicTable
           columns={[
-            { key: 'studentId', label: 'Student ID' },
-            { key: 'firstName', label: 'First Name', render: row => row.firstName },
-            { key: 'lastName', label: 'Last Name', render: row => row.lastName },
-            { key: 'dateOfBirth', label: 'Date of Birth' },
-            { key: 'school', label: 'School' },
-            { key: 'district', label: 'District' },
-            { key: 'dateJoined', label: 'Date Joined' },
-            { key: 'stream', label: 'Stream' },
+            { 
+              key: 'select', 
+              label: '',
+              render: row => (
+                <input
+                  type="checkbox"
+                  checked={selectedStudents.includes(row.studentId)}
+                  onChange={(e) => handleStudentSelection(row.studentId, e.target.checked)}
+                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                />
+              )
+            },
+            { 
+              key: 'studentId', 
+              label: 'Student ID',
+              sortable: true,
+              render: row => (
+                <span className="font-mono text-sm font-semibold text-gray-800">
+                  {row.studentId}
+                </span>
+              )
+            },
+            { 
+              key: 'firstName', 
+              label: 'First Name',
+              sortable: true,
+              render: row => (
+                <span className="font-medium text-gray-900">
+                  {row.firstName || '-'}
+                </span>
+              )
+            },
+            { 
+              key: 'lastName', 
+              label: 'Last Name',
+              sortable: true,
+              render: row => (
+                <span className="font-medium text-gray-900">
+                  {row.lastName || '-'}
+                </span>
+              )
+            },
+            { 
+              key: 'dateOfBirth', 
+              label: 'Date of Birth',
+              sortable: true,
+              render: row => (
+                <span className="text-sm text-gray-600">
+                  {row.dateOfBirth ? new Date(row.dateOfBirth).toLocaleDateString('en-GB') : '-'}
+                </span>
+              )
+            },
+            { 
+              key: 'school', 
+              label: 'School',
+              sortable: true,
+              render: row => (
+                <span className="text-sm text-gray-700 max-w-xs truncate" title={row.school}>
+                  {row.school || '-'}
+                </span>
+              )
+            },
+            { 
+              key: 'district', 
+              label: 'District',
+              sortable: true,
+              render: row => (
+                <span className="text-sm text-gray-600">
+                  {row.district || '-'}
+                </span>
+              )
+            },
+            { 
+              key: 'dateJoined', 
+              label: 'Date Joined',
+              sortable: true,
+              render: row => (
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-gray-900">
+                    {row.dateJoined ? new Date(row.dateJoined).toLocaleDateString('en-GB') : '-'}
+                  </span>
+                  {row.created_at && (
+                    <span className="text-xs text-gray-500">
+                      {new Date(row.created_at).toLocaleTimeString('en-GB', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
+                    </span>
+                  )}
+                </div>
+              )
+            },
+            { 
+              key: 'stream', 
+              label: 'Stream',
+              sortable: true,
+              render: row => (
+                <span className="text-sm text-gray-700">
+                  {row.stream || '-'}
+                </span>
+              )
+            },
+            { 
+              key: 'registrationType', 
+              label: 'Registration Type',
+              sortable: true,
+              render: row => (
+                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                  row.registrationType === 'Online' 
+                    ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                    : 'bg-green-50 text-green-700 border border-green-200'
+                }`}>
+                  <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                    row.registrationType === 'Online' ? 'bg-blue-500' : 'bg-green-500'
+                  }`}></div>
+                  {row.registrationType || 'Unknown'}
+                </span>
+              )
+            },
             { 
               key: 'barcode', 
               label: 'Barcode Status', 
+              sortable: true,
               render: row => (
                 <div className="flex items-center gap-2">
                   {row.barcodeData ? (
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <div className="w-2 h-2 bg-emerald-500 rounded-full mr-2"></div>
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-1.5"></div>
                       Active
                     </span>
                   ) : (
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                      <div className="w-2 h-2 bg-amber-500 rounded-full mr-2"></div>
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                      <div className="w-1.5 h-1.5 bg-amber-500 rounded-full mr-1.5"></div>
                       Pending
                     </span>
                   )}
@@ -781,23 +1948,43 @@ const StudentEnrollment = () => {
               )
             },
           ]}
-          data={loading ? [] : students}
+          data={loading ? [] : sortedStudents}
+          onSort={handleSort}
+          sortConfig={sortConfig}
           actions={row => (
-            <div className="flex gap-2">
+            <div className="flex items-center gap-1">
+              
+              {/* Barcode Button */}
               <button 
-                className="text-purple-600 hover:text-purple-800 hover:underline" 
+                className="p-1.5 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors" 
                 onClick={() => showBarcode(row)} 
-                title="Barcode"
+                title="Manage Barcode"
               >
-                <FaBarcode />
+                <FaBarcode className="w-4 h-4" />
               </button>
-              <button className="text-blue-600 hover:underline" onClick={() => handleEdit(row)} title="Edit"><FaEdit /></button>
-              <button className="text-red-600 hover:underline" onClick={() => showDeleteAlert(row.studentId)} title="Delete"><FaTrash /></button>
+              
+              {/* Edit Button */}
+              <button 
+                className="p-1.5 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors" 
+                onClick={() => handleEdit(row)} 
+                title="Edit Student"
+              >
+                <FaEdit className="w-4 h-4" />
+              </button>
+              
+              {/* Delete Button */}
+              <button 
+                className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" 
+                onClick={() => showDeleteAlert(row.studentId)} 
+                title="Delete Student"
+              >
+                <FaTrash className="w-4 h-4" />
+              </button>
             </div>
           )}
           className="mb-6"
           loading={loading}
-          emptyMessage={loading ? "Loading students from database..." : "No students found. Register some students first."}
+          emptyMessage={loading ? "Loading students from database..." : "No students found matching your filters."}
         />
 
         {/* Edit Modal */}
@@ -933,7 +2120,7 @@ const StudentEnrollment = () => {
                             id="email"
                             name="email"
                             type="email"
-                            label="Email *"
+                            label="Email (optional)"
                             value={values.email}
                             onChange={handleChange}
                             error={errors.email}
@@ -1025,90 +2212,7 @@ const StudentEnrollment = () => {
 
                         </div>
 
-                        <div className="mb-6">
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">Enrolled Classes</label>
-                          <FieldArray name="enrolledClasses">
-                            {({ push, remove }) => (
-                              <>
-                                <BasicTable
-                                  columns={[
-                                    { key: 'subject', label: 'Subject', render: (row, idx) => (
-                                      <CustomTextField
-                                        id={`enrolledClasses[${idx}].subject`}
-                                        name={`enrolledClasses[${idx}].subject`}
-                                        type="text"
-                                        label=""
-                                        value={row.subject}
-                                        onChange={handleChange}
-                                        icon={FaBook}
-                                        className="w-full focus:ring-2 focus:ring-blue-400"
-                                      />
-                                    ) },
-                                    { key: 'teacher', label: 'Teacher', render: (row, idx) => (
-                                      <CustomTextField
-                                        id={`enrolledClasses[${idx}].teacher`}
-                                        name={`enrolledClasses[${idx}].teacher`}
-                                        type="text"
-                                        label=""
-                                        value={row.teacher}
-                                        onChange={handleChange}
-                                        icon={FaUser}
-                                        className="w-full focus:ring-2 focus:ring-blue-400"
-                                      />
-                                    ) },
-                                    { key: 'schedule', label: 'Schedule', render: (row, idx) => (
-                                      <CustomTextField
-                                        id={`enrolledClasses[${idx}].schedule`}
-                                        name={`enrolledClasses[${idx}].schedule`}
-                                        type="text"
-                                        label=""
-                                        value={row.schedule}
-                                        onChange={handleChange}
-                                        icon={FaCalendar}
-                                        className="w-full focus:ring-2 focus:ring-blue-400"
-                                      />
-                                    ) },
-                                    { key: 'hall', label: 'Hall', render: (row, idx) => (
-                                      <CustomTextField
-                                        id={`enrolledClasses[${idx}].hall`}
-                                        name={`enrolledClasses[${idx}].hall`}
-                                        type="text"
-                                        label=""
-                                        value={row.hall}
-                                        onChange={handleChange}
-                                        icon={FaBook}
-                                        className="w-full focus:ring-2 focus:ring-blue-400"
-                                      />
-                                    ) },
-                                  ]}
-                                  data={values.enrolledClasses?.map((row, idx) => ({ ...row, _idx: idx })) || []}
-                                  actions={row => (
-                                    <button
-                                      type="button"
-                                      className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs font-semibold shadow focus:outline-none focus:ring-2 focus:ring-red-400"
-                                      onClick={() => showRemoveClassAlert(remove, row._idx)}
-                                    >
-                                      Remove
-                                    </button>
-                                  )}
-                                  className="min-w-[900px]"
-                                  rowsPerPage={1000}
-                                  page={1}
-                                  totalCount={values.enrolledClasses?.length || 0}
-                                  onPageChange={() => {}}
-                                  onRowsPerPageChange={() => {}}
-                                />
-                                <button
-                                  type="button"
-                                  className="mt-3 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-xs font-bold shadow focus:outline-none focus:ring-2 focus:ring-green-400"
-                                  onClick={() => push({ subject: '', teacher: '', schedule: '', hall: '' })}
-                                >
-                                  + Add Class
-                                </button>
-                              </>
-                            )}
-                          </FieldArray>
-                        </div>
+                        
 
                         <div className="flex flex-row gap-4 mt-8 mb-2">
                           <CustomButton
@@ -1134,6 +2238,7 @@ const StudentEnrollment = () => {
           </div>
         )}
 
+        {/* Alert Boxes */}
         <BasicAlertBox
           open={alertBox.open}
           message={alertBox.message}
@@ -1143,6 +2248,7 @@ const StudentEnrollment = () => {
           cancelText={alertBox.cancelText}
           type={alertBox.type}
         />
+
         <BasicAlertBox
           open={saveAlert.open}
           message={saveAlert.message}
@@ -1298,6 +2404,56 @@ const StudentEnrollment = () => {
                   <li>• Each barcode is unique to the student and cannot be duplicated</li>
                   <li>• Barcode contains the student's unique ID for secure tracking</li>
                 </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deleteModal.show && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-red-600">Confirm Deletion</h2>
+                <button
+                  className="text-gray-500 hover:text-gray-800 text-2xl focus:outline-none"
+                  onClick={handleDeleteCancel}
+                  aria-label="Close"
+                >
+                  &times;
+                </button>
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-gray-700 mb-2">
+                  Are you sure you want to delete this student?
+                </p>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-sm font-medium text-red-800">
+                    Student ID: <span className="font-mono">{deleteModal.studentId}</span>
+                  </p>
+                  <p className="text-sm text-red-700">
+                    Name: {deleteModal.studentName}
+                  </p>
+                </div>
+                <p className="text-sm text-red-600 mt-3">
+                  ⚠️ This action cannot be undone. All student data will be permanently deleted.
+                </p>
+              </div>
+              
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={handleDeleteCancel}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteConfirm}
+                  className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                >
+                  Delete Student
+                </button>
               </div>
             </div>
           </div>

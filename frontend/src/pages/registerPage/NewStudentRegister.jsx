@@ -5,12 +5,13 @@ import CustomTextField from '../../components/CustomTextField';
 import CustomButton from '../../components/CustomButton';
 import BasicForm from '../../components/BasicForm';
 import BasicAlertBox from '../../components/BasicAlertBox';
-import { FaUser, FaLock, FaPhone, FaIdCard, FaCalendarAlt, FaVenusMars, FaBarcode, FaDownload } from 'react-icons/fa';
+import { FaUser, FaLock, FaPhone, FaIdCard, FaCalendarAlt, FaVenusMars, FaBarcode, FaDownload, FaWhatsapp } from 'react-icons/fa';
 import { FaGraduationCap } from 'react-icons/fa';
 import { Formik } from 'formik';
 import JsBarcode from 'jsbarcode';
 import { register } from '../../api/auth';
 import { saveBarcode } from '../../api/auth';
+import { forgotPasswordRequestOtp } from '../../api/auth';
 
 // Helper to parse NIC (Sri Lankan)
 function parseNIC(nic) {
@@ -142,6 +143,14 @@ export default function NewStudentRegister() {
     onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
   });
 
+  // WhatsApp verification state
+  const [verificationStep, setVerificationStep] = useState('pending'); // pending, sent, verified
+  const [otpCode, setOtpCode] = useState('');
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [otpSentTime, setOtpSentTime] = useState(null);
+  const [resendCountdown, setResendCountdown] = useState(0);
+
   const handleStep1 = (values) => {
     setStep1Values(values);
     if (values.idNumber && nicRegex.test(values.idNumber)) {
@@ -164,6 +173,213 @@ export default function NewStudentRegister() {
     setSummaryValues({ ...step1Values, ...values });
     setStep(3);
   };
+
+  // Send OTP for mobile verification
+  const sendOtp = async () => {
+    setIsSendingOtp(true);
+    try {
+      const response = await fetch('http://localhost:8081/routes.php/registration-otp-request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mobile: summaryValues.mobile
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        // Log OTP to console for development/testing
+        console.log('🔐 OTP SENT:', {
+          mobile: summaryValues.mobile,
+          otp: result.otp,
+          timestamp: new Date().toLocaleString(),
+          message: 'OTP sent successfully to WhatsApp'
+        });
+        
+        setVerificationStep('sent');
+        setOtpSentTime(Date.now());
+        setResendCountdown(60); // 60 seconds countdown
+        setAlertConfig({
+          open: true,
+          message: 'OTP sent successfully to your WhatsApp!',
+          title: 'OTP Sent',
+          type: 'success',
+          onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+        });
+      } else {
+        // Log OTP sending failure
+        console.log('❌ OTP SENDING FAILED:', {
+          mobile: summaryValues.mobile,
+          timestamp: new Date().toLocaleString(),
+          error: result.message || 'Failed to send OTP'
+        });
+        
+        setAlertConfig({
+          open: true,
+          message: result.message || 'Failed to send OTP',
+          title: 'OTP Error',
+          type: 'danger',
+          onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+        });
+      }
+    } catch (error) {
+      console.error('Error sending OTP:', error);
+      setAlertConfig({
+        open: true,
+        message: 'Failed to send OTP. Please try again.',
+        title: 'OTP Error',
+        type: 'danger',
+        onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+      });
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  // Verify OTP
+  const verifyOtp = async () => {
+    if (otpCode.length !== 6) {
+      setAlertConfig({
+        open: true,
+        message: 'Please enter a valid 6-digit OTP code.',
+        title: 'Invalid OTP',
+        type: 'warning',
+        onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+      });
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+    try {
+      const response = await fetch('http://localhost:8081/routes.php/verify-registration-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mobile: summaryValues.mobile,
+          otp: otpCode
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        // Log OTP verification success
+        console.log('✅ OTP VERIFIED:', {
+          mobile: summaryValues.mobile,
+          otp: otpCode,
+          timestamp: new Date().toLocaleString(),
+          message: 'OTP verified successfully'
+        });
+        
+        setVerificationStep('verified');
+        setAlertConfig({
+          open: true,
+          message: 'Mobile number verified successfully!',
+          title: 'Verification Success',
+          type: 'success',
+          onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+        });
+      } else {
+        // Log OTP verification failure
+        console.log('❌ OTP VERIFICATION FAILED:', {
+          mobile: summaryValues.mobile,
+          otp: otpCode,
+          timestamp: new Date().toLocaleString(),
+          error: result.message || 'Invalid OTP code'
+        });
+        
+        setAlertConfig({
+          open: true,
+          message: result.message || 'Invalid OTP code. Please try again.',
+          title: 'Verification Failed',
+          type: 'danger',
+          onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+        });
+      }
+    } catch (error) {
+      console.error('Error verifying OTP:', error);
+      setAlertConfig({
+        open: true,
+        message: 'Failed to verify OTP. Please try again.',
+        title: 'Verification Error',
+        type: 'danger',
+        onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+      });
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
+
+  // Resend OTP
+  const resendOtp = async () => {
+    if (resendCountdown > 0) return;
+    
+    console.log('🔄 RESENDING OTP:', {
+      mobile: summaryValues.mobile,
+      timestamp: new Date().toLocaleString(),
+      message: 'Resending OTP to WhatsApp'
+    });
+    
+    await sendOtp();
+  };
+
+  // Send welcome WhatsApp message after successful registration
+  const sendWelcomeWhatsAppMessage = async (userid, studentData) => {
+    try {
+      const response = await fetch('http://localhost:8081/routes.php/send-welcome-whatsapp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userid: userid,
+          studentData: studentData
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        console.log('📱 WELCOME WHATSAPP SENT:', {
+          mobile: studentData.mobile,
+          userid: userid,
+          timestamp: new Date().toLocaleString(),
+          message: 'Welcome WhatsApp message sent successfully'
+        });
+      } else {
+        console.error('❌ WELCOME WHATSAPP FAILED:', {
+          mobile: studentData.mobile,
+          userid: userid,
+          timestamp: new Date().toLocaleString(),
+          error: result.message || 'Failed to send welcome message'
+        });
+      }
+    } catch (error) {
+      console.error('Error sending welcome WhatsApp message:', error);
+    }
+  };
+
+  // Countdown timer for resend
+  useEffect(() => {
+    if (resendCountdown > 0) {
+      const timer = setTimeout(() => {
+        setResendCountdown(resendCountdown - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCountdown]);
+
+  // Auto-send OTP when reaching step 4
+  useEffect(() => {
+    if (step === 4 && verificationStep === 'pending') {
+      sendOtp();
+    }
+  }, [step]);
 
   // Generate barcode when registration is successful
   useEffect(() => {
@@ -234,6 +450,15 @@ export default function NewStudentRegister() {
         setGeneratedBarcode(barcodeObj);
         setRegistrationSuccess(true);
         
+        // Show professional success message
+        setAlertConfig({
+          open: true,
+          message: response.welcomeMessage || `Welcome to TCMS! Your account has been successfully created with Student ID: ${response.userid}`,
+          title: '🎉 Registration Successful!',
+          type: 'success',
+          onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+        });
+        
         // Save barcode data to backend
         try {
           await saveBarcode(response.userid, response.userid, `${summaryValues.firstName} ${summaryValues.lastName}`);
@@ -241,6 +466,24 @@ export default function NewStudentRegister() {
         } catch (error) {
           console.error('Failed to save barcode data:', error);
           // Don't fail the registration if barcode save fails
+        }
+        
+        // Send welcome WhatsApp message
+        try {
+          await sendWelcomeWhatsAppMessage(response.userid, summaryValues);
+          console.log('Welcome WhatsApp message sent successfully');
+          
+          // Show success message about WhatsApp notification
+          setAlertConfig({
+            open: true,
+            message: `Registration successful! A welcome message has been sent to your WhatsApp (${summaryValues.mobile}).`,
+            title: '🎉 Registration Complete!',
+            type: 'success',
+            onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+          });
+        } catch (error) {
+          console.error('Failed to send welcome WhatsApp message:', error);
+          // Don't fail the registration if WhatsApp message fails
         }
         
         // Generate barcode on canvas after a short delay to ensure DOM is ready
@@ -451,7 +694,7 @@ export default function NewStudentRegister() {
                 gender: Yup.string()
                   .matches(genderRegex, 'Gender must be Male or Female')
                   .required('Gender is required'),
-                email: Yup.string().email('Invalid email'),
+                email: Yup.string().email('Invalid email').notRequired().nullable(),
                 school: Yup.string().min(2, 'School name must be at least 2 characters').required('School is required'),
                 stream: Yup.string().oneOf(allowedStreams, 'Invalid stream').required('Stream is required'),
                 address: Yup.string().min(5, 'Address must be at least 5 characters').required('Address is required'),
@@ -527,7 +770,7 @@ export default function NewStudentRegister() {
                     id="email"
                     name="email"
                     type="email"
-                    label="Email *"
+                    label="Email (Optional)"
                     value={values.email}
                     onChange={handleChange}
                     error={errors.email}
@@ -643,17 +886,9 @@ export default function NewStudentRegister() {
                     </CustomButton>
                     <CustomButton 
                       type="button" 
-                      onClick={handleRegister}
-                      disabled={isRegistering}
+                      onClick={() => setStep(4)}
                     >
-                      {isRegistering ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Registering...
-                        </div>
-                      ) : (
-                        'Register'
-                      )}
+                      Verify Mobile
                     </CustomButton>
                   </div>
                 </>
@@ -695,6 +930,267 @@ export default function NewStudentRegister() {
               )}
             </div>
           )}
+                     {step === 4 && (
+             <div className="flex flex-col w-full space-y-4">
+               {verificationStep !== 'verified' ? (
+                 <>
+                   <h2 className="text-lg font-bold text-[#1a365d] mb-2">Mobile Verification</h2>
+                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                     <div className="flex items-center gap-2 mb-2">
+                       <FaWhatsapp className="text-green-600 text-lg" />
+                       <span className="font-semibold text-blue-800">WhatsApp Verification</span>
+                     </div>
+                     <p className="text-sm text-blue-700 mb-2">
+                       We've sent a 6-digit OTP code to your WhatsApp number:
+                     </p>
+                     <p className="font-semibold text-blue-900">{summaryValues.mobile}</p>
+                   </div>
+                   
+                   <CustomTextField
+                     id="otpCode"
+                     name="otpCode"
+                     type="text"
+                     label="Enter OTP Code *"
+                     value={otpCode}
+                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                     placeholder="Enter 6-digit code"
+                     maxLength={6}
+                     icon={FaWhatsapp}
+                   />
+                   
+                   {verificationStep === 'sent' && (
+                     <div className="text-center">
+                       <p className="text-sm text-gray-600 mb-2">
+                         Didn't receive the code?
+                       </p>
+                       <button
+                         type="button"
+                         onClick={resendOtp}
+                         disabled={resendCountdown > 0 || isSendingOtp}
+                         className={`text-sm font-medium ${
+                           resendCountdown > 0 
+                             ? 'text-gray-400 cursor-not-allowed' 
+                             : 'text-blue-600 hover:text-blue-800'
+                         }`}
+                       >
+                         {resendCountdown > 0 
+                           ? `Resend in ${resendCountdown}s` 
+                           : isSendingOtp 
+                             ? 'Sending...' 
+                             : 'Resend OTP'
+                         }
+                       </button>
+                     </div>
+                   )}
+                   
+                   <div className="flex gap-4 mt-4">
+                     <CustomButton type="button" onClick={() => setStep(3)}>
+                       Back
+                     </CustomButton>
+                     <CustomButton
+                       type="button" 
+                       onClick={verifyOtp}
+                       disabled={isVerifyingOtp || otpCode.length !== 6}
+                       
+                     >
+                       {isVerifyingOtp ? (
+                         <div className="flex items-center gap-2">
+                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                           Verifying...
+                         </div>
+                       ) : (
+                         'Verify OTP'
+                       )}
+                     </CustomButton>
+                   </div>
+                 </>
+               ) : (
+                 <div className="text-center">
+                   <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                     <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                     </svg>
+                   </div>
+                   <h3 className="text-xl font-bold text-green-800 mb-2">Mobile Verified!</h3>
+                   <p className="text-gray-600 mb-4">Your mobile number has been successfully verified via WhatsApp.</p>
+                   <div className="flex gap-4 mt-4">
+                     <CustomButton type="button" onClick={() => setStep(3)}>
+                       Back
+                     </CustomButton>
+                     <CustomButton 
+                       type="button" 
+                       onClick={() => setStep(5)}
+                       
+                     >
+                       Continue Registration
+                     </CustomButton>
+                   </div>
+                 </div>
+               )}
+             </div>
+           )}
+                     {step === 5 && (
+             <div className="flex flex-col w-full space-y-4">
+               {!registrationSuccess ? (
+                 <>
+                   <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                     <div className="flex items-center gap-2 mb-2">
+                       <FaWhatsapp className="text-green-600 text-lg" />
+                       <span className="font-semibold text-green-800">Mobile Verified ✓</span>
+                     </div>
+                     <p className="text-sm text-green-700">
+                       Your mobile number {summaryValues.mobile} has been successfully verified via WhatsApp.
+                     </p>
+                   </div>
+                   
+                   <h2 className="text-lg font-bold text-[#1a365d] mb-2">Final Review & Registration</h2>
+                   <CustomTextField label="First Name" value={summaryValues.firstName} readOnly icon={FaUser} />
+                   <CustomTextField label="Last Name" value={summaryValues.lastName} readOnly icon={FaUser} />
+                   <CustomTextField label="NIC" value={summaryValues.idNumber} readOnly icon={FaIdCard} />
+                   <CustomTextField label="Mobile (Verified)" value={summaryValues.mobile} readOnly icon={FaPhone} />
+                   <CustomTextField label="Date of Birth" value={summaryValues.dob} readOnly icon={FaCalendarAlt} />
+                   <CustomTextField label="Age" value={summaryValues.age} readOnly icon={FaCalendarAlt} />
+                   <CustomTextField label="Gender" value={summaryValues.gender} readOnly icon={FaVenusMars} />
+                   <CustomTextField label="Email" value={summaryValues.email} readOnly icon={FaUser} />
+                   <CustomTextField label="School" value={summaryValues.school} readOnly icon={FaUser} />
+                   <CustomTextField label="Stream" value={summaryValues.stream} readOnly icon={FaUser} />
+                   <CustomTextField label="Address" value={summaryValues.address} readOnly icon={FaUser} />
+                   <CustomTextField label="District" value={summaryValues.district} readOnly icon={FaUser} />
+                   <CustomTextField label="Parent Name" value={summaryValues.parentName} readOnly icon={FaUser} />
+                   <CustomTextField label="Parent Mobile Number" value={summaryValues.parentMobile} readOnly icon={FaPhone} />
+                   
+                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+                     <p className="text-sm text-blue-700 font-medium">
+                       By clicking "Register", you agree to our terms and conditions.
+                     </p>
+                   </div>
+                   
+                   <div className="flex gap-4 mt-4">
+                     <CustomButton type="button" onClick={() => setStep(4)}>
+                       Back
+                     </CustomButton>
+                     <CustomButton 
+                       type="button" 
+                       onClick={handleRegister}
+                       disabled={isRegistering}
+                       
+                     >
+                       {isRegistering ? (
+                         <div className="flex items-center gap-2">
+                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                           Registering...
+                         </div>
+                       ) : (
+                         'Complete Registration'
+                       )}
+                     </CustomButton>
+                   </div>
+                 </>
+               ) : (
+                 <div className="text-center">
+                   <div className="w-20 h-20 bg-gradient-to-r from-green-400 to-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+                     <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                     </svg>
+                   </div>
+                   
+                   <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-xl p-6 mb-6 shadow-sm">
+                     <h3 className="text-2xl font-bold text-green-800 mb-3">🎉 Registration Successful!</h3>
+                     <p className="text-lg text-gray-700 mb-4">
+                       Welcome to <span className="font-bold text-blue-600">TCMS</span> (Tuition Class Management System)
+                     </p>
+                     
+                     <div className="bg-white rounded-lg p-4 mb-4 border border-gray-200">
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                         <div>
+                           <p className="text-sm text-gray-600 mb-1">Student ID</p>
+                           <p className="text-lg font-bold text-blue-600">{generatedBarcode?.id}</p>
+                         </div>
+                         <div>
+                           <p className="text-sm text-gray-600 mb-1">Full Name</p>
+                           <p className="text-lg font-semibold text-gray-800">{generatedBarcode?.studentName}</p>
+                         </div>
+                       </div>
+                     </div>
+                     
+                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                       <div className="flex items-center gap-2 mb-2">
+                         <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                         </svg>
+                         <span className="font-semibold text-blue-800">Next Steps</span>
+                       </div>
+                       <ul className="text-sm text-blue-700 space-y-1">
+                         <li>• Your account has been successfully created in TCMS</li>
+                         <li>• You can now login using your Student ID and password</li>
+                         
+                      
+                       </ul>
+                     </div>
+                     
+                     <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                       <div className="flex items-center gap-2 mb-2">
+                         <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                         </svg>
+                         <span className="font-semibold text-green-800">Account Status</span>
+                       </div>
+                       <p className="text-sm text-green-700">
+                         ✅ Account Created | ✅ Mobile Verified | ✅ Ready for Login
+                       </p>
+                     </div>
+                   </div>
+                   
+                   {generatedBarcode && (
+                     <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6 shadow-sm">
+                       <div className="text-center mb-4">
+                         <div className="flex items-center justify-center gap-2 mb-2">
+                           <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V6a1 1 0 00-1-1H5a1 1 0 00-1 1v1a1 1 0 001 1zm12 0h2a1 1 0 001-1V6a1 1 0 00-1-1h-2a1 1 0 00-1 1v1a1 1 0 001 1zM5 20h2a1 1 0 001-1v-1a1 1 0 00-1-1H5a1 1 0 00-1 1v1a1 1 0 001 1z"></path>
+                           </svg>
+                           <h4 className="font-semibold text-gray-800 text-lg">Attendance Barcode</h4>
+                         </div>
+                         <p className="text-sm text-gray-600 mb-4">
+                           Use this barcode for quick attendance tracking in your classes
+                         </p>
+                       </div>
+                       
+                       <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                         <div className="flex justify-center mb-3">
+                           <canvas id="success-barcode-display" className="border border-gray-300 bg-white p-2 rounded max-w-xs"></canvas>
+                         </div>
+                         <p className="text-xs text-gray-500 text-center break-all font-mono bg-white p-2 rounded border">
+                           {generatedBarcode.barcodeData}
+                         </p>
+                       </div>
+                       
+                       <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                         <CustomButton
+                           onClick={downloadBarcode}
+                           
+                         >
+                           
+                           Download Barcode
+                         </CustomButton>
+                         <CustomButton
+                           onClick={() => navigate('/login')} 
+                         >
+                           
+                           Login to TCMS
+                         </CustomButton>
+                       </div>
+                       
+                       <div className="mt-4 text-center">
+                         <p className="text-xs text-gray-500">
+                           Need help? Contact support at <span className="text-blue-600">support@tcms.com</span>
+                         </p>
+                       </div>
+                     </div>
+                   )}
+                 </div>
+               )}
+             </div>
+           )}
           <Link to="/login" className="mt-8 text-[#064e3b] hover:underline text-xs block text-center">Already registered?</Link>
         </div>
       </div>

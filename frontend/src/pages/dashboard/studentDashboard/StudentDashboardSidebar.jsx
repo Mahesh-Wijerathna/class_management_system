@@ -12,7 +12,7 @@ const studentSidebarSections = [
 	{
 		section: 'Student',
 		items: [
-			{ name: 'My Profile', path: '/student/profile', icon: <FaUserShield className="h-5 w-5" /> },
+			{ name: 'My Profile', path: '/student/profile', icon: <FaUserShield className="h-5 w-5"/> },
 			{ name: 'My Notifications', path: '/student/notifications', icon: <FaBell className="h-5 w-5" /> },
 			{ name: 'My Student ID', path: '/student/id', icon: <FaIdCard className="h-5 w-5" /> },
 		],

@@ -39,8 +39,8 @@ const TeacherEnrollments = () => {
       
       console.log('Teacher data:', teacherData); // Debug log
       
-      // Check if we have teacher data with teacherId
-      const teacherId = teacherData?.teacherId || teacherData?.id || null;
+              // Check if we have teacher data with teacherId
+        const teacherId = teacherData?.teacherId || teacherData?.id || teacherData?.userid || null;
       
       if (teacherId) {
         // Load classes and students in parallel
@@ -55,12 +55,14 @@ const TeacherEnrollments = () => {
           console.log('Teacher Classes Found:', classesList.length);
           
           // Store students data for quick lookup
-          if (studentsResponse.success && studentsResponse.students) {
+          if (studentsResponse && Array.isArray(studentsResponse)) {
             const studentsMap = {};
-            studentsResponse.students.forEach(student => {
-              studentsMap[student.userid] = student;
+            studentsResponse.forEach(student => {
+              studentsMap[student.user_id] = student;
             });
             setStudentsData(studentsMap);
+            console.log('Students data loaded:', studentsResponse.length, 'students');
+            console.log('Students map keys:', Object.keys(studentsMap));
           }
           
           // Calculate total enrollments after classes are loaded
@@ -81,11 +83,24 @@ const TeacherEnrollments = () => {
 
   const handleViewEnrollments = async (classItem) => {
     try {
+      console.log('Loading enrollments for class:', classItem.id);
       const enrollmentsResponse = await getClassEnrollments(classItem.id);
+      console.log('Enrollments response:', enrollmentsResponse);
+      
       if (enrollmentsResponse.success) {
+        const enrollments = enrollmentsResponse.data || [];
+        console.log('Enrollments data:', enrollments);
+        console.log('Students data available:', Object.keys(studentsData));
+        
+        // Check if students exist for each enrollment
+        enrollments.forEach(enrollment => {
+          const student = studentsData[enrollment.student_id];
+          console.log(`Enrollment ${enrollment.student_id}:`, student ? 'Found' : 'Not found');
+        });
+        
         setSelectedClass({
           ...classItem,
-          enrollments: enrollmentsResponse.data || []
+          enrollments: enrollments
         });
         setShowEnrollmentDetails(true);
       }
@@ -145,7 +160,11 @@ const TeacherEnrollments = () => {
     
     return enrollments.filter(enrollment => {
       const student = studentsData[enrollment.student_id];
-      if (!student) return false;
+      if (!student) {
+        console.log('Student not found for enrollment:', enrollment.student_id);
+        console.log('Available student IDs:', Object.keys(studentsData));
+        return false;
+      }
       
       // Filter by status
       if (enrollmentStatusFilter && enrollment.status !== enrollmentStatusFilter) {
@@ -156,10 +175,10 @@ const TeacherEnrollments = () => {
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch = (
-          student.firstName?.toLowerCase().includes(searchLower) ||
-          student.lastName?.toLowerCase().includes(searchLower) ||
+          student.first_name?.toLowerCase().includes(searchLower) ||
+          student.last_name?.toLowerCase().includes(searchLower) ||
           student.email?.toLowerCase().includes(searchLower) ||
-          student.userid?.toLowerCase().includes(searchLower)
+          student.user_id?.toLowerCase().includes(searchLower)
         );
         if (!matchesSearch) return false;
       }
@@ -355,7 +374,7 @@ const TeacherEnrollments = () => {
         return (
           <div className="flex flex-col space-y-1">
             <div className="font-semibold text-gray-900 text-sm">
-              {student ? `${student.firstName} ${student.lastName}` : row.student_id}
+              {student ? `${student.first_name} ${student.last_name}` : row.student_id}
             </div>
             <div className="text-xs text-gray-700">{student?.school || 'School not specified'}</div>
             <div className="text-xs text-gray-500 bg-gray-100 px-1 py-0.5 rounded inline-block w-fit">
@@ -378,7 +397,7 @@ const TeacherEnrollments = () => {
             </div>
             <div className="flex items-center space-x-1">
               <FaPhone className="text-green-500 text-xs" />
-              <span className="text-xs text-gray-800">{student?.mobile || 'N/A'}</span>
+              <span className="text-xs text-gray-800">{student?.mobile_number || 'N/A'}</span>
             </div>
           </div>
         );
