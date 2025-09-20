@@ -227,20 +227,20 @@ services:
     networks:
       - teacher-network
 
-  # teacher-phpmyadmin:
-  #   image: phpmyadmin/phpmyadmin
-  #   container_name: teacher-phpmyadmin
-  #   environment:
-  #     PMA_HOST: teacher-mysql
-  #     PMA_PORT: 3306
-  #     PMA_USER: root
-  #     PMA_PASSWORD: password
-  #   ports:
-  #     - "8084:80"
-  #   depends_on:
-  #     - teacher-mysql
-  #   networks:
-  #     - teacher-network
+  teacher-phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: teacher-phpmyadmin
+    environment:
+      PMA_HOST: teacher-mysql
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: password
+    ports:
+      - "8084:80"
+    depends_on:
+      - teacher-mysql
+    networks:
+      - teacher-network
 
   teacher-backend:
     build:

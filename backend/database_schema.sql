@@ -1,3 +1,4 @@
+
 -- Complete Database Schema for Class Management System
 -- This combines all microservices into a unified schema
 
@@ -421,6 +422,21 @@ CREATE TABLE IF NOT EXISTS audit_log (
     INDEX idx_action (action),
     INDEX idx_table (table_name),
     INDEX idx_created_at (created_at)
+);
+
+-- Hall Requests table (for teacher hall requests)
+CREATE TABLE IF NOT EXISTS hall_requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    teacher_id VARCHAR(10) NOT NULL,
+    subject VARCHAR(255),
+    class_name VARCHAR(255),
+    date DATE NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (teacher_id) REFERENCES teachers(teacherId) ON DELETE CASCADE
 );
 
 -- =====================================================

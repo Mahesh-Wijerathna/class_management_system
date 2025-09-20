@@ -12,7 +12,8 @@ import CustomSelectField from '../../../components/CustomSelectField';
 import BasicTable from '../../../components/BasicTable';
 
 const API_URL = "http://localhost:8088/hallbook.php";
-const TEACHERS_API = "http://localhost:8088/routes.php/get_all_teachers"; // example teacher list API
+const TEACHERS_API = "http://localhost:8088/routes.php/get_all_teachers";
+const HALL_REQUESTS_API = "http://localhost:8088/hall_request.php";
 
 const ClassHalls = () => {
   const [halls, setHalls] = useState([]);
@@ -72,7 +73,7 @@ useEffect(() => {
 
   const fetchRequests = async () => {
     try {
-      const res = await fetch("http://localhost:8088/hall_requests.php");
+      const res = await fetch(HALL_REQUESTS_API);
       const data = await res.json();
       if (data.success) {
         setRequests(data.requests);
@@ -216,9 +217,42 @@ useEffect(() => {
       type
     });
   };
-  const handleRespondRequest = (id, status) => {
-    // You can implement this as needed
-    alert(`Request ${id} ${status}`);
+  // Admin approve/reject hall request
+  const handleRespondRequest = async (id, status) => {
+    try {
+      const res = await fetch(HALL_REQUESTS_API, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status })
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchRequests();
+        setAlertBox({
+          open: true,
+          message: `Request ${status === 'approved' ? 'approved' : 'rejected'} successfully!`,
+          onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+          confirmText: 'OK',
+          type: 'success'
+        });
+      } else {
+        setAlertBox({
+          open: true,
+          message: data.message || 'Failed to update request',
+          onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+          confirmText: 'OK',
+          type: 'error'
+        });
+      }
+    } catch (err) {
+      setAlertBox({
+        open: true,
+        message: 'Network error',
+        onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'error'
+      });
+    }
   };
 
   return (
@@ -241,12 +275,12 @@ useEffect(() => {
         </form>
         {availabilityResult && (
           <div className={`mt-4 p-4 rounded font-semibold shadow
-      ${availabilityResult.success && availabilityResult.available
-        ? 'bg-green-100 text-green-800 border border-green-400 '
-        : 'bg-red-100 text-red-800 border border-red-400'
-      }`
-    }
-    style={{ maxWidth: 400 }}>
+            ${availabilityResult.success && availabilityResult.available
+             ? 'bg-green-100 text-green-800 border border-green-400 '
+             : 'bg-red-100 text-red-800 border border-red-400'
+            }`
+                          }
+          style={{ maxWidth: 400 }}>
             {availabilityResult.success
               ? (availabilityResult.available ? "Hall is available!" : "Hall is NOT available!")
               : availabilityResult.message}
@@ -384,27 +418,47 @@ useEffect(() => {
 
         {/* Hall Requests */}
         <div className="border-t-2 pt-4 mt-16">
-          <h2>Hall Requests</h2>
+          <h2 className="text-lg font-semibold mb-2">Hall Requests</h2>
+
+          
+
+
           {requests.length === 0 ? (
             <p>No hall requests at the moment.</p>
           ) : (
             <BasicTable
               columns={[
-                { key: 'teacher', label: 'Teacher' },
-                { key: 'hall', label: 'Hall' },
+                { key: 'id', label: 'ID' },
+                { key: 'date', label: 'Date' },
+                { key: 'teacher_id', label: 'Teacher' },
                 { key: 'subject', label: 'Subject' },
-                { key: 'className', label: 'Class Name' },
-                { key: 'time', label: 'Time Period' },
+                { key: 'class_name', label: 'Class Name' },
+                { key: 'start_time', label: 'Start Time' },
+                { key: 'end_time', label: 'End Time' },
                 { key: 'status', label: 'Status' }
               ]}
               data={requests}
               actions={row => (
                 <>
                   {row.status === 'pending' && (
-                    <>
-                      <CustomButton onClick={() => handleRespondRequest(row.id, 'approved')}>Approve</CustomButton>
-                      <CustomButton onClick={() => handleRespondRequest(row.id, 'rejected')}>Reject</CustomButton>
-                    </>
+                    <div className="flex gap-2">
+                      <CustomButton
+                        onClick={() => handleRespondRequest(row.id, 'approved')}
+                        className="px-2 py-1 text-xs hover:bg-green-400 rounded bg-green-100 text-black-800 border border-green-400"
+                        style={{ minWidth: '60px' }}
+                      >
+                        Approve
+                      </CustomButton>
+                      <CustomButton
+                        onClick={() => handleRespondRequest(row.id, 'rejected')}
+                        className="px-2 py-1 text-xs hover:bg-red-400 rounded bg-red-100 text-black-800 border border-red-400"
+
+                        // className="px-2 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded"
+                        style={{ minWidth: '60px' }}
+                      >
+                        Reject
+                      </CustomButton>
+                    </div>
                   )}
                 </>
               )}
