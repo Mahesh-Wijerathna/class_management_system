@@ -261,12 +261,12 @@ const StudentDashboard = ({ onLogout }) => {
             </BasicCard>
             <BasicCard>
               <div className="flex justify-center">
-                <ClockProps />
+              <ClockProps />
               </div>
             </BasicCard>
             <BasicCard>
               <div className="flex justify-center">
-                <DateCalendarFormProps />
+              <DateCalendarFormProps />
               </div>
             </BasicCard>
           </div>
@@ -298,30 +298,30 @@ const StudentDashboard = ({ onLogout }) => {
                   <div className="text-xs text-gray-500 font-semibold mb-3">DETAILS</div>
                   <div className="space-y-2 sm:space-y-3">
                     <div className="flex items-center justify-between text-xs sm:text-sm">
-                      <span className="flex items-center">
+                    <span className="flex items-center">
                         <span className="mr-2 text-green-600">✔</span>Mobile:
                       </span>
                       <span className="text-gray-700 font-medium truncate ml-2">
                         {studentProfile?.mobile_number || 'Loading...'}
-                      </span>
-                    </div>
+                    </span>
+                  </div>
 
                     <div className="flex items-center justify-between text-xs sm:text-sm">
-                      <span className="flex items-center">
+                    <span className="flex items-center">
                         <span className="mr-2 text-green-600">✔</span>School:
                       </span>
                       <span className="text-gray-700 font-medium truncate ml-2">
                         {studentProfile?.school || 'Loading...'}
-                      </span>
-                    </div>
+                    </span>
+                  </div>
                     
                     <div className="flex items-center justify-between text-xs sm:text-sm">
-                      <span className="flex items-center">
+                    <span className="flex items-center">
                         <span className="mr-2 text-green-600">✔</span>Stream:
                       </span>
                       <span className="text-gray-700 font-medium truncate ml-2">
                         {studentProfile?.stream || 'Loading...'}
-                      </span>
+                    </span>
                     </div>
                   </div>
                 </div>
