@@ -271,9 +271,11 @@ services:
     build: ./attendance-backend
     container_name: attendance-backend
     ports:
-      - "8000:80"
+      - "8092:80"
     volumes:
       - ./attendance-backend/src:/var/www/html
+      - ./attendance-backend/.htaccess:/var/www/html/.htaccess
+      - ./attendance-backend/vendor:/var/www/html/vendor
     depends_on:
       - attendance-db
     environment:
@@ -282,8 +284,11 @@ services:
       - DB_USER=root
       - DB_PASSWORD=secret
       - TZ=Asia/Colombo
+      - ZOOM_WEBHOOK_SECRET=${ZOOM_WEBHOOK_SECRET:-your_zoom_webhook_secret_here}
     networks:
       - attendance-network
+      - class-network
+      - auth-network
 
   attendance-db:
     image: mysql:8.0
@@ -292,7 +297,7 @@ services:
       - "3307:3306"  # Different port than default MySQL to avoid conflicts
     environment:
       - MYSQL_ROOT_PASSWORD=secret
-      - MYSQL_DATABASE=attendance
+      - MYSQL_DATABASE=attendance_system
       - TZ=Asia/Colombo
     volumes:
       - ./attendance-backend/sql:/docker-entrypoint-initdb.d
