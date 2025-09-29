@@ -424,17 +424,31 @@ class ZoomWebhookController {
             $startTime = $meeting['start_time'];
             $endTime = $meeting['end_time'];
             
-            // Calculate attendance status based on join time
-            $query = "UPDATE attendance_records 
-                     SET attendance_status = CASE 
-                         WHEN join_time <= DATE_ADD(?, INTERVAL 15 MINUTE) THEN 'present'
-                         ELSE 'late'
-                     END
-                     WHERE meeting_id = ? AND attendance_status = 'present'";
-            
-            $stmt = $this->mysqli->prepare($query);
-            $stmt->bind_param("ss", $startTime, $meetingId);
-            $stmt->execute();
+                        // Use configured thresholds for present/late/absent
+                        $lateThreshold = (int)$this->getSettingValue('late_threshold_minutes', 15);
+                        $absentThreshold = (int)$this->getSettingValue('absent_threshold_minutes', 30);
+
+                        // First mark participants who joined within lateThreshold as present
+                        $presentSql = "UPDATE attendance_records SET attendance_status = 'present' 
+                                                     WHERE meeting_id = ? AND join_time <= DATE_ADD(?, INTERVAL {$lateThreshold} MINUTE)";
+                        $stmt = $this->mysqli->prepare($presentSql);
+                        $stmt->bind_param("ss", $meetingId, $startTime);
+                        $stmt->execute();
+
+                        // Mark those who joined after lateThreshold but within absentThreshold as late
+                        $lateSql = "UPDATE attendance_records SET attendance_status = 'late' 
+                                                WHERE meeting_id = ? AND join_time > DATE_ADD(?, INTERVAL {$lateThreshold} MINUTE) 
+                                                    AND join_time <= DATE_ADD(?, INTERVAL {$absentThreshold} MINUTE)";
+                        $stmt = $this->mysqli->prepare($lateSql);
+                        $stmt->bind_param("sss", $meetingId, $startTime, $startTime);
+                        $stmt->execute();
+
+                        // Mark those who joined after absentThreshold as absent
+                        $absentSql = "UPDATE attendance_records SET attendance_status = 'absent' 
+                                                    WHERE meeting_id = ? AND join_time > DATE_ADD(?, INTERVAL {$absentThreshold} MINUTE)";
+                        $stmt = $this->mysqli->prepare($absentSql);
+                        $stmt->bind_param("ss", $meetingId, $startTime);
+                        $stmt->execute();
             
         } catch (Exception $e) {
             error_log('Error calculating meeting attendance: ' . $e->getMessage());
@@ -446,23 +460,29 @@ class ZoomWebhookController {
      */
     private function calculateAttendanceStatus($classId, $joinTime) {
         try {
-            // Get late threshold from settings
-            $lateThreshold = $this->getSettingValue('late_threshold_minutes', 15);
-            
+            // Get thresholds from settings
+            $lateThreshold = (int)$this->getSettingValue('late_threshold_minutes', 15);
+            $absentThreshold = (int)$this->getSettingValue('absent_threshold_minutes', 30);
+
             // Get class start time (you'll need to implement this based on your class schedule)
             $classStartTime = $this->getClassStartTime($classId);
-            
+
             if (!$classStartTime) {
                 return 'present'; // Default if no class start time found
             }
-            
+
             $joinTimestamp = strtotime($joinTime);
             $startTimestamp = strtotime($classStartTime);
             $minutesLate = ($joinTimestamp - $startTimestamp) / 60;
-            
+
             if ($minutesLate <= 0) {
                 return 'present';
-            } elseif ($minutesLate <= $lateThreshold) {
+            }
+
+            // Interpret thresholds as: within lateThreshold -> present, between lateThreshold and absentThreshold -> late, after absentThreshold -> absent
+            if ($minutesLate <= $lateThreshold) {
+                return 'present';
+            } elseif ($minutesLate <= $absentThreshold) {
                 return 'late';
             } else {
                 return 'absent';

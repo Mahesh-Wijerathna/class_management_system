@@ -194,6 +194,54 @@ try {
         echo json_encode($result);
         exit();
     }
+
+    // Update attendance settings
+    if ($method === 'PUT' && $path === '/settings') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!$input || !is_array($input)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Invalid settings payload']);
+            exit();
+        }
+
+        $result = $attendanceController->updateSettings($input);
+        echo json_encode($result);
+        exit();
+    }
+
+    // Session persistence API (simple server-backed session blobs)
+    if ($method === 'POST' && $path === '/session') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!$input || !isset($input['sessionId'])) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'sessionId is required']);
+            exit();
+        }
+        $result = $attendanceController->saveSession($input['sessionId'], $input['data'] ?? []);
+        echo json_encode($result);
+        exit();
+    }
+
+    if ($method === 'GET' && preg_match('/^\/session\/([^\/]+)$/', $path, $matches)) {
+        $sessionId = $matches[1];
+        $result = $attendanceController->loadSession($sessionId);
+        echo json_encode($result);
+        exit();
+    }
+
+    if ($method === 'DELETE' && preg_match('/^\/session\/([^\/]+)$/', $path, $matches)) {
+        $sessionId = $matches[1];
+        $result = $attendanceController->deleteSession($sessionId);
+        echo json_encode($result);
+        exit();
+    }
+
+    // Get attendance settings
+    if ($method === 'GET' && $path === '/settings') {
+        $result = $attendanceController->getSettings();
+        echo json_encode($result);
+        exit();
+    }
     
     // Delete attendance record
     if ($method === 'DELETE' && preg_match('/^\/attendance\/(\d+)$/', $path, $matches)) {

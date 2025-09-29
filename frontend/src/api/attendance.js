@@ -455,6 +455,31 @@ export const recordVideoAttendance = async (classId, studentId, videoData) => {
 };
 
 /**
+ * Update attendance settings
+ * @param {Object} settings - Key/value pairs to persist
+ * @returns {Promise<Object>} Response data
+ */
+export const updateAttendanceSettings = async (settings = {}) => {
+  try {
+    const response = await api.put(`${ATTENDANCE_BASE_URL}/settings`, settings);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating attendance settings:', error);
+    throw error;
+  }
+};
+
+export const getAttendanceSettings = async () => {
+  try {
+    const response = await api.get(`${ATTENDANCE_BASE_URL}/settings`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching attendance settings:', error);
+    throw error;
+  }
+};
+
+/**
  * Track video watch progress for attendance
  * @param {Object} trackingData - Video tracking information
  * @returns {Promise<Object>} Response data
@@ -594,4 +619,6 @@ export default {
   recordVideoAttendance,
   trackVideoProgress,
   initializeVideoTracking
+  ,
+  updateAttendanceSettings
 };
