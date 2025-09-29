@@ -13,6 +13,8 @@ import BasicAlertBox from '../../../components/BasicAlertBox';
 import { 
   getClassAttendance, 
   getAttendanceAnalytics, 
+  updateAttendanceSettings,
+  getAttendanceSettings,
   exportAttendanceReport
 } from '../../../api/attendance';
 import { getAllClasses } from '../../../api/classes';
@@ -39,6 +41,10 @@ const AttendanceManagement = ({ onLogout }) => {
   const [dateFilter, setDateFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState((new Date().getMonth() + 1).toString());
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString());
+
+  // Settings state
+  const [lateThreshold, setLateThreshold] = useState(15);
+  const [absentThreshold, setAbsentThreshold] = useState(30);
   
   // Sort state
   const [sortConfig, setSortConfig] = useState({ key: '', direction: 'asc' });
@@ -77,6 +83,34 @@ const AttendanceManagement = ({ onLogout }) => {
     };
   }, [autoRefresh, refreshInterval]);
 
+  // Listen for global attendance updates (e.g., barcode scanner) and refresh immediately
+  useEffect(() => {
+    const handler = (e) => {
+      // e.detail may contain studentId, classes, results
+      loadAllAttendanceData();
+      loadAttendanceAnalytics();
+      setAlertBox({ open: true, title: 'Attendance Updated', message: 'Attendance data refreshed', type: 'success' });
+    };
+    try {
+      window.addEventListener('attendance:updated', handler);
+    } catch (e) {}
+    return () => { try { window.removeEventListener('attendance:updated', handler); } catch (e) {} };
+  }, []);
+
+  // Helper to derive YYYY-MM-DD date string from a record. Prefer attendance_date, fallback to join_time.
+  const getRecordDateStr = (record) => {
+    if (!record) return null;
+    if (record.attendance_date) return record.attendance_date;
+    if (record.join_time) {
+      const d = new Date(record.join_time);
+      if (!isNaN(d)) return d.toISOString().split('T')[0];
+      // Fallback: try to extract YYYY-MM-DD from common SQL datetime formats
+      const m = String(record.join_time).match(/(\d{4}-\d{2}-\d{2})/);
+      if (m) return m[1];
+    }
+    return null;
+  };
+
   const loadInitialData = async () => {
     try {
       setLoading(true);
@@ -89,6 +123,17 @@ const AttendanceManagement = ({ onLogout }) => {
       
       await loadAttendanceAnalytics();
       await loadAllAttendanceData();
+      // Load saved settings from backend
+      try {
+        const settingsRes = await getAttendanceSettings();
+        if (settingsRes && settingsRes.success && settingsRes.settings) {
+          const s = settingsRes.settings;
+          if (s.late_threshold_minutes) setLateThreshold(Number(s.late_threshold_minutes));
+          if (s.absent_threshold_minutes) setAbsentThreshold(Number(s.absent_threshold_minutes));
+        }
+      } catch (e) {
+        // ignore errors loading settings
+      }
     } catch (error) {
       console.error('Error loading data:', error);
       setError('Failed to load attendance data');
@@ -102,33 +147,25 @@ const AttendanceManagement = ({ onLogout }) => {
       // Load attendance analytics for today to power the overview (daily counts)
       const today = new Date().toISOString().split('T')[0];
       const analyticsRes = await getAttendanceAnalytics(null, today, today);
-      if (analyticsRes && analyticsRes.success && analyticsRes.analytics?.student_attendance) {
-  const sa = analyticsRes.analytics.student_attendance || [];
-  setAttendanceData(sa);
-  setLastRefresh(Date.now()); // Force component recalculation
-  // compute overview counts based on today's attendance records (count each class record separately)
-  const today = new Date().toISOString().split('T')[0];
-  const todaySa = sa.filter(r => r.attendance_date === today);
-  const totalTodayRecords = todaySa.length;
-  const presentTodayCount = todaySa.filter(r => String(r.attendance_status).toLowerCase() === 'present').length;
-  const lateTodayCount = todaySa.filter(r => String(r.attendance_status).toLowerCase() === 'late').length;
-  const absentTodayCount = todaySa.filter(r => String(r.attendance_status).toLowerCase() === 'absent').length;
-  const barcodeTodayCount = todaySa.filter(r => String(r.source || '').toLowerCase().includes('barcode')).length;
-  const zoomTodayCount = todaySa.filter(r => String(r.source || '').toLowerCase().includes('zoom')).length;
-  setOverviewCounts({ totalTodayRecords, presentToday: presentTodayCount, lateToday: lateTodayCount, absentToday: absentTodayCount, barcodeToday: barcodeTodayCount, zoomToday: zoomTodayCount });
-      } else if (analyticsRes && analyticsRes.analytics && Array.isArray(analyticsRes.analytics.student_attendance)) {
-  const sa = analyticsRes.analytics.student_attendance || [];
-  setAttendanceData(sa);
-  setLastRefresh(Date.now());
-  const today = new Date().toISOString().split('T')[0];
-  const todaySa = sa.filter(r => r.attendance_date === today);
-  const totalTodayRecords = todaySa.length;
-  const presentTodayCount = todaySa.filter(r => String(r.attendance_status).toLowerCase() === 'present').length;
-  const lateTodayCount = todaySa.filter(r => String(r.attendance_status).toLowerCase() === 'late').length;
-  const absentTodayCount = todaySa.filter(r => String(r.attendance_status).toLowerCase() === 'absent').length;
-  const barcodeTodayCount = todaySa.filter(r => String(r.source || '').toLowerCase().includes('barcode')).length;
-  const zoomTodayCount = todaySa.filter(r => String(r.source || '').toLowerCase().includes('zoom')).length;
-  setOverviewCounts({ totalTodayRecords, presentToday: presentTodayCount, lateToday: lateTodayCount, absentToday: absentTodayCount, barcodeToday: barcodeTodayCount, zoomToday: zoomTodayCount });
+      if (analyticsRes && analyticsRes.analytics && Array.isArray(analyticsRes.analytics.student_attendance)) {
+        const sa = analyticsRes.analytics.student_attendance || [];
+        setAttendanceData(sa);
+        setLastRefresh(Date.now()); // Force component recalculation
+
+        // compute overview counts based on today's attendance records (count each class record separately)
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todaySa = sa.filter(r => getRecordDateStr(r) === todayStr);
+        const totalTodayRecords = todaySa.length;
+        const presentTodayCount = todaySa.filter(r => String(r.attendance_status).toLowerCase() === 'present').length;
+        const lateTodayCount = todaySa.filter(r => String(r.attendance_status).toLowerCase() === 'late').length;
+        const absentTodayCount = todaySa.filter(r => String(r.attendance_status).toLowerCase() === 'absent').length;
+        const barcodeTodayCount = todaySa.filter(r => {
+          const s = String(r.source || '').toLowerCase();
+          return s.includes('barcode') || s.includes('image');
+        }).length;
+        const zoomTodayCount = todaySa.filter(r => String(r.source || '').toLowerCase().includes('zoom')).length;
+        const recordedVideoTodayCount = todaySa.filter(r => String(r.source || '').toLowerCase().includes('recorded')).length;
+        setOverviewCounts({ totalTodayRecords, presentToday: presentTodayCount, lateToday: lateTodayCount, absentToday: absentTodayCount, barcodeToday: barcodeTodayCount, zoomToday: zoomTodayCount, recordedVideoToday: recordedVideoTodayCount });
       }
     } catch (error) {
       console.error('Error loading attendance data:', error);
@@ -579,7 +616,10 @@ const AttendanceManagement = ({ onLogout }) => {
   const recordedVideoStudentIds = new Set(filteredAttendanceRecords.filter(record => String(record.source || '').toLowerCase() === 'recorded_video').map(r => r.student_id));
   // Count barcode attendances as raw attendance records (per-class). This makes the barcode count
   // reflect multiple attendances by the same student across different classes (e.g. 3 records -> 3).
-  const barcodeAttendance = filteredAttendanceRecords.filter(record => String(record.source || '').toLowerCase().includes('barcode')).length;
+  const barcodeAttendance = filteredAttendanceRecords.filter(record => {
+    const s = String(record.source || '').toLowerCase();
+    return s.includes('barcode') || s.includes('image');
+  }).length;
   const zoomAttendance = zoomStudentIds.size;
   const recordedVideoAttendance = recordedVideoStudentIds.size;
 
@@ -598,6 +638,13 @@ const AttendanceManagement = ({ onLogout }) => {
   const uniqueDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const uniqueStreams = [...new Set(classes.map(c => c.stream))].filter(Boolean);
   const uniqueDeliveryMethods = [...new Set(classes.map(c => c.deliveryMethod))].filter(Boolean);
+
+  // Today's date string and a safe fallback count computed from analytics.student_attendance
+  const todayStr = new Date().toISOString().split('T')[0];
+  const analyticsBarcodeToday = (analytics?.student_attendance || []).filter(r => {
+    const s = String(r.source || '').toLowerCase();
+    return getRecordDateStr(r) === todayStr && (s.includes('barcode') || s.includes('image'));
+  }).length || 0;
 
   // Helper functions
 
@@ -639,6 +686,7 @@ const AttendanceManagement = ({ onLogout }) => {
       case 'recorded_video':
         return <FaVideo className="text-purple-600" title="Recorded Video" />;
       case 'barcode':
+      case 'image':
         return <FaQrcode className="text-orange-600" title="Barcode" />;
       default:
         return <FaUsers className="text-gray-400" title="Unknown" />;
@@ -928,7 +976,7 @@ const AttendanceManagement = ({ onLogout }) => {
             <FaVideo className="text-3xl text-blue-600 mx-auto mb-2" />
             <p className="text-sm font-medium text-gray-600">Zoom Attendance</p>
             <p className="text-2xl font-bold text-blue-600">
-              {filteredAttendanceStats.zoomAttendance}
+              {overviewCounts?.zoomToday ?? (analytics?.overall_stats?.zoom_count || filteredAttendanceStats.zoomAttendance)}
             </p>
           </div>
           
@@ -936,7 +984,7 @@ const AttendanceManagement = ({ onLogout }) => {
             <FaVideo className="text-3xl text-purple-600 mx-auto mb-2" />
             <p className="text-sm font-medium text-gray-600">Recorded Video</p>
             <p className="text-2xl font-bold text-purple-600">
-              {filteredAttendanceStats.recordedVideoAttendance}
+              {overviewCounts?.recordedVideoToday ?? (analytics?.overall_stats?.recorded_video_count || filteredAttendanceStats.recordedVideoAttendance)}
             </p>
           </div>
           
@@ -944,7 +992,7 @@ const AttendanceManagement = ({ onLogout }) => {
             <FaQrcode className="text-3xl text-orange-600 mx-auto mb-2" />
             <p className="text-sm font-medium text-gray-600">Barcode</p>
             <p className="text-2xl font-bold text-orange-600">
-              {filteredAttendanceStats.barcodeAttendance}
+              {overviewCounts?.barcodeToday ?? (analyticsBarcodeToday || analytics?.overall_stats?.barcode_count) ?? filteredAttendanceStats.barcodeAttendance}
             </p>
           </div>
         </div>
@@ -1195,33 +1243,14 @@ const AttendanceManagement = ({ onLogout }) => {
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h4 className="font-medium text-gray-700 mb-3">Zoom Integration</h4>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Webhook Enabled</span>
-                <div className="flex items-center">
-                  <input type="checkbox" className="mr-2" defaultChecked />
-                  <span className="text-sm text-green-600">Active</span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Auto Attendance</span>
-                <div className="flex items-center">
-                  <input type="checkbox" className="mr-2" defaultChecked />
-                  <span className="text-sm text-green-600">Enabled</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div>
             <h4 className="font-medium text-gray-700 mb-3">Attendance Rules</h4>
             <div className="space-y-3">
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Late Threshold (minutes)</label>
                 <input
                   type="number"
-                  defaultValue="15"
+                  value={lateThreshold}
+                  onChange={(e) => setLateThreshold(Number(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
               </div>
@@ -1229,9 +1258,34 @@ const AttendanceManagement = ({ onLogout }) => {
                 <label className="block text-sm text-gray-600 mb-1">Absent Threshold (minutes)</label>
                 <input
                   type="number"
-                  defaultValue="30"
+                  value={absentThreshold}
+                  onChange={(e) => setAbsentThreshold(Number(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 />
+              </div>
+              <div className="pt-2">
+                <button
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+                  onClick={async () => {
+                    try {
+                      const payload = {
+                        late_threshold_minutes: lateThreshold,
+                        absent_threshold_minutes: absentThreshold
+                      };
+                      const res = await updateAttendanceSettings(payload);
+                      if (res.success) {
+                        setAlertBox({ open: true, title: 'Saved', message: 'Attendance settings updated', type: 'success' });
+                      } else {
+                        setAlertBox({ open: true, title: 'Error', message: res.message || 'Failed to save settings', type: 'danger' });
+                      }
+                    } catch (err) {
+                      console.error('Error saving settings', err);
+                      setAlertBox({ open: true, title: 'Error', message: 'Failed to save settings', type: 'danger' });
+                    }
+                  }}
+                >
+                  Save
+                </button>
               </div>
             </div>
           </div>

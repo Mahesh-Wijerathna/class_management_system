@@ -177,6 +177,57 @@ class AttendanceController {
         }
     }
 
+    // --- Session persistence (simple blob storage) ---
+    public function saveSession($sessionId, $data) {
+        try {
+            $json = json_encode($data);
+            // ensure table exists
+            $this->mysqli->query("CREATE TABLE IF NOT EXISTS ui_sessions (session_id VARCHAR(191) PRIMARY KEY, data JSON, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
+            $q = "REPLACE INTO ui_sessions (session_id, data) VALUES (?, ?)";
+            if ($stmt = $this->mysqli->prepare($q)) {
+                $stmt->bind_param('ss', $sessionId, $json);
+                $stmt->execute();
+                return ['success' => true];
+            }
+            return ['success' => false, 'message' => 'DB prepare failed'];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    public function loadSession($sessionId) {
+        try {
+            $q = "SELECT data FROM ui_sessions WHERE session_id = ? LIMIT 1";
+            if ($stmt = $this->mysqli->prepare($q)) {
+                $stmt->bind_param('s', $sessionId);
+                $stmt->execute();
+                $row = $stmt->get_result()->fetch_assoc();
+                if ($row && isset($row['data'])) {
+                    $decoded = json_decode($row['data'], true);
+                    return ['success' => true, 'data' => $decoded];
+                }
+                return ['success' => true, 'data' => null];
+            }
+            return ['success' => false, 'message' => 'DB prepare failed'];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    public function deleteSession($sessionId) {
+        try {
+            $q = "DELETE FROM ui_sessions WHERE session_id = ?";
+            if ($stmt = $this->mysqli->prepare($q)) {
+                $stmt->bind_param('s', $sessionId);
+                $stmt->execute();
+                return ['success' => true];
+            }
+            return ['success' => false, 'message' => 'DB prepare failed'];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
     /**
      * Get attendance analytics with filters
      */
@@ -599,11 +650,27 @@ class AttendanceController {
     public function markManualAttendance($classId, $studentId, $attendanceData) {
         try {
             $studentName = $attendanceData['studentName'] ?? '';
-            $source = $attendanceData['method'] ?? 'manual';
+            // Prefer explicit source, fall back to method if provided
+            $source = $attendanceData['source'] ?? ($attendanceData['method'] ?? 'manual');
             $status = $attendanceData['status'] ?? 'present';
             $joinTime = $attendanceData['join_time'] ?? date('Y-m-d H:i:s');
             $leaveTime = $attendanceData['leave_time'] ?? null;
             $duration = $attendanceData['duration_minutes'] ?? 0;
+
+            // Normalize known source/method values to canonical source strings
+            $normalized = strtolower((string)$source);
+            if (in_array($normalized, ['image', 'photo', 'camera', 'image_upload'])) {
+                $source = 'barcode';
+            } elseif (in_array($normalized, ['barcode', 'scan', 'scanner', 'qrcode'])) {
+                $source = 'barcode';
+            } elseif (strpos($normalized, 'zoom') !== false || $normalized === 'zoom_webhook') {
+                $source = 'zoom';
+            } elseif (strpos($normalized, 'record') !== false || $normalized === 'recorded_video') {
+                $source = 'recorded_video';
+            } else {
+                // keep the normalized string for storage
+                $source = $normalized;
+            }
             
             // Get the date part for duplicate checking
             $attendanceDate = date('Y-m-d', strtotime($joinTime));
@@ -1261,6 +1328,64 @@ class AttendanceController {
             return $row ? $row['setting_value'] : $default;
         } catch (Exception $e) {
             return $default;
+        }
+    }
+
+    /**
+     * Update attendance settings (key/value pairs)
+     */
+    public function updateSettings($settings = []) {
+        try {
+            if (!is_array($settings) || empty($settings)) {
+                return ['success' => false, 'message' => 'No settings provided'];
+            }
+
+            $this->mysqli->begin_transaction();
+
+            $stmt = $this->mysqli->prepare("INSERT INTO attendance_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+            foreach ($settings as $key => $value) {
+                $k = (string)$key;
+                $v = (string)$value;
+                $stmt->bind_param('ss', $k, $v);
+                $stmt->execute();
+            }
+
+            $this->mysqli->commit();
+
+            return ['success' => true, 'message' => 'Settings updated successfully'];
+        } catch (Exception $e) {
+            $this->mysqli->rollback();
+            return ['success' => false, 'message' => 'Error updating settings: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Get attendance settings. If $keys provided (array), return only those keys.
+     */
+    public function getSettings($keys = null) {
+        try {
+            $query = "SELECT setting_key, setting_value FROM attendance_settings";
+            $stmt = $this->mysqli->prepare($query);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            $settings = [];
+            while ($row = $result->fetch_assoc()) {
+                $settings[$row['setting_key']] = $row['setting_value'];
+            }
+
+            // If specific keys requested, filter
+            if (is_array($keys) && !empty($keys)) {
+                $filtered = [];
+                foreach ($keys as $k) {
+                    if (isset($settings[$k])) $filtered[$k] = $settings[$k];
+                }
+                return ['success' => true, 'settings' => $filtered];
+            }
+
+            return ['success' => true, 'settings' => $settings];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error fetching settings: ' . $e->getMessage()];
         }
     }
 

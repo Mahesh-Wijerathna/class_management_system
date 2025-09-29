@@ -30,11 +30,19 @@ const BarcodeAttendanceScanner = () => {
   const [previewImageUrl, setPreviewImageUrl] = useState(null);
   const [hwListening, setHwListening] = useState(true);
   const [autoMark, setAutoMark] = useState(true);
+  const [imageAutoConfirm, setImageAutoConfirm] = useState(() => {
+    try {
+      const v = localStorage.getItem('imageAutoConfirm');
+      return v === null ? true : v === 'true';
+    } catch (e) { return true; }
+  });
   const [lastMethodUsed, setLastMethodUsed] = useState('');
   const [autoClearDelay, setAutoClearDelay] = useState(0); // ms; 0 = immediate
   const [successPattern, setSuccessPattern] = useState('single');
 
   const lastScannedRef = useRef(null);
+  const lastDecodedRef = useRef(null);
+  const inFlightAutoConfirmRef = useRef(false);
   const manualSingleRef = useRef(manualSingle);
   const selectedClassesRef = useRef(selectedClasses);
   const classIdRef = useRef(classId);
@@ -46,6 +54,79 @@ const BarcodeAttendanceScanner = () => {
   const successBeep = useRef(typeof window !== 'undefined' ? new window.Audio('/assets/success-beep.mp3') : { play: () => {} });
   const [toasts, setToasts] = useState([]);
   const [flashSuccess, setFlashSuccess] = useState(false);
+  // network logging removed
+
+  // Server-backed session helpers
+  const sessionIdRef = useRef(null);
+  const getSessionId = () => {
+    if (!sessionIdRef.current) {
+      try { sessionIdRef.current = localStorage.getItem('scannerSessionId') || (`scanner-${window.location.hostname}`); localStorage.setItem('scannerSessionId', sessionIdRef.current); } catch (e) { sessionIdRef.current = `scanner-${Date.now()}`; }
+    }
+    return sessionIdRef.current;
+  };
+
+  const saveSessionToServer = async () => {
+    try {
+      const sid = getSessionId();
+      // serialize successfullyMarked (Sets -> arrays)
+      const serializableMarked = {};
+      try {
+        const sm = successfullyMarkedRef.current || {};
+        Object.keys(sm).forEach(k => {
+          const s = sm[k];
+          if (s && typeof s === 'object' && typeof s.has === 'function') serializableMarked[k] = Array.from(s);
+          else if (Array.isArray(s)) serializableMarked[k] = s.slice();
+          else serializableMarked[k] = [];
+        });
+      } catch (e) { /* ignore */ }
+      const payload = { sessionId: sid, data: { counters, selectedClasses, successfullyMarked: serializableMarked } };
+      const res = await fetch(`${process.env.REACT_APP_ATTENDANCE_BACKEND_URL}/session`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      return res.ok;
+  } catch (e) { console.warn('saveSessionToServer failed', e); return false; }
+  };
+
+  const loadSessionFromServer = async () => {
+    try {
+      const sid = getSessionId();
+  const res = await fetch(`${process.env.REACT_APP_ATTENDANCE_BACKEND_URL}/session/${sid}`);
+  if (!res.ok) return null;
+  const data = await res.json(); if (data && data.success && data.data) {
+    const d = data.data;
+    // reconstruct successfullyMarked Sets from arrays
+    if (d.successfullyMarked) {
+      try {
+        const obj = {};
+        Object.entries(d.successfullyMarked).forEach(([k, v]) => { obj[k] = new Set(Array.isArray(v) ? v : (v ? Object.keys(v) : [])); });
+        d.successfullyMarked = obj;
+      } catch (e) { /* ignore */ }
+    }
+    return d;
+  }
+  return null;
+  } catch (e) { console.warn('loadSessionFromServer failed', e); return null; }
+  };
+
+  // Ensure session is persisted when the user refreshes/closes the page — use sendBeacon if available
+  useEffect(() => {
+    const handler = () => {
+      try {
+        const sid = getSessionId();
+        const sm = successfullyMarkedRef.current || {};
+        const serializableMarked = {};
+        Object.keys(sm).forEach(k => { const s = sm[k]; serializableMarked[k] = (s && typeof s.has === 'function') ? Array.from(s) : (Array.isArray(s) ? s.slice() : []); });
+        const payload = { sessionId: sid, data: { counters: counters || {}, selectedClasses: selectedClasses || [], successfullyMarked: serializableMarked } };
+        const body = JSON.stringify(payload);
+        if (navigator && typeof navigator.sendBeacon === 'function') {
+          const blob = new Blob([body], { type: 'application/json' });
+          navigator.sendBeacon(`${process.env.REACT_APP_ATTENDANCE_BACKEND_URL}/session`, blob);
+        } else {
+          // best-effort: synchronous XHR is deprecated; skip if not supported
+        }
+      } catch (e) { /* ignore */ }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [counters, selectedClasses]);
 
   // helper: toggle class selection
   const toggleClassSelection = (id, checked) => {
@@ -84,6 +165,38 @@ const BarcodeAttendanceScanner = () => {
     return found ? (found.className || found.name) : String(cid);
   };
 
+  // Robustly interpret various shapes returned by /is-enrolled endpoints
+  const parseEnrolled = (enrollData) => {
+    try {
+      if (!enrollData && enrollData !== false) return false;
+      // direct boolean
+      if (typeof enrollData === 'boolean') return enrollData;
+      // common explicit fields
+      if (typeof enrollData.enrolled !== 'undefined') return !!enrollData.enrolled;
+      if (typeof enrollData.isEnrolled !== 'undefined') return !!enrollData.isEnrolled;
+      if (typeof enrollData.success !== 'undefined' && typeof enrollData.enrolled !== 'undefined') return !!enrollData.enrolled;
+      // sometimes the API returns { data: { enrolled: true } }
+      if (enrollData.data && typeof enrollData.data.enrolled !== 'undefined') return !!enrollData.data.enrolled;
+      // last resort: truthy fields
+      if (enrollData.enrolled === true || enrollData.isEnrolled === true) return true;
+      return false;
+    } catch (e) { return false; }
+  };
+
+  // Wrapper to call /is-enrolled and push the raw request/response to networkLog
+  const fetchIsEnrolled = async (studentId, cid) => {
+    const url = `${process.env.REACT_APP_ATTENDANCE_BACKEND_URL}/is-enrolled/${encodeURIComponent(studentId)}/${cid}`;
+    try {
+      const res = await fetch(url);
+      let text = null; try { text = await res.clone().text(); } catch (e) { text = null; }
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch (e) { data = text; }
+      return { enrolled: parseEnrolled(data), raw: data, ok: res.ok, status: res.status };
+    } catch (err) {
+      return { enrolled: false, raw: null, ok: false, status: 0 };
+    }
+  };
+
   // fetch last 3 attendances for a student (best-effort; backend may return different shape)
   const fetchPrevAttendances = async (studentId) => {
     if (!studentId) { setPrevAttendances([]); return; }
@@ -116,9 +229,17 @@ const BarcodeAttendanceScanner = () => {
           let data = null;
           try { data = await res.json(); } catch (parseErr) { continue; }
           // common shapes: { success: true, data: [...] } OR { records: [...] } OR raw array
-          if (data && data.success && Array.isArray(data.data)) { setPrevAttendances(data.data.slice(0,3)); success = true; break; }
-          if (data && Array.isArray(data.records)) { setPrevAttendances(data.records.slice(0,3)); success = true; break; }
-          if (Array.isArray(data)) { setPrevAttendances(data.slice(0,3)); success = true; break; }
+          const normalizeRecord = (r) => {
+            try {
+              const cid = r.classId || r.class_id || (r.class && (r.class.id || r.class.classId)) || r.class || null;
+              const className = r.className || r.class_name || (r.class && (r.class.className || r.class.name)) || (cid ? getClassName(cid) : undefined);
+              const timestamp = r.timestamp || r.time || r.join_time || r.created_at || r.createdAt || r.date || null;
+              return Object.assign({}, r, { classId: cid, className, timestamp });
+            } catch (e) { return r; }
+          };
+          if (data && data.success && Array.isArray(data.data)) { setPrevAttendances(data.data.map(normalizeRecord).slice(0,3)); success = true; break; }
+          if (data && Array.isArray(data.records)) { setPrevAttendances(data.records.map(normalizeRecord).slice(0,3)); success = true; break; }
+          if (Array.isArray(data)) { setPrevAttendances(data.map(normalizeRecord).slice(0,3)); success = true; break; }
           // unknown shape, try next
         } catch (inner) {
           // network or CORS error — try next fallback
@@ -134,9 +255,13 @@ const BarcodeAttendanceScanner = () => {
   };
 
   useEffect(() => {
-  try { setTodayName(new Date().toLocaleDateString('en-US', { weekday: 'long' })); } catch (e) { setTodayName(''); }
-  // Collapse right panel by default on small screens for a mobile-first layout
-  try { if (typeof window !== 'undefined' && window.innerWidth < 900) setPanelOpen(false); } catch (e) {}
+    try { localStorage.setItem('imageAutoConfirm', imageAutoConfirm); } catch (e) {}
+  }, [imageAutoConfirm]);
+
+  useEffect(() => {
+    try { setTodayName(new Date().toLocaleDateString('en-US', { weekday: 'long' })); } catch (e) { setTodayName(''); }
+    // Collapse right panel by default on small screens for a mobile-first layout
+    try { if (typeof window !== 'undefined' && window.innerWidth < 900) setPanelOpen(false); } catch (e) {}
 
     const computeDefaultSelection = (list) => {
       try {
@@ -181,6 +306,31 @@ const BarcodeAttendanceScanner = () => {
     }).catch(() => setClasses([]));
   }, []);
 
+  // Load saved session on mount
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const s = await loadSessionFromServer();
+        if (!mounted) return;
+        if (s) {
+          if (s.counters) setCounters(s.counters);
+          if (Array.isArray(s.selectedClasses)) setSelectedClasses(s.selectedClasses);
+          if (s.successfullyMarked) {
+            try { successfullyMarkedRef.current = s.successfullyMarked; } catch (e) {}
+          }
+        }
+      } catch (e) {}
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  // Auto-save session when counters or selectedClasses change (debounced)
+  useEffect(() => {
+    const iv = setTimeout(() => { saveSessionToServer().catch(() => {}); }, 600);
+    return () => clearTimeout(iv);
+  }, [counters, selectedClasses]);
+
   // Camera scanner lifecycle (only active in camera mode)
   useEffect(() => {
     if (mode !== 'camera') return undefined;
@@ -214,14 +364,14 @@ const BarcodeAttendanceScanner = () => {
             fetchPrevAttendances(normalized);
           // if autoMark enabled, use unified routine; else proceed with inline marking
           if (autoMark) {
-            await processAutoMark(normalized, toProcess, 'camera');
+            await processAutoMark(normalized, toProcess, 'barcode');
           } else {
             const results = [];
             for (const cid of toProcess) {
               try {
                 const enrollRes = await fetch(`${process.env.REACT_APP_ATTENDANCE_BACKEND_URL}/is-enrolled/${encodeURIComponent(normalized)}/${cid}`);
                 const enrollData = await enrollRes.json();
-                const enrolled = enrollData.success ? !!enrollData.enrolled : false;
+                const enrolled = parseEnrolled(enrollData);
                 if (!enrolled) { results.push({ classId: cid, ok: false, message: 'Not enrolled' }); continue; }
                 const response = await fetch(`${process.env.REACT_APP_ATTENDANCE_BACKEND_URL}/mark-attendance`, {
                   method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -232,6 +382,8 @@ const BarcodeAttendanceScanner = () => {
                   setCounters(prev => { const key = String(cid); const next = Object.assign({}, prev); next[key] = (next[key] || 0) + 1; return next; });
                   if (!successfullyMarkedRef.current[normalized]) successfullyMarkedRef.current[normalized] = new Set();
                   successfullyMarkedRef.current[normalized].add(String(cid));
+                  // persist session after successful mark
+                  saveSessionToServer().catch(() => {});
                 } else results.push({ classId: cid, ok: false, message: 'Server error' });
               } catch (err) { results.push({ classId: cid, ok: false, message: 'Network error' }); }
             }
@@ -291,10 +443,8 @@ const BarcodeAttendanceScanner = () => {
       const preview = [];
       for (const cid of targetClassIds) {
         try {
-          const enrollRes = await fetch(`${process.env.REACT_APP_ATTENDANCE_BACKEND_URL}/is-enrolled/${encodeURIComponent(normalized)}/${cid}`);
-          const enrollData = await enrollRes.json();
-          const enrolled = enrollData.success ? !!enrollData.enrolled : false;
-          preview.push({ classId: cid, enrolled, markedInSession: (successfullyMarkedRef.current[normalized] || new Set()).has(String(cid)) });
+          const r = await fetchIsEnrolled(normalized, cid);
+          preview.push({ classId: cid, enrolled: r.enrolled, markedInSession: (successfullyMarkedRef.current[normalized] || new Set()).has(String(cid)), enrollRaw: r.raw });
         } catch (err) { preview.push({ classId: cid, enrolled: false, markedInSession: false }); }
       }
       setStudentEnrollmentsPreview(preview);
@@ -302,7 +452,9 @@ const BarcodeAttendanceScanner = () => {
       // if autoMark is enabled, proceed to mark immediately using 'hardware' method
       if (autoMark) {
         const toMark = targetClassIds;
-        if (toMark && toMark.length) await processAutoMark(normalized, toMark, 'hardware');
+        // when auto-marking from an image flow, pass method='image' so the routine
+        // will reset the image preview UI after marking.
+        if (toMark && toMark.length) await processAutoMark(normalized, toMark, 'image');
       }
     } catch (err) {
       setMessage({ type: 'error', text: '⚠️ Network or decode error' });
@@ -318,20 +470,40 @@ const BarcodeAttendanceScanner = () => {
       try {
         const markedSet = successfullyMarkedRef.current[normalized] || new Set();
         if (markedSet.has(String(cid))) { results.push({ classId: cid, ok: false, message: 'Already marked (session)' }); continue; }
-        const enrollRes = await fetch(`${process.env.REACT_APP_ATTENDANCE_BACKEND_URL}/is-enrolled/${encodeURIComponent(normalized)}/${cid}`);
-        const enrollData = await enrollRes.json();
-        const enrolled = enrollData.success ? !!enrollData.enrolled : false;
-        if (!enrolled) { results.push({ classId: cid, ok: false, message: 'Not enrolled' }); continue; }
+                const r = await fetchIsEnrolled(normalized, cid);
+                if (!r.enrolled) { results.push({ classId: cid, ok: false, message: 'Not enrolled', raw: r.raw }); continue; }
+        const payload = { classId: cid, studentId: normalized, attendanceData: { method, status: 'present', join_time: new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Colombo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace('T', ' ') } };
         const response = await fetch(`${process.env.REACT_APP_ATTENDANCE_BACKEND_URL}/mark-attendance`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ classId: cid, studentId: normalized, attendanceData: { method, status: 'present', join_time: new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Colombo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace('T', ' ') } })
+          body: JSON.stringify(payload)
         });
+        let text = null; try { text = await response.clone().text(); } catch (e) { text = null; }
+        let parsed = null; try { parsed = text ? JSON.parse(text) : null; } catch (e) { parsed = text; }
+        const serverSaysAlready = (parsed && (parsed.alreadyMarked === true || (typeof parsed.message === 'string' && parsed.message.toLowerCase().includes('already')) || (parsed.success === true && parsed.already === true)));
         if (response.ok) {
-          results.push({ classId: cid, ok: true, message: 'Marked', className: getClassName(cid) });
-          setCounters(prev => { const key = String(cid); const next = Object.assign({}, prev); next[key] = (next[key] || 0) + 1; return next; });
-          if (!successfullyMarkedRef.current[normalized]) successfullyMarkedRef.current[normalized] = new Set();
-          successfullyMarkedRef.current[normalized].add(String(cid));
-        } else results.push({ classId: cid, ok: false, message: 'Server error' });
+          if (serverSaysAlready) {
+            if (!successfullyMarkedRef.current[normalized]) successfullyMarkedRef.current[normalized] = new Set();
+            successfullyMarkedRef.current[normalized].add(String(cid));
+            // persist session after detecting persisted mark
+            saveSessionToServer().catch(() => {});
+            results.push({ classId: cid, ok: false, message: 'Already marked (persisted)', className: getClassName(cid) });
+          } else {
+            results.push({ classId: cid, ok: true, message: 'Marked', className: getClassName(cid) });
+            setCounters(prev => { const key = String(cid); const next = Object.assign({}, prev); next[key] = (next[key] || 0) + 1; return next; });
+            if (!successfullyMarkedRef.current[normalized]) successfullyMarkedRef.current[normalized] = new Set();
+            successfullyMarkedRef.current[normalized].add(String(cid));
+          }
+        } else {
+          const nonOkAlready = parsed && (parsed.alreadyMarked === true || (typeof parsed.message === 'string' && parsed.message.toLowerCase().includes('already')));
+          if (nonOkAlready) {
+            if (!successfullyMarkedRef.current[normalized]) successfullyMarkedRef.current[normalized] = new Set();
+            successfullyMarkedRef.current[normalized].add(String(cid));
+            saveSessionToServer().catch(() => {});
+            results.push({ classId: cid, ok: false, message: 'Already marked (persisted)', className: getClassName(cid) });
+          } else {
+            results.push({ classId: cid, ok: false, message: 'Server error' });
+          }
+        }
       } catch (err) { results.push({ classId: cid, ok: false, message: 'Network error' }); }
     }
     setLoading(false);
@@ -360,6 +532,12 @@ const BarcodeAttendanceScanner = () => {
     if (autoClearDelay <= 0) clearForNext(); else setTimeout(() => clearForNext(), autoClearDelay);
 
     setLastMethodUsed(method);
+    // Emit a global event so other parts of the app (dashboard) can refresh immediately
+    try {
+      if (typeof window !== 'undefined' && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent('attendance:updated', { detail: { studentId: normalized, classes: targetClassIds, results: summary } }));
+      }
+    } catch (e) { /* ignore */ }
   };
 
   // Hardware/USB keyboard HID scanner capture (timing-based)
@@ -398,6 +576,39 @@ const BarcodeAttendanceScanner = () => {
     return () => { window.removeEventListener('keydown', onKey, true); if (timer) clearTimeout(timer); };
   }, [hwListening, manualSingle, selectedClasses, classId]);
 
+  // When an image is decoded and ready, auto-run the mark flow using the last decoded
+  // value if the relevant toggles are enabled. Use a ref guard to avoid duplicate runs.
+  useEffect(() => {
+    const run = async () => {
+      if (!imageReadyToMark) return;
+      const val = lastDecodedRef.current;
+      if (!val) return;
+      if (!imageAutoConfirm && !autoMark) return;
+      if (inFlightAutoConfirmRef.current) return;
+      inFlightAutoConfirmRef.current = true;
+      try {
+        const targetClassIds = manualSingle
+          ? (classId ? [classId] : [])
+          : (selectedClasses && selectedClasses.length ? selectedClasses : (classId ? [classId] : []));
+        if (!targetClassIds || !targetClassIds.length) {
+          setMessage({ type: 'error', text: '⚠️ No class selected — cannot auto-mark.' });
+          return;
+        }
+        if (autoMark) {
+          // If we're in image mode, attribute the method as 'image' so
+          // processAutoMark will execute image-specific reset behavior.
+          const method = (mode === 'image') ? 'image' : 'barcode';
+          await processAutoMark(val, targetClassIds, method);
+        } else if (imageAutoConfirm) {
+          await markAttendanceForImage(val);
+        }
+      } catch (e) {
+        console.error('Auto-confirm effect failed', e);
+      } finally { inFlightAutoConfirmRef.current = false; }
+    };
+    run();
+  }, [imageReadyToMark, imageAutoConfirm, autoMark, manualSingle, selectedClasses, classId]);
+
   // ----- Image upload -> preview (no mark) flow -----
   const handleImageFile = async (file) => {
     if (!file) return;
@@ -419,6 +630,16 @@ const BarcodeAttendanceScanner = () => {
       const res = await html5Qr.scanFile(file, /* showImage= */ false);
       await html5Qr.clear();
       const normalized = (res || '').toString().trim();
+      // If decode returned nothing, treat as decode failure and bail out so UI doesn't get stuck
+      if (!normalized) {
+        setImageProcessing(false);
+        setMessage({ type: 'error', text: '⚠️ No barcode decoded from image' });
+        // keep preview visible for user to re-check image
+        try { await html5Qr.clear(); } catch (e) {}
+        return;
+      }
+      // keep a non-react ref of the last decoded value so debug UI can show it immediately
+      lastDecodedRef.current = normalized;
       setScannedData(normalized);
       // fetch student preview details and enrollment status for selected classes
       const detailsRes = await fetch(`${process.env.REACT_APP_ATTENDANCE_BACKEND_URL}/student-details/${encodeURIComponent(normalized)}`);
@@ -435,16 +656,24 @@ const BarcodeAttendanceScanner = () => {
         try {
           const enrollRes = await fetch(`${process.env.REACT_APP_ATTENDANCE_BACKEND_URL}/is-enrolled/${encodeURIComponent(normalized)}/${cid}`);
           const enrollData = await enrollRes.json();
-          const enrolled = enrollData.success ? !!enrollData.enrolled : false;
+          const enrolled = parseEnrolled(enrollData);
           preview.push({ classId: cid, enrolled, markedInSession: (successfullyMarkedRef.current[normalized] || new Set()).has(String(cid)) });
         } catch (err) { preview.push({ classId: cid, enrolled: false, markedInSession: false }); }
       }
       setStudentEnrollmentsPreview(preview);
-      setImageReadyToMark(true);
+  setImageReadyToMark(true);
+  // show a visible UI message when decoding succeeds so user doesn't rely on console
+  try { setMessage({ type: 'info', text: `Decoded barcode: ${normalized}` }); } catch (e) {}
       setImageProcessing(false);
-      if (autoMark) {
-        const toMark = targetClassIds;
-        if (toMark && toMark.length) await processAutoMark(normalized, toMark, 'image');
+      // We intentionally do NOT call the marking routines directly here. Instead we
+      // rely on the effect that watches `imageReadyToMark` to perform auto-mark or
+      // auto-confirm using `lastDecodedRef` and `inFlightAutoConfirmRef` as guards.
+      // Calling processAutoMark/markAttendanceForImage here and also relying on the
+      // effect caused duplicate POSTs in some runs (state update + immediate call).
+      // If neither autoMark nor imageAutoConfirm is enabled, the user will press
+      // Confirm manually. If an auto flow is enabled, the effect will schedule it.
+      if (autoMark || imageAutoConfirm) {
+        try { setMessage({ type: 'info', text: `Scheduling auto flow for ${normalized}` }); } catch (e) {}
       }
     } catch (err) {
       setImageProcessing(false); setMessage({ type: 'error', text: '⚠️ Could not decode image (no barcode found or unsupported format)' });
@@ -455,47 +684,115 @@ const BarcodeAttendanceScanner = () => {
   const onDropFile = (e) => { e.preventDefault(); e.stopPropagation(); const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) handleImageFile(f); };
 
   const onPickFile = (e) => { const f = e.target.files && e.target.files[0]; if (f) handleImageFile(f); };
+  // Prevent selecting a new file while current image is awaiting confirmation
+  const safeOnPickFile = (e) => {
+    if (imageReadyToMark || imageProcessing) return; const f = e.target.files && e.target.files[0]; if (f) handleImageFile(f);
+  };
 
-  const markAttendanceForImage = async () => {
-    if (!scannedData || !imageReadyToMark) return;
+  const markAttendanceForImage = async (barcodeParam = null) => {
+  const normalized = barcodeParam || scannedData;
+  // If called from the auto-confirm path we pass barcodeParam; allow proceeding even if
+  // imageReadyToMark state hasn't flushed yet (setImageReadyToMark is async).
+  const canProceed = barcodeParam ? true : imageReadyToMark;
+  if (!normalized || !canProceed) return;
     setLoading(true);
-    const normalized = scannedData;
     const targetClassIds = manualSingle
       ? (classId ? [classId] : [])
       : (selectedClasses && selectedClasses.length ? selectedClasses : (classId ? [classId] : []));
+    // If there are no target classes selected, inform the user and reset the image UI so it
+    // doesn't remain stuck in 'Waiting to confirm'. This commonly happens when neither a
+    // manual class nor today's classes are selected.
+    if (!Array.isArray(targetClassIds) || targetClassIds.length === 0) {
+      setLoading(false);
+      setImageReadyToMark(false);
+      setMessage({ type: 'error', text: '⚠️ No class selected — please select at least one class to mark attendance.' });
+      // Reset preview so user can pick another image immediately
+      setTimeout(() => { try { resetForNextImage(); } catch (e) {} }, 300);
+      return;
+    }
     const results = [];
-    for (const cid of targetClassIds) {
+  for (const cid of targetClassIds) {
       try {
         // skip if already marked in session
         const markedSet = successfullyMarkedRef.current[normalized] || new Set();
         if (markedSet.has(String(cid))) { results.push({ classId: cid, ok: false, message: 'Already marked (session)' }); continue; }
-        const enrollRes = await fetch(`${process.env.REACT_APP_ATTENDANCE_BACKEND_URL}/is-enrolled/${encodeURIComponent(normalized)}/${cid}`);
-        const enrollData = await enrollRes.json();
-        const enrolled = enrollData.success ? !!enrollData.enrolled : false;
-        if (!enrolled) { results.push({ classId: cid, ok: false, message: 'Not enrolled' }); continue; }
+  const r = await fetchIsEnrolled(normalized, cid);
+  if (!r.enrolled) { results.push({ classId: cid, ok: false, message: 'Not enrolled', raw: r.raw }); continue; }
+        const payload = { classId: cid, studentId: normalized, attendanceData: { method: 'barcode', status: 'present', join_time: new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Colombo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace('T', ' ') } };
         const response = await fetch(`${process.env.REACT_APP_ATTENDANCE_BACKEND_URL}/mark-attendance`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ classId: cid, studentId: normalized, attendanceData: { method: 'barcode', status: 'present', join_time: new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Colombo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace('T', ' ') } })
+          body: JSON.stringify(payload)
         });
+        let text = null; try { text = await response.clone().text(); } catch (e) { text = null; }
+        let parsed = null; try { parsed = text ? JSON.parse(text) : null; } catch (e) { parsed = text; }
+        const serverSaysAlready = (parsed && (parsed.alreadyMarked === true || (typeof parsed.message === 'string' && parsed.message.toLowerCase().includes('already')) || (parsed.success === true && parsed.already === true)));
         if (response.ok) {
-          results.push({ classId: cid, ok: true, message: 'Marked' });
-          setCounters(prev => { const key = String(cid); const next = Object.assign({}, prev); next[key] = (next[key] || 0) + 1; return next; });
-          if (!successfullyMarkedRef.current[normalized]) successfullyMarkedRef.current[normalized] = new Set();
-          successfullyMarkedRef.current[normalized].add(String(cid));
-        } else results.push({ classId: cid, ok: false, message: 'Server error' });
+          if (serverSaysAlready) {
+            if (!successfullyMarkedRef.current[normalized]) successfullyMarkedRef.current[normalized] = new Set();
+            successfullyMarkedRef.current[normalized].add(String(cid));
+            saveSessionToServer().catch(() => {});
+            results.push({ classId: cid, ok: false, message: 'Already marked (persisted)' });
+          } else {
+            results.push({ classId: cid, ok: true, message: 'Marked' });
+            setCounters(prev => { const key = String(cid); const next = Object.assign({}, prev); next[key] = (next[key] || 0) + 1; return next; });
+            if (!successfullyMarkedRef.current[normalized]) successfullyMarkedRef.current[normalized] = new Set();
+            successfullyMarkedRef.current[normalized].add(String(cid));
+          }
+        } else {
+          const nonOkAlready = parsed && (parsed.alreadyMarked === true || (typeof parsed.message === 'string' && parsed.message.toLowerCase().includes('already')));
+          if (nonOkAlready) {
+            if (!successfullyMarkedRef.current[normalized]) successfullyMarkedRef.current[normalized] = new Set();
+            successfullyMarkedRef.current[normalized].add(String(cid));
+            results.push({ classId: cid, ok: false, message: 'Already marked (persisted)' });
+          } else {
+            results.push({ classId: cid, ok: false, message: 'Server error' });
+          }
+        }
       } catch (err) { results.push({ classId: cid, ok: false, message: 'Network error' }); }
     }
     setLoading(false);
     const allOk = results.length > 0 && results.every(r => r.ok);
     setMessage({ type: allOk ? 'success' : 'error', text: allOk ? '✅ Attendance updated for:' : '⚠️ Results:', summary: results });
     if (results.some(r => r.ok)) { successBeep.current.play().catch(() => {}); }
-  setImageReadyToMark(false); // require new upload before marking again
-  if (results.some(r => r.ok)) { playSuccessPattern(successPattern); addToast('success', `Marked ${results.filter(r=>r.ok).map(r=>getClassName(r.classId)).join(', ')}`); setTimeout(() => { resetForNextImage(); }, autoClearDelay); }
+    setImageReadyToMark(false); // require new upload before marking again
+    const autoTriggered = !!barcodeParam || !!imageAutoConfirm;
+    if (results.some(r => r.ok)) {
+      playSuccessPattern(successPattern);
+      addToast('success', `Marked ${results.filter(r=>r.ok).map(r=>getClassName(r.classId)).join(', ')}`);
+      // If this was an auto-confirm/auto-mark flow, reset immediately so user can upload next image.
+      if (autoTriggered) {
+        try { resetForNextImage(); } catch (e) {}
+      } else {
+        setTimeout(() => { resetForNextImage(); }, autoClearDelay);
+      }
+    }
   setLastMethodUsed('image');
+  // Notify other parts of the app
+  try {
+    if (typeof window !== 'undefined' && window.dispatchEvent) {
+      window.dispatchEvent(new CustomEvent('attendance:updated', { detail: { studentId: normalized, classes: targetClassIds, results } }));
+    }
+  } catch (e) {}
   };
 
   const resetForNextImage = () => {
-    setScannedData(null); setPreviewFileName(''); setStudentDetails(null); setStudentEnrollmentsPreview([]); setMessage(null); setImageReadyToMark(false); setImageProcessing(false);
+    setScannedData(null);
+    setPreviewFileName('');
+    setStudentDetails(null);
+    setStudentEnrollmentsPreview([]);
+    setMessage(null);
+    setImageReadyToMark(false);
+    setImageProcessing(false);
+    try {
+      if (previewImageUrl) { URL.revokeObjectURL(previewImageUrl); }
+    } catch (e) {}
+    setPreviewImageUrl(null);
+  try { lastDecodedRef.current = null; } catch (e) {}
+    // Clear the file input so selecting the same file again will fire change event
+    try {
+      const inp = document.getElementById('file-input');
+      if (inp) inp.value = '';
+    } catch (e) {}
   };
 
   return (
@@ -573,7 +870,8 @@ const BarcodeAttendanceScanner = () => {
 
         <div style={{ width:12 }} />
         <button className={`btn ${autoMark ? 'btn-prim' : 'btn-muted'}`} onClick={() => setAutoMark(a => !a)} aria-pressed={autoMark} title="Toggle Auto-Mark">{autoMark ? 'Auto-Mark: ON' : 'Auto-Mark: OFF'}</button>
-        <button className={`btn ${hwListening ? 'btn-prim' : 'btn-muted'}`} onClick={() => setHwListening(h => !h)} aria-pressed={hwListening} title="Toggle hardware scanner listening">{hwListening ? 'HW Listen: ON' : 'HW Listen: OFF'}</button>
+  <button className={`btn ${hwListening ? 'btn-prim' : 'btn-muted'}`} onClick={() => setHwListening(h => !h)} aria-pressed={hwListening} title="Toggle hardware scanner listening">{hwListening ? 'HW Listen: ON' : 'HW Listen: OFF'}</button>
+  {/* Image Auto-Confirm toggle removed per UI preference; setting persists in localStorage and defaults to true */}
 
         <div style={{ marginLeft:8, fontSize:13, color:'#374151' }} title={`Last method used: ${lastMethodUsed}`}>Last: <strong style={{ marginLeft:6 }}>{lastMethodUsed || '—'}</strong></div>
         <div style={{ width:12 }} />
@@ -623,14 +921,32 @@ const BarcodeAttendanceScanner = () => {
                     <div style={{ fontWeight:700, marginBottom:8 }}>{previewFileName || 'Drop PNG/JPG here or tap to choose'}</div>
                     <div className="small">The UI will decode one image at a time. After preview you must confirm to mark attendance.</div>
                     <div style={{ marginTop:12, display:'flex', gap:8, alignItems:'center', justifyContent:'center' }}> 
-                      <label htmlFor="file-input" className="btn btn-prim" style={{ display:'inline-flex', alignItems:'center', gap:8, cursor: imageReadyToMark ? 'not-allowed' : 'pointer', opacity: imageReadyToMark ? 0.6 : 1 }} aria-disabled={imageReadyToMark}><FaUpload /> {imageReadyToMark ? 'Waiting to confirm' : 'Choose image'}</label>
-                      <input id="file-input" accept="image/png,image/jpeg" type="file" onChange={onPickFile} style={{ display:'none' }} disabled={imageReadyToMark} />
+                      <label htmlFor="file-input" className="btn btn-prim" style={{ display:'inline-flex', alignItems:'center', gap:8, cursor: (imageReadyToMark && !(imageAutoConfirm || autoMark)) ? 'not-allowed' : 'pointer', opacity: (imageReadyToMark && !(imageAutoConfirm || autoMark)) ? 0.6 : 1 }} aria-disabled={imageReadyToMark && !(imageAutoConfirm || autoMark)}><FaUpload /> {(imageReadyToMark && !(imageAutoConfirm || autoMark)) ? 'Waiting to confirm' : (imageProcessing ? 'Decoding…' : 'Choose image')}</label>
+                      <input id="file-input" accept="image/png,image/jpeg" type="file" onChange={safeOnPickFile} style={{ display:'none' }} disabled={(imageReadyToMark && !(imageAutoConfirm || autoMark)) || imageProcessing} />
                     </div>
                     {previewImageUrl && (
                       <div style={{ marginTop:12, display:'flex', justifyContent:'center' }}>
                         <img src={previewImageUrl} alt="preview" style={{ maxWidth:'100%', maxHeight:220, borderRadius:8, objectFit:'cover', boxShadow:'0 6px 18px rgba(2,6,23,0.06)' }} />
                       </div>
                     )}
+                    {/* Debug panel: show internal flags to diagnose Waiting-to-confirm issues */}
+                    {previewImageUrl && (
+                      <div style={{ marginTop:8, padding:8, borderRadius:8, background:'#fff7ed', color:'#92400e', fontSize:13 }}>
+                        <div style={{ fontWeight:700, marginBottom:6 }}>Debug</div>
+                        <div style={{ fontSize:13 }}>
+                          imageProcessing: <strong>{String(imageProcessing)}</strong> · imageReadyToMark: <strong>{String(imageReadyToMark)}</strong>
+                        </div>
+                        <div style={{ fontSize:13, marginTop:6 }}>
+                          imageAutoConfirm: <strong>{String(imageAutoConfirm)}</strong> · autoMark: <strong>{String(autoMark)}</strong>
+                        </div>
+                        <div style={{ fontSize:13, marginTop:6 }}>decoded: <strong>{lastDecodedRef.current || scannedData || '-'}</strong></div>
+                      </div>
+                    )}
+                    {/* show info messages such as Decoded barcode */}
+                    {message && message.type === 'info' && (
+                      <div style={{ marginTop:8, padding:8, borderRadius:8, background:'#eef2ff', color:'#3730a3' }}>{message.text}</div>
+                    )}
+                    {/* Network log removed per request */}
                     {imageProcessing && <div style={{ marginTop:8 }} className="small">Decoding image…</div>}
                     {message && message.type === 'error' && <div style={{ marginTop:8, color:'#b91c1c' }}>{message.text}</div>}
                   </div>
@@ -686,7 +1002,7 @@ const BarcodeAttendanceScanner = () => {
                     </div>
                     <div style={{ marginTop:10, display:'flex', gap:8, alignItems:'center' }}>
                       {!autoMark ? (
-                        <button className="btn btn-prim" onClick={markAttendanceForImage} disabled={!imageReadyToMark || imageProcessing || loading} aria-disabled={!imageReadyToMark || imageProcessing || loading}>{loading ? 'Marking…' : 'Confirm & Mark'}</button>
+                        <button className="btn btn-prim" onClick={() => markAttendanceForImage()} disabled={!imageReadyToMark || imageProcessing || loading} aria-disabled={!imageReadyToMark || imageProcessing || loading}>{loading ? 'Marking…' : 'Confirm & Mark'}</button>
                       ) : (
                         <div style={{ padding: '8px 12px', borderRadius:8, background:'#ecfeff', color:'#065f46', fontWeight:700 }}>Auto‑Mark is ON — will mark automatically</div>
                       )}
