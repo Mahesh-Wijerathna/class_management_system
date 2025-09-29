@@ -9,6 +9,9 @@ import { getStudentEnrollments, markAttendance, requestForgetCard, requestLatePa
 import { getUserData } from '../../../api/apiUtils';
 import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt, FaCalendarWeek, FaTasks, FaFilePdf, FaFileWord, FaFilePowerpoint, FaUpload, FaRedo, FaPauseCircle } from 'react-icons/fa';
 
+
+
+
 const MyClasses = ({ onLogout }) => {
   const [myClasses, setMyClasses] = useState([]);
   const [selectedTab, setSelectedTab] = useState('all');
@@ -31,6 +34,13 @@ const MyClasses = ({ onLogout }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+  
+
+
+  useEffect(() => {
+  loadMyClasses();
+  createEnrollmentRecords();
+}, []);
 
   // Timer effect for video access
   useEffect(() => {
@@ -57,7 +67,7 @@ const MyClasses = ({ onLogout }) => {
     }
   }, [showVideoModal, selectedClassForVideo]);
 
-  const loadMyClasses = async () => {
+const loadMyClasses = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -171,11 +181,6 @@ const MyClasses = ({ onLogout }) => {
       // Silent fail - enrollments are created automatically during payment
     }
   };
-
-  useEffect(() => {
-    loadMyClasses();
-    createEnrollmentRecords(); // Create enrollment records for each class
-  }, []);
 
   // Listen for payment updates
   useEffect(() => {
@@ -2409,7 +2414,7 @@ const MyClasses = ({ onLogout }) => {
                         <div><strong>Time:</strong> {formatTime(selectedClassForDetails.schedule?.startTime)} - {formatTime(selectedClassForDetails.schedule?.endTime)}</div>
                         <div><strong>Frequency:</strong> {selectedClassForDetails.schedule?.frequency}</div>
                         <div><strong>Duration:</strong> {selectedClassForDetails.startDate && selectedClassForDetails.endDate ? 
-                          `${new Date(selectedClassForDetails.startDate).toLocaleDateString()} to ${new Date(selectedClassForDetails.endDate).toLocaleDateString()}` : 'Not specified'}</div>
+                          `${new Date(selectedClassForDetails.startDate).toLocaleDateString()} to ${new Date(selectedClassForDetails.endDate).toLocaleDateString()}` : 'Not specified'}</div>                 
                       </div>
                     </div>
                   </div>

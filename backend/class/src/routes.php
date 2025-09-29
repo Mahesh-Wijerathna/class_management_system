@@ -101,7 +101,10 @@ switch ($method) {
         break;
         
     case 'GET':
-        if ($path === '/get_all_classes') {
+        if ($path === '/get_class_name_list') {
+            $result = $controller->getClassNameList();
+            echo json_encode(['success' => true, 'data' => $result]);
+        } elseif ($path === '/get_all_classes') {
             $result = $controller->getAllClasses();
             echo json_encode(['success' => true, 'data' => $result]);
         } elseif ($path === '/get_active_classes') {

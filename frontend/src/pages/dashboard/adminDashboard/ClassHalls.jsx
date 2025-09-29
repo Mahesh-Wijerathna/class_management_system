@@ -11,9 +11,10 @@ import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import BasicTable from '../../../components/BasicTable';
 
-const API_URL = "http://localhost:8088/hallbook.php";
+const HALLBOOK_API = "http://localhost:8088/hallbook.php";
 const TEACHERS_API = "http://localhost:8088/routes.php/get_all_teachers";
 const HALL_REQUESTS_API = "http://localhost:8088/hall_request.php";
+const CLASSES_API = "http://localhost:8087/routes.php/get_class_name_list";
 
 const ClassHalls = () => {
   const [halls, setHalls] = useState([]);
@@ -22,11 +23,13 @@ const ClassHalls = () => {
   const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: '', cancelText: '', type: '' });
   const [editingHall, setEditingHall] = useState(null);
   const [availabilityResult, setAvailabilityResult] = useState(null);
+  const [classOptions, setClassOptions] = useState([]);
 
   // Fetch halls and teachers on mount
   useEffect(() => {
     fetchHalls();
     fetchTeachers();
+    fetchClasses();
     fetchRequests();
   }, []);
 
@@ -38,16 +41,34 @@ useEffect(() => {
 }, [availabilityResult]);
 
 
-
-  const fetchHalls = async () => {
+const fetchClasses = async () => {
   try {
-    const res = await fetch(`${API_URL}?list=1`);
+    const res = await fetch(CLASSES_API);
+    const data = await res.json();
+    if (data.success && Array.isArray(data.data)) {
+      setClassOptions([{ label: 'Select Class', value: '' }, ...data.data]);
+    }
+  } catch (err) {
+    console.error("Error fetching classes:", err);
+  }
+};
+
+const fetchHalls = async () => {
+  try {
+    const res = await fetch(`${HALLBOOK_API}?list=1`);
     const data = await res.json();
     if (data.success) {
+      // Build classId to name map
+      const classIdToName = {};
+      classOptions.forEach(opt => {
+        if (opt.value) classIdToName[opt.value] = opt.label;
+      });
+
       setHalls(
         data.halls.map(h => ({
           ...h,
-          time: h.start_time && h.end_time ? `${h.start_time} - ${h.end_time}` : ''
+          time: h.start_time && h.end_time ? `${h.start_time} - ${h.end_time}` : '',
+          class_name: classIdToName[h.class_name] || h.class_name // Map ID to name
         }))
       );
     }
@@ -55,6 +76,23 @@ useEffect(() => {
     console.error("Error fetching halls:", err);
   }
 };
+
+//   const fetchHalls = async () => {
+//   try {
+//     const res = await fetch(`${API_URL}?list=1`);
+//     const data = await res.json();
+//     if (data.success) {
+//       setHalls(
+//         data.halls.map(h => ({
+//           ...h,
+//           time: h.start_time && h.end_time ? `${h.start_time} - ${h.end_time}` : ''
+//         }))
+//       );
+//     }
+//   } catch (err) {
+//     console.error("Error fetching halls:", err);
+//   }
+// };
 
   const fetchTeachers = async () => {
   try {
@@ -86,7 +124,7 @@ useEffect(() => {
   const handleAddHall = async (values, { resetForm }) => {
     try {
 
-      const checkUrl = `${API_URL}?date=${values.date}&start_time=${values.startTime}&end_time=${values.endTime}`;
+      const checkUrl = `${HALLBOOK_API}?date=${values.date}&start_time=${values.startTime}&end_time=${values.endTime}`;
     const checkRes = await fetch(checkUrl);
     const checkData = await checkRes.json();
 
@@ -105,7 +143,7 @@ useEffect(() => {
         start_time: values.startTime,
         end_time: values.endTime
       };
-      const res = await fetch(API_URL, {
+      const res = await fetch(HALLBOOK_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -128,7 +166,7 @@ useEffect(() => {
       'Are you sure you want to delete this hall booking?',
       async () => {
         try {
-          const res = await fetch(`${API_URL}?id=${id}`, {
+          const res = await fetch(`${HALLBOOK_API}?id=${id}`, {
             method: 'DELETE'
           });
           const data = await res.json();
@@ -163,7 +201,7 @@ useEffect(() => {
       start_time: values.startTime,
       end_time: values.endTime
     };
-    const res = await fetch(API_URL, {
+    const res = await fetch(HALLBOOK_API, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -193,7 +231,7 @@ useEffect(() => {
     e.preventDefault();
     setAvailabilityResult(null);
     try {
-      const url = `${API_URL}?date=${checkForm.date}&start_time=${checkForm.startTime}&end_time=${checkForm.endTime}`;
+      const url = `${HALLBOOK_API}?date=${checkForm.date}&start_time=${checkForm.startTime}&end_time=${checkForm.endTime}`;
       const res = await fetch(url);
       const data = await res.json();
       setAvailabilityResult(data);
@@ -314,8 +352,17 @@ useEffect(() => {
                   </div>
                   <>
                       <CustomTextField id="subject" name="subject" label="Subject" value={values.subject} onChange={handleChange} icon={FaBook} />
-                      <CustomTextField id="className" name="className" label="Class Name" value={values.className} onChange={handleChange} icon={FaUserGraduate} />
+                      {/* <CustomTextField id="className" name="className" label="Class Name" value={values.className} onChange={handleChange} icon={FaUserGraduate} /> */}
                       {/* <CustomSelectField id="teacher" name="teacher" label="Teacher Name" value={values.teacher} onChange={handleChange} options={teacherOptions} required /> */}
+                      <CustomSelectField
+                        id="className"
+                        name="className"
+                        label="Class Name"
+                        value={values.className}
+                        onChange={handleChange}
+                        options={[{ label: 'Select Class', value: '' }, ...classOptions]}
+                        icon={FaUserGraduate}
+                      />
                       <CustomSelectField
                         id="teacher"
                         name="teacher"
@@ -394,14 +441,14 @@ useEffect(() => {
                       <option value="Booked">Booked</option>
                     </select> */}
                     <CustomTextField id="subject" name="subject" label="Subject" value={values.subject} onChange={handleChange} />
-                    <CustomTextField id="className" name="className" label="Class Name" value={values.className} onChange={handleChange} />
+                    <CustomSelectField id="className" name="className" label="Class Name" value={values.className} onChange={handleChange} options={classOptions} />
                     <CustomSelectField id="teacher" name="teacher" label="Teacher Name" value={values.teacher} onChange={handleChange} options={teacherOptions} />
                     <CustomTextField id="startTime" name="startTime" type="time" label="Start Time" value={values.startTime} onChange={handleChange} />
                     <CustomTextField id="endTime" name="endTime" type="time" label="End Time" value={values.endTime} onChange={handleChange} />
                     {values.status === 'Booked' && (
                       <>
                         <CustomTextField id="subject" name="subject" label="Subject" value={values.subject} onChange={handleChange} />
-                        <CustomTextField id="className" name="className" label="Class Name" value={values.className} onChange={handleChange} />
+                        <CustomSelectField id="className" name="className"  value={values.className} onChange={handleChange} options={classOptions} />
                         <CustomSelectField id="teacher" name="teacher" value={values.teacher} onChange={handleChange} options={teacherOptions} />
                         <CustomTextField id="date" name="date" type="date" value={values.date} onChange={handleChange} />
                         <CustomTextField id="startTime" name="startTime" type="time" value={values.startTime} onChange={handleChange} />

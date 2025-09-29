@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS students (
     school VARCHAR(200),
     address TEXT,
     district VARCHAR(100),
+    barcode_data VARCHAR(255),
     dateJoined TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
     FOREIGN KEY (userid) REFERENCES users(userid) ON DELETE CASCADE
