@@ -12,7 +12,7 @@ services:
       MYSQL_PASSWORD: devpass
       TZ: Asia/Colombo
     ports:
-      - "3309:3306"
+      - "9323:3306"
     volumes:
       - auth_mysql_data:/var/lib/mysql
       - ./auth/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -65,7 +65,7 @@ services:
       MYSQL_PASSWORD: cashierpass
       TZ: Asia/Colombo
     ports:
-      - "3311:3306"
+      - "9334:3306"
     volumes:
       - cashier_mysql_data:/var/lib/mysql
       - ./cashier/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -117,7 +117,7 @@ services:
       MYSQL_PASSWORD: classpass
       TZ: Asia/Colombo
     ports:
-      - "3312:3306"
+      - "9335:3306"
     volumes:
       - class_mysql_data:/var/lib/mysql
       - ./class/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -169,7 +169,7 @@ services:
       MYSQL_PASSWORD: studentpass
       TZ: Asia/Colombo
     ports:
-      - "3308:3306"
+      - "9332:3306"
     volumes:
       - student_mysql_data:/var/lib/mysql
       - ./student/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -220,7 +220,7 @@ services:
       MYSQL_DATABASE: teacher_db
       TZ: Asia/Colombo
     ports:
-      - "3310:3306"
+      - "9338:3306"
     volumes:
       - ./teacher/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
       - teacher_mysql_data:/var/lib/mysql
@@ -267,43 +267,38 @@ services:
     networks:
       - teacher-network
 
-  attendance-backend:
-    build: ./attendance-backend
-    container_name: attendance-backend
-    ports:
-      - "8092:80"
-    volumes:
-      - ./attendance-backend/src:/var/www/html
-      - ./attendance-backend/.htaccess:/var/www/html/.htaccess
-      - ./attendance-backend/vendor:/var/www/html/vendor
-    depends_on:
-      - attendance-db
-    environment:
-      - DB_HOST=attendance-db
-      - DB_NAME=attendance_system
-      - DB_USER=root
-      - DB_PASSWORD=secret
-      - TZ=Asia/Colombo
-      - ZOOM_WEBHOOK_SECRET=${ZOOM_WEBHOOK_SECRET:-your_zoom_webhook_secret_here}
-    networks:
-      - attendance-network
-      - class-network
-      - auth-network
+  # attendance-backend:
+  #   build: ./attendance-backend
+  #   container_name: attendance-backend
+  #   ports:
+  #     - "8000:80"
+  #   volumes:
+  #     - ./attendance-backend/src:/var/www/html
+  #   depends_on:
+  #     - attendance-db
+  #   environment:
+  #     - DB_HOST=attendance-db
+  #     - DB_NAME=attendance_system
+  #     - DB_USER=root
+  #     - DB_PASSWORD=secret
+  #     - TZ=Asia/Colombo
+  #   networks:
+  #     - attendance-network
 
-  attendance-db:
-    image: mysql:8.0
-    container_name: attendance-db
-    ports:
-      - "3307:3306"  # Different port than default MySQL to avoid conflicts
-    environment:
-      - MYSQL_ROOT_PASSWORD=secret
-      - MYSQL_DATABASE=attendance_system
-      - TZ=Asia/Colombo
-    volumes:
-      - ./attendance-backend/sql:/docker-entrypoint-initdb.d
-      - attendance-db-data:/var/lib/mysql
-    networks:
-      - attendance-network
+  # attendance-db:
+  #   image: mysql:8.0
+  #   container_name: attendance-db
+  #   ports:
+  #     - "3307:3306"  # Different port than default MySQL to avoid conflicts
+  #   environment:
+  #     - MYSQL_ROOT_PASSWORD=secret
+  #     - MYSQL_DATABASE=attendance
+  #     - TZ=Asia/Colombo
+  #   volumes:
+  #     - ./attendance-backend/sql:/docker-entrypoint-initdb.d
+  #     - attendance-db-data:/var/lib/mysql
+  #   networks:
+  #     - attendance-network
 
   # Payment services
   payment-mysql:
@@ -316,7 +311,7 @@ services:
       MYSQL_PASSWORD: paymentpass
       TZ: Asia/Colombo
     ports:
-      - "3313:3306"
+      - "9333:3306"
     volumes:
       - ./payment-backend/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
       - payment_mysql_data:/var/lib/mysql
@@ -352,7 +347,7 @@ volumes:
   class_mysql_data:
   student_mysql_data:
   teacher_mysql_data:
-  attendance-db-data:
+  # attendance-db-data:
   payment_mysql_data:
 
 networks:
@@ -366,7 +361,7 @@ networks:
     driver: bridge
   teacher-network:
     driver: bridge
-  attendance-network:
-    driver: bridge
+  # attendance-network:
+  #   driver: bridge
   payment-network:
     driver: bridge
