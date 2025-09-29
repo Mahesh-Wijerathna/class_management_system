@@ -34,6 +34,30 @@ const MyClasses = ({ onLogout }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+  const [hallBookings, setHallBookings] = useState([]);
+
+
+useEffect(() => {
+  if (selectedClassForDetails) {
+    fetch(`http://localhost:8088/hallbook.php?list=1`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.halls)) {
+          const classObj = myClasses.find(c => c.id === selectedClassForDetails.className);
+          const className = classObj ? classObj.className : selectedClassForDetails.className;
+          console.log('Selected className:', className);
+          console.log('Hall bookings class_names:', data.halls.map(h => h.class_name));
+          const bookings = data.halls.filter(
+            h =>
+              h.class_name.trim().toLowerCase() === className.trim().toLowerCase() ||
+              h.class_name.trim().toLowerCase() === selectedClassForDetails.className.trim().toLowerCase() ||
+              h.class_name === String(selectedClassForDetails.id)
+          );
+          setHallBookings(bookings);
+        }
+      });
+  }
+}, [selectedClassForDetails, myClasses]);
   
 
 
@@ -2414,8 +2438,27 @@ const loadMyClasses = async () => {
                         <div><strong>Time:</strong> {formatTime(selectedClassForDetails.schedule?.startTime)} - {formatTime(selectedClassForDetails.schedule?.endTime)}</div>
                         <div><strong>Frequency:</strong> {selectedClassForDetails.schedule?.frequency}</div>
                         <div><strong>Duration:</strong> {selectedClassForDetails.startDate && selectedClassForDetails.endDate ? 
-                          `${new Date(selectedClassForDetails.startDate).toLocaleDateString()} to ${new Date(selectedClassForDetails.endDate).toLocaleDateString()}` : 'Not specified'}</div>                 
+                          `${new Date(selectedClassForDetails.startDate).toLocaleDateString()} to ${new Date(selectedClassForDetails.endDate).toLocaleDateString()}` : 'Not specified'}</div> 
+                        <div>
+                          <strong>Extra Class Hall:</strong>
+                          {hallBookings.length > 0 ? (
+                            hallBookings.map((h, idx) => (
+
+                              <span key={h.id} className=" block mb-1">
+                                <span className="ml-5 font-bold text-sm text-gray-600">{idx + 1}.</span>{' '}
+                                <span className="ml-1 font-semibold">{h.hall_name}</span>
+                                {' '}|{' '}
+                                <span>{new Date(h.date).toLocaleDateString()}</span>
+                                {' '}|{' '}
+                                <span>{h.start_time} - {h.end_time}</span>
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-gray-500">No hall booked</span>
+                          )}
+                        </div>              
                       </div>
+
                     </div>
                   </div>
                 )}
