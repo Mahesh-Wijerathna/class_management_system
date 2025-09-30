@@ -154,7 +154,7 @@ const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen }) => {
       
       
       {/* Enhanced Sidebar with Glassmorphism */}
-              <aside
+      <aside
           ref={sidebarRef}
           className={`fixed top-0 left-0 h-screen backdrop-blur-4xl bg-gray-50/5 border-r border-white/40 shadow-2xl transition-all duration-500 ease-in-out z-50
             ${isOpen ? 'w-62' : 'w-17'}
@@ -206,7 +206,7 @@ const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen }) => {
           </div>
 
           {/* Enhanced Glassmorphism Search Bar */}
-          {isOpen && (
+                {isOpen && (
             <div className="p-4 border-b border-white/30"
                  style={{
                    background: 'rgba(255, 255, 255, 0.05)',
@@ -228,8 +228,8 @@ const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen }) => {
                   }}
                 />
               </div>
-            </div>
-          )}
+                  </div>
+                )}
 
           {/* Recent Items */}
           {isOpen && recentItems.length > 0 && (

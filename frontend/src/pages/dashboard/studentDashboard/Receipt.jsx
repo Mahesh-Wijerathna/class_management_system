@@ -1342,6 +1342,7 @@ const MyClasses = ({ onLogout }) => {
               setSelectedClassForZoom(null);
             }}
             isOpen={showSecureZoomModal}
+            classData={selectedClassForZoom}
           />
         )}
 

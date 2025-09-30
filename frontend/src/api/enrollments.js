@@ -202,6 +202,7 @@ export const convertEnrollmentToMyClass = (enrollment) => {
       frequency: enrollment.schedule_frequency
     },
     zoomLink: enrollment.zoom_link,
+    videoUrl: enrollment.video_url,
     description: enrollment.description,
     image: enrollment.image,
     paymentStatus: enrollment.payment_status,

@@ -151,9 +151,9 @@ if ($method === 'POST' && $path === '/routes.php/registration-otp-request') {
         exit;
     }
     echo $controller->registrationOtpRequest($data['mobile']);
-    exit;
-}
-
+        exit;
+    }
+    
 // VERIFY REGISTRATION OTP
 if ($method === 'POST' && $path === '/routes.php/verify-registration-otp') {
     $data = json_decode(file_get_contents('php://input'), true);

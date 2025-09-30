@@ -5,7 +5,7 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomButton from '../../../components/CustomButton';
 import CustomSelectField from '../../../components/CustomSelectField';
-import { FaEdit, FaTrash, FaPlus, FaCalendar, FaBook, FaUser, FaClock, FaMoneyBill, FaVideo, FaUsers, FaGraduationCap, FaSync, FaTimes } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaPlus, FaCalendar, FaBook, FaUser, FaClock, FaMoneyBill, FaVideo, FaUsers, FaGraduationCap, FaSync, FaTimes, FaSearch } from 'react-icons/fa';
 import * as Yup from 'yup';
 import BasicTable from '../../../components/BasicTable';
 import { getAllClasses, createClass, updateClass, deleteClass } from '../../../api/classes';
@@ -179,6 +179,15 @@ const CreateClass = ({ onLogout }) => {
   // State for teachers
   const [teacherList, setTeacherList] = useState([]);
   const [loadingTeachers, setLoadingTeachers] = useState(false);
+  
+  // Filter states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [streamFilter, setStreamFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [deliveryMethodFilter, setDeliveryMethodFilter] = useState('');
+  
+  // Sort state
+  const [sortConfig, setSortConfig] = useState({ key: '', direction: 'asc' });
 
   // Load classes from backend
   const loadClasses = async () => {
@@ -312,6 +321,117 @@ const CreateClass = ({ onLogout }) => {
   
   console.log('Teacher list:', teacherList);
   console.log('Teacher options:', teacherOptions);
+
+  // Filter classes based on search and filter criteria
+  const filteredClasses = classes.filter(cls => {
+    // Search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      const className = cls.className?.toLowerCase() || '';
+      const subject = cls.subject?.toLowerCase() || '';
+      const teacher = cls.teacher?.toLowerCase() || '';
+      const stream = cls.stream?.toLowerCase() || '';
+      
+      if (!className.includes(searchLower) && 
+          !subject.includes(searchLower) && 
+          !teacher.includes(searchLower) && 
+          !stream.includes(searchLower)) {
+        return false;
+      }
+    }
+    
+    // Stream filter
+    if (streamFilter && cls.stream !== streamFilter) {
+      return false;
+    }
+    
+    // Status filter
+    if (statusFilter && cls.status !== statusFilter) {
+      return false;
+    }
+    
+    // Delivery method filter
+    if (deliveryMethodFilter && cls.deliveryMethod !== deliveryMethodFilter) {
+      return false;
+    }
+    
+    return true;
+  });
+
+  // Sort filtered classes
+  const sortedAndFilteredClasses = [...filteredClasses].sort((a, b) => {
+    if (!sortConfig.key) return 0;
+    
+    let aValue = a[sortConfig.key];
+    let bValue = b[sortConfig.key];
+    
+    // Handle nested properties
+    if (sortConfig.key === 'schedule') {
+      aValue = a.schedule?.day || '';
+      bValue = b.schedule?.day || '';
+    }
+    
+    // Handle numeric values
+    if (sortConfig.key === 'fee' || sortConfig.key === 'maxStudents') {
+      aValue = Number(aValue) || 0;
+      bValue = Number(bValue) || 0;
+    }
+    
+    // Handle string values
+    if (typeof aValue === 'string') {
+      aValue = aValue.toLowerCase();
+      bValue = bValue.toLowerCase();
+    }
+    
+    // Compare values
+    if (aValue < bValue) {
+      return sortConfig.direction === 'asc' ? -1 : 1;
+    }
+    if (aValue > bValue) {
+      return sortConfig.direction === 'asc' ? 1 : -1;
+    }
+    return 0;
+  });
+
+  // Handle sort changes
+  const handleSort = (key) => {
+    setSortConfig(prevConfig => {
+      if (prevConfig.key === key) {
+        // Toggle direction if same column
+        return {
+          key,
+          direction: prevConfig.direction === 'asc' ? 'desc' : 'asc'
+        };
+      } else {
+        // New column, default to ascending
+        return {
+          key,
+          direction: 'asc'
+        };
+      }
+    });
+  };
+
+  // Create filter options
+  const streamFilterOptions = [
+    { value: '', label: 'All Streams' },
+    ...streamOptions.filter(option => option.value !== '')
+  ];
+
+  const statusFilterOptions = [
+    { value: '', label: 'All Statuses' },
+    ...statusOptions.filter(option => option.value !== '')
+  ];
+
+  const deliveryMethodFilterOptions = [
+    { value: '', label: 'All Delivery Methods' },
+    { value: 'physical', label: 'Physical Only' },
+    { value: 'online', label: 'Online Only' },
+    { value: 'hybrid1', label: 'Hybrid 1 (Physical + Online)' },
+    { value: 'hybrid2', label: 'Hybrid 2 (Physical + Recorded)' },
+    { value: 'hybrid3', label: 'Hybrid 3 (Online + Recorded)' },
+    { value: 'hybrid4', label: 'Hybrid 4 (Physical + Online + Recorded)' }
+  ];
 
   const handleSubmit = async (values, { resetForm, setFieldError }) => {
     console.log('=== FORM SUBMISSION STARTED ===');
@@ -1730,16 +1850,146 @@ const CreateClass = ({ onLogout }) => {
             </CustomButton>
           </div>
           </div>
+
+          {/* Filters Section */}
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
+            <div className="flex flex-col md:flex-row gap-4">
+              {/* Search Input */}
+              <div className="flex-1">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search classes..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      searchTerm ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                    }`}
+                  />
+                  <FaSearch className={`absolute left-3 top-3 ${searchTerm ? 'text-blue-500' : 'text-gray-400'}`} />
+                </div>
+              </div>
+              
+              {/* Stream Filter */}
+              <div className="flex-1">
+                <select
+                  value={streamFilter}
+                  onChange={(e) => setStreamFilter(e.target.value)}
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    streamFilter ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                  }`}
+                >
+                  {streamFilterOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Status Filter */}
+              <div className="flex-1">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    statusFilter ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                  }`}
+                >
+                  {statusFilterOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Delivery Method Filter */}
+              <div className="flex-1">
+                <select
+                  value={deliveryMethodFilter}
+                  onChange={(e) => setDeliveryMethodFilter(e.target.value)}
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    deliveryMethodFilter ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                  }`}
+                >
+                  {deliveryMethodFilterOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            {/* Filter Summary */}
+            <div className="mt-3 flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Showing {sortedAndFilteredClasses.length} of {classes.length} classes
+                {(searchTerm || streamFilter || statusFilter || deliveryMethodFilter) && (
+                  <span className="ml-2">
+                    (filtered by: {[
+                      searchTerm && 'search',
+                      streamFilter && 'stream',
+                      statusFilter && 'status',
+                      deliveryMethodFilter && 'delivery method'
+                    ].filter(Boolean).join(', ')})
+                  </span>
+                )}
+                {sortConfig.key && (
+                  <span className="ml-2">
+                    • sorted by {sortConfig.key} ({sortConfig.direction === 'asc' ? 'ascending' : 'descending'})
+                  </span>
+                )}
+              </div>
+              
+              {/* Clear Filters Button */}
+              {(searchTerm || streamFilter || statusFilter || deliveryMethodFilter || sortConfig.key) && (
+                <button
+                  onClick={() => {
+                    setSearchTerm('');
+                    setStreamFilter('');
+                    setStatusFilter('');
+                    setDeliveryMethodFilter('');
+                    setSortConfig({ key: '', direction: 'asc' });
+                  }}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Clear All Filters & Sort
+                </button>
+              )}
+          </div>
+          </div>
           
           {loading ? (
             <div className="text-center py-8">
               <div className="text-gray-500">Loading classes...</div>
             </div>
+          ) : sortedAndFilteredClasses.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="text-gray-500 mb-2">
+                {classes.length === 0 ? 'No classes found.' : 'No classes match your current filters.'}
+              </div>
+              {(searchTerm || streamFilter || statusFilter || deliveryMethodFilter || sortConfig.key) && (
+                <button
+                  onClick={() => {
+                    setSearchTerm('');
+                    setStreamFilter('');
+                    setStatusFilter('');
+                    setDeliveryMethodFilter('');
+                    setSortConfig({ key: '', direction: 'asc' });
+                  }}
+                  className="text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Clear all filters & sort
+                </button>
+              )}
+            </div>
           ) : (
           <BasicTable
             rowClassName={row => editingId === row.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''}
             columns={[
-              { key: 'className', label: 'Class Name', render: row => {
+              { key: 'className', label: 'Class Name', sortable: true, render: row => {
                 // For revision class with related theory, show related theory className
                 if (row.courseType === 'revision' && row.relatedTheoryId) {
                   const related = classes.find(c => String(c.id) === String(row.relatedTheoryId));
@@ -1747,28 +1997,28 @@ const CreateClass = ({ onLogout }) => {
                 }
                 return row.className || 'N/A';
               } },
-              { key: 'subject', label: 'Subject', render: row => {
+              { key: 'subject', label: 'Subject', sortable: true, render: row => {
                 if (row.courseType === 'revision' && row.relatedTheoryId) {
                   const related = classes.find(c => String(c.id) === String(row.relatedTheoryId));
                   return related ? related.subject : (row.subject || 'N/A');
                 }
                 return row.subject || 'N/A';
               } },
-              { key: 'teacher', label: 'Teacher', render: row => {
+              { key: 'teacher', label: 'Teacher', sortable: true, render: row => {
                 if (row.courseType === 'revision' && row.relatedTheoryId) {
                   const related = classes.find(c => String(c.id) === String(row.relatedTheoryId));
                   return related ? related.teacher : (row.teacher || 'N/A');
                 }
                 return row.teacher || 'N/A';
               } },
-              { key: 'stream', label: 'Stream', render: row => {
+              { key: 'stream', label: 'Stream', sortable: true, render: row => {
                 if (row.courseType === 'revision' && row.relatedTheoryId) {
                   const related = classes.find(c => String(c.id) === String(row.relatedTheoryId));
                   return related ? related.stream : (row.stream || 'N/A');
                 }
                 return row.stream || 'N/A';
               } },
-              { key: 'deliveryMethod', label: 'Delivery', render: row => {
+              { key: 'deliveryMethod', label: 'Delivery', sortable: true, render: row => {
                 const method = row.deliveryMethod || 'N/A';
                 const methodLabels = {
                   'physical': 'Physical Only',
@@ -1780,14 +2030,14 @@ const CreateClass = ({ onLogout }) => {
                 };
                 return methodLabels[method] || method;
               } },
-              { key: 'schedule', label: 'Schedule', render: row => {
+              { key: 'schedule', label: 'Schedule', sortable: true, render: row => {
                 if (!row.schedule) return 'N/A';
                 if (row.schedule.frequency === 'no-schedule') {
                   return 'No Schedule';
                 }
                 return `${formatDay(row.schedule.day)} ${formatTime(row.schedule.startTime)}-${formatTime(row.schedule.endTime)}`;
               } },
-              { key: 'fee', label: 'Fee', render: row => {
+              { key: 'fee', label: 'Fee', sortable: true, render: row => {
                 let fee = Number(row.fee) || 0;
                 // For revision class, show discount for theory students
                 if (row.courseType === 'revision' && row.revisionDiscountPrice) {
@@ -1795,15 +2045,17 @@ const CreateClass = ({ onLogout }) => {
                 }
                 return `Rs. ${fee}`;
               } },
-              { key: 'courseType', label: 'Course Type', render: row => row.courseType || 'N/A' },
-              { key: 'revisionDiscountPrice', label: 'Theory Student Discount', render: row => row.courseType === 'revision' && row.revisionDiscountPrice ? `Rs. ${row.revisionDiscountPrice}` : '' },
-              { key: 'status', label: 'Status', render: row => {
+              { key: 'courseType', label: 'Course Type', sortable: true, render: row => row.courseType || 'N/A' },
+              { key: 'revisionDiscountPrice', label: 'Theory Student Discount', sortable: true, render: row => row.courseType === 'revision' && row.revisionDiscountPrice ? `Rs. ${row.revisionDiscountPrice}` : '' },
+              { key: 'status', label: 'Status', sortable: true, render: row => {
                 if (row.status === 'active') return <span className="px-2 py-1 rounded bg-green-100 text-green-800 font-semibold">Active</span>;
                 if (row.status === 'inactive') return <span className="px-2 py-1 rounded bg-red-100 text-red-800 font-semibold">Inactive</span>;
                 return row.status || 'N/A';
               } },
             ]}
-            data={classes}
+            data={sortedAndFilteredClasses}
+            onSort={handleSort}
+            sortConfig={sortConfig}
             actions={row => (
               <div className="flex gap-2">
                 <button
