@@ -11,8 +11,10 @@ import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import BasicTable from '../../../components/BasicTable';
 
-const API_URL = "http://localhost:8088/hallbook.php";
-const TEACHERS_API = "http://localhost:8088/routes.php/get_all_teachers"; // example teacher list API
+const HALLBOOK_API = "http://localhost:8088/hallbook.php";
+const TEACHERS_API = "http://localhost:8088/routes.php/get_all_teachers";
+const HALL_REQUESTS_API = "http://localhost:8088/hall_request.php";
+const CLASSES_API = "http://localhost:8087/routes.php/get_class_name_list";
 
 const ClassHalls = () => {
   const [halls, setHalls] = useState([]);
@@ -21,11 +23,13 @@ const ClassHalls = () => {
   const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: '', cancelText: '', type: '' });
   const [editingHall, setEditingHall] = useState(null);
   const [availabilityResult, setAvailabilityResult] = useState(null);
+  const [classOptions, setClassOptions] = useState([]);
 
   // Fetch halls and teachers on mount
   useEffect(() => {
     fetchHalls();
     fetchTeachers();
+    fetchClasses();
     fetchRequests();
   }, []);
 
@@ -37,16 +41,34 @@ useEffect(() => {
 }, [availabilityResult]);
 
 
-
-  const fetchHalls = async () => {
+const fetchClasses = async () => {
   try {
-    const res = await fetch(`${API_URL}?list=1`);
+    const res = await fetch(CLASSES_API);
+    const data = await res.json();
+    if (data.success && Array.isArray(data.data)) {
+      setClassOptions([{ label: 'Select Class', value: '' }, ...data.data]);
+    }
+  } catch (err) {
+    console.error("Error fetching classes:", err);
+  }
+};
+
+const fetchHalls = async () => {
+  try {
+    const res = await fetch(`${HALLBOOK_API}?list=1`);
     const data = await res.json();
     if (data.success) {
+      // Build classId to name map
+      const classIdToName = {};
+      classOptions.forEach(opt => {
+        if (opt.value) classIdToName[opt.value] = opt.label;
+      });
+
       setHalls(
         data.halls.map(h => ({
           ...h,
-          time: h.start_time && h.end_time ? `${h.start_time} - ${h.end_time}` : ''
+          time: h.start_time && h.end_time ? `${h.start_time} - ${h.end_time}` : '',
+          class_name: classIdToName[h.class_name] || h.class_name // Map ID to name
         }))
       );
     }
@@ -54,6 +76,23 @@ useEffect(() => {
     console.error("Error fetching halls:", err);
   }
 };
+
+//   const fetchHalls = async () => {
+//   try {
+//     const res = await fetch(`${API_URL}?list=1`);
+//     const data = await res.json();
+//     if (data.success) {
+//       setHalls(
+//         data.halls.map(h => ({
+//           ...h,
+//           time: h.start_time && h.end_time ? `${h.start_time} - ${h.end_time}` : ''
+//         }))
+//       );
+//     }
+//   } catch (err) {
+//     console.error("Error fetching halls:", err);
+//   }
+// };
 
   const fetchTeachers = async () => {
   try {
@@ -72,7 +111,7 @@ useEffect(() => {
 
   const fetchRequests = async () => {
     try {
-      const res = await fetch("http://localhost:8088/hall_requests.php");
+      const res = await fetch(HALL_REQUESTS_API);
       const data = await res.json();
       if (data.success) {
         setRequests(data.requests);
@@ -85,7 +124,7 @@ useEffect(() => {
   const handleAddHall = async (values, { resetForm }) => {
     try {
 
-      const checkUrl = `${API_URL}?date=${values.date}&start_time=${values.startTime}&end_time=${values.endTime}`;
+      const checkUrl = `${HALLBOOK_API}?date=${values.date}&start_time=${values.startTime}&end_time=${values.endTime}`;
     const checkRes = await fetch(checkUrl);
     const checkData = await checkRes.json();
 
@@ -104,7 +143,7 @@ useEffect(() => {
         start_time: values.startTime,
         end_time: values.endTime
       };
-      const res = await fetch(API_URL, {
+      const res = await fetch(HALLBOOK_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -127,7 +166,7 @@ useEffect(() => {
       'Are you sure you want to delete this hall booking?',
       async () => {
         try {
-          const res = await fetch(`${API_URL}?id=${id}`, {
+          const res = await fetch(`${HALLBOOK_API}?id=${id}`, {
             method: 'DELETE'
           });
           const data = await res.json();
@@ -162,7 +201,7 @@ useEffect(() => {
       start_time: values.startTime,
       end_time: values.endTime
     };
-    const res = await fetch(API_URL, {
+    const res = await fetch(HALLBOOK_API, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -192,7 +231,7 @@ useEffect(() => {
     e.preventDefault();
     setAvailabilityResult(null);
     try {
-      const url = `${API_URL}?date=${checkForm.date}&start_time=${checkForm.startTime}&end_time=${checkForm.endTime}`;
+      const url = `${HALLBOOK_API}?date=${checkForm.date}&start_time=${checkForm.startTime}&end_time=${checkForm.endTime}`;
       const res = await fetch(url);
       const data = await res.json();
       setAvailabilityResult(data);
@@ -216,9 +255,42 @@ useEffect(() => {
       type
     });
   };
-  const handleRespondRequest = (id, status) => {
-    // You can implement this as needed
-    alert(`Request ${id} ${status}`);
+  // Admin approve/reject hall request
+  const handleRespondRequest = async (id, status) => {
+    try {
+      const res = await fetch(HALL_REQUESTS_API, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status })
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchRequests();
+        setAlertBox({
+          open: true,
+          message: `Request ${status === 'approved' ? 'approved' : 'rejected'} successfully!`,
+          onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+          confirmText: 'OK',
+          type: 'success'
+        });
+      } else {
+        setAlertBox({
+          open: true,
+          message: data.message || 'Failed to update request',
+          onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+          confirmText: 'OK',
+          type: 'error'
+        });
+      }
+    } catch (err) {
+      setAlertBox({
+        open: true,
+        message: 'Network error',
+        onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'error'
+      });
+    }
   };
 
   return (
@@ -241,12 +313,12 @@ useEffect(() => {
         </form>
         {availabilityResult && (
           <div className={`mt-4 p-4 rounded font-semibold shadow
-      ${availabilityResult.success && availabilityResult.available
-        ? 'bg-green-100 text-green-800 border border-green-400 '
-        : 'bg-red-100 text-red-800 border border-red-400'
-      }`
-    }
-    style={{ maxWidth: 400 }}>
+            ${availabilityResult.success && availabilityResult.available
+             ? 'bg-green-100 text-green-800 border border-green-400 '
+             : 'bg-red-100 text-red-800 border border-red-400'
+            }`
+                          }
+          style={{ maxWidth: 400 }}>
             {availabilityResult.success
               ? (availabilityResult.available ? "Hall is available!" : "Hall is NOT available!")
               : availabilityResult.message}
@@ -280,8 +352,17 @@ useEffect(() => {
                   </div>
                   <>
                       <CustomTextField id="subject" name="subject" label="Subject" value={values.subject} onChange={handleChange} icon={FaBook} />
-                      <CustomTextField id="className" name="className" label="Class Name" value={values.className} onChange={handleChange} icon={FaUserGraduate} />
+                      {/* <CustomTextField id="className" name="className" label="Class Name" value={values.className} onChange={handleChange} icon={FaUserGraduate} /> */}
                       {/* <CustomSelectField id="teacher" name="teacher" label="Teacher Name" value={values.teacher} onChange={handleChange} options={teacherOptions} required /> */}
+                      <CustomSelectField
+                        id="className"
+                        name="className"
+                        label="Class Name"
+                        value={values.className}
+                        onChange={handleChange}
+                        options={[{ label: 'Select Class', value: '' }, ...classOptions]}
+                        icon={FaUserGraduate}
+                      />
                       <CustomSelectField
                         id="teacher"
                         name="teacher"
@@ -360,14 +441,14 @@ useEffect(() => {
                       <option value="Booked">Booked</option>
                     </select> */}
                     <CustomTextField id="subject" name="subject" label="Subject" value={values.subject} onChange={handleChange} />
-                    <CustomTextField id="className" name="className" label="Class Name" value={values.className} onChange={handleChange} />
+                    <CustomSelectField id="className" name="className" label="Class Name" value={values.className} onChange={handleChange} options={classOptions} />
                     <CustomSelectField id="teacher" name="teacher" label="Teacher Name" value={values.teacher} onChange={handleChange} options={teacherOptions} />
                     <CustomTextField id="startTime" name="startTime" type="time" label="Start Time" value={values.startTime} onChange={handleChange} />
                     <CustomTextField id="endTime" name="endTime" type="time" label="End Time" value={values.endTime} onChange={handleChange} />
                     {values.status === 'Booked' && (
                       <>
                         <CustomTextField id="subject" name="subject" label="Subject" value={values.subject} onChange={handleChange} />
-                        <CustomTextField id="className" name="className" label="Class Name" value={values.className} onChange={handleChange} />
+                        <CustomSelectField id="className" name="className"  value={values.className} onChange={handleChange} options={classOptions} />
                         <CustomSelectField id="teacher" name="teacher" value={values.teacher} onChange={handleChange} options={teacherOptions} />
                         <CustomTextField id="date" name="date" type="date" value={values.date} onChange={handleChange} />
                         <CustomTextField id="startTime" name="startTime" type="time" value={values.startTime} onChange={handleChange} />
@@ -384,27 +465,47 @@ useEffect(() => {
 
         {/* Hall Requests */}
         <div className="border-t-2 pt-4 mt-16">
-          <h2>Hall Requests</h2>
+          <h2 className="text-lg font-semibold mb-2">Hall Requests</h2>
+
+          
+
+
           {requests.length === 0 ? (
             <p>No hall requests at the moment.</p>
           ) : (
             <BasicTable
               columns={[
-                { key: 'teacher', label: 'Teacher' },
-                { key: 'hall', label: 'Hall' },
+                { key: 'id', label: 'ID' },
+                { key: 'date', label: 'Date' },
+                { key: 'teacher_id', label: 'Teacher' },
                 { key: 'subject', label: 'Subject' },
-                { key: 'className', label: 'Class Name' },
-                { key: 'time', label: 'Time Period' },
+                { key: 'class_name', label: 'Class Name' },
+                { key: 'start_time', label: 'Start Time' },
+                { key: 'end_time', label: 'End Time' },
                 { key: 'status', label: 'Status' }
               ]}
               data={requests}
               actions={row => (
                 <>
                   {row.status === 'pending' && (
-                    <>
-                      <CustomButton onClick={() => handleRespondRequest(row.id, 'approved')}>Approve</CustomButton>
-                      <CustomButton onClick={() => handleRespondRequest(row.id, 'rejected')}>Reject</CustomButton>
-                    </>
+                    <div className="flex gap-2">
+                      <CustomButton
+                        onClick={() => handleRespondRequest(row.id, 'approved')}
+                        className="px-2 py-1 text-xs hover:bg-green-400 rounded bg-green-100 text-black-800 border border-green-400"
+                        style={{ minWidth: '60px' }}
+                      >
+                        Approve
+                      </CustomButton>
+                      <CustomButton
+                        onClick={() => handleRespondRequest(row.id, 'rejected')}
+                        className="px-2 py-1 text-xs hover:bg-red-400 rounded bg-red-100 text-black-800 border border-red-400"
+
+                        // className="px-2 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded"
+                        style={{ minWidth: '60px' }}
+                      >
+                        Reject
+                      </CustomButton>
+                    </div>
                   )}
                 </>
               )}

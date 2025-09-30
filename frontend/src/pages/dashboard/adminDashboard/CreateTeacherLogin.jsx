@@ -77,6 +77,7 @@ const CreateTeacherLogin = () => {
           onConfirm: () => {
             setAlertBox(a => ({ ...a, open: false }));
             navigate('/admin/teachers/info');
+            // navigate('/dashboard/admin/teacher-info');
           },
           confirmText: 'OK',
           type: response.whatsapp_sent ? 'success' : 'warning'

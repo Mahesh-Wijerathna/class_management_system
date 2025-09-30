@@ -8,6 +8,10 @@ require_once 'config.php';
 class ClassController {
     private $model;
 
+    public function getClassNameList() {
+    return $this->model->getClassNameList();
+    }
+
     public function __construct($db) {
         $this->model = new ClassModel($db);
     }

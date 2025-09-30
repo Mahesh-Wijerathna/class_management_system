@@ -20,12 +20,48 @@ if ($method === 'GET' && isset($_GET['list'])) {
     $sql = "SELECT hb.*, t.name AS teacher_name FROM hall_bookings hb LEFT JOIN teachers t ON hb.teacherId = t.teacherId ORDER BY hb.date DESC, hb.start_time ASC";
     $result = $conn->query($sql);
     $halls = [];
+
+    // Connect to classes database
+    $classes_conn = new mysqli(
+    'class-mysql-server',
+    'classuser',
+    'classpass',
+    'class_db',
+    3306
+);
+    if ($classes_conn->connect_error) {
+        echo json_encode(['success' => false, 'message' => 'Error connecting to classes database: ' . $classes_conn->connect_error]);
+    exit;
+    }
+
     while ($row = $result->fetch_assoc()) {
+        // If you have class_id in hall_bookings
+        if (isset($row['class_id'])) {
+            $class_id = $row['class_id'];
+            $class_result = $classes_conn->query("SELECT class_name FROM classes WHERE id = $class_id");
+            $class_row = $class_result ? $class_result->fetch_assoc() : null;
+            $row['class_name'] = $class_row ? $class_row['class_name'] : null;
+        }
         $halls[] = $row;
     }
+    $classes_conn->close();
+
     echo json_encode(['success' => true, 'halls' => $halls]);
     exit;
 }
+
+
+// if ($method === 'GET' && isset($_GET['list'])) {
+//     // Return all hall bookings for the table
+//     $sql = "SELECT hb.*, t.name AS teacher_name FROM hall_bookings hb LEFT JOIN teachers t ON hb.teacherId = t.teacherId ORDER BY hb.date DESC, hb.start_time ASC";
+//     $result = $conn->query($sql);
+//     $halls = [];
+//     while ($row = $result->fetch_assoc()) {
+//         $halls[] = $row;
+//     }
+//     echo json_encode(['success' => true, 'halls' => $halls]);
+//     exit;
+// }
 
 elseif ($method === 'GET') {
     // Fetch bookings for a date/time range, including teacher name

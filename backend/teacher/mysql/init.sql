@@ -45,3 +45,18 @@ CREATE TABLE IF NOT EXISTS teacher_halls (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (teacherId) REFERENCES teachers(teacherId) ON DELETE CASCADE
 ); 
+
+
+CREATE TABLE IF NOT EXISTS hall_bookings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  hall_name VARCHAR(100) NOT NULL,
+  subject VARCHAR(100),
+  class_id INT,
+  teacherId VARCHAR(10) NOT NULL,
+  date DATE NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  status ENUM('booked', 'cancelled') DEFAULT 'booked',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (teacherId) REFERENCES teachers(teacherId) ON DELETE SET NULL,
+);

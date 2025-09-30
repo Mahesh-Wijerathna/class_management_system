@@ -176,18 +176,18 @@ services:
     networks:
       - student-network
 
-  # student-phpmyadmin:
-  #   image: phpmyadmin/phpmyadmin
-  #   container_name: student-phpmyadmin
-  #   environment:
-  #     PMA_HOST: student-mysql
-  #     PMA_PORT: 3306
-  #   ports:
-  #     - "8085:80"
-  #   depends_on:
-  #     - student-mysql
-  #   networks:
-  #     - student-network
+  student-phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: student-phpmyadmin
+    environment:
+      PMA_HOST: student-mysql
+      PMA_PORT: 3306
+    ports:
+      - "8085:80"
+    depends_on:
+      - student-mysql
+    networks:
+      - student-network
 
   student-backend:
     build:
@@ -227,20 +227,20 @@ services:
     networks:
       - teacher-network
 
-  # teacher-phpmyadmin:
-  #   image: phpmyadmin/phpmyadmin
-  #   container_name: teacher-phpmyadmin
-  #   environment:
-  #     PMA_HOST: teacher-mysql
-  #     PMA_PORT: 3306
-  #     PMA_USER: root
-  #     PMA_PASSWORD: password
-  #   ports:
-  #     - "8084:80"
-  #   depends_on:
-  #     - teacher-mysql
-  #   networks:
-  #     - teacher-network
+  teacher-phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: teacher-phpmyadmin
+    environment:
+      PMA_HOST: teacher-mysql
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: password
+    ports:
+      - "8084:80"
+    depends_on:
+      - teacher-mysql
+    networks:
+      - teacher-network
 
   teacher-backend:
     build:
@@ -266,6 +266,7 @@ services:
       - WHATSAPP_WEBHOOK_VERIFY_TOKEN=
     networks:
       - teacher-network
+      - class-network
 
   attendance-backend:
     build: ./attendance-backend

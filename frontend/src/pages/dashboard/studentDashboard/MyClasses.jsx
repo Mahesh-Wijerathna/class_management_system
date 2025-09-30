@@ -11,6 +11,9 @@ import { getUserData } from '../../../api/apiUtils';
 import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt, FaCalendarWeek, FaTasks, FaFilePdf, FaFileWord, FaFilePowerpoint, FaUpload, FaRedo, FaPauseCircle, FaExpand } from 'react-icons/fa';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 
+
+
+
 const MyClasses = ({ onLogout }) => {
   // Add watermark animation styles
   useEffect(() => {
@@ -51,6 +54,37 @@ const MyClasses = ({ onLogout }) => {
   const [error, setError] = useState(null);
   const [alertBox, setAlertBox] = useState({ open: false, message: '', type: 'info', title: '' });
   const navigate = useNavigate();
+  const [hallBookings, setHallBookings] = useState([]);
+
+
+useEffect(() => {
+  if (selectedClassForDetails) {
+    fetch(`http://localhost:8088/hallbook.php?list=1`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.halls)) {
+          const classObj = myClasses.find(c => c.id === selectedClassForDetails.className);
+          const className = classObj ? classObj.className : selectedClassForDetails.className;
+          console.log('Selected className:', className);
+          console.log('Hall bookings class_names:', data.halls.map(h => h.class_name));
+          const bookings = data.halls.filter(
+            h =>
+              h.class_name.trim().toLowerCase() === className.trim().toLowerCase() ||
+              h.class_name.trim().toLowerCase() === selectedClassForDetails.className.trim().toLowerCase() ||
+              h.class_name === String(selectedClassForDetails.id)
+          );
+          setHallBookings(bookings);
+        }
+      });
+  }
+}, [selectedClassForDetails, myClasses]);
+  
+
+
+  useEffect(() => {
+  loadMyClasses();
+  createEnrollmentRecords();
+}, []);
 
   // Timer effect for video access
   useEffect(() => {
@@ -82,8 +116,7 @@ const MyClasses = ({ onLogout }) => {
     }
   }, [showVideoModal, selectedClassForVideo]);
 
-  // ESC key handler for maximize window
-  useEffect(() => {
+    useEffect(() => {
     const handleEscape = (e) => {
       if (e.key === 'Escape') {
         console.log('ESC key pressed');
@@ -114,8 +147,6 @@ const MyClasses = ({ onLogout }) => {
       document.removeEventListener('keydown', handleEscape);
     };
   }, [showVideoModal]);
-
-  const loadMyClasses = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -229,11 +260,6 @@ const MyClasses = ({ onLogout }) => {
       // Silent fail - enrollments are created automatically during payment
     }
   };
-
-  useEffect(() => {
-    loadMyClasses();
-    createEnrollmentRecords(); // Create enrollment records for each class
-  }, []);
 
   // Listen for payment updates
   useEffect(() => {
@@ -2885,8 +2911,27 @@ const MyClasses = ({ onLogout }) => {
                         <div><strong>Time:</strong> {formatTime(selectedClassForDetails.schedule?.startTime)} - {formatTime(selectedClassForDetails.schedule?.endTime)}</div>
                         <div><strong>Frequency:</strong> {selectedClassForDetails.schedule?.frequency}</div>
                         <div><strong>Duration:</strong> {selectedClassForDetails.startDate && selectedClassForDetails.endDate ? 
-                          `${new Date(selectedClassForDetails.startDate).toLocaleDateString()} to ${new Date(selectedClassForDetails.endDate).toLocaleDateString()}` : 'Not specified'}</div>
+                          `${new Date(selectedClassForDetails.startDate).toLocaleDateString()} to ${new Date(selectedClassForDetails.endDate).toLocaleDateString()}` : 'Not specified'}</div> 
+                        <div>
+                          <strong>Extra Class Hall:</strong>
+                          {hallBookings.length > 0 ? (
+                            hallBookings.map((h, idx) => (
+
+                              <span key={h.id} className=" block mb-1">
+                                <span className="ml-5 font-bold text-sm text-gray-600">{idx + 1}.</span>{' '}
+                                <span className="ml-1 font-semibold">{h.hall_name}</span>
+                                {' '}|{' '}
+                                <span>{new Date(h.date).toLocaleDateString()}</span>
+                                {' '}|{' '}
+                                <span>{h.start_time} - {h.end_time}</span>
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-gray-500">No hall booked</span>
+                          )}
+                        </div>              
                       </div>
+
                     </div>
                   </div>
                 )}
