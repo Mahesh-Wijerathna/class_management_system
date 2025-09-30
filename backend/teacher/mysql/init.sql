@@ -60,3 +60,15 @@ CREATE TABLE IF NOT EXISTS hall_bookings (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (teacherId) REFERENCES teachers(teacherId) ON DELETE SET NULL,
 );
+
+CREATE TABLE hall_requests (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  teacher_id VARCHAR(50) NOT NULL,
+  subject VARCHAR(100),
+  class_name VARCHAR(100),
+  date DATE NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
