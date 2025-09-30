@@ -147,6 +147,7 @@ useEffect(() => {
       document.removeEventListener('keydown', handleEscape);
     };
   }, [showVideoModal]);
+  const loadMyClasses = async () => {
     try {
       setLoading(true);
       setError(null);
