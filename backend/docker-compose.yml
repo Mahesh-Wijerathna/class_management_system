@@ -124,18 +124,18 @@ services:
     networks:
       - class-network
 
-  class-phpmyadmin:
-    image: phpmyadmin/phpmyadmin
-    container_name: class-phpmyadmin
-    environment:
-      PMA_HOST: class-mysql
-      PMA_PORT: 3306
-    ports:
-      - "8089:80"
-    depends_on:
-      - class-mysql
-    networks:
-      - class-network
+  # class-phpmyadmin:
+  #   image: phpmyadmin/phpmyadmin
+  #   container_name: class-phpmyadmin
+  #   environment:
+  #     PMA_HOST: class-mysql
+  #     PMA_PORT: 3306
+  #   ports:
+  #     - "8089:80"
+  #   depends_on:
+  #     - class-mysql
+  #   networks:
+  #     - class-network
 
   class-backend:
     build:
@@ -268,40 +268,42 @@ services:
       - teacher-network
       - class-network
 
-  # attendance-backend:
-  #   build: ./attendance-backend
-  #   container_name: attendance-backend
-  #   ports:
-  #     - "8000:80"
-  #   volumes:
-  #     - ./attendance-backend/src:/var/www/html
-  #   depends_on:
-  #     - attendance-db
-  #   environment:
-  #     - DB_HOST=attendance-db
-  #     - DB_NAME=attendance_system
-  #     - DB_USER=root
-  #     - DB_PASSWORD=secret
-  #     - TZ=Asia/Colombo
-  #   networks:
-  #     - attendance-network
+  attendance-backend:
+    build: ./attendance-backend
+    container_name: attendance-backend
+    ports:
+      - "8092:80"
+    volumes:
+      - ./attendance-backend/src:/var/www/html
+    depends_on:
+      - attendance-db
+    environment:
+      - DB_HOST=attendance-db
+      - DB_NAME=attendance_system
+      - DB_USER=root
+      - DB_PASSWORD=secret
+      - TZ=Asia/Colombo
+    networks:
+      - attendance-network
+      - class-network
+      - auth-network
 
-  # attendance-db:
-  #   image: mysql:8.0
-  #   container_name: attendance-db
-  #   ports:
-  #     - "3307:3306"  # Different port than default MySQL to avoid conflicts
-  #   environment:
-  #     - MYSQL_ROOT_PASSWORD=secret
-  #     - MYSQL_DATABASE=attendance
-  #     - TZ=Asia/Colombo
-  #   volumes:
-  #     - ./attendance-backend/sql:/docker-entrypoint-initdb.d
-  #     - attendance-db-data:/var/lib/mysql
-  #   networks:
-  #     - attendance-network
+  attendance-db:
+    image: mysql:8.0
+    container_name: attendance-db
+    ports:
+      - "3307:3306"  # Different port than default MySQL to avoid conflicts
+    environment:
+      - MYSQL_ROOT_PASSWORD=secret
+      - MYSQL_DATABASE=attendance
+      - TZ=Asia/Colombo
+    volumes:
+      - ./attendance-backend/sql:/docker-entrypoint-initdb.d
+      - attendance-db-data:/var/lib/mysql
+    networks:
+      - attendance-network
 
-  # Payment services
+  #Payment services
   payment-mysql:
     image: mysql:8.0
     container_name: payment-mysql
@@ -348,7 +350,7 @@ volumes:
   class_mysql_data:
   student_mysql_data:
   teacher_mysql_data:
-  # attendance-db-data:
+  attendance-db-data:
   payment_mysql_data:
 
 networks:
@@ -362,7 +364,7 @@ networks:
     driver: bridge
   teacher-network:
     driver: bridge
-  # attendance-network:
-  #   driver: bridge
+  attendance-network:
+    driver: bridge
   payment-network:
     driver: bridge

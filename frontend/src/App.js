@@ -1,3 +1,4 @@
+import BarcodeAttendanceScanner from './pages/barcode/BarcodeAttendanceScanner';
 
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
@@ -38,9 +39,12 @@ function App() {
                   </LogoutHandler>
                 </SidebarProvider>
               </AuthGuard>
-            } 
+            }
           />
         ))}
+
+        {/* Barcode Attendance Scanner Route - Public */}
+        <Route path="/scanner" element={<BarcodeAttendanceScanner />} />
 
         {/* Admin Nested Routes - Protected */}
         {adminRoutes.map((route, index) => (
@@ -118,6 +122,8 @@ function App() {
             } 
           />
         ))}
+  {/* Barcode Attendance Scanner Route - Public */}
+  <Route path="/scanner" element={<BarcodeAttendanceScanner />} />
       </Routes>
     </BrowserRouter>
   );
