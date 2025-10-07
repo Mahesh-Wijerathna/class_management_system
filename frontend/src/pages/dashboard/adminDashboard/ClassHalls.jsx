@@ -137,7 +137,7 @@ const fetchHalls = async () => {
         hall_name: values.name,
         status: values.status.toLowerCase(),
         subject: values.subject,
-        class_name: values.className,
+        class_id: values.className ? parseInt(values.className) : null,
         teacherId: values.teacher,
         date: values.date,
         start_time: values.startTime,
@@ -154,10 +154,11 @@ const fetchHalls = async () => {
         alert("Hall added successfully");
         resetForm();
       } else {
-        alert(data.message);
+        alert(data.message || "Failed to add hall");
       }
     } catch (err) {
       console.error("Error adding hall:", err);
+      alert("Network error adding hall");
     }
   };
 
@@ -195,7 +196,7 @@ const fetchHalls = async () => {
       hall_name: values.name,
       status: values.status.toLowerCase(),
       subject: values.subject,
-      class_name: values.className,
+      class_id: values.className ? parseInt(values.className) : null,
       teacherId: values.teacher,
       date: values.date,
       start_time: values.startTime,
@@ -217,7 +218,7 @@ const fetchHalls = async () => {
     }
   } catch (err) {
     console.error("Error editing hall:", err);
-    alert("Error editing hall");
+    alert("Network error updating hall");
   }
 };
 

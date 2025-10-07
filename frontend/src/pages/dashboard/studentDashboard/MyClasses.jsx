@@ -68,13 +68,24 @@ useEffect(() => {
           console.log('Selected className:', className);
           console.log('Hall bookings class_names:', data.halls.map(h => h.class_name));
           const bookings = data.halls.filter(
-            h =>
-              h.class_name.trim().toLowerCase() === className.trim().toLowerCase() ||
-              h.class_name.trim().toLowerCase() === selectedClassForDetails.className.trim().toLowerCase() ||
-              h.class_name === String(selectedClassForDetails.id)
+            h => {
+              // Safe null/undefined check for class_name
+              if (!h.class_name || !className) return false;
+              const hallClassName = String(h.class_name).trim().toLowerCase();
+              const targetClassName = String(className).trim().toLowerCase();
+              const targetClassNameAlt = String(selectedClassForDetails.className || '').trim().toLowerCase();
+              
+              return hallClassName === targetClassName ||
+                     hallClassName === targetClassNameAlt ||
+                     String(h.class_name) === String(selectedClassForDetails.id);
+            }
           );
           setHallBookings(bookings);
         }
+      })
+      .catch(err => {
+        console.error('Error fetching hall bookings:', err);
+        setHallBookings([]);
       });
   }
 }, [selectedClassForDetails, myClasses]);

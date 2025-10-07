@@ -109,29 +109,37 @@ elseif ($method === 'GET') {
     $hall_name = $data['hall_name'] ?? null;
     $status = $data['status'] ?? 'booked';
     $subject = $data['subject'] ?? '';
-    $class_name = $data['class_name'] ?? '';
+    $class_id = isset($data['class_id']) ? (int)$data['class_id'] : null;
     $teacherId = $data['teacherId'] ?? null;
     $date = $data['date'] ?? null;
     $start_time = $data['start_time'] ?? null;
     $end_time = $data['end_time'] ?? null;
-
-    // console.log("Received data for booking:", $data);
 
     if (!$hall_name || !$teacherId || !$date || !$start_time || !$end_time) {
         echo json_encode(['success' => false, 'message' => 'Missing required fields']);
         exit;
     }
 
+    // Validate teacherId exists in teachers table; set to NULL if not found
+    if ($teacherId) {
+        $tstmt = $conn->prepare("SELECT COUNT(*) AS cnt FROM teachers WHERE teacherId = ?");
+        if ($tstmt) {
+            $tstmt->bind_param("s", $teacherId);
+            $tstmt->execute();
+            $tres = $tstmt->get_result()->fetch_assoc();
+            if (!$tres || (int)$tres['cnt'] === 0) {
+                $teacherId = null;
+            }
+            $tstmt->close();
+        }
+    }
+
     // Prevent time overlap
     $sql = "SELECT COUNT(*) AS conflict FROM hall_bookings 
             WHERE hall_name = ? AND date = ?
-            AND (
-                (start_time < ? AND end_time > ?) OR
-                (start_time < ? AND end_time > ?) OR
-                (start_time >= ? AND end_time <= ?)
-            )";
+            AND NOT (end_time <= ? OR start_time >= ?)";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ssssssss", $hall_name, $date, $end_time, $start_time, $end_time, $start_time, $start_time, $end_time);
+    $stmt->bind_param("ssss", $hall_name, $date, $start_time, $end_time);
     $stmt->execute();
     $conflict = $stmt->get_result()->fetch_assoc()['conflict'];
 
@@ -140,16 +148,16 @@ elseif ($method === 'GET') {
         exit;
     }
 
-    // Insert booking
-    $insert = "INSERT INTO hall_bookings (hall_name, status, subject, class_name, teacherId, date, start_time, end_time)
+    // Insert booking with class_id (INT column)
+    $insert = "INSERT INTO hall_bookings (hall_name, status, subject, class_id, teacherId, date, start_time, end_time)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
     $stmt = $conn->prepare($insert);
-    $stmt->bind_param("ssssssss", $hall_name, $status, $subject, $class_name, $teacherId, $date, $start_time, $end_time);
+    $stmt->bind_param("sssissss", $hall_name, $status, $subject, $class_id, $teacherId, $date, $start_time, $end_time);
 
     if ($stmt->execute()) {
         echo json_encode(['success' => true, 'message' => 'Hall booked successfully']);
     } else {
-        echo json_encode(['success' => false, 'message' => 'Error booking hall']);
+        echo json_encode(['success' => false, 'message' => 'Error booking hall', 'error' => $stmt->error]);
     }
 
 } elseif ($method === 'PUT') {
@@ -159,7 +167,7 @@ elseif ($method === 'GET') {
     $hall_name = $data['hall_name'] ?? null;
     $status = $data['status'] ?? 'booked';
     $subject = $data['subject'] ?? '';
-    $class_name = $data['class_name'] ?? '';
+    $class_id = isset($data['class_id']) ? (int)$data['class_id'] : null;
     $teacherId = $data['teacherId'] ?? null;
     $date = $data['date'] ?? null;
     $start_time = $data['start_time'] ?? null;
@@ -170,16 +178,26 @@ elseif ($method === 'GET') {
         exit;
     }
 
+    // Validate teacherId exists in teachers table; set to NULL if not found
+    if ($teacherId) {
+        $tstmt = $conn->prepare("SELECT COUNT(*) AS cnt FROM teachers WHERE teacherId = ?");
+        if ($tstmt) {
+            $tstmt->bind_param("s", $teacherId);
+            $tstmt->execute();
+            $tres = $tstmt->get_result()->fetch_assoc();
+            if (!$tres || (int)$tres['cnt'] === 0) {
+                $teacherId = null;
+            }
+            $tstmt->close();
+        }
+    }
+
     // Prevent time overlap (excluding current booking)
     $sql = "SELECT COUNT(*) AS conflict FROM hall_bookings 
             WHERE hall_name = ? AND date = ? AND id != ?
-            AND (
-                (start_time < ? AND end_time > ?) OR
-                (start_time < ? AND end_time > ?) OR
-                (start_time >= ? AND end_time <= ?)
-            )";
+            AND NOT (end_time <= ? OR start_time >= ?)";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ssissssss", $hall_name, $date, $booking_id, $end_time, $start_time, $end_time, $start_time, $start_time, $end_time);
+    $stmt->bind_param("ssiss", $hall_name, $date, $booking_id, $start_time, $end_time);
     $stmt->execute();
     $conflict = $stmt->get_result()->fetch_assoc()['conflict'];
 
@@ -188,10 +206,10 @@ elseif ($method === 'GET') {
         exit;
     }
 
-    // Update booking
-    $update = "UPDATE hall_bookings SET hall_name = ?, status = ?, subject = ?, class_name = ?, teacherId = ?, date = ?, start_time = ?, end_time = ? WHERE id = ?";
+    // Update booking with class_id (INT column)
+    $update = "UPDATE hall_bookings SET hall_name = ?, status = ?, subject = ?, class_id = ?, teacherId = ?, date = ?, start_time = ?, end_time = ? WHERE id = ?";
     $stmt = $conn->prepare($update);
-    $stmt->bind_param("ssssssssi", $hall_name, $status, $subject, $class_name, $teacherId, $date, $start_time, $end_time, $booking_id);
+    $stmt->bind_param("sssissssi", $hall_name, $status, $subject, $class_id, $teacherId, $date, $start_time, $end_time, $booking_id);
 
     if ($stmt->execute()) {
     if ($stmt->affected_rows > 0) {
