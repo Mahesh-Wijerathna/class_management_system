@@ -410,14 +410,68 @@ const printPaymentReceipt = ({ student, classData, paymentData, cashierName }) =
 
 // Payment History Modal - Detailed view of all payments
 const PaymentHistoryModal = ({ student, payments, onClose }) => {
+  // Filter states - MUST be declared before any conditional returns
+  const [filterMonth, setFilterMonth] = React.useState('all');
+  const [filterYear, setFilterYear] = React.useState('all');
+  const [filterStatus, setFilterStatus] = React.useState('all');
+  const [searchTerm, setSearchTerm] = React.useState('');
+
+  // Early return check AFTER hooks
   if (!student || !payments) return null;
 
-  const totalAmount = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  const completedPayments = payments.filter(p => (p.status || 'completed') === 'completed');
-  const pendingPayments = payments.filter(p => (p.status || '') === 'pending');
+  // Generate year range: from 2020 to current year + 5 years
+  const currentYear = new Date().getFullYear();
+  const startYear = 2020; // Starting year for the system
+  const endYear = currentYear + 25; // Include next 25 years for future payments
+  
+  // Create array of years from start to end, sorted newest first
+  const availableYears = [];
+  for (let year = endYear; year >= startYear; year--) {
+    availableYears.push(year);
+  }
+
+  // Filter payments based on selected criteria
+  const filteredPayments = payments.filter(payment => {
+    const paymentDate = new Date(payment.date || payment.created_at || payment.createdAt);
+    const paymentMonth = paymentDate.getMonth() + 1;
+    const paymentYear = paymentDate.getFullYear();
+    const paymentStatus = payment.status || 'completed';
+    const className = (payment.class_name || payment.className || '').toLowerCase();
+    const transactionId = (payment.transaction_id || payment.transactionId || '').toLowerCase();
+
+    // Month filter
+    if (filterMonth !== 'all' && paymentMonth !== parseInt(filterMonth)) {
+      return false;
+    }
+
+    // Year filter
+    if (filterYear !== 'all' && paymentYear !== parseInt(filterYear)) {
+      return false;
+    }
+
+    // Status filter
+    if (filterStatus !== 'all' && paymentStatus !== filterStatus) {
+      return false;
+    }
+
+    // Search filter
+    if (searchTerm && !className.includes(searchTerm.toLowerCase()) && !transactionId.includes(searchTerm.toLowerCase())) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const totalAmount = filteredPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const completedPayments = filteredPayments.filter(p => {
+    const status = p.status || 'completed';
+    return status === 'completed' || status === 'paid';
+  });
+  const pendingPayments = filteredPayments.filter(p => (p.status || '') === 'pending');
 
   const getStatusColor = (status) => {
     switch(status || 'completed') {
+      case 'paid': return 'bg-green-100 text-green-700 border-green-300';
       case 'completed': return 'bg-green-100 text-green-700 border-green-300';
       case 'pending': return 'bg-yellow-100 text-yellow-700 border-yellow-300';
       case 'failed': return 'bg-red-100 text-red-700 border-red-300';
@@ -469,7 +523,10 @@ const PaymentHistoryModal = ({ student, payments, onClose }) => {
         <div className="bg-slate-50 px-6 py-4 border-b grid grid-cols-3 gap-4">
           <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200">
             <div className="text-xs text-slate-600 mb-1">Total Payments</div>
-            <div className="text-2xl font-bold text-slate-800">{payments.length}</div>
+            <div className="text-2xl font-bold text-slate-800">{filteredPayments.length}</div>
+            {filteredPayments.length !== payments.length && (
+              <div className="text-[10px] text-slate-500 mt-1">of {payments.length} total</div>
+            )}
           </div>
           <div className="bg-white rounded-lg p-4 shadow-sm border border-emerald-200">
             <div className="text-xs text-emerald-600 mb-1">Completed</div>
@@ -481,16 +538,123 @@ const PaymentHistoryModal = ({ student, payments, onClose }) => {
           </div>
         </div>
 
+        {/* Filter Section */}
+        <div className="bg-white px-6 py-4 border-b">
+          <div className="flex items-center gap-3 mb-3">
+            <FaSearch className="text-slate-400" />
+            <h3 className="text-sm font-semibold text-slate-700">Filter Payments</h3>
+            {(filterMonth !== 'all' || filterYear !== 'all' || filterStatus !== 'all' || searchTerm) && (
+              <button
+                onClick={() => {
+                  setFilterMonth('all');
+                  setFilterYear('all');
+                  setFilterStatus('all');
+                  setSearchTerm('');
+                }}
+                className="ml-auto text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+              >
+                Clear All Filters
+              </button>
+            )}
+          </div>
+          
+          <div className="grid grid-cols-4 gap-3">
+            {/* Search */}
+            <div>
+              <label className="text-xs text-slate-600 mb-1 block">Search</label>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Class or Transaction ID"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+              />
+            </div>
+
+            {/* Month Filter */}
+            <div>
+              <label className="text-xs text-slate-600 mb-1 block">Month</label>
+              <select
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+              >
+                <option value="all">All Months</option>
+                <option value="1">January</option>
+                <option value="2">February</option>
+                <option value="3">March</option>
+                <option value="4">April</option>
+                <option value="5">May</option>
+                <option value="6">June</option>
+                <option value="7">July</option>
+                <option value="8">August</option>
+                <option value="9">September</option>
+                <option value="10">October</option>
+                <option value="11">November</option>
+                <option value="12">December</option>
+              </select>
+            </div>
+
+            {/* Year Filter */}
+            <div>
+              <label className="text-xs text-slate-600 mb-1 block">Year</label>
+              <select
+                value={filterYear}
+                onChange={(e) => setFilterYear(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none max-h-48 overflow-y-auto"
+                style={{ maxHeight: '200px' }}
+                size="1"
+              >
+                <option value="all">All Years</option>
+                {availableYears.map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Status Filter */}
+            <div>
+              <label className="text-xs text-slate-600 mb-1 block">Status</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+              >
+                <option value="all">All Status</option>
+                <option value="paid">Paid</option>
+                <option value="completed">Completed</option>
+                <option value="pending">Pending</option>
+                <option value="failed">Failed</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         {/* Payment List */}
         <div className="flex-1 overflow-y-auto p-6">
-          {payments.length === 0 ? (
+          {filteredPayments.length === 0 ? (
             <div className="text-center py-12">
               <FaHistory className="text-6xl text-slate-300 mx-auto mb-4" />
-              <div className="text-slate-500 text-lg">No payment history available</div>
+              <div className="text-slate-500 text-lg">
+                {payments.length === 0 ? 'No payment history available' : 'No payments match the current filters'}
+              </div>
+              {payments.length > 0 && (
+                <button
+                  onClick={() => {
+                    setFilterMonth('all');
+                    setFilterYear('all');
+                    setFilterStatus('all');
+                    setSearchTerm('');
+                  }}
+                  className="mt-4 text-sm text-emerald-600 hover:text-emerald-700 font-medium"
+                >
+                  Clear filters to see all payments
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
-              {payments.map((payment, idx) => (
+              {filteredPayments.map((payment, idx) => (
                 <div 
                   key={idx}
                   className="bg-white rounded-lg border border-slate-200 hover:shadow-md transition-shadow p-4"
@@ -554,7 +718,10 @@ const PaymentHistoryModal = ({ student, payments, onClose }) => {
         {/* Footer */}
         <div className="bg-slate-50 px-6 py-4 border-t flex items-center justify-between">
           <div className="text-sm text-slate-600">
-            Showing {payments.length} payment{payments.length !== 1 ? 's' : ''}
+            Showing {filteredPayments.length} payment{filteredPayments.length !== 1 ? 's' : ''}
+            {filteredPayments.length !== payments.length && (
+              <span className="text-slate-500"> (filtered from {payments.length} total)</span>
+            )}
           </div>
           <button
             onClick={onClose}
