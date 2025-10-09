@@ -6,10 +6,32 @@ import studentSidebarSections from './StudentDashboardSidebar';
 import SecureZoomMeeting from '../../../components/SecureZoomMeeting';
 import { getStudentCard, getCardTypeInfo, getCardStatus, isCardValid } from '../../../utils/cardUtils';
 import { getStudentEnrollments, markAttendance, requestForgetCard, requestLatePayment, convertEnrollmentToMyClass, getPaymentHistoryForClass } from '../../../api/enrollments';
+import { trackZoomAttendance, trackJoinButtonClick } from '../../../api/attendance';
 import { getUserData } from '../../../api/apiUtils';
-import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt, FaCalendarWeek, FaTasks, FaFilePdf, FaFileWord, FaFilePowerpoint, FaUpload, FaRedo, FaPauseCircle } from 'react-icons/fa';
+import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt, FaCalendarWeek, FaTasks, FaFilePdf, FaFileWord, FaFilePowerpoint, FaUpload, FaRedo, FaPauseCircle, FaExpand } from 'react-icons/fa';
+import BasicAlertBox from '../../../components/BasicAlertBox';
+
+
+
 
 const MyClasses = ({ onLogout }) => {
+  // Add watermark animation styles
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes watermark-pulse {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 0.5; }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      if (document.head.contains(style)) {
+        document.head.removeChild(style);
+      }
+    };
+  }, []);
   const [myClasses, setMyClasses] = useState([]);
   const [selectedTab, setSelectedTab] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,7 +52,50 @@ const MyClasses = ({ onLogout }) => {
   const [detailsActiveTab, setDetailsActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [alertBox, setAlertBox] = useState({ open: false, message: '', type: 'info', title: '' });
   const navigate = useNavigate();
+  const [hallBookings, setHallBookings] = useState([]);
+
+
+useEffect(() => {
+  if (selectedClassForDetails) {
+    fetch(`http://localhost:8088/hallbook.php?list=1`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.halls)) {
+          const classObj = myClasses.find(c => c.id === selectedClassForDetails.className);
+          const className = classObj ? classObj.className : selectedClassForDetails.className;
+          console.log('Selected className:', className);
+          console.log('Hall bookings class_names:', data.halls.map(h => h.class_name));
+          const bookings = data.halls.filter(
+            h => {
+              // Safe null/undefined check for class_name
+              if (!h.class_name || !className) return false;
+              const hallClassName = String(h.class_name).trim().toLowerCase();
+              const targetClassName = String(className).trim().toLowerCase();
+              const targetClassNameAlt = String(selectedClassForDetails.className || '').trim().toLowerCase();
+              
+              return hallClassName === targetClassName ||
+                     hallClassName === targetClassNameAlt ||
+                     String(h.class_name) === String(selectedClassForDetails.id);
+            }
+          );
+          setHallBookings(bookings);
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching hall bookings:', err);
+        setHallBookings([]);
+      });
+  }
+}, [selectedClassForDetails, myClasses]);
+  
+
+
+  useEffect(() => {
+  loadMyClasses();
+  createEnrollmentRecords();
+}, []);
 
   // Timer effect for video access
   useEffect(() => {
@@ -41,7 +106,12 @@ const MyClasses = ({ onLogout }) => {
           setShowVideoModal(false);
           setSelectedClassForVideo(null);
           setVideoTimeRemaining(null);
-          alert('Class time has ended. Video access has been closed.');
+          setAlertBox({
+            open: true,
+            title: 'Class Time Ended',
+            message: 'Class time has ended. Video access has been closed.',
+            type: 'warning'
+          });
         } else {
           // Update remaining time
           const now = new Date();
@@ -57,6 +127,37 @@ const MyClasses = ({ onLogout }) => {
     }
   }, [showVideoModal, selectedClassForVideo]);
 
+    useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        console.log('ESC key pressed');
+        
+        // Check for maximized video container
+        const maximizedContainer = document.querySelector('.maximized');
+        if (maximizedContainer) {
+          console.log('Found maximized container, exiting...');
+          const maximizeButton = maximizedContainer.querySelector('button');
+          if (maximizeButton) {
+            console.log('Clicking maximize button');
+            maximizeButton.click();
+            return; // Don't close modal if we're just exiting maximize
+          }
+        }
+        
+        // Also check if video modal is open and close it
+        if (showVideoModal) {
+          console.log('Closing video modal');
+          setShowVideoModal(false);
+          setSelectedClassForVideo(null);
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showVideoModal]);
   const loadMyClasses = async () => {
     try {
       setLoading(true);
@@ -171,11 +272,6 @@ const MyClasses = ({ onLogout }) => {
       // Silent fail - enrollments are created automatically during payment
     }
   };
-
-  useEffect(() => {
-    loadMyClasses();
-    createEnrollmentRecords(); // Create enrollment records for each class
-  }, []);
 
   // Listen for payment updates
   useEffect(() => {
@@ -672,7 +768,7 @@ const MyClasses = ({ onLogout }) => {
       const classStartTime = new Date();
       classStartTime.setHours(hours, minutes, 0, 0);
       const timeDiff = (classStartTime - now) / (1000 * 60);
-      const isWithinTimeWindow = timeDiff >= -30 && timeDiff <= 30;
+      const isWithinTimeWindow = timeDiff >= -120 && timeDiff <= 60;
       
       const wouldShowInLiveTab = hasSchedule && hasOnlineDelivery && hasDayAndTime && isToday && isWithinTimeWindow;
       
@@ -704,7 +800,7 @@ const MyClasses = ({ onLogout }) => {
       classStartTime.setHours(hours, minutes, 0, 0);
       const timeDiff = (classStartTime - now) / (1000 * 60);
       
-      return timeDiff >= -30 && timeDiff <= 30;
+      return timeDiff >= -120 && timeDiff <= 60;
     });
     
     console.log(`📊 SUMMARY: ${liveClasses.length} classes would show in Live Tab`);
@@ -724,7 +820,6 @@ const MyClasses = ({ onLogout }) => {
       if (!['online', 'hybrid1', 'hybrid3', 'hybrid4'].includes(cls.deliveryMethod)) return false;
       if (!cls.schedule.day || !cls.schedule.startTime) return false;
       
-      // Check if class is starting within 15 minutes
       const now = new Date();
       const today = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -741,8 +836,9 @@ const MyClasses = ({ onLogout }) => {
       // Calculate time difference in minutes
       const timeDiff = (classStartTime - now) / (1000 * 60);
       
-      // Show if class starts within 30 minutes before or is currently running (within 30 minutes of start)
-      return timeDiff >= -30 && timeDiff <= 30;
+      // Show if class starts within 2 hours before or is currently running (within 1 hour of start)
+      // This makes the live tab more useful by showing upcoming classes
+      return timeDiff >= -120 && timeDiff <= 60;
     }
     if (selectedTab === 'today') {
       if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
@@ -862,12 +958,22 @@ const MyClasses = ({ onLogout }) => {
   const handleViewDetails = async (cls) => {
     // Check enrollment status first
     if (cls.status === 'suspended') {
-      alert('Access to this class has been suspended. Please contact the administrator for more information.');
+      setAlertBox({
+        open: true,
+        title: 'Access Suspended',
+        message: 'Access to this class has been suspended. Please contact the administrator for more information.',
+        type: 'danger'
+      });
       return;
     }
     
     if (cls.status === 'dropped') {
-      alert('You have dropped this course. No access is available.');
+      setAlertBox({
+        open: true,
+        title: 'Course Dropped',
+        message: 'You have dropped this course. No access is available.',
+        type: 'warning'
+      });
       return;
     }
     
@@ -875,11 +981,26 @@ const MyClasses = ({ onLogout }) => {
     const paymentTrackingInfo = getPaymentTrackingInfo(cls);
     if (!paymentTrackingInfo.canAccess) {
       if (paymentTrackingInfo.status === 'payment-required') {
-        alert('Payment required - grace period has expired. Please make payment to restore access to this class.');
+        setAlertBox({
+          open: true,
+          title: 'Payment Required',
+          message: 'Payment required - grace period has expired. Please make payment to restore access to this class.',
+          type: 'danger'
+        });
       } else if (paymentTrackingInfo.status === 'no-payment') {
-        alert('No payment history found. Please make payment to access this class.');
+        setAlertBox({
+          open: true,
+          title: 'Payment Required',
+          message: 'No payment history found. Please make payment to access this class.',
+          type: 'danger'
+        });
       } else {
-        alert('Access restricted due to payment issues. Please contact the administrator.');
+        setAlertBox({
+          open: true,
+          title: 'Access Restricted',
+          message: 'Access restricted due to payment issues. Please contact the administrator.',
+          type: 'danger'
+        });
       }
       return;
     }
@@ -911,17 +1032,32 @@ const MyClasses = ({ onLogout }) => {
   const handleJoinClass = (cls) => {
     // Check enrollment status first
     if (cls.status === 'suspended') {
-      alert('Access to this class has been suspended. Please contact the administrator for more information.');
+      setAlertBox({
+        open: true,
+        title: 'Access Suspended',
+        message: 'Access to this class has been suspended. Please contact the administrator for more information.',
+        type: 'danger'
+      });
       return;
     }
     
     if (cls.status === 'completed') {
-      alert('This course has been completed. No further access is available.');
+      setAlertBox({
+        open: true,
+        title: 'Course Completed',
+        message: 'This course has been completed. No further access is available.',
+        type: 'info'
+      });
       return;
     }
     
     if (cls.status === 'dropped') {
-      alert('You have dropped this course. No access is available.');
+      setAlertBox({
+        open: true,
+        title: 'Course Dropped',
+        message: 'You have dropped this course. No access is available.',
+        type: 'warning'
+      });
       return;
     }
     
@@ -929,25 +1065,61 @@ const MyClasses = ({ onLogout }) => {
     const paymentTrackingInfo = getPaymentTrackingInfo(cls);
     if (!paymentTrackingInfo.canAccess) {
       if (paymentTrackingInfo.status === 'payment-required') {
-        alert('Payment required - grace period has expired. Please make payment to restore access to this class.');
+        setAlertBox({
+          open: true,
+          title: 'Payment Required',
+          message: 'Payment required - grace period has expired. Please make payment to restore access to this class.',
+          type: 'danger'
+        });
       } else if (paymentTrackingInfo.status === 'no-payment') {
-        alert('No payment history found. Please make payment to access this class.');
+        setAlertBox({
+          open: true,
+          title: 'Payment Required',
+          message: 'No payment history found. Please make payment to access this class.',
+          type: 'danger'
+        });
       } else {
-        alert('Access restricted due to payment issues. Please contact the administrator.');
+        setAlertBox({
+          open: true,
+          title: 'Access Restricted',
+          message: 'Access restricted due to payment issues. Please contact the administrator.',
+          type: 'danger'
+        });
       }
       return;
     }
     
     if (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid1' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') {
+      // Check if recorded video is available - if so, disable zoom
+      if (cls.videoUrl) {
+        setAlertBox({
+          open: true,
+          title: 'Recorded Video Available',
+          message: 'Recorded video is available for this class. Live zoom sessions are disabled when recorded video is available. Please use the video player for the best learning experience.',
+          type: 'info'
+        });
+        return;
+      }
+      
       if (cls.zoomLink) {
         // Use secure zoom meeting modal instead of opening link directly
         setSelectedClassForZoom(cls);
         setShowSecureZoomModal(true);
       } else {
-        alert('Zoom link not available for this class.');
+        setAlertBox({
+          open: true,
+          title: 'Zoom Not Available',
+          message: 'Zoom link not available for this class.',
+          type: 'warning'
+        });
       }
     } else {
-      alert('This is a physical class. Please attend at the specified location.');
+      setAlertBox({
+        open: true,
+        title: 'Physical Class',
+        message: 'This is a physical class. Please attend at the specified location.',
+        type: 'info'
+      });
     }
   };
 
@@ -1040,20 +1212,35 @@ const MyClasses = ({ onLogout }) => {
   };
 
   // Handle video viewing
-  const handleVideoView = (cls) => {
+  const handleVideoView = async (cls) => {
     // Check enrollment status first
     if (cls.status === 'suspended') {
-      alert('Access to this class has been suspended. Please contact the administrator for more information.');
+      setAlertBox({
+        open: true,
+        title: 'Access Suspended',
+        message: 'Access to this class has been suspended. Please contact the administrator for more information.',
+        type: 'danger'
+      });
       return;
     }
     
     if (cls.status === 'completed') {
-      alert('This course has been completed. No further access is available.');
+      setAlertBox({
+        open: true,
+        title: 'Course Completed',
+        message: 'This course has been completed. No further access is available.',
+        type: 'info'
+      });
       return;
     }
     
     if (cls.status === 'dropped') {
-      alert('You have dropped this course. No access is available.');
+      setAlertBox({
+        open: true,
+        title: 'Course Dropped',
+        message: 'You have dropped this course. No access is available.',
+        type: 'warning'
+      });
       return;
     }
     
@@ -1061,24 +1248,49 @@ const MyClasses = ({ onLogout }) => {
     const paymentTrackingInfo = getPaymentTrackingInfo(cls);
     if (!paymentTrackingInfo.canAccess) {
       if (paymentTrackingInfo.status === 'payment-required') {
-        alert('Payment required - grace period has expired. Please make payment to restore access to this class.');
+        setAlertBox({
+          open: true,
+          title: 'Payment Required',
+          message: 'Payment required - grace period has expired. Please make payment to restore access to this class.',
+          type: 'danger'
+        });
       } else if (paymentTrackingInfo.status === 'no-payment') {
-        alert('No payment history found. Please make payment to access this class.');
+        setAlertBox({
+          open: true,
+          title: 'Payment Required',
+          message: 'No payment history found. Please make payment to access this class.',
+          type: 'danger'
+        });
       } else {
-        alert('Access restricted due to payment issues. Please contact the administrator.');
+        setAlertBox({
+          open: true,
+          title: 'Access Restricted',
+          message: 'Access restricted due to payment issues. Please contact the administrator.',
+          type: 'danger'
+        });
       }
       return;
     }
     
     // Check if class has video URL
     if (!cls.videoUrl) {
-      alert('No video available for this class.');
+      setAlertBox({
+        open: true,
+        title: 'No Video Available',
+        message: 'No video available for this class.',
+        type: 'warning'
+      });
       return;
     }
     
     // Check if delivery method supports video
     if (!['hybrid2', 'hybrid3', 'hybrid4'].includes(cls.deliveryMethod)) {
-      alert('This class does not support recorded video content.');
+      setAlertBox({
+        open: true,
+        title: 'Video Not Supported',
+        message: 'This class does not support recorded video content.',
+        type: 'warning'
+      });
       return;
     }
     
@@ -1086,13 +1298,62 @@ const MyClasses = ({ onLogout }) => {
     if (!isClassCurrentlyScheduled(cls)) {
       const timeStatus = getClassTimeStatus(cls);
       if (timeStatus) {
-        alert(`Video access is only available during class time. ${timeStatus}`);
+        setAlertBox({
+          open: true,
+          title: 'Video Access Restricted',
+          message: `Video access is only available during class time. ${timeStatus}`,
+          type: 'warning'
+        });
       } else {
-        alert('Video access is only available during scheduled class time.');
+        setAlertBox({
+          open: true,
+          title: 'Video Access Restricted',
+          message: 'Video access is only available during scheduled class time.',
+          type: 'warning'
+        });
       }
       return;
     }
     
+    // Track recorded video attendance and clicks
+    const userData = getUserData();
+    if (userData && userData.userid) {
+      try {
+        // Prepare data for recorded video attendance tracking
+        const classData = {
+          id: cls.id,
+          name: cls.name || 'Unknown Class'
+        };
+
+        // Create modified user data with recorded video method
+        const userDataWithMethod = {
+          ...userData,
+          method: 'recorded_video'  // Override method for recorded video
+        };
+
+        // Track attendance for recorded video
+        await trackZoomAttendance(userDataWithMethod, classData);
+
+        // Prepare click data for engagement metrics
+        const clickData = {
+          studentName: userData.name || userData.username || userData.firstName || 'Unknown Student',
+          className: cls.name || 'Unknown Class',
+          method: 'recorded_video',
+          clickType: 'watch_now_button',
+          timestamp: new Date().toISOString(),
+          browserInfo: navigator.userAgent
+        };
+
+        // Track join button click for engagement metrics
+        await trackJoinButtonClick(cls.id, userData.userid, clickData);
+
+        console.log('Recorded video attendance and click tracked successfully');
+      } catch (error) {
+        console.error('Error tracking recorded video attendance/clicks:', error);
+        // Don't block video access if tracking fails
+      }
+    }
+
     // Open video modal
     setSelectedClassForVideo(cls);
     setShowVideoModal(true);
@@ -1104,7 +1365,12 @@ const MyClasses = ({ onLogout }) => {
       // Get logged-in user data
       const userData = getUserData();
       if (!userData || !userData.userid) {
-        alert('No logged-in user found. Please login again.');
+        setAlertBox({
+          open: true,
+          title: 'Authentication Error',
+          message: 'No logged-in user found. Please login again.',
+          type: 'danger'
+        });
       return;
     }
 
@@ -1128,12 +1394,27 @@ const MyClasses = ({ onLogout }) => {
       if (response.success) {
         // Refresh the classes data to show updated attendance
         await loadMyClasses();
-        alert('Attendance marked successfully!');
+        setAlertBox({
+          open: true,
+          title: 'Success',
+          message: 'Attendance marked successfully!',
+          type: 'success'
+        });
       } else {
-        alert(response.message || 'Failed to mark attendance');
+        setAlertBox({
+          open: true,
+          title: 'Error',
+          message: response.message || 'Failed to mark attendance',
+          type: 'danger'
+        });
       }
     } catch (error) {
-      alert('Error marking attendance. Please try again.');
+      setAlertBox({
+        open: true,
+        title: 'Error',
+        message: 'Error marking attendance. Please try again.',
+        type: 'danger'
+      });
     }
   };
 
@@ -1150,7 +1431,12 @@ const MyClasses = ({ onLogout }) => {
         // Get logged-in user data
         const userData = getUserData();
         if (!userData || !userData.userid) {
-          alert('No logged-in user found. Please login again.');
+          setAlertBox({
+            open: true,
+            title: 'Authentication Error',
+            message: 'No logged-in user found. Please login again.',
+            type: 'danger'
+          });
           return;
         }
         
@@ -1164,12 +1450,27 @@ const MyClasses = ({ onLogout }) => {
           await loadMyClasses();
       setShowForgetCardModal(false);
           setSelectedClassForRequest(null);
-      alert('Forget card request submitted successfully!');
+          setAlertBox({
+            open: true,
+            title: 'Success',
+            message: 'Forget card request submitted successfully!',
+            type: 'success'
+          });
         } else {
-          alert(response.message || 'Failed to submit forget card request');
+          setAlertBox({
+            open: true,
+            title: 'Error',
+            message: response.message || 'Failed to submit forget card request',
+            type: 'danger'
+          });
         }
       } catch (error) {
-        alert('Error submitting forget card request. Please try again.');
+        setAlertBox({
+          open: true,
+          title: 'Error',
+          message: 'Error submitting forget card request. Please try again.',
+          type: 'danger'
+        });
       }
     }
   };
@@ -1187,7 +1488,12 @@ const MyClasses = ({ onLogout }) => {
         // Get logged-in user data
         const userData = getUserData();
         if (!userData || !userData.userid) {
-          alert('No logged-in user found. Please login again.');
+          setAlertBox({
+            open: true,
+            title: 'Authentication Error',
+            message: 'No logged-in user found. Please login again.',
+            type: 'danger'
+          });
           return;
         }
         
@@ -1201,12 +1507,27 @@ const MyClasses = ({ onLogout }) => {
           await loadMyClasses();
       setShowLatePaymentModal(false);
           setSelectedClassForRequest(null);
-      alert('Late payment request submitted successfully! You can attend today\'s class.');
+          setAlertBox({
+            open: true,
+            title: 'Success',
+            message: 'Late payment request submitted successfully! You can attend today\'s class.',
+            type: 'success'
+          });
         } else {
-          alert(response.message || 'Failed to submit late payment request');
+          setAlertBox({
+            open: true,
+            title: 'Error',
+            message: response.message || 'Failed to submit late payment request',
+            type: 'danger'
+          });
         }
       } catch (error) {
-        alert('Error submitting late payment request. Please try again.');
+        setAlertBox({
+          open: true,
+          title: 'Error',
+          message: 'Error submitting late payment request. Please try again.',
+          type: 'danger'
+        });
       }
     }
   };
@@ -1216,7 +1537,12 @@ const MyClasses = ({ onLogout }) => {
     if (cls.hasExams) {
       navigate(`/student/exams/${cls.id}`, { state: { class: cls } });
     } else {
-      alert('No exams available for this class yet.');
+      setAlertBox({
+        open: true,
+        title: 'No Exams Available',
+        message: 'No exams available for this class yet.',
+        type: 'info'
+      });
     }
   };
 
@@ -1225,7 +1551,12 @@ const MyClasses = ({ onLogout }) => {
     if (cls.hasTutes) {
       navigate(`/student/tutes/${cls.id}`, { state: { class: cls } });
     } else {
-      alert('No tutes available for this class yet.');
+      setAlertBox({
+        open: true,
+        title: 'No Tutes Available',
+        message: 'No tutes available for this class yet.',
+        type: 'info'
+      });
     }
   };
 
@@ -1247,7 +1578,6 @@ const MyClasses = ({ onLogout }) => {
       if (!['online', 'hybrid1', 'hybrid3', 'hybrid4'].includes(cls.deliveryMethod)) return false;
       if (!cls.schedule.day || !cls.schedule.startTime) return false;
       
-      // Check if class is starting within 15 minutes
       const now = new Date();
       const today = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -1264,8 +1594,8 @@ const MyClasses = ({ onLogout }) => {
       // Calculate time difference in minutes
       const timeDiff = (classStartTime - now) / (1000 * 60);
       
-      // Show if class starts within 30 minutes before or is currently running (within 30 minutes of start)
-      return timeDiff >= -30 && timeDiff <= 30;
+      // Show if class starts within 2 hours before or is currently running (within 1 hour of start)
+      return timeDiff >= -120 && timeDiff <= 60;
     }).length },
     { key: 'today', label: "Today's Classes", icon: <FaCalendar />, count: myClasses.filter(cls => {
       if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
@@ -1375,7 +1705,7 @@ const MyClasses = ({ onLogout }) => {
           <h1 className="text-2xl font-bold mb-2 text-center">
             {selectedTab === 'live' ? (
               <>
-                Live Classes - Starting Soon
+                Live Classes - Today's Online Classes
               </>
             ) : selectedTab === 'today' ? (
               <>
@@ -1411,6 +1741,11 @@ const MyClasses = ({ onLogout }) => {
               'My Classes'
             )}
           </h1>
+          {selectedTab === 'live' && (
+            <p className="text-center text-gray-600 mb-4">
+              Shows online classes scheduled for today within 2 hours before start time
+            </p>
+          )}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div className="bg-blue-50 p-3 rounded-lg text-center">
               <div className="text-2xl font-bold text-blue-600">{myClasses.length}</div>
@@ -1582,7 +1917,7 @@ const MyClasses = ({ onLogout }) => {
                         <span className={deliveryInfo.color}>{deliveryInfo.icon}</span>
                         <span>{deliveryInfo.text}</span>
                       </div>
-                      {cls.zoomLink && (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid1' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') && (
+                      {cls.zoomLink && (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid1' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') && !cls.videoUrl && (
                         <div className="flex items-center gap-1 text-blue-600">
                           <FaVideo />
                           <span className="text-xs">Zoom Available</span>
@@ -1592,7 +1927,8 @@ const MyClasses = ({ onLogout }) => {
                         <div className="flex items-center gap-1 text-green-600">
                           <FaVideo />
                           <span className="text-xs">
-                            {isClassCurrentlyScheduled(cls) ? '🕐 Video Access Now!' : 'Video Available During Class Time'}
+                            {isClassCurrentlyScheduled(cls) ? '🕐 Video Access Now!' : 
+                             cls.schedule && cls.schedule.day ? `📹 Video Available ${cls.schedule.day} ${cls.schedule.startTime}` : '📹 Recorded Video Available'}
                           </span>
                         </div>
                       )}
@@ -1804,12 +2140,12 @@ const MyClasses = ({ onLogout }) => {
                 >
                   {/* Action Buttons */}
                   <div className="flex flex-wrap gap-2 mt-4">
-                      {/* Disable Join button for suspended, completed, dropped enrollments, or grace period expired */}
+                      {/* Disable Join button for suspended, completed, dropped enrollments, grace period expired, or when recorded video is available */}
                       <button
                         onClick={() => handleJoinClass(cls)}
-                        disabled={isSuspended || isCompleted || isDropped || !paymentTrackingInfo.canAccess}
+                        disabled={isSuspended || isCompleted || isDropped || !paymentTrackingInfo.canAccess || cls.videoUrl}
                         className={`px-3 py-1 rounded-lg text-sm flex items-center gap-1 ${
-                          isSuspended || isCompleted || isDropped || !paymentTrackingInfo.canAccess
+                          isSuspended || isCompleted || isDropped || !paymentTrackingInfo.canAccess || cls.videoUrl
                             ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
                             : 'bg-blue-600 text-white hover:bg-blue-700'
                         }`}
@@ -1818,6 +2154,7 @@ const MyClasses = ({ onLogout }) => {
                           isCompleted ? 'Course completed' :
                           isDropped ? 'Course dropped' :
                           !paymentTrackingInfo.canAccess ? 'Payment required - grace period expired' :
+                          cls.videoUrl ? 'Recorded video available - zoom disabled' :
                           'Join class'
                         }
                       >
@@ -1826,6 +2163,7 @@ const MyClasses = ({ onLogout }) => {
                          isCompleted ? 'Completed' : 
                          isDropped ? 'Dropped' : 
                          !paymentTrackingInfo.canAccess ? 'Payment Required' :
+                         cls.videoUrl ? 'Video Only' :
                          'Join'}
                       </button>
                       
@@ -1907,7 +2245,17 @@ const MyClasses = ({ onLogout }) => {
           ) : (
             <div className="text-center text-gray-500 col-span-full mt-8">
               {selectedTab === 'all' && !searchTerm ? 'You have not purchased any classes yet.' : 
-               selectedTab === 'live' ? 'No live classes starting soon.' :
+               selectedTab === 'live' ? (
+                 <div>
+                   <div>No live classes starting soon.</div>
+                   <div className="text-sm mt-2">
+                     Live tab shows online classes scheduled for today within 2 hours before start time.
+                   </div>
+                   <div className="text-sm mt-1">
+                     Try the "Today's Classes" tab to see all classes scheduled for today.
+                   </div>
+                 </div>
+               ) :
                selectedTab === 'today' ? 'No classes scheduled for today.' :
                selectedTab === 'tomorrow' ? 'No classes scheduled for tomorrow.' :
                selectedTab === 'this-week' ? 'No classes scheduled for this week.' :
@@ -1988,6 +2336,7 @@ const MyClasses = ({ onLogout }) => {
               setSelectedClassForZoom(null);
             }}
             isOpen={showSecureZoomModal}
+            classData={selectedClassForZoom}
             enableNewWindowJoin={(() => {
               const value = Boolean(selectedClassForZoom.enableNewWindowJoin);
               console.log('MyClasses - enableNewWindowJoin:', selectedClassForZoom.enableNewWindowJoin, '->', value);
@@ -2003,8 +2352,8 @@ const MyClasses = ({ onLogout }) => {
 
         {/* Video Player Modal */}
         {showVideoModal && selectedClassForVideo && (
-          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
               {/* Header */}
               <div className="bg-gradient-to-r from-green-600 to-teal-600 text-white p-6">
                 <div className="flex items-center justify-between">
@@ -2049,15 +2398,86 @@ const MyClasses = ({ onLogout }) => {
                   {/* Student Identification Overlay */}
                   <div className="absolute top-4 left-4 z-10 bg-black bg-opacity-70 text-white px-3 py-2 rounded-lg text-sm font-mono">
                     <div>Student ID: {getUserData()?.userid || 'Unknown'}</div>
-                    <div>Name: {getUserData()?.firstName || 'Unknown'} {getUserData()?.lastName || ''}</div>
+                    <div>Name: {getUserData()?.firstName || getUserData()?.fullName || getUserData()?.name || 'Ba'} {getUserData()?.lastName || 'Rathnayake'}</div>
                     <div>Class: {selectedClassForVideo.className}</div>
                     <div>Time: {new Date().toLocaleString()}</div>
                     <div>Video Start: {formatTimeMMSS(getVideoStartTime(selectedClassForVideo))}</div>
                   </div>
                   
+                  {/* Continuous Watermark - Student ID */}
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-5">
+                    <div 
+                      className="text-white text-opacity-30 text-6xl font-bold transform -rotate-45 select-none"
+                      style={{
+                        textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+                        animation: 'watermark-pulse 3s ease-in-out infinite'
+                      }}
+                    >
+                      {getUserData()?.userid || 'STUDENT'}
+                    </div>
+                  </div>
+                  
+                  {/* Additional Watermarks for Better Coverage */}
+                  <div className="absolute top-1/4 left-1/4 pointer-events-none z-5">
+                    <div className="text-white text-opacity-15 text-2xl font-bold transform -rotate-30 select-none">
+                      {getUserData()?.userid || 'STUDENT'}
+                    </div>
+                  </div>
+                  <div className="absolute bottom-1/4 right-1/4 pointer-events-none z-5">
+                    <div className="text-white text-opacity-15 text-2xl font-bold transform rotate-30 select-none">
+                      {getUserData()?.userid || 'STUDENT'}
+                    </div>
+                  </div>
+                  
+
+                  
                   {/* Anti-Cheat Overlay */}
                   <div className="absolute top-4 right-4 z-10 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">
                     TCMS SECURED
+                  </div>
+                  
+                  {/* Maximize Window Button */}
+                  <div className="absolute bottom-4 left-4 z-10">
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const videoContainer = e.target.parentElement.parentElement;
+                        const isMaximized = videoContainer.classList.contains('maximized');
+                        
+                        if (!isMaximized) {
+                          // Maximize
+                          videoContainer.classList.add('maximized');
+                          videoContainer.style.position = 'fixed';
+                          videoContainer.style.top = '0';
+                          videoContainer.style.left = '0';
+                          videoContainer.style.width = '100vw';
+                          videoContainer.style.height = '100vh';
+                          videoContainer.style.zIndex = '9999';
+                          videoContainer.style.backgroundColor = 'black';
+                          videoContainer.style.borderRadius = '0';
+                          e.target.innerHTML = '⛶ Exit Maximize';
+                          e.target.title = 'Click to exit maximize mode (or press ESC)';
+                        } else {
+                          // Exit maximize
+                          videoContainer.classList.remove('maximized');
+                          videoContainer.style.position = 'relative';
+                          videoContainer.style.top = '';
+                          videoContainer.style.left = '';
+                          videoContainer.style.width = '';
+                          videoContainer.style.height = '';
+                          videoContainer.style.zIndex = '';
+                          videoContainer.style.backgroundColor = '';
+                          videoContainer.style.borderRadius = '';
+                          e.target.innerHTML = '⛶ Maximize Window';
+                          e.target.title = 'Click to maximize video window';
+                        }
+                      }}
+                      className="bg-black bg-opacity-70 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-opacity-90 transition-all maximize-button"
+                      title="Click to maximize video window"
+                    >
+                      ⛶ Maximize Window
+                    </button>
                   </div>
                   
                   {/* Countdown Timer */}
@@ -2068,16 +2488,20 @@ const MyClasses = ({ onLogout }) => {
                   )}
                   
                   <video
-                    controls
+                    autoPlay
                     className="w-full h-full"
                     src={selectedClassForVideo.videoUrl}
                     poster="/assets/video-poster.jpg"
                     onContextMenu={(e) => e.preventDefault()}
                     onDragStart={(e) => e.preventDefault()}
+                    onSeeked={(e) => e.preventDefault()}
+                    onSeeking={(e) => e.preventDefault()}
+                    onRateChange={(e) => e.preventDefault()}
+                    onVolumeChange={(e) => e.preventDefault()}
                     style={{
                       WebkitUserSelect: 'none',
                       userSelect: 'none',
-                      pointerEvents: 'auto'
+                      pointerEvents: 'none'
                     }}
                     onLoadedMetadata={(e) => {
                       // Set video to start from the appropriate time
@@ -2085,7 +2509,46 @@ const MyClasses = ({ onLogout }) => {
                       if (startTime > 0) {
                         e.target.currentTime = startTime;
                       }
+                      // Auto-play the video with audio
+                      e.target.play().catch(err => {
+                        console.log('Auto-play prevented by browser, user interaction required');
+                        // If auto-play fails, show a message to click to start
+                        const videoContainer = e.target.parentElement;
+                        const playMessage = document.createElement('div');
+                        playMessage.className = 'absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center text-white text-lg font-bold cursor-pointer';
+                        playMessage.innerHTML = 'Click to Start Video';
+                        playMessage.onclick = () => {
+                          e.target.play();
+                          playMessage.remove();
+                        };
+                        videoContainer.appendChild(playMessage);
+                      });
                     }}
+                    onPlay={(e) => {
+                      // Ensure video stays at normal speed
+                      e.target.playbackRate = 1.0;
+                    }}
+                    onPause={(e) => {
+                      // Prevent pausing - resume immediately
+                      if (!e.target.ended) {
+                        e.target.play().catch(err => {
+                          console.log('Resume prevented by browser');
+                        });
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      // Prevent keyboard shortcuts
+                      e.preventDefault();
+                    }}
+                    onKeyUp={(e) => {
+                      // Prevent keyboard shortcuts
+                      e.preventDefault();
+                    }}
+                    onKeyPress={(e) => {
+                      // Prevent keyboard shortcuts
+                      e.preventDefault();
+                    }}
+
                   >
                     Your browser does not support the video tag.
                   </video>
@@ -2111,6 +2574,9 @@ const MyClasses = ({ onLogout }) => {
                       <li>• Video access is restricted to scheduled class time only</li>
                       <li>• Your student ID and name are displayed on the video for security</li>
                       <li>• Recording, downloading, or screen capture is strictly prohibited</li>
+                      <li>• Video plays like a live stream - no pause, seek, or speed controls</li>
+                      <li>• Video automatically starts and plays at normal speed with audio</li>
+                      <li>• Use maximize window button for better viewing experience</li>
                       <li>• Violations may result in immediate suspension of video access</li>
                       <li>• Video will automatically stop when class time ends</li>
                     </ul>
@@ -2128,8 +2594,16 @@ const MyClasses = ({ onLogout }) => {
                         <span><strong>Video Start Time:</strong> {formatTimeMMSS(getVideoStartTime(selectedClassForVideo))} (based on when you joined)</span>
                       </div>
                       <div className="flex items-center gap-2">
+                        <FaPlay className="text-green-600" />
+                        <span><strong>Playback:</strong> Auto-play at normal speed (1x) - no controls available</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <FaExpand className="text-green-600" />
+                        <span><strong>Maximize Window:</strong> Click maximize button for better viewing</span>
+                      </div>
+                      <div className="flex items-center gap-2">
                         <FaInfoCircle className="text-blue-600" />
-                        <span><strong>Note:</strong> Video will start from the point in time when you joined the class session</span>
+                        <span><strong>Note:</strong> Video plays like a live stream from when you joined the class session</span>
                       </div>
                     </div>
                   </div>
@@ -2277,7 +2751,7 @@ const MyClasses = ({ onLogout }) => {
                         <div><strong>Stream:</strong> {selectedClassForDetails.stream}</div>
                         <div><strong>Course Type:</strong> {getCourseTypeInfo(selectedClassForDetails.courseType).text}</div>
                         <div><strong>Delivery Method:</strong> {getDeliveryMethodInfo(selectedClassForDetails.deliveryMethod).text}</div>
-                        {selectedClassForDetails.zoomLink && (selectedClassForDetails.deliveryMethod === 'online' || selectedClassForDetails.deliveryMethod === 'hybrid1' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && (
+                        {selectedClassForDetails.zoomLink && (selectedClassForDetails.deliveryMethod === 'online' || selectedClassForDetails.deliveryMethod === 'hybrid1' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && !selectedClassForDetails.videoUrl && (
                           <div><strong>Zoom Link:</strong> <span className="text-blue-600">Available</span></div>
                         )}
                         {selectedClassForDetails.videoUrl && (selectedClassForDetails.deliveryMethod === 'hybrid2' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && (
@@ -2288,6 +2762,35 @@ const MyClasses = ({ onLogout }) => {
                         <div><strong>Purchase Date:</strong> {new Date(selectedClassForDetails.purchaseDate).toLocaleDateString()}</div>
                       </div>
                     </div>
+
+                    {/* Video Information Section */}
+                    {selectedClassForDetails.videoUrl && (selectedClassForDetails.deliveryMethod === 'hybrid2' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && (
+                      <div className="bg-green-50 p-4 rounded-lg border border-green-200 mb-4">
+                        <h3 className="font-semibold text-lg mb-2 flex items-center gap-2">
+                          <FaVideo className="text-green-600" /> Recorded Video Information
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                          <div><strong>Video Status:</strong> <span className="text-green-600">Available</span></div>
+                          <div><strong>Access Time:</strong> {selectedClassForDetails.schedule?.day} {selectedClassForDetails.schedule?.startTime}-{selectedClassForDetails.schedule?.endTime}</div>
+                          <div><strong>Current Status:</strong> {isClassCurrentlyScheduled(selectedClassForDetails) ? <span className="text-green-600">🕐 Available Now</span> : <span className="text-gray-600">Not Available Yet</span>}</div>
+                          <div><strong>Next Available:</strong> {getClassTimeStatus(selectedClassForDetails) || 'Not scheduled for today'}</div>
+                        </div>
+                        <div className="mt-3 p-3 bg-white rounded border border-green-200">
+                          <div className="text-sm text-gray-700">
+                            <strong>Video Access Rules:</strong>
+                            <ul className="mt-1 space-y-1">
+                              <li>• Video is only accessible during scheduled class time</li>
+                              <li>• Video starts from when you join the class session</li>
+                              <li>• Video plays like a live stream - no pause, seek, or speed controls</li>
+                              <li>• Video automatically starts and plays at normal speed with audio</li>
+                              <li>• Use maximize window button for better viewing experience</li>
+                              <li>• Recording or downloading is strictly prohibited</li>
+                              <li>• Video automatically stops when class time ends</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                                          {/* Quick Actions */}
                      <div className="bg-blue-50 p-6 rounded-lg">
@@ -2310,8 +2813,8 @@ const MyClasses = ({ onLogout }) => {
                                  </div>
                                )}
                                
-                               {/* Join Class Button - Only if access is granted */}
-                               {(selectedClassForDetails.deliveryMethod === 'online' || selectedClassForDetails.deliveryMethod === 'hybrid1' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && selectedClassForDetails.zoomLink && paymentInfo.canAccess && (
+                               {/* Join Class Button - Only if access is granted and no recorded video available */}
+                               {(selectedClassForDetails.deliveryMethod === 'online' || selectedClassForDetails.deliveryMethod === 'hybrid1' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && selectedClassForDetails.zoomLink && !selectedClassForDetails.videoUrl && paymentInfo.canAccess && (
                                  <button
                                    onClick={() => {
                                      setShowDetailsModal(false);
@@ -2322,6 +2825,17 @@ const MyClasses = ({ onLogout }) => {
                                  >
                                    <FaVideo /> Join Class
                                  </button>
+                               )}
+                               
+                               {/* Recorded Video Available Message */}
+                               {selectedClassForDetails.videoUrl && (selectedClassForDetails.deliveryMethod === 'hybrid2' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && (
+                                 <div className="w-full mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                                   <div className="flex items-center gap-2 text-green-700">
+                                     <FaVideo />
+                                     <span className="font-semibold">Recorded Video Available</span>
+                                   </div>
+                                   <p className="text-sm text-green-600 mt-1">Live zoom sessions are disabled when recorded video is available. Use the video player for the best learning experience.</p>
+                                 </div>
                                )}
                                
                                {/* Watch Video Button - Only if access is granted and video is available */}
@@ -2409,8 +2923,27 @@ const MyClasses = ({ onLogout }) => {
                         <div><strong>Time:</strong> {formatTime(selectedClassForDetails.schedule?.startTime)} - {formatTime(selectedClassForDetails.schedule?.endTime)}</div>
                         <div><strong>Frequency:</strong> {selectedClassForDetails.schedule?.frequency}</div>
                         <div><strong>Duration:</strong> {selectedClassForDetails.startDate && selectedClassForDetails.endDate ? 
-                          `${new Date(selectedClassForDetails.startDate).toLocaleDateString()} to ${new Date(selectedClassForDetails.endDate).toLocaleDateString()}` : 'Not specified'}</div>
+                          `${new Date(selectedClassForDetails.startDate).toLocaleDateString()} to ${new Date(selectedClassForDetails.endDate).toLocaleDateString()}` : 'Not specified'}</div> 
+                        <div>
+                          <strong>Extra Class Hall:</strong>
+                          {hallBookings.length > 0 ? (
+                            hallBookings.map((h, idx) => (
+
+                              <span key={h.id} className=" block mb-1">
+                                <span className="ml-5 font-bold text-sm text-gray-600">{idx + 1}.</span>{' '}
+                                <span className="ml-1 font-semibold">{h.hall_name}</span>
+                                {' '}|{' '}
+                                <span>{new Date(h.date).toLocaleDateString()}</span>
+                                {' '}|{' '}
+                                <span>{h.start_time} - {h.end_time}</span>
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-gray-500">No hall booked</span>
+                          )}
+                        </div>              
                       </div>
+
                     </div>
                   </div>
                 )}
@@ -3017,6 +3550,16 @@ const MyClasses = ({ onLogout }) => {
           </div>
         )}
       </div>
+      
+      {/* BasicAlertBox for user notifications */}
+      <BasicAlertBox
+        open={alertBox.open}
+        title={alertBox.title}
+        message={alertBox.message}
+        type={alertBox.type}
+        onConfirm={() => setAlertBox({ ...alertBox, open: false })}
+        confirmText="OK"
+      />
     </DashboardLayout>
   );
 };

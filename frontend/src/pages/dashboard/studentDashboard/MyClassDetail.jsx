@@ -856,6 +856,7 @@ const MyClassDetail = () => {
             className={classData.className}
             onClose={() => setShowSecureZoomModal(false)}
             isOpen={showSecureZoomModal}
+            classData={classData}
           />
         )}
       </div>

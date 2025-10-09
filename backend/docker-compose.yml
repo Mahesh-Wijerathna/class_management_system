@@ -12,7 +12,7 @@ services:
       MYSQL_PASSWORD: devpass
       TZ: Asia/Colombo
     ports:
-      - "3309:3306"
+      - "9323:3306"
     volumes:
       - auth_mysql_data:/var/lib/mysql
       - ./auth/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -65,7 +65,7 @@ services:
       MYSQL_PASSWORD: cashierpass
       TZ: Asia/Colombo
     ports:
-      - "3311:3306"
+      - "9334:3306"
     volumes:
       - cashier_mysql_data:/var/lib/mysql
       - ./cashier/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -117,25 +117,25 @@ services:
       MYSQL_PASSWORD: classpass
       TZ: Asia/Colombo
     ports:
-      - "3312:3306"
+      - "9335:3306"
     volumes:
       - class_mysql_data:/var/lib/mysql
       - ./class/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - class-network
 
-  class-phpmyadmin:
-    image: phpmyadmin/phpmyadmin
-    container_name: class-phpmyadmin
-    environment:
-      PMA_HOST: class-mysql
-      PMA_PORT: 3306
-    ports:
-      - "8089:80"
-    depends_on:
-      - class-mysql
-    networks:
-      - class-network
+  # class-phpmyadmin:
+  #   image: phpmyadmin/phpmyadmin
+  #   container_name: class-phpmyadmin
+  #   environment:
+  #     PMA_HOST: class-mysql
+  #     PMA_PORT: 3306
+  #   ports:
+  #     - "8089:80"
+  #   depends_on:
+  #     - class-mysql
+  #   networks:
+  #     - class-network
 
   class-backend:
     build:
@@ -169,25 +169,25 @@ services:
       MYSQL_PASSWORD: studentpass
       TZ: Asia/Colombo
     ports:
-      - "3308:3306"
+      - "9332:3306"
     volumes:
       - student_mysql_data:/var/lib/mysql
       - ./student/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - student-network
 
-  # student-phpmyadmin:
-  #   image: phpmyadmin/phpmyadmin
-  #   container_name: student-phpmyadmin
-  #   environment:
-  #     PMA_HOST: student-mysql
-  #     PMA_PORT: 3306
-  #   ports:
-  #     - "8085:80"
-  #   depends_on:
-  #     - student-mysql
-  #   networks:
-  #     - student-network
+  student-phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: student-phpmyadmin
+    environment:
+      PMA_HOST: student-mysql
+      PMA_PORT: 3306
+    ports:
+      - "8085:80"
+    depends_on:
+      - student-mysql
+    networks:
+      - student-network
 
   student-backend:
     build:
@@ -220,27 +220,27 @@ services:
       MYSQL_DATABASE: teacher_db
       TZ: Asia/Colombo
     ports:
-      - "3310:3306"
+      - "9338:3306"
     volumes:
       - ./teacher/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
       - teacher_mysql_data:/var/lib/mysql
     networks:
       - teacher-network
 
-  # teacher-phpmyadmin:
-  #   image: phpmyadmin/phpmyadmin
-  #   container_name: teacher-phpmyadmin
-  #   environment:
-  #     PMA_HOST: teacher-mysql
-  #     PMA_PORT: 3306
-  #     PMA_USER: root
-  #     PMA_PASSWORD: password
-  #   ports:
-  #     - "8084:80"
-  #   depends_on:
-  #     - teacher-mysql
-  #   networks:
-  #     - teacher-network
+  teacher-phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: teacher-phpmyadmin
+    environment:
+      PMA_HOST: teacher-mysql
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: password
+    ports:
+      - "8084:80"
+    depends_on:
+      - teacher-mysql
+    networks:
+      - teacher-network
 
   teacher-backend:
     build:
@@ -266,12 +266,13 @@ services:
       - WHATSAPP_WEBHOOK_VERIFY_TOKEN=
     networks:
       - teacher-network
+      - class-network
 
   attendance-backend:
     build: ./attendance-backend
     container_name: attendance-backend
     ports:
-      - "8000:80"
+      - "8092:80"
     volumes:
       - ./attendance-backend/src:/var/www/html
     depends_on:
@@ -284,6 +285,8 @@ services:
       - TZ=Asia/Colombo
     networks:
       - attendance-network
+      - class-network
+      - auth-network
 
   attendance-db:
     image: mysql:8.0
@@ -300,7 +303,7 @@ services:
     networks:
       - attendance-network
 
-  # Payment services
+  #Payment services
   payment-mysql:
     image: mysql:8.0
     container_name: payment-mysql
@@ -311,7 +314,7 @@ services:
       MYSQL_PASSWORD: paymentpass
       TZ: Asia/Colombo
     ports:
-      - "3313:3306"
+      - "9333:3306"
     volumes:
       - ./payment-backend/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
       - payment_mysql_data:/var/lib/mysql

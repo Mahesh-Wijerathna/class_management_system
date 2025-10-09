@@ -573,4 +573,20 @@ class ClassModel {
             'enableOverlayJoin' => (bool)$row['enable_overlay_join']
         ];
     }
+
+
+    public function getClassNameList() {
+    $sql = "SELECT id, class_name FROM classes ORDER BY class_name ASC";
+    $result = $this->conn->query($sql);
+    $classes = [];
+    while ($row = $result->fetch_assoc()) {
+        $classes[] = [
+            'label' => $row['class_name'],
+            'value' => $row['id']
+        ];
+    }
+    return $classes;
+}
+
+
 }

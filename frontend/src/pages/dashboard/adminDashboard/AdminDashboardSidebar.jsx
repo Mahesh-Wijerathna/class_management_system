@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaUsers, FaGraduationCap, FaBook, FaChartBar, FaCog, FaCalendar, FaUserPlus, FaFileAlt, FaUsersCog, FaUserShield, FaDatabase, FaBell, FaSync, FaPlusSquare, FaClipboardList, FaTicketAlt, FaShieldAlt, FaMoneyBill, FaUserSlash } from 'react-icons/fa';
+import { FaUsers, FaGraduationCap, FaBook, FaChartBar, FaCog, FaCalendar, FaUserPlus, FaFileAlt, FaUsersCog, FaUserShield, FaDatabase, FaBell, FaSync, FaPlusSquare, FaClipboardList, FaTicketAlt, FaShieldAlt, FaMoneyBill, FaVideo, FaQrcode } from 'react-icons/fa';
 
 // Sidebar sections for the admin dashboard
 const adminSidebarSections = [
@@ -36,7 +36,7 @@ const adminSidebarSections = [
     items: [
       { name: 'Student Enrollment', path: '/admin/students/enrollment', icon: <FaGraduationCap className="h-5 w-5" /> },
       { name: 'Student Cards', path: '/admin/students/cards', icon: <FaTicketAlt className="h-5 w-5" /> },
-      { name: 'Attendance', path: '/admin/attendance', icon: <FaClipboardList className="h-5 w-5" /> },
+      { name: 'Attendance Management', path: '/admin/attendance-management', icon: <FaClipboardList className="h-5 w-5" /> },
       { name: 'Purchased Classes', path: '/admin/students/purchased-classes', icon: <FaBook className="h-5 w-5" /> },
     ]
   },

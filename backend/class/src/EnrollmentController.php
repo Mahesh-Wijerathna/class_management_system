@@ -28,6 +28,7 @@ class EnrollmentController {
                     c.max_students,
                     c.status as class_status,
                     c.zoom_link,
+                    c.video_url,
                     c.description,
                     c.schedule_day,
                     c.schedule_start_time,
@@ -181,6 +182,7 @@ class EnrollmentController {
                     c.max_students,
                     c.status as class_status,
                     c.zoom_link,
+                    c.video_url,
                     c.description,
                     c.schedule_day,
                     c.schedule_start_time,
@@ -711,76 +713,6 @@ class EnrollmentController {
             
         } catch (Exception $e) {
             error_log("Error updating class student count for class {$classId}: " . $e->getMessage());
-        }
-    }
-
-    /**
-     * Update enrollment payment amount
-     * Adds payment amount to existing paid_amount and updates payment status
-     */
-    public function updateEnrollmentPayment($studentId, $classId, $paymentAmount) {
-        try {
-            // Start transaction
-            $this->db->begin_transaction();
-            
-            // Get current enrollment
-            $stmt = $this->db->prepare("
-                SELECT id, paid_amount, total_fee 
-                FROM enrollments 
-                WHERE student_id = ? AND class_id = ? AND status = 'active'
-                LIMIT 1
-            ");
-            $stmt->bind_param("si", $studentId, $classId);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $enrollment = $result->fetch_assoc();
-            
-            if (!$enrollment) {
-                return ['success' => false, 'message' => 'Enrollment not found'];
-            }
-            
-            // Calculate new paid amount
-            $newPaidAmount = floatval($enrollment['paid_amount']) + floatval($paymentAmount);
-            $totalFee = floatval($enrollment['total_fee']);
-            
-            // Determine new payment status
-            $newPaymentStatus = 'pending';
-            if ($newPaidAmount >= $totalFee) {
-                $newPaymentStatus = 'paid';
-            } elseif ($newPaidAmount > 0) {
-                $newPaymentStatus = 'partial';
-            }
-            
-            // Update enrollment
-            $updateStmt = $this->db->prepare("
-                UPDATE enrollments 
-                SET paid_amount = ?, 
-                    payment_status = ?,
-                    updated_at = NOW()
-                WHERE id = ?
-            ");
-            $updateStmt->bind_param("dsi", $newPaidAmount, $newPaymentStatus, $enrollment['id']);
-            
-            if ($updateStmt->execute()) {
-                $this->db->commit();
-                return [
-                    'success' => true,
-                    'message' => 'Payment updated successfully',
-                    'data' => [
-                        'paid_amount' => $newPaidAmount,
-                        'payment_status' => $newPaymentStatus,
-                        'outstanding' => $totalFee - $newPaidAmount
-                    ]
-                ];
-            } else {
-                $this->db->rollback();
-                return ['success' => false, 'message' => 'Failed to update enrollment'];
-            }
-            
-        } catch (Exception $e) {
-            $this->db->rollback();
-            error_log("Error updating enrollment payment: " . $e->getMessage());
-            return ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
         }
     }
 }
