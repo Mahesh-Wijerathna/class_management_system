@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { FaLock, FaLockOpen, FaSignOutAlt, FaBarcode, FaUserPlus, FaMoneyBill, FaHistory, FaFileInvoice, FaStickyNote, FaSearch, FaCamera, FaUser, FaPhone, FaGraduationCap, FaClock, FaExclamationTriangle, FaCheckCircle, FaEdit, FaPlus } from 'react-icons/fa';
 import { getUserData, logout as authLogout } from '../../../api/apiUtils';
+import { login } from '../../../api/auth';
 import { getBarcode as apiGetBarcode } from '../../../api/auth';
 import { getStudentById } from '../../../api/students';
 import { getStudentPayments, createPayment, generateInvoice } from '../../../api/payments';
@@ -24,7 +25,7 @@ const ClassSearchInput = React.memo(({ value, onChange, onClear }) => (
     <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
     <input
       type="text"
-      placeholder="Search class name (e.g., Physics, Chemistry)..."
+      placeholder="Search class (e.g., 2026 A/L Physics, Physics, Chemistry)..."
       value={value}
       onChange={onChange}
       className="w-full pl-10 pr-4 py-2.5 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all"
@@ -735,6 +736,1358 @@ const PaymentHistoryModal = ({ student, payments, onClose }) => {
   );
 };
 
+// Day End Report Modal - Comprehensive daily summary
+const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime }) => {
+  const [isGenerating, setIsGenerating] = React.useState(false);
+  
+  const today = new Date();
+  const dateStr = today.toLocaleDateString('en-US', { 
+    weekday: 'long',
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric'
+  });
+  const timeStr = today.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  const handlePrint = () => {
+    setIsGenerating(true);
+    setTimeout(() => {
+      const printWindow = window.open('', '_blank', 'width=800,height=600');
+      
+      if (!printWindow) {
+        alert('Please allow pop-ups to print the report');
+        setIsGenerating(false);
+        return;
+      }
+
+      const reportHTML = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Day End Report - ${dateStr}</title>
+          <style>
+            @media print {
+              @page { margin: 0.5in; }
+              body { margin: 0; }
+              .no-print { display: none; }
+            }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: Arial, sans-serif;
+              padding: 20px;
+              background: white;
+            }
+            .report-container {
+              max-width: 800px;
+              margin: 0 auto;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 3px solid #059669;
+              padding-bottom: 20px;
+              margin-bottom: 30px;
+            }
+            .header-title {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 10px;
+              margin-bottom: 10px;
+            }
+            .logo-icon {
+              font-size: 36px;
+            }
+            .header h1 {
+              font-size: 28px;
+              color: #059669;
+              margin: 0;
+            }
+            .header .subtitle {
+              font-size: 14px;
+              color: #64748b;
+            }
+            .meta-info {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 15px;
+              margin-bottom: 30px;
+              padding: 15px;
+              background: #f1f5f9;
+              border-radius: 8px;
+            }
+            .meta-item strong {
+              color: #334155;
+              margin-right: 8px;
+            }
+            .section {
+              margin-bottom: 30px;
+            }
+            .section-title {
+              font-size: 18px;
+              font-weight: bold;
+              color: #1e293b;
+              margin-bottom: 15px;
+              padding-bottom: 8px;
+              border-bottom: 2px solid #e2e8f0;
+            }
+            .summary-grid {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 15px;
+              margin-bottom: 20px;
+            }
+            .summary-card {
+              padding: 15px;
+              border: 2px solid #e2e8f0;
+              border-radius: 8px;
+              background: #ffffff;
+            }
+            .summary-card .label {
+              font-size: 12px;
+              color: #64748b;
+              margin-bottom: 5px;
+            }
+            .summary-card .value {
+              font-size: 24px;
+              font-weight: bold;
+              color: #1e293b;
+            }
+            .summary-card .value.success {
+              color: #059669;
+            }
+            .summary-card .value.warning {
+              color: #ea580c;
+            }
+            .table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 15px;
+            }
+            .table th, .table td {
+              padding: 10px;
+              text-align: left;
+              border-bottom: 1px solid #e2e8f0;
+            }
+            .table th {
+              background: #f8fafc;
+              font-weight: 600;
+              color: #475569;
+              font-size: 13px;
+            }
+            .table td {
+              font-size: 14px;
+              color: #334155;
+            }
+            .footer {
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 2px solid #e2e8f0;
+              text-align: center;
+              font-size: 12px;
+              color: #64748b;
+            }
+            .signature-section {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 40px;
+              margin-top: 50px;
+            }
+            .signature-box {
+              text-align: center;
+            }
+            .signature-line {
+              border-top: 2px solid #000;
+              margin: 40px 20px 10px;
+            }
+            .signature-label {
+              font-size: 13px;
+              color: #475569;
+            }
+            .highlight {
+              background: #fef3c7;
+              padding: 15px;
+              border-left: 4px solid #f59e0b;
+              border-radius: 4px;
+              margin: 15px 0;
+            }
+            .status-success {
+              color: #059669;
+              font-weight: bold;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="report-container">
+            <!-- Header -->
+            <div class="header">
+              <div class="header-title">
+                <span class="logo-icon">🎓</span>
+                <h1>TCMS</h1>
+              </div>
+              <div class="subtitle">Day End Report</div>
+            </div>
+
+            <!-- Meta Information -->
+            <div class="meta-info">
+              <div class="meta-item">
+                <strong>Date:</strong> ${dateStr}
+              </div>
+              <div class="meta-item">
+                <strong>Report Generated:</strong> ${timeStr}
+              </div>
+              <div class="meta-item">
+                <strong>Cashier:</strong> ${getUserData()?.name || 'Cashier'}
+              </div>
+              <div class="meta-item">
+                <strong>Report Type:</strong> Daily Summary
+              </div>
+            </div>
+
+            <!-- Financial Summary -->
+            <div class="section">
+              <div class="section-title">Financial Summary</div>
+              <div class="summary-grid">
+                <div class="summary-card">
+                  <div class="label">Today's Collections</div>
+                  <div class="value success">LKR ${Number(kpis.totalToday || 0).toLocaleString()}</div>
+                </div>
+                <div class="summary-card">
+                  <div class="label">Receipts Issued</div>
+                  <div class="value">${kpis.receipts || 0}</div>
+                </div>
+                <div class="summary-card">
+                  <div class="label">Pending Payments</div>
+                  <div class="value warning">${kpis.pending || 0}</div>
+                </div>
+                <div class="summary-card">
+                  <div class="label">Cash Drawer Total</div>
+                  <div class="value">LKR ${Number(kpis.drawer || 0).toLocaleString()}</div>
+                </div>
+              </div>
+              ${kpis.totalToday > 0 ? `
+                <div class="highlight">
+                  <strong>💰 Average Transaction:</strong> LKR ${kpis.receipts > 0 ? (kpis.totalToday / kpis.receipts).toFixed(2) : '0.00'}
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Summary Notes -->
+            <div class="section">
+              <div class="section-title">Summary & Notes</div>
+              <table class="table">
+                <tbody>
+                  <tr>
+                    <td><strong>Opening Time:</strong></td>
+                    <td>${openingTime || '-'}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Closing Time:</strong></td>
+                    <td>${timeStr}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Total Transactions:</strong></td>
+                    <td>${kpis.receipts || 0} receipts issued</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Payment Methods:</strong></td>
+                    <td>Cash</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Status:</strong></td>
+                    <td class="status-success">Day End Completed</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Signature Section -->
+            <div class="signature-section">
+              <div class="signature-box">
+                <div class="signature-line"></div>
+                <div class="signature-label">Cashier Signature</div>
+              </div>
+              <div class="signature-box">
+                <div class="signature-line"></div>
+                <div class="signature-label">Manager Signature</div>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="footer">
+              <div>Generated by TCMS (Tuition Class Management System)</div>
+              <div>This is a computer-generated report and requires proper authorization.</div>
+            </div>
+          </div>
+          <script>window.print();</script>
+        </body>
+        </html>
+      `;
+
+      printWindow.document.write(reportHTML);
+      printWindow.document.close();
+      
+      setTimeout(() => {
+        setIsGenerating(false);
+      }, 500);
+    }, 100);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white px-6 py-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold flex items-center gap-3">
+                <FaFileInvoice className="text-3xl" />
+                Day End Report
+              </h2>
+              <div className="text-sm opacity-90 mt-1">{dateStr} • {timeStr}</div>
+            </div>
+            <button 
+              onClick={onClose}
+              className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors text-xl"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        {/* Report Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <style>
+            {`
+              #day-end-report-content .report-container {
+                max-width: 800px;
+                margin: 0 auto;
+              }
+              #day-end-report-content .header {
+                text-align: center;
+                border-bottom: 3px solid #059669;
+                padding-bottom: 20px;
+                margin-bottom: 30px;
+              }
+              #day-end-report-content .header-title {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                margin-bottom: 10px;
+              }
+              #day-end-report-content .logo-icon {
+                font-size: 36px;
+              }
+              #day-end-report-content .header h1 {
+                font-size: 28px;
+                color: #059669;
+                margin: 0;
+              }
+              #day-end-report-content .header .subtitle {
+                font-size: 14px;
+                color: #64748b;
+              }
+              #day-end-report-content .meta-info {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+                margin-bottom: 30px;
+                padding: 15px;
+                background: #f1f5f9;
+                border-radius: 8px;
+              }
+              #day-end-report-content .meta-item strong {
+                color: #334155;
+                margin-right: 8px;
+              }
+              #day-end-report-content .section {
+                margin-bottom: 30px;
+              }
+              #day-end-report-content .section-title {
+                font-size: 18px;
+                font-weight: bold;
+                color: #1e293b;
+                margin-bottom: 15px;
+                padding-bottom: 8px;
+                border-bottom: 2px solid #e2e8f0;
+              }
+              #day-end-report-content .summary-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+                margin-bottom: 20px;
+              }
+              #day-end-report-content .summary-card {
+                padding: 15px;
+                border: 2px solid #e2e8f0;
+                border-radius: 8px;
+                background: #ffffff;
+              }
+              #day-end-report-content .summary-card .label {
+                font-size: 12px;
+                color: #64748b;
+                margin-bottom: 5px;
+              }
+              #day-end-report-content .summary-card .value {
+                font-size: 24px;
+                font-weight: bold;
+                color: #1e293b;
+              }
+              #day-end-report-content .summary-card .value.success {
+                color: #059669;
+              }
+              #day-end-report-content .summary-card .value.warning {
+                color: #ea580c;
+              }
+              #day-end-report-content .table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 15px;
+              }
+              #day-end-report-content .table th,
+              #day-end-report-content .table td {
+                padding: 10px;
+                text-align: left;
+                border-bottom: 1px solid #e2e8f0;
+              }
+              #day-end-report-content .table th {
+                background: #f8fafc;
+                font-weight: 600;
+                color: #475569;
+                font-size: 13px;
+              }
+              #day-end-report-content .table td {
+                font-size: 14px;
+                color: #334155;
+              }
+              #day-end-report-content .footer {
+                margin-top: 40px;
+                padding-top: 20px;
+                border-top: 2px solid #e2e8f0;
+                text-align: center;
+                font-size: 12px;
+                color: #64748b;
+              }
+              #day-end-report-content .signature-section {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 40px;
+                margin-top: 50px;
+              }
+              #day-end-report-content .signature-box {
+                text-align: center;
+              }
+              #day-end-report-content .signature-line {
+                border-top: 2px solid #000;
+                margin: 40px 20px 10px;
+              }
+              #day-end-report-content .signature-label {
+                font-size: 13px;
+                color: #475569;
+              }
+              #day-end-report-content .highlight {
+                background: #fef3c7;
+                padding: 15px;
+                border-left: 4px solid #f59e0b;
+                border-radius: 4px;
+                margin: 15px 0;
+              }
+            `}
+          </style>
+          <div id="day-end-report-content">
+            <div className="report-container">
+              {/* Header for Print */}
+              <div className="header">
+                <div className="header-title">
+                  <span className="logo-icon">🎓</span>
+                  <h1>TCMS</h1>
+                </div>
+                <div className="subtitle">Day End Report</div>
+              </div>
+
+              {/* Meta Information */}
+              <div className="meta-info">
+                <div className="meta-item">
+                  <strong>Date:</strong> {dateStr}
+                </div>
+                <div className="meta-item">
+                  <strong>Report Generated:</strong> {timeStr}
+                </div>
+                <div className="meta-item">
+                  <strong>Cashier:</strong> {getUserData()?.name || 'Cashier'}
+                </div>
+                <div className="meta-item">
+                  <strong>Report Type:</strong> Daily Summary
+                </div>
+              </div>
+
+              {/* Financial Summary */}
+              <div className="section">
+                <div className="section-title">Financial Summary</div>
+                <div className="summary-grid">
+                  <div className="summary-card">
+                    <div className="label">Today's Collections</div>
+                    <div className="value success">LKR {Number(kpis.totalToday || 0).toLocaleString()}</div>
+                  </div>
+                  <div className="summary-card">
+                    <div className="label">Receipts Issued</div>
+                    <div className="value">{kpis.receipts || 0}</div>
+                  </div>
+                  <div className="summary-card">
+                    <div className="label">Pending Payments</div>
+                    <div className="value warning">{kpis.pending || 0}</div>
+                  </div>
+                  <div className="summary-card">
+                    <div className="label">Cash Drawer Total</div>
+                    <div className="value">LKR {Number(kpis.drawer || 0).toLocaleString()}</div>
+                  </div>
+                </div>
+
+                {kpis.totalToday > 0 && (
+                  <div className="highlight">
+                    <strong>💰 Average Transaction:</strong> LKR {kpis.receipts > 0 ? (kpis.totalToday / kpis.receipts).toFixed(2) : '0.00'}
+                  </div>
+                )}
+              </div>
+
+              {/* Summary Notes */}
+              <div className="section">
+                <div className="section-title">Summary & Notes</div>
+                <table className="table">
+                  <tbody>
+                    <tr>
+                      <td><strong>Opening Time:</strong></td>
+                      <td>{openingTime || '-'}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Closing Time:</strong></td>
+                      <td>{timeStr}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Total Transactions:</strong></td>
+                      <td>{kpis.receipts || 0} receipts issued</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Payment Methods:</strong></td>
+                      <td>Cash</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Status:</strong></td>
+                      <td style={{ color: '#059669', fontWeight: 'bold' }}>Day End Completed</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Signature Section */}
+              <div className="signature-section">
+                <div className="signature-box">
+                  <div className="signature-line"></div>
+                  <div className="signature-label">Cashier Signature</div>
+                </div>
+                <div className="signature-box">
+                  <div className="signature-line"></div>
+                  <div className="signature-label">Manager Signature</div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="footer">
+                <div>Generated by TCMS (Tuition Class Management System)</div>
+                <div>This is a computer-generated report and requires proper authorization.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="bg-slate-50 px-6 py-4 border-t flex items-center justify-between">
+          <div className="text-sm text-slate-600">
+            Report ready for printing
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="px-6 py-2 bg-slate-300 text-slate-700 rounded-lg hover:bg-slate-400 transition-colors font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handlePrint}
+              disabled={isGenerating}
+              className={`px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                isGenerating
+                  ? 'bg-slate-400 text-white cursor-not-allowed'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
+              }`}
+            >
+              {isGenerating ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <FaFileInvoice />
+                  Print Report
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Month End Report Modal - Comprehensive monthly summary
+const MonthEndReportModal = ({ onClose, kpis }) => {
+  const [isGenerating, setIsGenerating] = React.useState(false);
+  
+  const today = new Date();
+  const monthStr = today.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'long'
+  });
+  const dateStr = today.toLocaleDateString('en-US', { 
+    weekday: 'long',
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric'
+  });
+  const timeStr = today.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  // Get first and last day of current month
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const periodStr = `${firstDay.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} - ${lastDay.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+
+  const handlePrint = () => {
+    setIsGenerating(true);
+    setTimeout(() => {
+      const printWindow = window.open('', '_blank', 'width=800,height=600');
+      
+      if (!printWindow) {
+        alert('Please allow pop-ups to print the report');
+        setIsGenerating(false);
+        return;
+      }
+
+      const reportHTML = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Month End Report - ${monthStr}</title>
+          <style>
+            @media print {
+              @page { margin: 0.5in; }
+              body { margin: 0; }
+              .no-print { display: none; }
+            }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: Arial, sans-serif;
+              padding: 20px;
+              background: white;
+            }
+            .report-container {
+              max-width: 800px;
+              margin: 0 auto;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 3px solid #059669;
+              padding-bottom: 20px;
+              margin-bottom: 30px;
+            }
+            .header-title {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 10px;
+              margin-bottom: 10px;
+            }
+            .logo-icon {
+              font-size: 36px;
+            }
+            .header h1 {
+              font-size: 28px;
+              color: #059669;
+              margin: 0;
+            }
+            .header .subtitle {
+              font-size: 14px;
+              color: #64748b;
+            }
+            .meta-info {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 15px;
+              margin-bottom: 30px;
+              padding: 15px;
+              background: #f1f5f9;
+              border-radius: 8px;
+            }
+            .meta-item strong {
+              color: #334155;
+              margin-right: 8px;
+            }
+            .section {
+              margin-bottom: 30px;
+            }
+            .section-title {
+              font-size: 18px;
+              font-weight: bold;
+              color: #1e293b;
+              margin-bottom: 15px;
+              padding-bottom: 8px;
+              border-bottom: 2px solid #e2e8f0;
+            }
+            .summary-grid {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 15px;
+              margin-bottom: 20px;
+            }
+            .summary-card {
+              padding: 15px;
+              border: 2px solid #e2e8f0;
+              border-radius: 8px;
+              background: #ffffff;
+            }
+            .summary-card .label {
+              font-size: 12px;
+              color: #64748b;
+              margin-bottom: 5px;
+            }
+            .summary-card .value {
+              font-size: 24px;
+              font-weight: bold;
+              color: #1e293b;
+            }
+            .summary-card .value.success {
+              color: #059669;
+            }
+            .summary-card .value.warning {
+              color: #ea580c;
+            }
+            .table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 15px;
+            }
+            .table th, .table td {
+              padding: 10px;
+              text-align: left;
+              border-bottom: 1px solid #e2e8f0;
+            }
+            .table th {
+              background: #f8fafc;
+              font-weight: 600;
+              color: #475569;
+              font-size: 13px;
+            }
+            .table td {
+              font-size: 14px;
+              color: #334155;
+            }
+            .footer {
+              margin-top: 40px;
+              padding-top: 20px;
+              border-top: 2px solid #e2e8f0;
+              text-align: center;
+              font-size: 12px;
+              color: #64748b;
+            }
+            .signature-section {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 40px;
+              margin-top: 50px;
+            }
+            .signature-box {
+              text-align: center;
+            }
+            .signature-line {
+              border-top: 2px solid #000;
+              margin: 40px 20px 10px;
+            }
+            .signature-label {
+              font-size: 13px;
+              color: #475569;
+            }
+            .highlight {
+              background: #fef3c7;
+              padding: 15px;
+              border-left: 4px solid #f59e0b;
+              border-radius: 4px;
+              margin: 15px 0;
+            }
+            .status-success {
+              color: #059669;
+              font-weight: bold;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="report-container">
+            <!-- Header -->
+            <div class="header">
+              <div class="header-title">
+                <span class="logo-icon">🎓</span>
+                <h1>TCMS</h1>
+              </div>
+              <div class="subtitle">Month End Report</div>
+            </div>
+
+            <!-- Meta Information -->
+            <div class="meta-info">
+              <div class="meta-item">
+                <strong>Month:</strong> ${monthStr}
+              </div>
+              <div class="meta-item">
+                <strong>Report Generated:</strong> ${dateStr}, ${timeStr}
+              </div>
+              <div class="meta-item">
+                <strong>Period:</strong> ${periodStr}
+              </div>
+              <div class="meta-item">
+                <strong>Cashier:</strong> ${getUserData()?.name || 'Cashier'}
+              </div>
+            </div>
+
+            <!-- Financial Summary -->
+            <div class="section">
+              <div class="section-title">Monthly Financial Summary</div>
+              <div class="summary-grid">
+                <div class="summary-card">
+                  <div class="label">Total Monthly Collections</div>
+                  <div class="value success">LKR ${Number(kpis.totalToday || 0).toLocaleString()}</div>
+                </div>
+                <div class="summary-card">
+                  <div class="label">Total Receipts Issued</div>
+                  <div class="value">${kpis.receipts || 0}</div>
+                </div>
+                <div class="summary-card">
+                  <div class="label">Pending Payments</div>
+                  <div class="value warning">${kpis.pending || 0}</div>
+                </div>
+                <div class="summary-card">
+                  <div class="label">Total Cash Collected</div>
+                  <div class="value">LKR ${Number(kpis.drawer || 0).toLocaleString()}</div>
+                </div>
+              </div>
+              ${kpis.totalToday > 0 ? `
+                <div class="highlight">
+                  <strong>💰 Average Transaction Value:</strong> LKR ${kpis.receipts > 0 ? (kpis.totalToday / kpis.receipts).toFixed(2) : '0.00'}
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Summary Notes -->
+            <div class="section">
+              <div class="section-title">Summary & Notes</div>
+              <table class="table">
+                <tbody>
+                  <tr>
+                    <td><strong>Reporting Period:</strong></td>
+                    <td>${periodStr}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Report Date:</strong></td>
+                    <td>${dateStr}</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Total Transactions:</strong></td>
+                    <td>${kpis.receipts || 0} receipts issued</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Payment Methods:</strong></td>
+                    <td>Cash</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Status:</strong></td>
+                    <td class="status-success">Month End Completed</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Signature Section -->
+            <div class="signature-section">
+              <div class="signature-box">
+                <div class="signature-line"></div>
+                <div class="signature-label">Cashier Signature</div>
+              </div>
+              <div class="signature-box">
+                <div class="signature-line"></div>
+                <div class="signature-label">Manager Signature</div>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="footer">
+              <div>Generated by TCMS (Tuition Class Management System)</div>
+              <div>This is a computer-generated report and requires proper authorization.</div>
+            </div>
+          </div>
+          <script>window.print();</script>
+        </body>
+        </html>
+      `;
+
+      printWindow.document.write(reportHTML);
+      printWindow.document.close();
+      
+      setTimeout(() => {
+        setIsGenerating(false);
+      }, 500);
+    }, 100);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold flex items-center gap-3">
+                <FaFileInvoice className="text-3xl" />
+                Month End Report
+              </h2>
+              <div className="text-sm opacity-90 mt-1">{monthStr} • {dateStr}</div>
+            </div>
+            <button 
+              onClick={onClose}
+              className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors text-xl"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        {/* Report Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <style>
+            {`
+              #month-end-report-content .report-container {
+                max-width: 800px;
+                margin: 0 auto;
+              }
+              #month-end-report-content .header {
+                text-align: center;
+                border-bottom: 3px solid #059669;
+                padding-bottom: 20px;
+                margin-bottom: 30px;
+              }
+              #month-end-report-content .header-title {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                margin-bottom: 10px;
+              }
+              #month-end-report-content .logo-icon {
+                font-size: 36px;
+              }
+              #month-end-report-content .header h1 {
+                font-size: 28px;
+                color: #059669;
+                margin: 0;
+              }
+              #month-end-report-content .header .subtitle {
+                font-size: 14px;
+                color: #64748b;
+              }
+              #month-end-report-content .meta-info {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+                margin-bottom: 30px;
+                padding: 15px;
+                background: #f1f5f9;
+                border-radius: 8px;
+              }
+              #month-end-report-content .meta-item strong {
+                color: #334155;
+                margin-right: 8px;
+              }
+              #month-end-report-content .section {
+                margin-bottom: 30px;
+              }
+              #month-end-report-content .section-title {
+                font-size: 18px;
+                font-weight: bold;
+                color: #1e293b;
+                margin-bottom: 15px;
+                padding-bottom: 8px;
+                border-bottom: 2px solid #e2e8f0;
+              }
+              #month-end-report-content .summary-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+                margin-bottom: 20px;
+              }
+              #month-end-report-content .summary-card {
+                padding: 15px;
+                border: 2px solid #e2e8f0;
+                border-radius: 8px;
+                background: #ffffff;
+              }
+              #month-end-report-content .summary-card .label {
+                font-size: 12px;
+                color: #64748b;
+                margin-bottom: 5px;
+              }
+              #month-end-report-content .summary-card .value {
+                font-size: 24px;
+                font-weight: bold;
+                color: #1e293b;
+              }
+              #month-end-report-content .summary-card .value.success {
+                color: #059669;
+              }
+              #month-end-report-content .summary-card .value.warning {
+                color: #ea580c;
+              }
+              #month-end-report-content .table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 15px;
+              }
+              #month-end-report-content .table th,
+              #month-end-report-content .table td {
+                padding: 10px;
+                text-align: left;
+                border-bottom: 1px solid #e2e8f0;
+              }
+              #month-end-report-content .table th {
+                background: #f8fafc;
+                font-weight: 600;
+                color: #475569;
+                font-size: 13px;
+              }
+              #month-end-report-content .table td {
+                font-size: 14px;
+                color: #334155;
+              }
+              #month-end-report-content .footer {
+                margin-top: 40px;
+                padding-top: 20px;
+                border-top: 2px solid #e2e8f0;
+                text-align: center;
+                font-size: 12px;
+                color: #64748b;
+              }
+              #month-end-report-content .signature-section {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 40px;
+                margin-top: 50px;
+              }
+              #month-end-report-content .signature-box {
+                text-align: center;
+              }
+              #month-end-report-content .signature-line {
+                border-top: 2px solid #000;
+                margin: 40px 20px 10px;
+              }
+              #month-end-report-content .signature-label {
+                font-size: 13px;
+                color: #475569;
+              }
+              #month-end-report-content .highlight {
+                background: #fef3c7;
+                padding: 15px;
+                border-left: 4px solid #f59e0b;
+                border-radius: 4px;
+                margin: 15px 0;
+              }
+            `}
+          </style>
+          <div id="month-end-report-content">
+            <div className="report-container">
+              {/* Header for Print */}
+              <div className="header">
+                <div className="header-title">
+                  <span className="logo-icon">🎓</span>
+                  <h1>TCMS</h1>
+                </div>
+                <div className="subtitle">Month End Report</div>
+              </div>
+
+              {/* Meta Information */}
+              <div className="meta-info">
+                <div className="meta-item">
+                  <strong>Month:</strong> {monthStr}
+                </div>
+                <div className="meta-item">
+                  <strong>Report Generated:</strong> {dateStr}, {timeStr}
+                </div>
+                <div className="meta-item">
+                  <strong>Period:</strong> {periodStr}
+                </div>
+                <div className="meta-item">
+                  <strong>Cashier:</strong> {getUserData()?.name || 'Cashier'}
+                </div>
+              </div>
+
+              {/* Financial Summary */}
+              <div className="section">
+                <div className="section-title">Monthly Financial Summary</div>
+                <div className="summary-grid">
+                  <div className="summary-card">
+                    <div className="label">Total Monthly Collections</div>
+                    <div className="value success">LKR {Number(kpis.totalToday || 0).toLocaleString()}</div>
+                  </div>
+                  <div className="summary-card">
+                    <div className="label">Total Receipts Issued</div>
+                    <div className="value">{kpis.receipts || 0}</div>
+                  </div>
+                  <div className="summary-card">
+                    <div className="label">Pending Payments</div>
+                    <div className="value warning">{kpis.pending || 0}</div>
+                  </div>
+                  <div className="summary-card">
+                    <div className="label">Total Cash Collected</div>
+                    <div className="value">LKR {Number(kpis.drawer || 0).toLocaleString()}</div>
+                  </div>
+                </div>
+
+                {kpis.totalToday > 0 && (
+                  <div className="highlight">
+                    <strong>💰 Average Transaction Value:</strong> LKR {kpis.receipts > 0 ? (kpis.totalToday / kpis.receipts).toFixed(2) : '0.00'}
+                  </div>
+                )}
+              </div>
+
+              {/* Summary Notes */}
+              <div className="section">
+                <div className="section-title">Summary & Notes</div>
+                <table className="table">
+                  <tbody>
+                    <tr>
+                      <td><strong>Reporting Period:</strong></td>
+                      <td>{periodStr}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Report Date:</strong></td>
+                      <td>{dateStr}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Total Transactions:</strong></td>
+                      <td>{kpis.receipts || 0} receipts issued</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Payment Methods:</strong></td>
+                      <td>Cash</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Status:</strong></td>
+                      <td style={{ color: '#059669', fontWeight: 'bold' }}>Month End Completed</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Signature Section */}
+              <div className="signature-section">
+                <div className="signature-box">
+                  <div className="signature-line"></div>
+                  <div className="signature-label">Cashier Signature</div>
+                </div>
+                <div className="signature-box">
+                  <div className="signature-line"></div>
+                  <div className="signature-label">Manager Signature</div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="footer">
+                <div>Generated by TCMS (Tuition Class Management System)</div>
+                <div>This is a computer-generated report and requires proper authorization.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="bg-slate-50 px-6 py-4 border-t flex items-center justify-between">
+          <div className="text-sm text-slate-600">
+            Report ready for printing
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="px-6 py-2 bg-slate-300 text-slate-700 rounded-lg hover:bg-slate-400 transition-colors font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handlePrint}
+              disabled={isGenerating}
+              className={`px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                isGenerating
+                  ? 'bg-slate-400 text-white cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              {isGenerating ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <FaFileInvoice />
+                  Print Report
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Unlock Modal - Password verification to unlock dashboard
+const UnlockModal = ({ onClose, onUnlock, cashierName }) => {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const passwordInputRef = useRef(null);
+
+  useEffect(() => {
+    // Auto-focus password input
+    setTimeout(() => passwordInputRef.current?.focus(), 100);
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!password.trim()) {
+      setError('Please enter your password');
+      return;
+    }
+
+    setIsVerifying(true);
+    setError('');
+
+    try {
+      // Use the existing login API with email/userid and password
+      const userData = getUserData();
+      const credentials = {
+        userid: userData?.email || userData?.userid || userData?.id,
+        password: password
+      };
+
+      await login(credentials);
+      
+      // If login was successful (no error thrown), unlock the dashboard
+      onUnlock();
+      onClose();
+
+    } catch (err) {
+      setError('Incorrect password. Please try again.');
+      setPassword('');
+      passwordInputRef.current?.focus();
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100]">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="bg-gradient-to-r from-orange-600 to-orange-700 text-white px-6 py-5 rounded-t-xl">
+          <div className="flex items-center justify-center gap-3">
+            <FaLock className="text-3xl" />
+            <div className="text-center">
+              <h2 className="text-2xl font-bold">Session Locked</h2>
+              <div className="text-sm opacity-90 mt-1">Enter your password to unlock</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="text-center mb-4">
+            <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <span className="text-3xl font-bold text-orange-600">
+                {cashierName ? cashierName.charAt(0).toUpperCase() : 'C'}
+              </span>
+            </div>
+            <div className="font-semibold text-slate-800">{cashierName || 'Cashier'}</div>
+            <div className="text-sm text-slate-500">Locked for security</div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Password
+            </label>
+            <input
+              ref={passwordInputRef}
+              type="password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setError('');
+              }}
+              placeholder="Enter your password"
+              className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition-all"
+              disabled={isVerifying}
+            />
+            {error && (
+              <div className="mt-2 text-sm text-red-600 flex items-center gap-2">
+                <FaExclamationTriangle />
+                {error}
+              </div>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            disabled={isVerifying || !password.trim()}
+            className={`w-full py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 ${
+              isVerifying || !password.trim()
+                ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                : 'bg-orange-600 text-white hover:bg-orange-700'
+            }`}
+          >
+            {isVerifying ? (
+              <>
+                <span className="animate-spin">⏳</span>
+                Verifying...
+              </>
+            ) : (
+              <>
+                <FaLockOpen />
+                Unlock Dashboard
+              </>
+            )}
+          </button>
+
+          <div className="text-xs text-center text-slate-500 mt-4">
+            <p>🔒 Your session is locked for security purposes.</p>
+            <p className="mt-1">Enter your password to continue working.</p>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 // Quick Payment Modal for FAST cashier workflow
 const QuickPaymentModal = ({ student, classData, onClose, onSuccess }) => {
   const [submitting, setSubmitting] = useState(false);
@@ -1310,11 +2663,13 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], onClose, onSuc
 export default function CashierDashboard() {
   const user = useMemo(() => getUserData(), []);
   const [isLocked, setIsLocked] = useState(false);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [scanValue, setScanValue] = useState('');
   const scanInputRef = useRef(null);
   const studentPanelRef = useRef(null); // Ref for scrolling to student panel
   const mainContentRef = useRef(null); // Ref for scrolling to main content area (student + cashier tools)
+  const inactivityTimerRef = useRef(null);
 
   const [loading, setLoading] = useState(false);
   const [student, setStudent] = useState(false);
@@ -1324,12 +2679,41 @@ export default function CashierDashboard() {
   const [showScanner, setShowScanner] = useState(false);
   const [kpis, setKpis] = useState({ totalToday: 0, receipts: 0, pending: 0, drawer: 0 });
   const [recentStudents, setRecentStudents] = useState([]);
+  const [openingTime, setOpeningTime] = useState('');
+  
+  // Track cashier opening time (first login of the day)
+  useEffect(() => {
+    const today = new Date().toDateString(); // e.g., "Thu Oct 09 2025"
+    const storedDate = localStorage.getItem('cashier_login_date');
+    const storedTime = localStorage.getItem('cashier_opening_time');
+    
+    if (storedDate === today && storedTime) {
+      // Same day, use the FIRST login time that was stored
+      setOpeningTime(storedTime);
+    } else {
+      // New day - record CURRENT time as the first login of this new day
+      const currentTime = new Date().toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+      localStorage.setItem('cashier_login_date', today);
+      localStorage.setItem('cashier_opening_time', currentTime);
+      setOpeningTime(currentTime);
+    }
+  }, []);
   
   // Student details modal state
   const [showStudentDetails, setShowStudentDetails] = useState(false);
   
   // Payment history modal state
   const [showPaymentHistory, setShowPaymentHistory] = useState(false);
+  
+  // Day End Report modal state
+  const [showDayEndReport, setShowDayEndReport] = useState(false);
+  
+  // Month End Report modal state
+  const [showMonthEndReport, setShowMonthEndReport] = useState(false);
   
   // Quick payment modal state
   const [showQuickPay, setShowQuickPay] = useState(false);
@@ -1369,12 +2753,24 @@ export default function CashierDashboard() {
     if (!enrollments || enrollments.length === 0) return [];
     
     return enrollments.filter(enr => {
-      // Apply search filter
+      // Apply search filter - search in multiple fields
       if (classSearchTerm) {
         const searchLower = classSearchTerm.toLowerCase();
         const className = (enr.className || '').toLowerCase();
         const subject = (enr.subject || '').toLowerCase();
-        if (!className.includes(searchLower) && !subject.includes(searchLower)) {
+        const stream = (enr.stream || '').toLowerCase();
+        const teacher = (enr.teacher || '').toLowerCase();
+        const courseType = (enr.courseType || '').toLowerCase();
+        
+        // Check if search term matches any of the fields
+        const matchesSearch = 
+          className.includes(searchLower) || 
+          subject.includes(searchLower) || 
+          stream.includes(searchLower) ||
+          teacher.includes(searchLower) ||
+          courseType.includes(searchLower);
+          
+        if (!matchesSearch) {
           return false;
         }
       }
@@ -1508,12 +2904,69 @@ export default function CashierDashboard() {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [isLocked]);
 
+  // Auto-lock after 5 minutes of inactivity
+  useEffect(() => {
+    const INACTIVITY_TIME = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+    const resetTimer = () => {
+      // Clear existing timer
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+
+      // Don't set timer if already locked
+      if (isLocked) return;
+
+      // Set new timer
+      inactivityTimerRef.current = setTimeout(() => {
+        setIsLocked(true);
+        setShowUnlockModal(true);
+      }, INACTIVITY_TIME);
+    };
+
+    // Events that indicate user activity
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+
+    // Add event listeners
+    events.forEach(event => {
+      document.addEventListener(event, resetTimer, true);
+    });
+
+    // Initialize timer
+    resetTimer();
+
+    // Cleanup
+    return () => {
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+      events.forEach(event => {
+        document.removeEventListener(event, resetTimer, true);
+      });
+    };
+  }, [isLocked]);
+
   const handleLogout = async () => {
     await authLogout();
   };
 
   const handleLockToggle = () => {
-    setIsLocked(prev => !prev);
+    if (isLocked) {
+      // If locked, show unlock modal
+      setShowUnlockModal(true);
+    } else {
+      // If unlocked, lock immediately
+      setIsLocked(true);
+    }
+  };
+
+  const handleUnlock = () => {
+    setIsLocked(false);
+    setShowUnlockModal(false);
+    // Focus back to scan input after unlocking
+    setTimeout(() => {
+      focusBackToScan();
+    }, 100);
   };
 
   const loadStudentData = async (studentId) => {
@@ -2070,16 +3523,20 @@ export default function CashierDashboard() {
   ), []);
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-slate-100 relative">
+      {/* Header */}
       <div className="bg-gradient-to-r from-slate-800 to-slate-700 text-white px-6 py-4 shadow-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <div>
-              <h1 className="text-xl font-bold">Institute Fee Management System</h1>
-              <div className="text-sm text-slate-300">Cashier Dashboard - {user?.name || 'Cashier'}</div>
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">🎓</span>
+              <div>
+                <h1 className="text-xl font-bold">TCMS</h1>
+                <div className="text-sm text-slate-300">Cashier Dashboard - {user?.name || 'Cashier'}</div>
+              </div>
             </div>
             {isLocked && (
-              <div className="bg-orange-600 text-white px-3 py-1 rounded-lg text-sm font-medium flex items-center gap-2">
+              <div className="bg-orange-600 text-white px-3 py-1 rounded-lg text-sm font-medium flex items-center gap-2 animate-pulse">
                 <FaLock className="text-xs" />
                 Session Locked
               </div>
@@ -2134,12 +3591,14 @@ export default function CashierDashboard() {
         </div>
       </div>
 
-      {activeTab === 'register' ? (
-        <div className="p-4">
-          <PhysicalStudentRegisterTab />
-        </div>
-      ) : (
-        <div className="p-6">
+      {/* Main Content Area with Blur Effect when Locked */}
+      <div className={`transition-all duration-300 ${isLocked ? 'blur-sm pointer-events-none select-none' : ''}`}>
+        {activeTab === 'register' ? (
+          <div className="p-4">
+            <PhysicalStudentRegisterTab />
+          </div>
+        ) : (
+          <div className="p-6">
           {/* KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
@@ -2250,9 +3709,19 @@ export default function CashierDashboard() {
                     <FaLock />
                     Close Out Cash
                   </button>
-                  <button className="w-full bg-blue-600 text-white py-2 px-3 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+                  <button 
+                    onClick={() => setShowDayEndReport(true)}
+                    className="w-full bg-blue-600 text-white py-2 px-3 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                  >
                     <FaFileInvoice />
                     Day End Report
+                  </button>
+                  <button 
+                    onClick={() => setShowMonthEndReport(true)}
+                    className="w-full bg-indigo-600 text-white py-2 px-3 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <FaFileInvoice />
+                    Month End Report
                   </button>
                   <button 
                     onClick={() => setActiveTab('register')}
@@ -2288,6 +3757,8 @@ export default function CashierDashboard() {
           </div>
         </div>
       )}
+      </div>
+      {/* End of Blur Wrapper */}
 
       {showScanner && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowScanner(false)}>
@@ -2444,6 +3915,39 @@ export default function CashierDashboard() {
             // Focus back to scan input
             focusBackToScan();
           }}
+        />
+      )}
+
+      {/* Day End Report Modal */}
+      {showDayEndReport && (
+        <DayEndReportModal
+          kpis={kpis}
+          recentStudents={recentStudents}
+          openingTime={openingTime}
+          onClose={() => {
+            setShowDayEndReport(false);
+            focusBackToScan();
+          }}
+        />
+      )}
+
+      {/* Month End Report Modal */}
+      {showMonthEndReport && (
+        <MonthEndReportModal
+          kpis={kpis}
+          onClose={() => {
+            setShowMonthEndReport(false);
+            focusBackToScan();
+          }}
+        />
+      )}
+
+      {/* Unlock Modal */}
+      {showUnlockModal && isLocked && (
+        <UnlockModal
+          cashierName={user?.name}
+          onClose={() => setShowUnlockModal(false)}
+          onUnlock={handleUnlock}
         />
       )}
     </div>
