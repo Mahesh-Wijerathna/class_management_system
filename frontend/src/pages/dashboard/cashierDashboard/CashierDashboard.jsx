@@ -408,6 +408,165 @@ const printPaymentReceipt = ({ student, classData, paymentData, cashierName }) =
   printWindow.document.close();
 };
 
+// Payment History Modal - Detailed view of all payments
+const PaymentHistoryModal = ({ student, payments, onClose }) => {
+  if (!student || !payments) return null;
+
+  const totalAmount = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const completedPayments = payments.filter(p => (p.status || 'completed') === 'completed');
+  const pendingPayments = payments.filter(p => (p.status || '') === 'pending');
+
+  const getStatusColor = (status) => {
+    switch(status || 'completed') {
+      case 'completed': return 'bg-green-100 text-green-700 border-green-300';
+      case 'pending': return 'bg-yellow-100 text-yellow-700 border-yellow-300';
+      case 'failed': return 'bg-red-100 text-red-700 border-red-300';
+      default: return 'bg-gray-100 text-gray-700 border-gray-300';
+    }
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white px-6 py-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold flex items-center gap-3">
+                <FaHistory className="text-3xl" />
+                Payment History
+              </h2>
+              <div className="text-sm opacity-90 mt-1">
+                {student.firstName} {student.lastName} - ID: {student.studentId || student.id}
+              </div>
+            </div>
+            <button 
+              onClick={onClose}
+              className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors text-xl"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="bg-slate-50 px-6 py-4 border-b grid grid-cols-3 gap-4">
+          <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200">
+            <div className="text-xs text-slate-600 mb-1">Total Payments</div>
+            <div className="text-2xl font-bold text-slate-800">{payments.length}</div>
+          </div>
+          <div className="bg-white rounded-lg p-4 shadow-sm border border-emerald-200">
+            <div className="text-xs text-emerald-600 mb-1">Completed</div>
+            <div className="text-2xl font-bold text-emerald-700">{completedPayments.length}</div>
+          </div>
+          <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200">
+            <div className="text-xs text-slate-600 mb-1">Total Amount</div>
+            <div className="text-2xl font-bold text-emerald-600">LKR {totalAmount.toFixed(2)}</div>
+          </div>
+        </div>
+
+        {/* Payment List */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {payments.length === 0 ? (
+            <div className="text-center py-12">
+              <FaHistory className="text-6xl text-slate-300 mx-auto mb-4" />
+              <div className="text-slate-500 text-lg">No payment history available</div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {payments.map((payment, idx) => (
+                <div 
+                  key={idx}
+                  className="bg-white rounded-lg border border-slate-200 hover:shadow-md transition-shadow p-4"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="text-lg font-semibold text-slate-800">
+                          {payment.class_name || payment.className || payment.description || 'Class Payment'}
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(payment.status)}`}>
+                          {(payment.status || 'completed').toUpperCase()}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <div className="text-xs text-slate-500 mb-1">Transaction ID</div>
+                          <div className="font-medium text-slate-700">
+                            {payment.transaction_id || payment.transactionId || payment.id || '-'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-500 mb-1">Payment Date</div>
+                          <div className="font-medium text-slate-700">
+                            {formatDate(payment.date || payment.createdAt || payment.created_at)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-500 mb-1">Payment Method</div>
+                          <div className="font-medium text-slate-700">
+                            {payment.payment_method || payment.paymentMethod || 'Cash'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {payment.notes && (
+                        <div className="mt-2 text-sm text-slate-600 bg-slate-50 rounded p-2">
+                          <span className="font-medium">Notes:</span> {payment.notes}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="text-right ml-4">
+                      <div className="text-2xl font-bold text-emerald-600">
+                        LKR {Number(payment.amount || 0).toFixed(2)}
+                      </div>
+                      {payment.discount && Number(payment.discount) > 0 && (
+                        <div className="text-xs text-orange-600 mt-1">
+                          Discount: LKR {Number(payment.discount).toFixed(2)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="bg-slate-50 px-6 py-4 border-t flex items-center justify-between">
+          <div className="text-sm text-slate-600">
+            Showing {payments.length} payment{payments.length !== 1 ? 's' : ''}
+          </div>
+          <button
+            onClick={onClose}
+            className="px-6 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 transition-colors font-medium"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Quick Payment Modal for FAST cashier workflow
 const QuickPaymentModal = ({ student, classData, onClose, onSuccess }) => {
@@ -988,6 +1147,7 @@ export default function CashierDashboard() {
   const [scanValue, setScanValue] = useState('');
   const scanInputRef = useRef(null);
   const studentPanelRef = useRef(null); // Ref for scrolling to student panel
+  const mainContentRef = useRef(null); // Ref for scrolling to main content area (student + cashier tools)
 
   const [loading, setLoading] = useState(false);
   const [student, setStudent] = useState(false);
@@ -1000,6 +1160,9 @@ export default function CashierDashboard() {
   
   // Student details modal state
   const [showStudentDetails, setShowStudentDetails] = useState(false);
+  
+  // Payment history modal state
+  const [showPaymentHistory, setShowPaymentHistory] = useState(false);
   
   // Quick payment modal state
   const [showQuickPay, setShowQuickPay] = useState(false);
@@ -1020,6 +1183,18 @@ export default function CashierDashboard() {
 
   const handleClearSearch = useCallback(() => {
     setClassSearchTerm('');
+  }, []);
+
+  // Handle filter change with smooth scroll to student panel
+  const handleFilterChange = useCallback((filterType) => {
+    setSelectedClassFilter(filterType);
+    // Scroll to student panel to show filtered results
+    setTimeout(() => {
+      studentPanelRef.current?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+      });
+    }, 100);
   }, []);
 
   // Memoize filtered enrollments to prevent re-renders
@@ -1349,7 +1524,7 @@ export default function CashierDashboard() {
                   {/* Quick Filter Buttons */}
                   <div className="flex gap-2 flex-wrap">
                     <button
-                      onClick={() => setSelectedClassFilter('all')}
+                      onClick={() => handleFilterChange('all')}
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                         selectedClassFilter === 'all'
                           ? 'bg-emerald-600 text-white shadow-md'
@@ -1359,7 +1534,7 @@ export default function CashierDashboard() {
                       All Classes
                     </button>
                     <button
-                      onClick={() => setSelectedClassFilter('unpaid')}
+                      onClick={() => handleFilterChange('unpaid')}
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                         selectedClassFilter === 'unpaid'
                           ? 'bg-orange-600 text-white shadow-md'
@@ -1369,7 +1544,7 @@ export default function CashierDashboard() {
                       📋 Need Payment
                     </button>
                     <button
-                      onClick={() => setSelectedClassFilter('paid')}
+                      onClick={() => handleFilterChange('paid')}
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                         selectedClassFilter === 'paid'
                           ? 'bg-green-600 text-white shadow-md'
@@ -1559,6 +1734,13 @@ export default function CashierDashboard() {
                                 if (!r?.success) alert(r?.message || 'LatePay request failed');
                                 printNote({ title: 'Late Payment Permission', student, classRow: enr, reason: 'Allowed late payment for today only' });
                                 setKpis(prev => ({ ...prev, pending: Number(prev.pending) + 1 }));
+                                // Scroll back to student panel after generating note
+                                setTimeout(() => {
+                                  studentPanelRef.current?.scrollIntoView({ 
+                                    behavior: 'smooth', 
+                                    block: 'start' 
+                                  });
+                                }, 300);
                               } catch (e) { alert(e?.message || 'LatePay request failed'); }
                             }}
                           >
@@ -1572,6 +1754,13 @@ export default function CashierDashboard() {
                                 const r = await requestForgetCard({ studentId, classId: enr.classId || enr.id });
                                 if (!r?.success) alert(r?.message || 'Permit request failed');
                                 printNote({ title: 'Entry Permit - Forgot Card', student, classRow: enr, reason: 'Permit to enter without ID for this session' });
+                                // Scroll back to student panel after generating note
+                                setTimeout(() => {
+                                  studentPanelRef.current?.scrollIntoView({ 
+                                    behavior: 'smooth', 
+                                    block: 'start' 
+                                  });
+                                }, 300);
                               } catch (e) { alert(e?.message || 'Permit request failed'); }
                             }}
                           >
@@ -1606,33 +1795,100 @@ export default function CashierDashboard() {
   // Memoize history panel to prevent re-renders
   const historyPanelContent = useMemo(() => {
     const total = (payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    const paymentCount = (payments || []).length;
+    const recentPayments = (payments || []).slice(0, 5); // Show only 5 most recent
+    
     return (
-      <Section title="Payment History" right={<FaHistory className="text-slate-500" />}> 
-        <div className="max-h-64 overflow-auto border rounded">
-          {(payments || []).length === 0 ? (
-            <div className="text-[10px] text-slate-500 p-2">No payments</div>
-          ) : (
-            payments.map((p, idx) => (
-              <div key={idx} className="text-[11px] px-2 py-2 border-b last:border-b-0 grid grid-cols-6 gap-2 items-center">
-                <span className="col-span-3 truncate">{p.className || p.description || 'Class payment'}</span>
-                <span className="text-right">{p.amount ? `LKR ${Number(p.amount).toFixed(2)}` : '-'}</span>
-                <span className="text-right">
-                  <span className={`px-2 py-[2px] rounded-full text-[10px] ${
-                    (p.status||'completed')==='completed' ? 'bg-green-100 text-green-700' :
-                    (p.status||'')==='pending' ? 'bg-yellow-100 text-yellow-700' :
-                    'bg-gray-100 text-gray-700'
-                  }`}>{p.status || 'completed'}</span>
-                </span>
-                <span className="text-slate-500 text-right">{p.date || p.createdAt || ''}</span>
+      <div 
+        onClick={() => paymentCount > 0 && setShowPaymentHistory(true)}
+        className={`bg-white rounded-md shadow-sm border-2 transition-all ${
+          paymentCount > 0 
+            ? 'border-emerald-200 hover:border-emerald-400 hover:shadow-md cursor-pointer' 
+            : 'border-slate-200'
+        }`}
+      >
+        <div className="flex items-center justify-between border-b p-4 bg-gradient-to-r from-emerald-50 to-white">
+          <div className="flex items-center gap-3">
+            <div className="bg-emerald-100 p-2 rounded-lg">
+              <FaHistory className="text-emerald-600 text-lg" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-800">Payment History</h3>
+              <div className="text-xs text-slate-500 mt-0.5">
+                {paymentCount > 0 ? `${paymentCount} payment${paymentCount !== 1 ? 's' : ''} recorded` : 'No payments yet'}
               </div>
-            ))
+            </div>
+          </div>
+          {paymentCount > 0 && (
+            <div className="text-xs bg-emerald-600 text-white px-3 py-1 rounded-full font-medium">
+              Click to view all
+            </div>
           )}
         </div>
-        <div className="flex justify-between text-[11px] mt-2">
-          <span className="text-slate-600">Total</span>
-          <span className="font-semibold">LKR {total.toFixed(2)}</span>
+        
+        <div className="p-4">
+          {/* Summary Stats */}
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+              <div className="text-xs text-slate-600 mb-1">Total Paid</div>
+              <div className="text-lg font-bold text-emerald-600">LKR {total.toFixed(2)}</div>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+              <div className="text-xs text-slate-600 mb-1">Transactions</div>
+              <div className="text-lg font-bold text-slate-800">{paymentCount}</div>
+            </div>
+          </div>
+
+          {/* Recent Payments Preview */}
+          <div className="space-y-2">
+            {paymentCount === 0 ? (
+              <div className="text-center py-8">
+                <FaHistory className="text-4xl text-slate-300 mx-auto mb-2" />
+                <div className="text-xs text-slate-500">No payment history</div>
+                <div className="text-[10px] text-slate-400 mt-1">Payments will appear here</div>
+              </div>
+            ) : (
+              <>
+                <div className="text-xs font-semibold text-slate-700 mb-2">Recent Payments</div>
+                {recentPayments.map((p, idx) => (
+                  <div 
+                    key={idx} 
+                    className="bg-slate-50 rounded-lg p-2.5 border border-slate-200 hover:bg-slate-100 transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-slate-700 truncate flex-1 mr-2">
+                        {p.class_name || p.className || p.description || 'Class payment'}
+                      </span>
+                      <span className="text-xs font-bold text-emerald-600 whitespace-nowrap">
+                        LKR {Number(p.amount || 0).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                        (p.status||'completed')==='completed' ? 'bg-green-100 text-green-700' :
+                        (p.status||'')==='pending' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {(p.status || 'completed').toUpperCase()}
+                      </span>
+                      <span className="text-[10px] text-slate-500">
+                        {p.date || p.created_at || p.createdAt || '-'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {paymentCount > 5 && (
+                  <div className="text-center pt-2">
+                    <div className="text-xs text-emerald-600 font-medium">
+                      +{paymentCount - 5} more payment{paymentCount - 5 !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
-      </Section>
+      </div>
     );
   }, [payments]);
 
@@ -1808,7 +2064,7 @@ export default function CashierDashboard() {
           <div className="my-6"></div>
 
           {/* Main Content Layout - Student Info + Right Sidebar */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div ref={mainContentRef} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Student Information Panel - Takes 2 columns */}
             <div className="lg:col-span-2">
               {studentPanelContent}
@@ -1994,6 +2250,26 @@ export default function CashierDashboard() {
             // Scroll to student panel when modal closes
             setTimeout(() => {
               studentPanelRef.current?.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
+              });
+            }, 100);
+            // Focus back to scan input
+            focusBackToScan();
+          }}
+        />
+      )}
+
+      {/* Payment History Modal */}
+      {showPaymentHistory && student && (
+        <PaymentHistoryModal
+          student={student}
+          payments={payments || []}
+          onClose={() => {
+            setShowPaymentHistory(false);
+            // Scroll to main content area (student info + cashier tools) when modal closes
+            setTimeout(() => {
+              mainContentRef.current?.scrollIntoView({ 
                 behavior: 'smooth', 
                 block: 'start' 
               });
