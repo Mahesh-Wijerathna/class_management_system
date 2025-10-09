@@ -5,9 +5,9 @@ import DashboardLayout from '../../../components/layout/DashboardLayout';
 import studentSidebarSections from './StudentDashboardSidebar';
 import SecureZoomMeeting from '../../../components/SecureZoomMeeting';
 import { getStudentCard, getCardTypeInfo, getCardStatus, isCardValid } from '../../../utils/cardUtils';
-import { getStudentEnrollments, markAttendance, requestForgetCard, requestLatePayment, convertEnrollmentToMyClass } from '../../../api/enrollments';
+import { getStudentEnrollments, markAttendance, requestForgetCard, requestLatePayment, convertEnrollmentToMyClass, getPaymentHistoryForClass } from '../../../api/enrollments';
 import { getUserData } from '../../../api/apiUtils';
-import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt, FaCalendarWeek, FaTasks, FaFilePdf, FaFileWord, FaFilePowerpoint, FaUpload, FaRedo } from 'react-icons/fa';
+import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt, FaCalendarWeek, FaTasks, FaFilePdf, FaFileWord, FaFilePowerpoint, FaUpload, FaRedo, FaPauseCircle } from 'react-icons/fa';
 
 const MyClasses = ({ onLogout }) => {
   const [myClasses, setMyClasses] = useState([]);
@@ -23,11 +23,39 @@ const MyClasses = ({ onLogout }) => {
   const [selectedClassForRequest, setSelectedClassForRequest] = useState(null);
   const [showSecureZoomModal, setShowSecureZoomModal] = useState(false);
   const [selectedClassForZoom, setSelectedClassForZoom] = useState(null);
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [selectedClassForVideo, setSelectedClassForVideo] = useState(null);
+  const [videoTimeRemaining, setVideoTimeRemaining] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [detailsActiveTab, setDetailsActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+
+  // Timer effect for video access
+  useEffect(() => {
+    if (showVideoModal && selectedClassForVideo) {
+      const timer = setInterval(() => {
+        if (!isClassCurrentlyScheduled(selectedClassForVideo)) {
+          // Class time has ended, close video
+          setShowVideoModal(false);
+          setSelectedClassForVideo(null);
+          setVideoTimeRemaining(null);
+          alert('Class time has ended. Video access has been closed.');
+        } else {
+          // Update remaining time
+          const now = new Date();
+          const [endHours, endMinutes] = selectedClassForVideo.schedule.endTime.split(':').map(Number);
+          const classEndTime = new Date();
+          classEndTime.setHours(endHours, endMinutes, 0, 0);
+          const remaining = Math.max(0, Math.floor((classEndTime - now) / (1000 * 60)));
+          setVideoTimeRemaining(remaining);
+        }
+      }, 1000); // Check every second
+
+      return () => clearInterval(timer);
+    }
+  }, [showVideoModal, selectedClassForVideo]);
 
   const loadMyClasses = async () => {
     try {
@@ -51,6 +79,7 @@ const MyClasses = ({ onLogout }) => {
       const response = await getStudentEnrollments(studentId);
       
       if (response.success && response.data) {
+
         // Convert enrollments to MyClasses format and filter by stream
         const convertedClasses = response.data
           .filter(enrollment => {
@@ -84,7 +113,8 @@ const MyClasses = ({ onLogout }) => {
           myClass.schedule = myClass.schedule || { day: '', startTime: '', endTime: '', frequency: 'weekly' };
           myClass.fee = myClass.fee || 0;
           myClass.maxStudents = myClass.maxStudents || 50;
-          myClass.status = myClass.status || 'active';
+          // Don't override status - let it come from the enrollment data
+          // myClass.status = myClass.status || 'active';
           myClass.currentStudents = myClass.currentStudents || 0;
           myClass.className = myClass.className || 'Unnamed Class';
           myClass.subject = myClass.subject || 'Unknown Subject';
@@ -103,6 +133,7 @@ const MyClasses = ({ onLogout }) => {
           
           return myClass;
         });
+        
         
         setMyClasses(convertedClasses);
       } else {
@@ -367,6 +398,19 @@ const MyClasses = ({ onLogout }) => {
     
     const result = getPaymentTrackingStatus(cls);
     console.log('Result:', result);
+    
+    // Test grace period logic
+    const today = new Date();
+    const currentDay = today.getDate();
+    const freeDays = cls.paymentTrackingFreeDays || 7;
+    const isFreePeriod = currentDay <= freeDays;
+    
+    console.log('=== GRACE PERIOD TEST ===');
+    console.log('Current Date:', today.toDateString());
+    console.log('Current Day of Month:', currentDay);
+    console.log('Free Days:', freeDays);
+    console.log('Is Free Period:', isFreePeriod);
+    console.log('Grace Period Logic:', `Day ${currentDay} <= ${freeDays} = ${isFreePeriod}`);
   };
 
   // Test function to simulate different dates for payment tracking
@@ -519,9 +563,17 @@ const MyClasses = ({ onLogout }) => {
   const getDeliveryMethodInfo = (method) => {
     switch (method) {
       case 'online':
-        return { color: 'text-purple-600', icon: <FaVideo />, text: 'Online' };
+        return { color: 'text-purple-600', icon: <FaVideo />, text: 'Online Only' };
       case 'physical':
-        return { color: 'text-orange-600', icon: <FaMapMarkerAlt />, text: 'Physical' };
+        return { color: 'text-orange-600', icon: <FaMapMarkerAlt />, text: 'Physical Only' };
+      case 'hybrid1':
+        return { color: 'text-indigo-600', icon: <FaUsers />, text: 'Hybrid (Physical + Online)' };
+      case 'hybrid2':
+        return { color: 'text-green-600', icon: <FaVideo />, text: 'Hybrid (Physical + Recorded)' };
+      case 'hybrid3':
+        return { color: 'text-blue-600', icon: <FaVideo />, text: 'Hybrid (Online + Recorded)' };
+      case 'hybrid4':
+        return { color: 'text-teal-600', icon: <FaUsers />, text: 'Hybrid (Physical + Online + Recorded)' };
       case 'hybrid':
         return { color: 'text-indigo-600', icon: <FaUsers />, text: 'Hybrid' };
       default:
@@ -550,15 +602,21 @@ const MyClasses = ({ onLogout }) => {
         return { color: 'text-green-600', icon: <FaCheckCircle />, text: 'Active', bgColor: 'bg-green-50', borderColor: 'border-green-200' };
       case 'inactive':
         return { color: 'text-red-600', icon: <FaTimesCircle />, text: 'Inactive', bgColor: 'bg-red-50', borderColor: 'border-red-200' };
+      case 'suspended':
+        return { color: 'text-orange-600', icon: <FaPauseCircle />, text: 'Suspended', bgColor: 'bg-orange-50', borderColor: 'border-orange-200' };
+      case 'completed':
+        return { color: 'text-blue-600', icon: <FaGraduationCap />, text: 'Completed', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' };
+      case 'dropped':
+        return { color: 'text-red-600', icon: <FaTimesCircle />, text: 'Dropped', bgColor: 'bg-red-50', borderColor: 'border-red-200' };
       default:
         return { color: 'text-gray-600', icon: <FaClock />, text: 'Unknown', bgColor: 'bg-gray-50', borderColor: 'border-gray-200' };
     }
   };
 
-  // Get class priority/urgency
+  // Get class priority/urgency for display
   const getClassPriority = (cls) => {
     // If class is inactive, it should be high priority
-    if (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid') return { priority: 'high', text: 'Online', color: 'text-red-600', bgColor: 'bg-red-50' };
+    if (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid1' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') return { priority: 'high', text: 'Online', color: 'text-red-600', bgColor: 'bg-red-50' };
     
     const nextPayment = new Date(cls.nextPaymentDate);
     const today = new Date();
@@ -570,6 +628,91 @@ const MyClasses = ({ onLogout }) => {
     return { priority: 'normal', text: 'Normal', color: 'text-gray-600', bgColor: 'bg-gray-50' };
   };
 
+  // Get numeric priority for sorting
+  const getClassPriorityValue = (cls) => {
+    const priority = getClassPriority(cls);
+    switch (priority.priority) {
+      case 'high': return 3;
+      case 'medium': return 2;
+      case 'low': return 1;
+      default: return 0;
+    }
+  };
+
+  // Debug function to log sorting information
+  const debugSorting = (classes, sortBy) => {
+    console.log(`🔍 Sorting ${classes.length} classes by: ${sortBy}`);
+    classes.slice(0, 3).forEach((cls, index) => {
+      console.log(`  ${index + 1}. ${cls.className} - Priority: ${getClassPriorityValue(cls)}, Status: ${cls.paymentStatus}, Due: ${cls.nextPaymentDate}`);
+    });
+  };
+
+  // Debug function to log live tab filtering
+  const debugLiveTabFiltering = () => {
+    console.log('🔍 DEBUG: Live Tab Filtering');
+    console.log('Total classes:', myClasses.length);
+    console.log('Current time:', new Date().toLocaleString());
+    
+    const now = new Date();
+    const today = now.getDay();
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayName = dayNames[today];
+    
+    console.log(`Today is: ${todayName}`);
+    console.log('---');
+    
+    myClasses.forEach((cls, index) => {
+      const hasSchedule = cls.schedule && cls.schedule.frequency !== 'no-schedule';
+      const hasOnlineDelivery = ['online', 'hybrid1', 'hybrid3', 'hybrid4'].includes(cls.deliveryMethod);
+      const hasDayAndTime = cls.schedule && cls.schedule.day && cls.schedule.startTime;
+      
+      const isToday = cls.schedule && cls.schedule.day === todayName;
+      
+      const [hours, minutes] = cls.schedule?.startTime?.split(':').map(Number) || [0, 0];
+      const classStartTime = new Date();
+      classStartTime.setHours(hours, minutes, 0, 0);
+      const timeDiff = (classStartTime - now) / (1000 * 60);
+      const isWithinTimeWindow = timeDiff >= -30 && timeDiff <= 30;
+      
+      const wouldShowInLiveTab = hasSchedule && hasOnlineDelivery && hasDayAndTime && isToday && isWithinTimeWindow;
+      
+      console.log(`  ${index + 1}. ${cls.className}:`);
+      console.log(`     - Delivery Method: ${cls.deliveryMethod} (supports online: ${hasOnlineDelivery})`);
+      console.log(`     - Has Schedule: ${hasSchedule} (frequency: ${cls.schedule?.frequency})`);
+      console.log(`     - Has Day & Time: ${hasDayAndTime} (${cls.schedule?.day} ${cls.schedule?.startTime})`);
+      console.log(`     - Is Today: ${isToday} (${cls.schedule?.day} vs ${todayName})`);
+      console.log(`     - Time Diff: ${timeDiff.toFixed(1)} minutes (within window: ${isWithinTimeWindow})`);
+      console.log(`     - Would Show in Live Tab: ${wouldShowInLiveTab}`);
+      
+      if (!wouldShowInLiveTab) {
+        console.log(`     - REASON: ${!hasSchedule ? 'No schedule' : !hasOnlineDelivery ? 'Not online delivery' : !hasDayAndTime ? 'No day/time' : !isToday ? 'Not today' : !isWithinTimeWindow ? 'Outside time window' : 'Unknown'}`);
+      }
+      console.log('');
+    });
+    
+    // Show summary
+    const liveClasses = myClasses.filter(cls => {
+      if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
+      if (!['online', 'hybrid1', 'hybrid3', 'hybrid4'].includes(cls.deliveryMethod)) return false;
+      if (!cls.schedule.day || !cls.schedule.startTime) return false;
+      
+      const isToday = cls.schedule.day === todayName;
+      if (!isToday) return false;
+      
+      const [hours, minutes] = cls.schedule.startTime.split(':').map(Number);
+      const classStartTime = new Date();
+      classStartTime.setHours(hours, minutes, 0, 0);
+      const timeDiff = (classStartTime - now) / (1000 * 60);
+      
+      return timeDiff >= -30 && timeDiff <= 30;
+    });
+    
+    console.log(`📊 SUMMARY: ${liveClasses.length} classes would show in Live Tab`);
+    liveClasses.forEach((cls, index) => {
+      console.log(`  ${index + 1}. ${cls.className} (${cls.deliveryMethod}) - ${cls.schedule.day} ${cls.schedule.startTime}`);
+    });
+  };
+
   // Filter and sort classes
   const filteredAndSortedClasses = myClasses
         .filter(cls => {
@@ -577,7 +720,8 @@ const MyClasses = ({ onLogout }) => {
     if (selectedTab === 'all') return true;
     if (selectedTab === 'live') {
       if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
-      if (cls.deliveryMethod !== 'online' && cls.deliveryMethod !== 'hybrid') return false;
+      // Check if delivery method supports online classes
+      if (!['online', 'hybrid1', 'hybrid3', 'hybrid4'].includes(cls.deliveryMethod)) return false;
       if (!cls.schedule.day || !cls.schedule.startTime) return false;
       
       // Check if class is starting within 15 minutes
@@ -597,8 +741,8 @@ const MyClasses = ({ onLogout }) => {
       // Calculate time difference in minutes
       const timeDiff = (classStartTime - now) / (1000 * 60);
       
-      // Show if class starts within 15 minutes and hasn't started yet
-      return timeDiff >= -15 && timeDiff <= 15;
+      // Show if class starts within 30 minutes before or is currently running (within 30 minutes of start)
+      return timeDiff >= -30 && timeDiff <= 30;
     }
     if (selectedTab === 'today') {
       if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
@@ -668,38 +812,133 @@ const MyClasses = ({ onLogout }) => {
     .sort((a, b) => {
       switch (sortBy) {
         case 'name':
-          return a.className.localeCompare(b.className);
+          const nameA = a.className || '';
+          const nameB = b.className || '';
+          return nameA.localeCompare(nameB);
         case 'purchased-date':
           // Sort by enrollment date (assuming we have this data)
           const dateA = a.enrollmentDate ? new Date(a.enrollmentDate) : new Date(0);
           const dateB = b.enrollmentDate ? new Date(b.enrollmentDate) : new Date(0);
+          // Handle invalid dates
+          if (isNaN(dateA.getTime()) && isNaN(dateB.getTime())) return 0;
+          if (isNaN(dateA.getTime())) return 1;
+          if (isNaN(dateB.getTime())) return -1;
           return dateB - dateA; // Most recent first
         case 'payment-due':
           // Sort by payment due date
           const dueA = a.nextPaymentDate ? new Date(a.nextPaymentDate) : new Date(9999, 11, 31);
           const dueB = b.nextPaymentDate ? new Date(b.nextPaymentDate) : new Date(9999, 11, 31);
+          // Handle invalid dates
+          if (isNaN(dueA.getTime()) && isNaN(dueB.getTime())) return 0;
+          if (isNaN(dueA.getTime())) return 1;
+          if (isNaN(dueB.getTime())) return -1;
           return dueA - dueB; // Earliest due date first
         case 'status':
         default:
-          return getClassPriority(b) - getClassPriority(a);
+          return getClassPriorityValue(b) - getClassPriorityValue(a);
       }
   });
 
+  // Debug sorting results
+  if (filteredAndSortedClasses.length > 0) {
+    debugSorting(filteredAndSortedClasses, sortBy);
+  }
+
   // Handle make payment
   const handleMakePayment = (cls) => {
-    navigate(`/student/checkout/${cls.id}`, { state: { type: 'renewal' } });
+    const paymentTrackingInfo = getPaymentTrackingInfo(cls);
+    const gracePeriodExpired = !paymentTrackingInfo.canAccess;
+    
+    navigate(`/student/checkout/${cls.id}`, { 
+      state: { 
+        type: 'renewal',
+        gracePeriodExpired: gracePeriodExpired,
+        daysRemaining: paymentTrackingInfo.daysRemaining || 0
+      } 
+    });
   };
 
   // Handle view details - modern modal approach
-  const handleViewDetails = (cls) => {
+  const handleViewDetails = async (cls) => {
+    // Check enrollment status first
+    if (cls.status === 'suspended') {
+      alert('Access to this class has been suspended. Please contact the administrator for more information.');
+      return;
+    }
+    
+    if (cls.status === 'dropped') {
+      alert('You have dropped this course. No access is available.');
+      return;
+    }
+    
+    // Check payment tracking and grace period
+    const paymentTrackingInfo = getPaymentTrackingInfo(cls);
+    if (!paymentTrackingInfo.canAccess) {
+      if (paymentTrackingInfo.status === 'payment-required') {
+        alert('Payment required - grace period has expired. Please make payment to restore access to this class.');
+      } else if (paymentTrackingInfo.status === 'no-payment') {
+        alert('No payment history found. Please make payment to access this class.');
+      } else {
+        alert('Access restricted due to payment issues. Please contact the administrator.');
+      }
+      return;
+    }
+    
+    // Fetch payment history for this class
+    try {
+      const userData = getUserData();
+      const paymentHistory = await getPaymentHistoryForClass(userData.userid, cls.id);
+      
+      // Update the class with payment history
+      const updatedClass = {
+        ...cls,
+        paymentHistory: paymentHistory
+      };
+      
+      setSelectedClassForDetails(updatedClass);
+      setDetailsActiveTab('overview');
+      setShowDetailsModal(true);
+    } catch (error) {
+      console.error('Error fetching payment history:', error);
+      // Still show the class details even if payment history fails to load
     setSelectedClassForDetails(cls);
     setDetailsActiveTab('overview');
     setShowDetailsModal(true);
+    }
   };
 
   // Handle join class
   const handleJoinClass = (cls) => {
-    if (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid') {
+    // Check enrollment status first
+    if (cls.status === 'suspended') {
+      alert('Access to this class has been suspended. Please contact the administrator for more information.');
+      return;
+    }
+    
+    if (cls.status === 'completed') {
+      alert('This course has been completed. No further access is available.');
+      return;
+    }
+    
+    if (cls.status === 'dropped') {
+      alert('You have dropped this course. No access is available.');
+      return;
+    }
+    
+    // Check payment tracking and grace period
+    const paymentTrackingInfo = getPaymentTrackingInfo(cls);
+    if (!paymentTrackingInfo.canAccess) {
+      if (paymentTrackingInfo.status === 'payment-required') {
+        alert('Payment required - grace period has expired. Please make payment to restore access to this class.');
+      } else if (paymentTrackingInfo.status === 'no-payment') {
+        alert('No payment history found. Please make payment to access this class.');
+      } else {
+        alert('Access restricted due to payment issues. Please contact the administrator.');
+      }
+      return;
+    }
+    
+    if (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid1' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') {
       if (cls.zoomLink) {
         // Use secure zoom meeting modal instead of opening link directly
         setSelectedClassForZoom(cls);
@@ -710,6 +949,153 @@ const MyClasses = ({ onLogout }) => {
     } else {
       alert('This is a physical class. Please attend at the specified location.');
     }
+  };
+
+  // Check if class is currently scheduled (within class time window)
+  const isClassCurrentlyScheduled = (cls) => {
+    if (!cls.schedule || !cls.schedule.day || !cls.schedule.startTime || !cls.schedule.endTime) return false;
+    
+    const now = new Date();
+    const today = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayName = dayNames[today];
+    
+    // Check if today matches the class day
+    if (cls.schedule.day !== todayName) return false;
+    
+    // Parse class start and end times
+    const [startHours, startMinutes] = cls.schedule.startTime.split(':').map(Number);
+    const [endHours, endMinutes] = cls.schedule.endTime.split(':').map(Number);
+    
+    const classStartTime = new Date();
+    classStartTime.setHours(startHours, startMinutes, 0, 0);
+    
+    const classEndTime = new Date();
+    classEndTime.setHours(endHours, endMinutes, 0, 0);
+    
+    // Return true if current time is within class time window
+    return now >= classStartTime && now <= classEndTime;
+  };
+
+  // Calculate video start time based on when student joins
+  const getVideoStartTime = (cls) => {
+    if (!cls.schedule || !cls.schedule.startTime) return 0;
+    
+    const now = new Date();
+    const [startHours, startMinutes] = cls.schedule.startTime.split(':').map(Number);
+    const classStartTime = new Date();
+    classStartTime.setHours(startHours, startMinutes, 0, 0);
+    
+    // Calculate how many seconds have passed since class started
+    const secondsPassed = Math.max(0, (now - classStartTime) / 1000);
+    
+    return Math.floor(secondsPassed);
+  };
+
+  // Format time in MM:SS format
+  const formatTimeMMSS = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  // Get time until class starts or ends
+  const getClassTimeStatus = (cls) => {
+    if (!cls.schedule || !cls.schedule.day || !cls.schedule.startTime || !cls.schedule.endTime) return null;
+    
+    const now = new Date();
+    const today = now.getDay();
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const todayName = dayNames[today];
+    
+    if (cls.schedule.day !== todayName) return null;
+    
+    const [startHours, startMinutes] = cls.schedule.startTime.split(':').map(Number);
+    const [endHours, endMinutes] = cls.schedule.endTime.split(':').map(Number);
+    
+    const classStartTime = new Date();
+    classStartTime.setHours(startHours, startMinutes, 0, 0);
+    
+    const classEndTime = new Date();
+    classEndTime.setHours(endHours, endMinutes, 0, 0);
+    
+    const timeToStart = (classStartTime - now) / (1000 * 60); // minutes
+    const timeToEnd = (classEndTime - now) / (1000 * 60); // minutes
+    
+    if (timeToStart > 0) {
+      if (timeToStart < 60) {
+        return `Class starts in ${Math.round(timeToStart)} minutes`;
+      } else {
+        return `Class starts in ${Math.floor(timeToStart / 60)}h ${Math.round(timeToStart % 60)}m`;
+      }
+    } else if (timeToEnd > 0) {
+      if (timeToEnd < 60) {
+        return `Class ends in ${Math.round(timeToEnd)} minutes`;
+      } else {
+        return `Class ends in ${Math.floor(timeToEnd / 60)}h ${Math.round(timeToEnd % 60)}m`;
+      }
+    } else {
+      return 'Class has ended for today';
+    }
+  };
+
+  // Handle video viewing
+  const handleVideoView = (cls) => {
+    // Check enrollment status first
+    if (cls.status === 'suspended') {
+      alert('Access to this class has been suspended. Please contact the administrator for more information.');
+      return;
+    }
+    
+    if (cls.status === 'completed') {
+      alert('This course has been completed. No further access is available.');
+      return;
+    }
+    
+    if (cls.status === 'dropped') {
+      alert('You have dropped this course. No access is available.');
+      return;
+    }
+    
+    // Check payment tracking and grace period
+    const paymentTrackingInfo = getPaymentTrackingInfo(cls);
+    if (!paymentTrackingInfo.canAccess) {
+      if (paymentTrackingInfo.status === 'payment-required') {
+        alert('Payment required - grace period has expired. Please make payment to restore access to this class.');
+      } else if (paymentTrackingInfo.status === 'no-payment') {
+        alert('No payment history found. Please make payment to access this class.');
+      } else {
+        alert('Access restricted due to payment issues. Please contact the administrator.');
+      }
+      return;
+    }
+    
+    // Check if class has video URL
+    if (!cls.videoUrl) {
+      alert('No video available for this class.');
+      return;
+    }
+    
+    // Check if delivery method supports video
+    if (!['hybrid2', 'hybrid3', 'hybrid4'].includes(cls.deliveryMethod)) {
+      alert('This class does not support recorded video content.');
+      return;
+    }
+    
+    // Check if class is currently scheduled
+    if (!isClassCurrentlyScheduled(cls)) {
+      const timeStatus = getClassTimeStatus(cls);
+      if (timeStatus) {
+        alert(`Video access is only available during class time. ${timeStatus}`);
+      } else {
+        alert('Video access is only available during scheduled class time.');
+      }
+      return;
+    }
+    
+    // Open video modal
+    setSelectedClassForVideo(cls);
+    setShowVideoModal(true);
   };
 
   // Handle attendance marking
@@ -857,7 +1243,8 @@ const MyClasses = ({ onLogout }) => {
     { key: 'all', label: 'All Classes', icon: <FaEye />, count: myClasses.length },
     { key: 'live', label: 'Live Classes', icon: <FaVideo />, count: myClasses.filter(cls => {
       if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
-      if (cls.deliveryMethod !== 'online' && cls.deliveryMethod !== 'hybrid') return false;
+      // Check if delivery method supports online classes
+      if (!['online', 'hybrid1', 'hybrid3', 'hybrid4'].includes(cls.deliveryMethod)) return false;
       if (!cls.schedule.day || !cls.schedule.startTime) return false;
       
       // Check if class is starting within 15 minutes
@@ -877,8 +1264,8 @@ const MyClasses = ({ onLogout }) => {
       // Calculate time difference in minutes
       const timeDiff = (classStartTime - now) / (1000 * 60);
       
-      // Show if class starts within 15 minutes and hasn't started yet
-      return timeDiff >= -15 && timeDiff <= 15;
+      // Show if class starts within 30 minutes before or is currently running (within 30 minutes of start)
+      return timeDiff >= -30 && timeDiff <= 30;
     }).length },
     { key: 'today', label: "Today's Classes", icon: <FaCalendar />, count: myClasses.filter(cls => {
       if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
@@ -1089,6 +1476,15 @@ const MyClasses = ({ onLogout }) => {
             >
               <FaSync /> Refresh Data
             </button>
+            {process.env.NODE_ENV === 'development' && (
+              <button
+                onClick={debugLiveTabFiltering}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                title="Debug Live Tab Filtering (Development Only)"
+              >
+                <FaCog /> Debug Live Tab
+              </button>
+            )}
           </div>
         </div>
         
@@ -1126,6 +1522,9 @@ const MyClasses = ({ onLogout }) => {
               const isPaymentDue = nextPaymentDate && nextPaymentDate <= today && cls.paymentStatus !== 'paid';
               const canAttendToday = paymentTrackingInfo.canAccess && cls.status === 'active';
               const isInactive = cls.status === 'inactive';
+              const isSuspended = cls.status === 'suspended';
+              const isCompleted = cls.status === 'completed';
+              const isDropped = cls.status === 'dropped';
               
               const scheduleText = cls.schedule && cls.schedule.frequency === 'no-schedule' ? 
                 'No Schedule' :
@@ -1183,6 +1582,20 @@ const MyClasses = ({ onLogout }) => {
                         <span className={deliveryInfo.color}>{deliveryInfo.icon}</span>
                         <span>{deliveryInfo.text}</span>
                       </div>
+                      {cls.zoomLink && (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid1' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') && (
+                        <div className="flex items-center gap-1 text-blue-600">
+                          <FaVideo />
+                          <span className="text-xs">Zoom Available</span>
+                        </div>
+                      )}
+                      {cls.videoUrl && (cls.deliveryMethod === 'hybrid2' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') && (
+                        <div className="flex items-center gap-1 text-green-600">
+                          <FaVideo />
+                          <span className="text-xs">
+                            {isClassCurrentlyScheduled(cls) ? '🕐 Video Access Now!' : 'Video Available During Class Time'}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-1">
                         <span className={courseTypeInfo.color}>{courseTypeInfo.icon}</span>
                         <span>{courseTypeInfo.text}</span>
@@ -1195,7 +1608,87 @@ const MyClasses = ({ onLogout }) => {
                         <span className={classStatus.color}>{classStatus.icon}</span>
                         <span className={classStatus.color}>{classStatus.text}</span>
                       </div>
-                      <div><strong>Next Payment:</strong> {nextPaymentDate ? nextPaymentDate.toLocaleDateString() : 'Not set'}</div>
+                      
+                      {/* Suspended Enrollment Warning */}
+                      {isSuspended && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <FaExclamationTriangle className="text-orange-600 text-sm" />
+                            <div>
+                              <div className="font-semibold text-orange-700 text-sm">Enrollment Suspended</div>
+                              <div className="text-orange-600 text-xs">Access to this class has been temporarily suspended. Contact admin for details.</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Grace Period Warning */}
+                      {!paymentTrackingInfo.canAccess && paymentTrackingInfo.status === 'payment-required' && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <FaExclamationTriangle className="text-red-600 text-sm" />
+                            <div>
+                              <div className="font-semibold text-red-700 text-sm">Grace Period Expired</div>
+                              <div className="text-red-600 text-xs">Payment required - grace period has expired. Please make payment to restore access.</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Grace Period Warning (Almost Expired) */}
+                      {paymentTrackingInfo.canAccess && paymentTrackingInfo.daysRemaining <= 3 && paymentTrackingInfo.daysRemaining > 0 && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <FaExclamationTriangle className="text-yellow-600 text-sm" />
+                            <div>
+                              <div className="font-semibold text-yellow-700 text-sm">Grace Period Ending Soon</div>
+                              <div className="text-yellow-600 text-xs">Only {paymentTrackingInfo.daysRemaining} days remaining in grace period. Make payment to avoid access restriction.</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Next Payment Due Warning */}
+                      {paymentTrackingInfo.canAccess && paymentTrackingInfo.nextPaymentDate && new Date() >= paymentTrackingInfo.nextPaymentDate && paymentTrackingInfo.daysRemaining > 3 && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <FaCalendar className="text-blue-600 text-sm" />
+                            <div>
+                              <div className="font-semibold text-blue-700 text-sm">Next Payment Due</div>
+                              <div className="text-blue-600 text-xs">Next payment due on {paymentTrackingInfo.nextPaymentDate?.toLocaleDateString()}. You can renew anytime during the grace period.</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+
+                      
+                      {/* Completed Enrollment Info */}
+                      {isCompleted && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <FaGraduationCap className="text-blue-600 text-sm" />
+                            <div>
+                              <div className="font-semibold text-blue-700 text-sm">Course Completed</div>
+                              <div className="text-blue-600 text-xs">You have successfully completed this course.</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Dropped Enrollment Info */}
+                      {isDropped && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <FaTimesCircle className="text-red-600 text-sm" />
+                            <div>
+                              <div className="font-semibold text-red-700 text-sm">Enrollment Dropped</div>
+                              <div className="text-red-600 text-xs">You have dropped this course. No further access available.</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div><strong>Next Payment:</strong> {paymentTrackingInfo.nextPaymentDate ? paymentTrackingInfo.nextPaymentDate.toLocaleDateString() : 'Not set'}</div>
                       <div><strong>Students:</strong> {cls.currentStudents || 0}/{cls.maxStudents}</div>
                       {cls.attendance && cls.attendance.length > 0 && (
                         <div><strong>Attendance:</strong> {cls.attendance.filter(a => a.status === 'present').length}/{cls.attendance.length}</div>
@@ -1307,15 +1800,106 @@ const MyClasses = ({ onLogout }) => {
                   }
                   buttonText="View Details"
                   onButtonClick={() => handleViewDetails(cls)}
+                  buttonDisabled={isSuspended || isDropped || !paymentTrackingInfo.canAccess}
                 >
                   {/* Action Buttons */}
                   <div className="flex flex-wrap gap-2 mt-4">
+                      {/* Disable Join button for suspended, completed, dropped enrollments, or grace period expired */}
                       <button
                         onClick={() => handleJoinClass(cls)}
-                      className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 flex items-center gap-1"
+                        disabled={isSuspended || isCompleted || isDropped || !paymentTrackingInfo.canAccess}
+                        className={`px-3 py-1 rounded-lg text-sm flex items-center gap-1 ${
+                          isSuspended || isCompleted || isDropped || !paymentTrackingInfo.canAccess
+                            ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                        title={
+                          isSuspended ? 'Access suspended - contact admin' :
+                          isCompleted ? 'Course completed' :
+                          isDropped ? 'Course dropped' :
+                          !paymentTrackingInfo.canAccess ? 'Payment required - grace period expired' :
+                          'Join class'
+                        }
                       >
-                        <FaPlay /> Join
+                        <FaPlay /> 
+                        {isSuspended ? 'Suspended' : 
+                         isCompleted ? 'Completed' : 
+                         isDropped ? 'Dropped' : 
+                         !paymentTrackingInfo.canAccess ? 'Payment Required' :
+                         'Join'}
                       </button>
+                      
+                      {/* Payment Button - Show when grace period expired OR payment is due */}
+                      {((!paymentTrackingInfo.canAccess && (paymentTrackingInfo.status === 'payment-required' || paymentTrackingInfo.status === 'no-payment')) || 
+                        (paymentTrackingInfo.canAccess && paymentTrackingInfo.nextPaymentDate && new Date() >= paymentTrackingInfo.nextPaymentDate)) && (
+                        <button
+                          onClick={() => handleMakePayment(cls)}
+                          className={`px-3 py-1 rounded-lg text-sm flex items-center gap-1 ${
+                            !paymentTrackingInfo.canAccess 
+                              ? 'bg-red-600 text-white hover:bg-red-700' 
+                              : paymentTrackingInfo.daysRemaining <= 3
+                              ? 'bg-yellow-600 text-white hover:bg-yellow-700'
+                              : 'bg-blue-600 text-white hover:bg-blue-700'
+                          }`}
+                          title={
+                            !paymentTrackingInfo.canAccess 
+                              ? 'Make payment to restore access' 
+                              : paymentTrackingInfo.daysRemaining <= 3
+                              ? 'Make payment to extend grace period'
+                              : 'Make payment to renew for next month'
+                          }
+                        >
+                          <FaMoneyBill /> 
+                          {!paymentTrackingInfo.canAccess 
+                            ? 'Make Payment' 
+                            : paymentTrackingInfo.daysRemaining <= 3 
+                            ? 'Pay Early' 
+                            : 'Renew Payment'
+                          }
+                        </button>
+                      )}
+                      
+                      {/* Watch Video Button - Show for classes with video URLs */}
+                      {cls.videoUrl && (cls.deliveryMethod === 'hybrid2' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') && (
+                        <button
+                          onClick={() => handleVideoView(cls)}
+                          disabled={isSuspended || isCompleted || isDropped || !paymentTrackingInfo.canAccess || !isClassCurrentlyScheduled(cls)}
+                          className={`px-3 py-1 rounded-lg text-sm flex items-center gap-1 ${
+                            isSuspended || isCompleted || isDropped || !paymentTrackingInfo.canAccess || !isClassCurrentlyScheduled(cls)
+                              ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                              : isClassCurrentlyScheduled(cls)
+                              ? 'bg-red-600 text-white hover:bg-red-700 animate-pulse'
+                              : 'bg-green-600 text-white hover:bg-green-700'
+                          }`}
+                          title={
+                            isSuspended ? 'Access suspended - contact admin' :
+                            isCompleted ? 'Course completed' :
+                            isDropped ? 'Course dropped' :
+                            !paymentTrackingInfo.canAccess ? 'Payment required - grace period expired' :
+                            !isClassCurrentlyScheduled(cls) ? `Video access only during class time. ${getClassTimeStatus(cls) || 'Not scheduled for today'}` :
+                            'Watch live video now!'
+                          }
+                        >
+                          <FaVideo /> 
+                          {isSuspended ? 'Suspended' : 
+                           isCompleted ? 'Completed' : 
+                           isDropped ? 'Dropped' : 
+                           !paymentTrackingInfo.canAccess ? 'Payment Required' :
+                           !isClassCurrentlyScheduled(cls) ? 'Not Available' :
+                           '🕐 Watch Now'}
+                        </button>
+                      )}
+                      
+                      {/* Debug Button - Only show in development */}
+                      {process.env.NODE_ENV === 'development' && (
+                        <button
+                          onClick={() => debugPaymentTracking(cls)}
+                          className="px-3 py-1 rounded-lg text-sm flex items-center gap-1 bg-purple-600 text-white hover:bg-purple-700"
+                          title="Debug payment tracking (development only)"
+                        >
+                          <FaCog /> Debug
+                        </button>
+                      )}
                   </div>
                 </BasicCard>
               );
@@ -1404,7 +1988,155 @@ const MyClasses = ({ onLogout }) => {
               setSelectedClassForZoom(null);
             }}
             isOpen={showSecureZoomModal}
+            enableNewWindowJoin={(() => {
+              const value = Boolean(selectedClassForZoom.enableNewWindowJoin);
+              console.log('MyClasses - enableNewWindowJoin:', selectedClassForZoom.enableNewWindowJoin, '->', value);
+              return value;
+            })()}
+            enableOverlayJoin={(() => {
+              const value = Boolean(selectedClassForZoom.enableOverlayJoin);
+              console.log('MyClasses - enableOverlayJoin:', selectedClassForZoom.enableOverlayJoin, '->', value);
+              return value;
+            })()}
           />
+        )}
+
+        {/* Video Player Modal */}
+        {showVideoModal && selectedClassForVideo && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-green-600 to-teal-600 text-white p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <FaVideo className="text-2xl" />
+                    <div>
+                      <h2 className="text-2xl font-bold">Live Class Video</h2>
+                      <p className="text-green-100">{selectedClassForVideo.className} • {selectedClassForVideo.subject}</p>
+                      <div className="text-yellow-200 text-sm mt-1">
+                        🕐 Currently Scheduled: {selectedClassForVideo.schedule?.day} {selectedClassForVideo.schedule?.startTime}-{selectedClassForVideo.schedule?.endTime}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowVideoModal(false);
+                      setSelectedClassForVideo(null);
+                    }}
+                    className="text-white hover:text-gray-200 transition-colors"
+                  >
+                    <FaTimesCircle size={24} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Security Warning */}
+              <div className="bg-red-50 border border-red-200 p-4 mx-6 mt-4 rounded-lg">
+                <div className="flex items-center gap-2 text-red-700">
+                  <FaExclamationTriangle className="text-lg" />
+                  <div>
+                    <div className="font-semibold">Security Notice</div>
+                    <div className="text-sm">
+                      This video is protected. Recording, downloading, or screen capture is prohibited and may result in disciplinary action.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Video Player with Student Overlay */}
+              <div className="p-6">
+                <div className="bg-black rounded-lg overflow-hidden aspect-video relative">
+                  {/* Student Identification Overlay */}
+                  <div className="absolute top-4 left-4 z-10 bg-black bg-opacity-70 text-white px-3 py-2 rounded-lg text-sm font-mono">
+                    <div>Student ID: {getUserData()?.userid || 'Unknown'}</div>
+                    <div>Name: {getUserData()?.firstName || 'Unknown'} {getUserData()?.lastName || ''}</div>
+                    <div>Class: {selectedClassForVideo.className}</div>
+                    <div>Time: {new Date().toLocaleString()}</div>
+                    <div>Video Start: {formatTimeMMSS(getVideoStartTime(selectedClassForVideo))}</div>
+                  </div>
+                  
+                  {/* Anti-Cheat Overlay */}
+                  <div className="absolute top-4 right-4 z-10 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">
+                    TCMS SECURED
+                  </div>
+                  
+                  {/* Countdown Timer */}
+                  {videoTimeRemaining !== null && (
+                    <div className="absolute bottom-4 right-4 z-10 bg-yellow-600 text-white px-3 py-2 rounded-lg text-sm font-bold">
+                      ⏰ {Math.floor(videoTimeRemaining / 60)}:{(videoTimeRemaining % 60).toString().padStart(2, '0')} remaining
+                    </div>
+                  )}
+                  
+                  <video
+                    controls
+                    className="w-full h-full"
+                    src={selectedClassForVideo.videoUrl}
+                    poster="/assets/video-poster.jpg"
+                    onContextMenu={(e) => e.preventDefault()}
+                    onDragStart={(e) => e.preventDefault()}
+                    style={{
+                      WebkitUserSelect: 'none',
+                      userSelect: 'none',
+                      pointerEvents: 'auto'
+                    }}
+                    onLoadedMetadata={(e) => {
+                      // Set video to start from the appropriate time
+                      const startTime = getVideoStartTime(selectedClassForVideo);
+                      if (startTime > 0) {
+                        e.target.currentTime = startTime;
+                      }
+                    }}
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                </div>
+                
+                {/* Video Information */}
+                <div className="mt-6 space-y-4">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h3 className="font-semibold text-lg mb-2">Class Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div><strong>Class:</strong> {selectedClassForVideo.className}</div>
+                      <div><strong>Subject:</strong> {selectedClassForVideo.subject}</div>
+                      <div><strong>Teacher:</strong> {selectedClassForVideo.teacher}</div>
+                      <div><strong>Stream:</strong> {selectedClassForVideo.stream}</div>
+                      <div><strong>Schedule:</strong> {selectedClassForVideo.schedule?.day} {selectedClassForVideo.schedule?.startTime}-{selectedClassForVideo.schedule?.endTime}</div>
+                      <div><strong>Delivery Method:</strong> {getDeliveryMethodInfo(selectedClassForVideo.deliveryMethod).text}</div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <h3 className="font-semibold text-lg mb-2">Security & Access Information</h3>
+                    <ul className="text-sm space-y-2 text-gray-700">
+                      <li>• Video access is restricted to scheduled class time only</li>
+                      <li>• Your student ID and name are displayed on the video for security</li>
+                      <li>• Recording, downloading, or screen capture is strictly prohibited</li>
+                      <li>• Violations may result in immediate suspension of video access</li>
+                      <li>• Video will automatically stop when class time ends</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <h3 className="font-semibold text-lg mb-2">Video Timing Information</h3>
+                    <div className="text-sm space-y-2 text-gray-700">
+                      <div className="flex items-center gap-2">
+                        <FaClock className="text-green-600" />
+                        <span><strong>Class Schedule:</strong> {selectedClassForVideo.schedule?.day} {selectedClassForVideo.schedule?.startTime}-{selectedClassForVideo.schedule?.endTime}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <FaVideo className="text-green-600" />
+                        <span><strong>Video Start Time:</strong> {formatTimeMMSS(getVideoStartTime(selectedClassForVideo))} (based on when you joined)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <FaInfoCircle className="text-blue-600" />
+                        <span><strong>Note:</strong> Video will start from the point in time when you joined the class session</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Modern Class Details Modal */}
@@ -1545,6 +2277,12 @@ const MyClasses = ({ onLogout }) => {
                         <div><strong>Stream:</strong> {selectedClassForDetails.stream}</div>
                         <div><strong>Course Type:</strong> {getCourseTypeInfo(selectedClassForDetails.courseType).text}</div>
                         <div><strong>Delivery Method:</strong> {getDeliveryMethodInfo(selectedClassForDetails.deliveryMethod).text}</div>
+                        {selectedClassForDetails.zoomLink && (selectedClassForDetails.deliveryMethod === 'online' || selectedClassForDetails.deliveryMethod === 'hybrid1' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && (
+                          <div><strong>Zoom Link:</strong> <span className="text-blue-600">Available</span></div>
+                        )}
+                        {selectedClassForDetails.videoUrl && (selectedClassForDetails.deliveryMethod === 'hybrid2' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && (
+                          <div><strong>Recorded Video:</strong> <span className="text-green-600">Available</span></div>
+                        )}
                         <div><strong>Students:</strong> {selectedClassForDetails.currentStudents || 0}/{selectedClassForDetails.maxStudents}</div>
                         <div><strong>Fee:</strong> LKR {selectedClassForDetails.fee?.toLocaleString()}</div>
                         <div><strong>Purchase Date:</strong> {new Date(selectedClassForDetails.purchaseDate).toLocaleDateString()}</div>
@@ -1573,7 +2311,7 @@ const MyClasses = ({ onLogout }) => {
                                )}
                                
                                {/* Join Class Button - Only if access is granted */}
-                               {(selectedClassForDetails.deliveryMethod === 'online' || selectedClassForDetails.deliveryMethod === 'hybrid') && selectedClassForDetails.zoomLink && paymentInfo.canAccess && (
+                               {(selectedClassForDetails.deliveryMethod === 'online' || selectedClassForDetails.deliveryMethod === 'hybrid1' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && selectedClassForDetails.zoomLink && paymentInfo.canAccess && (
                                  <button
                                    onClick={() => {
                                      setShowDetailsModal(false);
@@ -1583,6 +2321,31 @@ const MyClasses = ({ onLogout }) => {
                                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
                                  >
                                    <FaVideo /> Join Class
+                                 </button>
+                               )}
+                               
+                               {/* Watch Video Button - Only if access is granted and video is available */}
+                               {selectedClassForDetails.videoUrl && (selectedClassForDetails.deliveryMethod === 'hybrid2' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && paymentInfo.canAccess && (
+                                 <button
+                                   onClick={() => {
+                                     setShowDetailsModal(false);
+                                     setSelectedClassForVideo(selectedClassForDetails);
+                                     setShowVideoModal(true);
+                                   }}
+                                   disabled={!isClassCurrentlyScheduled(selectedClassForDetails)}
+                                   className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                                     !isClassCurrentlyScheduled(selectedClassForDetails)
+                                       ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                                       : 'bg-green-600 text-white hover:bg-green-700'
+                                   }`}
+                                   title={
+                                     !isClassCurrentlyScheduled(selectedClassForDetails) 
+                                       ? `Video access only during class time. ${getClassTimeStatus(selectedClassForDetails) || 'Not scheduled for today'}`
+                                       : 'Watch live video now!'
+                                   }
+                                 >
+                                   <FaVideo /> 
+                                   {!isClassCurrentlyScheduled(selectedClassForDetails) ? 'Not Available' : '🕐 Watch Now'}
                                  </button>
                                )}
                                
@@ -1766,28 +2529,30 @@ const MyClasses = ({ onLogout }) => {
                                 <div>
                                   <div className="font-semibold">Payment #{index + 1}</div>
                                   <div className="text-sm text-gray-600">
-                                    {new Date(payment.date).toLocaleDateString()} 
+                                    {payment.date ? new Date(payment.date).toLocaleDateString() : 'No date'} 
                                   </div>
                                   {payment.invoiceId && (
                                     <div className="text-xs text-gray-500">Invoice: {payment.invoiceId}</div>
                                   )}
                                 </div>
                                 <div className="text-right">
-                                  <div className="font-bold text-lg">LKR {parseInt(payment.amount).toLocaleString()}</div>
+                                  <div className="font-bold text-lg">LKR {payment.amount ? parseInt(payment.amount).toLocaleString() : '0'}</div>
                                   <div className={`text-sm px-2 py-1 rounded-full inline-block ${
                                     payment.status === 'paid' ? 'bg-green-100 text-green-700' : 
                                     payment.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 
                                     'bg-red-100 text-red-700'
                                   }`}>
-                                    {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                                    {payment.status ? payment.status.charAt(0).toUpperCase() + payment.status.slice(1) : 'Unknown'}
                                   </div>
                                 </div>
                               </div>
                               <div className="mt-2 text-sm text-gray-600">
-                                Method: {payment.payment_method === 'online' ? 'Online Payment' : 
+                                Method: {payment.payment_method ? (
+                                  payment.payment_method === 'online' ? 'Online Payment' : 
                                          payment.payment_method === 'cash' ? 'Cash Payment' : 
                                          payment.payment_method === 'test' ? 'Test Payment' :
-                                         payment.payment_method || 'Not specified'}
+                                  payment.payment_method
+                                ) : 'Not specified'}
                               </div>
                             </div>
                           ))}

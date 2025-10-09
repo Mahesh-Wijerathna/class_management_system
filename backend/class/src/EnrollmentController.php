@@ -1,4 +1,7 @@
 <?php
+// Set timezone for all date/time operations
+date_default_timezone_set('Asia/Colombo');
+
 require_once __DIR__ . '/config.php';
 
 class EnrollmentController {
@@ -21,6 +24,7 @@ class EnrollmentController {
                     c.delivery_method,
                     c.course_type,
                     c.fee,
+                    c.revision_discount_price,
                     c.max_students,
                     c.status as class_status,
                     c.zoom_link,
@@ -34,16 +38,18 @@ class EnrollmentController {
                     c.current_students,
                     c.payment_tracking,
                     c.payment_tracking_free_days,
+                    c.enable_new_window_join,
+                    c.enable_overlay_join,
                     GROUP_CONCAT(
                         JSON_OBJECT(
                             'transaction_id', fr.transaction_id,
-                            'date', fr.date,
+                            'date', fr.payment_date,
                             'amount', fr.amount,
                             'payment_method', fr.payment_method,
                             'reference_number', fr.reference_number,
                             'status', fr.status,
                             'notes', fr.notes
-                        ) ORDER BY fr.date DESC SEPARATOR '|'
+                        ) ORDER BY fr.payment_date DESC SEPARATOR '|'
                     ) as payment_history_details
                 FROM enrollments e
                 LEFT JOIN classes c ON e.class_id = c.id
@@ -95,6 +101,7 @@ class EnrollmentController {
                     c.delivery_method,
                     c.course_type,
                     c.fee,
+                    c.revision_discount_price,
                     c.max_students,
                     c.status as class_status,
                     c.zoom_link,
@@ -108,16 +115,18 @@ class EnrollmentController {
                     c.current_students,
                     c.payment_tracking,
                     c.payment_tracking_free_days,
+                    c.enable_new_window_join,
+                    c.enable_overlay_join,
                     GROUP_CONCAT(
                         JSON_OBJECT(
                             'transaction_id', fr.transaction_id,
-                            'date', fr.date,
+                            'date', fr.payment_date,
                             'amount', fr.amount,
                             'payment_method', fr.payment_method,
                             'reference_number', fr.reference_number,
                             'status', fr.status,
                             'notes', fr.notes
-                        ) ORDER BY fr.date DESC SEPARATOR '|'
+                        ) ORDER BY fr.payment_date DESC SEPARATOR '|'
                     ) as payment_history_details
                 FROM enrollments e
                 LEFT JOIN classes c ON e.class_id = c.id
@@ -181,7 +190,9 @@ class EnrollmentController {
                     c.end_date,
                     c.current_students,
                     c.payment_tracking,
-                    c.payment_tracking_free_days
+                    c.payment_tracking_free_days,
+                    c.enable_new_window_join,
+                    c.enable_overlay_join
                 FROM enrollments e
                 LEFT JOIN classes c ON e.class_id = c.id
                 ORDER BY e.created_at DESC
@@ -218,6 +229,33 @@ class EnrollmentController {
     // Create a new enrollment
     public function createEnrollment($enrollmentData) {
         try {
+            // Start transaction
+            $this->db->begin_transaction();
+            
+            // Always use frontend date when provided (frontend knows the correct local date)
+            $enrollmentDate = $enrollmentData['enrollment_date'] ?? date('Y-m-d');
+            
+            // Calculate next_payment_date with payment tracking free days
+            $nextPaymentDate = $enrollmentData['next_payment_date'] ?? null;
+            if (!$nextPaymentDate) {
+                // Get class details to fetch payment tracking configuration
+                $classStmt = $this->db->prepare("SELECT payment_tracking_free_days FROM classes WHERE id = ?");
+                $classStmt->bind_param("i", $enrollmentData['class_id']);
+                $classStmt->execute();
+                $classResult = $classStmt->get_result();
+                $classData = $classResult->fetch_assoc();
+                
+                // Get free days (default to 7 if not set)
+                $freeDays = $classData ? ($classData['payment_tracking_free_days'] ?? 7) : 7;
+                
+                // Calculate: 1st of next month + free days
+                $firstOfNextMonth = date('Y-m-01', strtotime('first day of next month'));
+                $nextPaymentDate = date('Y-m-d', strtotime($firstOfNextMonth . ' +' . $freeDays . ' days'));
+                
+                // Log for debugging
+                error_log("ENROLLMENT_NEXT_PAYMENT_CALC: Class {$enrollmentData['class_id']} - First of Next Month: $firstOfNextMonth, Free Days: $freeDays, Next Payment Date: $nextPaymentDate");
+            }
+            
             $stmt = $this->db->prepare("
                 INSERT INTO enrollments (
                     class_id, student_id, enrollment_date, 
@@ -229,27 +267,44 @@ class EnrollmentController {
             $stmt->bind_param("issssdss", 
                 $enrollmentData['class_id'],
                 $enrollmentData['student_id'],
-                $enrollmentData['enrollment_date'],
+                $enrollmentDate,
                 $enrollmentData['status'],
                 $enrollmentData['payment_status'],
                 $enrollmentData['total_fee'],
                 $enrollmentData['paid_amount'],
-                $enrollmentData['next_payment_date']
+                $nextPaymentDate
             );
             
             if ($stmt->execute()) {
+                $enrollmentId = $stmt->insert_id;
+                
+                // Update the current_students count in the classes table
+                $this->updateClassStudentCount($enrollmentData['class_id']);
+                
+                // Synchronize payment status with financial records
+                if (isset($enrollmentData['payment_status'])) {
+                    $this->synchronizePaymentStatus($enrollmentId, $enrollmentData['payment_status']);
+                }
+                
+                // Commit transaction
+                $this->db->commit();
+                
                 return [
                     'success' => true,
                     'message' => 'Enrollment created successfully',
-                    'data' => ['id' => $stmt->insert_id]
+                    'data' => ['id' => $enrollmentId]
                 ];
             } else {
+                // Rollback transaction
+                $this->db->rollback();
                 return [
                     'success' => false,
                     'message' => 'Failed to create enrollment'
                 ];
             }
         } catch (Exception $e) {
+            // Rollback transaction on error
+            $this->db->rollback();
             return [
                 'success' => false,
                 'message' => 'Error creating enrollment: ' . $e->getMessage()
@@ -260,37 +315,131 @@ class EnrollmentController {
     // Update enrollment
     public function updateEnrollment($enrollmentId, $updateData) {
         try {
+            // Start transaction
+            $this->db->begin_transaction();
+            
             $stmt = $this->db->prepare("
                 UPDATE enrollments SET
+                    enrollment_date = ?,
                     status = ?,
                     payment_status = ?,
-                    notes = ?,
+                    next_payment_date = ?,
                     updated_at = NOW()
                 WHERE id = ?
             ");
             
-            $stmt->bind_param("sssi", 
+            $enrollmentDate = $updateData['enrollment_date'] ?? null;
+            $nextPaymentDate = $updateData['next_payment_date'] ?? null;
+            $stmt->bind_param("ssssi", 
+                $enrollmentDate,
                 $updateData['status'],
                 $updateData['payment_status'],
-                $updateData['notes'],
+                $nextPaymentDate,
                 $enrollmentId
             );
             
             if ($stmt->execute()) {
+                // Synchronize payment status with financial records
+                if (isset($updateData['payment_status'])) {
+                    $this->synchronizePaymentStatus($enrollmentId, $updateData['payment_status']);
+                }
+                
+                // Commit transaction
+                $this->db->commit();
+                
                 return [
                     'success' => true,
                     'message' => 'Enrollment updated successfully'
                 ];
             } else {
+                // Rollback transaction
+                $this->db->rollback();
                 return [
                     'success' => false,
                     'message' => 'Failed to update enrollment'
                 ];
             }
         } catch (Exception $e) {
+            // Rollback transaction on error
+            $this->db->rollback();
             return [
                 'success' => false,
                 'message' => 'Error updating enrollment: ' . $e->getMessage()
+            ];
+        }
+    }
+    
+    // Helper method to synchronize payment status between enrollments and financial records
+    private function synchronizePaymentStatus($enrollmentId, $paymentStatus) {
+        try {
+            // Get the student_id and class_id from enrollment
+            $stmt = $this->db->prepare("
+                SELECT student_id, class_id 
+                FROM enrollments 
+                WHERE id = ?
+            ");
+            $stmt->bind_param("i", $enrollmentId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $enrollment = $result->fetch_assoc();
+            
+            if ($enrollment) {
+                // Update financial records for this student and class
+                $stmt = $this->db->prepare("
+                    UPDATE financial_records 
+                    SET status = ? 
+                    WHERE user_id = ? AND class_id = ?
+                ");
+                $stmt->bind_param("ssi", 
+                    $paymentStatus, 
+                    $enrollment['student_id'], 
+                    $enrollment['class_id']
+                );
+                $stmt->execute();
+            }
+        } catch (Exception $e) {
+            error_log("Error synchronizing payment status: " . $e->getMessage());
+        }
+    }
+    
+    // Public method to synchronize all payment statuses
+    public function synchronizeAllPaymentStatuses() {
+        try {
+            $updatedCount = 0;
+            
+            // Get all enrollments with their payment status
+            $stmt = $this->db->prepare("
+                SELECT id, student_id, class_id, payment_status 
+                FROM enrollments 
+                WHERE payment_status IS NOT NULL
+            ");
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            while ($enrollment = $result->fetch_assoc()) {
+                // Update corresponding financial records
+                $updateStmt = $this->db->prepare("
+                    UPDATE financial_records 
+                    SET status = ? 
+                    WHERE user_id = ? AND class_id = ?
+                ");
+                $updateStmt->bind_param("ssi", 
+                    $enrollment['payment_status'], 
+                    $enrollment['student_id'], 
+                    $enrollment['class_id']
+                );
+                $updateStmt->execute();
+                $updatedCount += $updateStmt->affected_rows;
+            }
+            
+            return [
+                'success' => true,
+                'message' => "Synchronized payment status for {$updatedCount} financial records"
+            ];
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Error synchronizing payment statuses: ' . $e->getMessage()
             ];
         }
     }
@@ -298,8 +447,8 @@ class EnrollmentController {
     // Delete enrollment
     public function deleteEnrollment($enrollmentId) {
         try {
-            // First check if enrollment exists
-            $stmt = $this->db->prepare("SELECT * FROM enrollments WHERE id = ?");
+            // First check if enrollment exists and get class_id
+            $stmt = $this->db->prepare("SELECT class_id FROM enrollments WHERE id = ?");
             $stmt->bind_param("i", $enrollmentId);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -311,11 +460,17 @@ class EnrollmentController {
                 ];
             }
             
+            $enrollment = $result->fetch_assoc();
+            $classId = $enrollment['class_id'];
+            
             // Delete the enrollment
             $stmt = $this->db->prepare("DELETE FROM enrollments WHERE id = ?");
             $stmt->bind_param("i", $enrollmentId);
             
             if ($stmt->execute()) {
+                // Update the current_students count in the classes table
+                $this->updateClassStudentCount($classId);
+                
                 return [
                     'success' => true,
                     'message' => 'Enrollment deleted successfully'
@@ -330,6 +485,79 @@ class EnrollmentController {
             return [
                 'success' => false,
                 'message' => 'Error deleting enrollment: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    // Delete all enrollments for a student
+    public function deleteStudentEnrollments($studentId) {
+        try {
+            // Start transaction
+            $this->db->begin_transaction();
+            
+            // Get all class IDs that will be affected
+            $stmt = $this->db->prepare("SELECT DISTINCT class_id FROM enrollments WHERE student_id = ?");
+            $stmt->bind_param("s", $studentId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $affectedClasses = [];
+            while ($row = $result->fetch_assoc()) {
+                $affectedClasses[] = $row['class_id'];
+            }
+            
+            // Delete all enrollments for the student
+            $stmt = $this->db->prepare("DELETE FROM enrollments WHERE student_id = ?");
+            $stmt->bind_param("s", $studentId);
+            
+            if ($stmt->execute()) {
+                $deletedCount = $stmt->affected_rows;
+                
+                // Delete all financial records for the student
+                $stmt = $this->db->prepare("DELETE FROM financial_records WHERE user_id = ?");
+                $stmt->bind_param("s", $studentId);
+                $stmt->execute();
+                $financialRecordsDeleted = $stmt->affected_rows;
+                
+                // Delete all payment history records for the student
+                $stmt = $this->db->prepare("
+                    DELETE ph FROM payment_history ph 
+                    JOIN enrollments e ON ph.enrollment_id = e.id 
+                    WHERE e.student_id = ?
+                ");
+                $stmt->bind_param("s", $studentId);
+                $stmt->execute();
+                $paymentHistoryDeleted = $stmt->affected_rows;
+                
+                // Note: Payments table cleanup would require cross-database access
+                // This is handled separately if needed
+                $paymentsDeleted = 0;
+                
+                // Update the current_students count for all affected classes
+                foreach ($affectedClasses as $classId) {
+                    $this->updateClassStudentCount($classId);
+                }
+                
+                // Commit transaction
+                $this->db->commit();
+                
+                return [
+                    'success' => true,
+                    'message' => "Deleted {$deletedCount} enrollment(s), {$financialRecordsDeleted} financial record(s), and {$paymentHistoryDeleted} payment history record(s) for student {$studentId}"
+                ];
+            } else {
+                // Rollback transaction
+                $this->db->rollback();
+                return [
+                    'success' => false,
+                    'message' => 'Failed to delete student enrollments'
+                ];
+            }
+        } catch (Exception $e) {
+            // Rollback transaction on error
+            $this->db->rollback();
+            return [
+                'success' => false,
+                'message' => 'Error deleting student enrollments: ' . $e->getMessage()
             ];
         }
     }
@@ -457,5 +685,102 @@ class EnrollmentController {
             ];
         }
     }
+    
+    // Helper method to update the current_students count for a class
+    public function updateClassStudentCount($classId) {
+        try {
+            // Count active enrollments for the class
+            $stmt = $this->db->prepare("
+                SELECT COUNT(*) as student_count 
+                FROM enrollments 
+                WHERE class_id = ? AND status = 'active'
+            ");
+            $stmt->bind_param("i", $classId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $count = $result->fetch_assoc()['student_count'];
+            
+            // Update the classes table
+            $stmt = $this->db->prepare("
+                UPDATE classes 
+                SET current_students = ? 
+                WHERE id = ?
+            ");
+            $stmt->bind_param("ii", $count, $classId);
+            $stmt->execute();
+            
+        } catch (Exception $e) {
+            error_log("Error updating class student count for class {$classId}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Update enrollment payment amount
+     * Adds payment amount to existing paid_amount and updates payment status
+     */
+    public function updateEnrollmentPayment($studentId, $classId, $paymentAmount) {
+        try {
+            // Start transaction
+            $this->db->begin_transaction();
+            
+            // Get current enrollment
+            $stmt = $this->db->prepare("
+                SELECT id, paid_amount, total_fee 
+                FROM enrollments 
+                WHERE student_id = ? AND class_id = ? AND status = 'active'
+                LIMIT 1
+            ");
+            $stmt->bind_param("si", $studentId, $classId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $enrollment = $result->fetch_assoc();
+            
+            if (!$enrollment) {
+                return ['success' => false, 'message' => 'Enrollment not found'];
+            }
+            
+            // Calculate new paid amount
+            $newPaidAmount = floatval($enrollment['paid_amount']) + floatval($paymentAmount);
+            $totalFee = floatval($enrollment['total_fee']);
+            
+            // Determine new payment status
+            $newPaymentStatus = 'pending';
+            if ($newPaidAmount >= $totalFee) {
+                $newPaymentStatus = 'paid';
+            } elseif ($newPaidAmount > 0) {
+                $newPaymentStatus = 'partial';
+            }
+            
+            // Update enrollment
+            $updateStmt = $this->db->prepare("
+                UPDATE enrollments 
+                SET paid_amount = ?, 
+                    payment_status = ?,
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $updateStmt->bind_param("dsi", $newPaidAmount, $newPaymentStatus, $enrollment['id']);
+            
+            if ($updateStmt->execute()) {
+                $this->db->commit();
+                return [
+                    'success' => true,
+                    'message' => 'Payment updated successfully',
+                    'data' => [
+                        'paid_amount' => $newPaidAmount,
+                        'payment_status' => $newPaymentStatus,
+                        'outstanding' => $totalFee - $newPaidAmount
+                    ]
+                ];
+            } else {
+                $this->db->rollback();
+                return ['success' => false, 'message' => 'Failed to update enrollment'];
+            }
+            
+        } catch (Exception $e) {
+            $this->db->rollback();
+            error_log("Error updating enrollment payment: " . $e->getMessage());
+            return ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
+        }
+    }
 }
-?> 

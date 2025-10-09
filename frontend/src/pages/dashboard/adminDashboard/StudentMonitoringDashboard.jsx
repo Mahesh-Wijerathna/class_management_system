@@ -66,19 +66,19 @@ const StudentMonitoringDashboard = ({ onLogout }) => {
             if (statsRes.success) setStatistics(statsRes.data);
             if (suspiciousRes.success) setSuspiciousActivities(suspiciousRes.data);
             if (violationsRes.success) setConcurrentViolations(violationsRes.data);
-            if (studentsRes.success) setStudents(studentsRes.students || []);
+            if (studentsRes && Array.isArray(studentsRes)) setStudents(studentsRes);
 
             // Load blocked students list
-            if (studentsRes.success && studentsRes.students) {
+            if (studentsRes && Array.isArray(studentsRes)) {
                 const blockedSet = new Set();
-                for (const student of studentsRes.students) {
+                for (const student of studentsRes) {
                     try {
-                        const blockStatus = await checkStudentBlocked(student.userid);
+                        const blockStatus = await checkStudentBlocked(student.user_id);
                         if (blockStatus.success && blockStatus.is_blocked) {
-                            blockedSet.add(student.userid);
+                            blockedSet.add(student.user_id);
                         }
                     } catch (error) {
-                        console.error(`Error checking block status for ${student.userid}:`, error);
+                        console.error(`Error checking block status for ${student.user_id}:`, error);
                     }
                 }
                 setBlockedStudents(blockedSet);
@@ -240,6 +240,17 @@ const StudentMonitoringDashboard = ({ onLogout }) => {
     const getDeviceInfo = (userAgent) => {
         const agent = userAgent?.toLowerCase() || '';
         
+        // Handle empty or invalid user agent
+        if (!userAgent || userAgent.trim() === '') {
+            return {
+                icon: <FaDesktop className="text-gray-400" />,
+                deviceType: 'Unknown Device',
+                browser: 'Unknown Browser',
+                os: 'Unknown OS',
+                fullInfo: 'Unknown Device - Unknown Browser on Unknown OS'
+            };
+        }
+        
         // Device type detection
         let deviceType = 'Desktop';
         let deviceIcon = <FaDesktop className="text-gray-500" />;
@@ -289,6 +300,11 @@ const StudentMonitoringDashboard = ({ onLogout }) => {
     // Comprehensive browser detection function
     const detectBrowser = (userAgent) => {
         const agent = userAgent?.toLowerCase() || '';
+        
+        // Handle empty user agent
+        if (!userAgent || userAgent.trim() === '') {
+            return 'Unknown Browser';
+        }
         
         // Browser detection patterns (order matters - most specific first)
         const browserPatterns = [
@@ -370,8 +386,8 @@ const StudentMonitoringDashboard = ({ onLogout }) => {
     const filteredSuspiciousActivities = suspiciousActivities.filter(activity => {
         const matchesSearch = searchTerm === '' || 
             activity.student_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            activity.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            activity.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            activity.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            activity.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             activity.ip_address?.includes(searchTerm);
         
         const matchesFilter = filterType === 'all' || 
@@ -405,7 +421,7 @@ const StudentMonitoringDashboard = ({ onLogout }) => {
             render: (row) => (
                 <div className="space-y-1">
                     <div className="font-semibold text-blue-600">
-                        {row.firstName} {row.lastName}
+                        {row.first_name} {row.last_name}
                     </div>
                     <div className="text-sm text-gray-600">ID: {row.student_id}</div>
                     <div className="text-xs text-gray-500">
@@ -463,15 +479,15 @@ const StudentMonitoringDashboard = ({ onLogout }) => {
             render: (row) => {
                 const riskDetails = getRiskAssessmentDetails(row);
                 return (
-                    <div className="space-y-2">
+                <div className="space-y-2">
                         <div className={`text-sm font-semibold ${riskDetails.color}`}>
                             {riskDetails.icon}
                             {riskDetails.level}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                            {riskDetails.reason}
-                        </div>
                     </div>
+                    <div className="text-xs text-gray-500">
+                            {riskDetails.reason}
+                    </div>
+                </div>
                 );
             }
         },
@@ -689,7 +705,7 @@ const StudentMonitoringDashboard = ({ onLogout }) => {
                         <div className="p-6">
                             <div className="mb-4">
                                 <p className="text-gray-700 mb-2">
-                                    Blocking: <strong>{selectedStudent.firstName} {selectedStudent.lastName}</strong> ({selectedStudent.student_id})
+                                    Blocking: <strong>{selectedStudent.first_name} {selectedStudent.last_name}</strong> ({selectedStudent.student_id})
                                 </p>
                             </div>
                             <div className="space-y-4">
@@ -755,7 +771,7 @@ const StudentMonitoringDashboard = ({ onLogout }) => {
                         <div className="p-6">
                             <div className="mb-4">
                                 <p className="text-gray-700">
-                                    Are you sure you want to unblock <strong>{selectedStudent.firstName} {selectedStudent.lastName}</strong> ({selectedStudent.student_id})?
+                                    Are you sure you want to unblock <strong>{selectedStudent.first_name} {selectedStudent.last_name}</strong> ({selectedStudent.student_id})?
                                 </p>
                             </div>
                             <div className="flex justify-end gap-3">
@@ -784,7 +800,7 @@ const StudentMonitoringDashboard = ({ onLogout }) => {
                     <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center p-6 border-b">
                             <h2 className="text-xl font-bold text-gray-800">
-                                Student Details - {selectedStudentDetails.firstName} {selectedStudentDetails.lastName}
+                                Student Details - {selectedStudentDetails.first_name} {selectedStudentDetails.last_name}
                             </h2>
                             <button
                                 onClick={() => setShowDetailsModal(false)}
@@ -803,9 +819,9 @@ const StudentMonitoringDashboard = ({ onLogout }) => {
                                     </h3>
                                     <div className="space-y-2">
                                         <div><strong>Student ID:</strong> {selectedStudentDetails.student_id}</div>
-                                        <div><strong>Name:</strong> {selectedStudentDetails.firstName} {selectedStudentDetails.lastName}</div>
+                                        <div><strong>Name:</strong> {selectedStudentDetails.first_name} {selectedStudentDetails.last_name}</div>
                                         <div><strong>Email:</strong> {selectedStudentDetails.email}</div>
-                                        <div><strong>Mobile:</strong> {selectedStudentDetails.mobile}</div>
+                                        <div><strong>Mobile:</strong> {selectedStudentDetails.mobile_number}</div>
                                         <div><strong>NIC:</strong> {selectedStudentDetails.nic}</div>
                                         <div><strong>Gender:</strong> {selectedStudentDetails.gender}</div>
                                         <div><strong>Age:</strong> {selectedStudentDetails.age}</div>

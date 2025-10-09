@@ -21,7 +21,7 @@ const DevPaymentHelper = () => {
       setIsCompleting(true);
       setMessage('Auto-completing payment for development...');
       
-      const response = await axios.get(`http://localhost:8087/routes.php/dev/auto_complete_payment?order_id=${orderId}`);
+      const response = await axios.get(`http://localhost:8090/routes.php/dev/auto_complete_payment?order_id=${orderId}`);
       
       if (response.data.success) {
         setMessage('Payment auto-completed! Refreshing page...');

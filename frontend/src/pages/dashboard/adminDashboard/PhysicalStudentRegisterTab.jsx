@@ -120,13 +120,10 @@ const PhysicalStudentRegisterTab = () => {
     onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
   });
 
-  // Generate unique student ID
+  // Generate unique student ID (same as online registration - S0 + 4 random digits)
   const generateStudentId = () => {
-    // Get existing students to determine next increment number
-    const existingStudents = JSON.parse(localStorage.getItem('students')) || [];
-    const nextNumber = existingStudents.length + 1;
-    
-    return `STD${nextNumber}${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const randomDigits = Math.floor(1000 + Math.random() * 9000); // 4 random digits
+    return `S0${randomDigits}`;
   };
 
   // Generate student barcode
@@ -204,11 +201,11 @@ const PhysicalStudentRegisterTab = () => {
     setIsRegistering(true);
     
     try {
-      // Prepare registration data for backend
+      // Prepare registration data for backend (same as online registration)
       const registrationData = {
         firstName: summaryValues.firstName,
         lastName: summaryValues.lastName,
-        email: summaryValues.email,
+        email: summaryValues.email || '',
         mobile: summaryValues.mobile,
         password: 'Tsms@1234', // Default password for physical registration
         role: 'student',
@@ -225,7 +222,7 @@ const PhysicalStudentRegisterTab = () => {
         district: summaryValues.district
       };
 
-      // Call backend registration API
+      // Call backend registration API (same as online registration)
       const response = await register(registrationData);
       
       if (response.success) {
@@ -266,6 +263,34 @@ const PhysicalStudentRegisterTab = () => {
         } catch (error) {
           console.error('Failed to save barcode data:', error);
           // Don't fail the registration if barcode save fails
+        }
+        
+        // Send welcome WhatsApp message
+        try {
+          const welcomeResponse = await fetch('http://localhost:8081/routes.php/send-welcome-whatsapp', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userid: response.userid,
+              studentData: {
+                firstName: summaryValues.firstName,
+                lastName: summaryValues.lastName,
+                mobile: summaryValues.mobile
+              }
+            })
+          });
+          
+          const welcomeResult = await welcomeResponse.json();
+          if (welcomeResult.success) {
+            console.log('Welcome WhatsApp message sent successfully');
+          } else {
+            console.error('Failed to send welcome WhatsApp message:', welcomeResult.message);
+          }
+        } catch (error) {
+          console.error('Error sending welcome WhatsApp message:', error);
+          // Don't fail the registration if WhatsApp message fails
         }
         
         // Generate barcode on canvas after a short delay to ensure DOM is ready
@@ -428,7 +453,7 @@ const PhysicalStudentRegisterTab = () => {
                 gender: Yup.string()
                   .matches(genderRegex, 'Gender must be Male or Female')
                   .required('Gender is required'),
-                email: Yup.string().email('Invalid email'),
+                email: Yup.string().email('Invalid email').nullable(),
                 school: Yup.string().min(2, 'School name must be at least 2 characters').required('School is required'),
                 stream: Yup.string().oneOf(allowedStreams, 'Invalid stream').required('Stream is required'),
                 address: Yup.string().min(5, 'Address must be at least 5 characters').required('Address is required'),
@@ -504,7 +529,7 @@ const PhysicalStudentRegisterTab = () => {
                       id="email"
                       name="email"
                       type="email"
-                      label="Email *"
+                      label="Email (Optional)"
                       value={values.email}
                       onChange={handleChange}
                       error={errors.email}

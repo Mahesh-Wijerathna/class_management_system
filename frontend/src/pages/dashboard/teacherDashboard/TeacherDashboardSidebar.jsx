@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaUsers, FaGraduationCap, FaFolder, FaBook, FaChartBar, FaCog, FaCalendar, FaUserPlus, FaFileAlt, FaUsersCog, FaUserShield, FaDatabase, FaBell, FaSync } from 'react-icons/fa';
+import { FaUsers, FaGraduationCap, FaFolder, FaBook, FaChartBar, FaCog, FaCalendar, FaUserPlus, FaFileAlt, FaUsersCog, FaUserShield, FaDatabase, FaBell, FaSync, FaMoneyBill } from 'react-icons/fa';
 
 // Sidebar sections for the teacher dashboard
 
@@ -16,6 +16,8 @@ const teacherSidebarSections = [
       { name: 'My Classes', path: '/teacher/my-classes', icon: <FaBook className="h-5 w-5" /> },
       { name: 'Class Session Schedules', path: '/teacher/schedules', icon: <FaCalendar className="h-5 w-5" /> },
       { name: 'Hall Availability', path: '/teacher/halls', icon: <FaDatabase className="h-5 w-5" /> },
+      { name: 'Class Enrollments', path: '/teacher/enrollments', icon: <FaUsers className="h-5 w-5" /> },
+      { name: 'Class Payments', path: '/teacher/payments', icon: <FaMoneyBill className="h-5 w-5" /> },
     ]
   },
   {

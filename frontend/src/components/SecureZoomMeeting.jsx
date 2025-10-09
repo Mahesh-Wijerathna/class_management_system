@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { FaTimes, FaVideo, FaMicrophone, FaMicrophoneSlash, FaVideoSlash, FaComments, FaUsers, FaCog } from 'react-icons/fa';
 
-const SecureZoomMeeting = ({ zoomLink, className, onClose, isOpen }) => {
+const SecureZoomMeeting = ({ zoomLink, className, onClose, isOpen, enableNewWindowJoin = true, enableOverlayJoin = true }) => {
+  console.log('SecureZoomMeeting - Props received:', { enableNewWindowJoin, enableOverlayJoin });
+  console.log('SecureZoomMeeting - Condition check:', { 
+    notNewWindow: !enableNewWindowJoin, 
+    notOverlay: !enableOverlayJoin, 
+    bothFalse: !enableNewWindowJoin && !enableOverlayJoin 
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [meetingId, setMeetingId] = useState(null);
@@ -375,33 +381,44 @@ const SecureZoomMeeting = ({ zoomLink, className, onClose, isOpen }) => {
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h4 className="font-semibold text-gray-800 mb-3">Choose Join Method:</h4>
                 <div className="space-y-3">
-                  <div className="flex items-center gap-3 p-3 bg-white rounded border">
-                    <input
-                      type="radio"
-                      id="popup"
-                      name="joinMethod"
-                      value="popup"
-                      defaultChecked
-                      className="text-blue-600"
-                    />
-                    <label htmlFor="popup" className="flex-1">
-                      <div className="font-medium">New Window (Recommended)</div>
-                      <div className="text-sm text-gray-600">Opens in a separate window with full features</div>
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 bg-white rounded border">
-                    <input
-                      type="radio"
-                      id="iframe"
-                      name="joinMethod"
-                      value="iframe"
-                      className="text-blue-600"
-                    />
-                    <label htmlFor="iframe" className="flex-1">
-                      <div className="font-medium">Overlay View</div>
-                      <div className="text-sm text-gray-600">Opens as an overlay on this page</div>
-                    </label>
-                  </div>
+                  {enableNewWindowJoin && (
+                    <div className="flex items-center gap-3 p-3 bg-white rounded border">
+                      <input
+                        type="radio"
+                        id="popup"
+                        name="joinMethod"
+                        value="popup"
+                        defaultChecked={enableNewWindowJoin}
+                        className="text-blue-600"
+                      />
+                      <label htmlFor="popup" className="flex-1">
+                        <div className="font-medium">New Window (Recommended)</div>
+                        <div className="text-sm text-gray-600">Opens in a separate window with full features</div>
+                      </label>
+                    </div>
+                  )}
+                  {enableOverlayJoin && (
+                    <div className="flex items-center gap-3 p-3 bg-white rounded border">
+                      <input
+                        type="radio"
+                        id="iframe"
+                        name="joinMethod"
+                        value="iframe"
+                        defaultChecked={!enableNewWindowJoin && enableOverlayJoin}
+                        className="text-blue-600"
+                      />
+                      <label htmlFor="iframe" className="flex-1">
+                        <div className="font-medium">Overlay View</div>
+                        <div className="text-sm text-gray-600">Opens as an overlay on this page</div>
+                      </label>
+                    </div>
+                  )}
+                  {!enableNewWindowJoin && !enableOverlayJoin && (
+                    <div className="text-center p-4 bg-red-50 border border-red-200 rounded">
+                      <p className="text-red-600 font-medium">No join methods are currently enabled for this class.</p>
+                      <p className="text-sm text-red-500 mt-1">Please contact your administrator.</p>
+                    </div>
+                  )}
                 </div>
               </div>
 

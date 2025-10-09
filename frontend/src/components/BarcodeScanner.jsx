@@ -16,6 +16,7 @@ const BarcodeScanner = ({ onScan, onClose, className, classId }) => {
   const [detailedError, setDetailedError] = useState('');
   const [videoDevices, setVideoDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [manualInput, setManualInput] = useState('');
   const SCAN_COOLDOWN_MS = 1500;
 
   const playBeep = () => {
@@ -34,6 +35,16 @@ const BarcodeScanner = ({ onScan, onClose, className, classId }) => {
   };
 
   useEffect(() => {}, []);
+
+  // Auto-focus the manual input field when component mounts
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 500); // Small delay to ensure modal is fully rendered
+    return () => clearTimeout(timer);
+  }, []);
 
   // Load available cameras
   useEffect(() => {
@@ -118,12 +129,12 @@ const BarcodeScanner = ({ onScan, onClose, className, classId }) => {
 
   const handleManualInput = (e) => {
     if (e.key !== 'Enter') return;
-      const value = e.target.value.trim();
+    const value = manualInput.trim();
     if (!value) return;
     setScanResult(value);
     playBeep();
     if (typeof onScan === 'function') onScan(value);
-    try { e.target.value = ''; inputRef.current?.focus(); } catch {}
+    setManualInput('');
   };
 
   return (
@@ -179,6 +190,8 @@ const BarcodeScanner = ({ onScan, onClose, className, classId }) => {
           type="text"
           placeholder="Enter barcode data and press Enter"
           className="w-full border rounded px-3 py-2"
+          value={manualInput}
+          onChange={(e) => setManualInput(e.target.value)}
           onKeyDown={handleManualInput}
           ref={inputRef}
         />

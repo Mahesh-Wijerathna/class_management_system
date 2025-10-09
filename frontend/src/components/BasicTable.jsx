@@ -1,12 +1,15 @@
 import React from 'react';
+import { FaSort, FaSortUp, FaSortDown } from 'react-icons/fa';
 
 /**
  * BasicTable - A reusable table component for displaying tabular data.
  * Props:
- *  - columns: Array<{ key: string, label: string, render?: (row) => ReactNode }>
+ *  - columns: Array<{ key: string, label: string, render?: (row) => ReactNode, sortable?: boolean }>
  *  - data: Array<Object>
  *  - actions?: (row) => ReactNode (optional, for action buttons)
  *  - className?: string (optional)
+ *  - onSort?: (key) => void (optional, for sorting)
+ *  - sortConfig?: { key: string, direction: 'asc' | 'desc' } (optional)
  */
 
 import { useState } from 'react';
@@ -21,6 +24,10 @@ const BasicTable = ({
   totalCount = null,
   onPageChange,
   onRowsPerPageChange,
+  onSort,
+  sortConfig,
+  loading = false,
+  emptyMessage = "No data available",
 }) => {
   // Internal state if not controlled
   const [internalRowsPerPage, setInternalRowsPerPage] = useState(controlledRowsPerPage || 25);
@@ -50,6 +57,23 @@ const BasicTable = ({
     else setInternalPage(newPage);
   };
 
+  // Render sort indicator
+  const renderSortIndicator = (columnKey) => {
+    if (!sortConfig || sortConfig.key !== columnKey) {
+      return <FaSort className="w-3 h-3 text-gray-400" />;
+    }
+    return sortConfig.direction === 'asc' 
+      ? <FaSortUp className="w-3 h-3 text-blue-600" />
+      : <FaSortDown className="w-3 h-3 text-blue-600" />;
+  };
+
+  // Handle column header click
+  const handleColumnClick = (column) => {
+    if (column.sortable && onSort) {
+      onSort(column.key);
+    }
+  };
+
   return (
     <div className={`w-full max-w-full px-2 sm:px-0 py-2 sm:py-0`}>
       <div className={`overflow-x-auto rounded-2xl shadow-lg border border-[#e0e3f7] bg-white ${className}`.trim()}>
@@ -57,15 +81,30 @@ const BasicTable = ({
         <thead>
             <tr className="bg-[#a4a9fc] text-[#1a1a2e] rounded-t-2xl">
             {columns.map(col => (
-                <th key={col.key} className="p-4 font-semibold text-[14px] tracking-wide border-b border-[#d1d5db]">{col.label}</th>
+                <th 
+                  key={col.key} 
+                  className={`p-4 font-semibold text-[14px] tracking-wide border-b border-[#d1d5db] ${
+                    col.sortable ? 'cursor-pointer hover:bg-[#8b8ffc] transition-colors' : ''
+                  }`}
+                  onClick={() => handleColumnClick(col)}
+                >
+                  <div className="flex items-center gap-2">
+                    <span>{col.label}</span>
+                    {col.sortable && renderSortIndicator(col.key)}
+                  </div>
+                </th>
             ))}
               {actions && <th className="p-4 font-semibold text-[14px] tracking-wide border-b border-[#d1d5db]">Action</th>}
           </tr>
         </thead>
           <tbody className="bg-white text-[13px]">
-          {pagedData.length === 0 ? (
+          {loading ? (
             <tr>
-                <td colSpan={columns.length + (actions ? 1 : 0)} className="p-6 text-center text-gray-500 font-semibold">No data available</td>
+                <td colSpan={columns.length + (actions ? 1 : 0)} className="p-6 text-center text-gray-500 font-semibold">Loading...</td>
+            </tr>
+          ) : pagedData.length === 0 ? (
+            <tr>
+                <td colSpan={columns.length + (actions ? 1 : 0)} className="p-6 text-center text-gray-500 font-semibold">{emptyMessage}</td>
             </tr>
           ) : (
             pagedData.map((row, idx) => (

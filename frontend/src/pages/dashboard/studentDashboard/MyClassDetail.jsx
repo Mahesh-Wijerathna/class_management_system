@@ -118,7 +118,7 @@ const MyClassDetail = () => {
       forgetCardRequested: cls.forgetCardRequested || false,
       latePaymentRequested: cls.latePaymentRequested || false,
       purchaseDate: cls.purchaseDate || new Date().toISOString(),
-      nextPaymentDate: cls.nextPaymentDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      nextPaymentDate: cls.nextPaymentDate || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString(),
       startDate: cls.startDate || new Date().toISOString(),
       endDate: cls.endDate || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
       description: cls.description || 'No description available',

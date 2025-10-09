@@ -1,26 +1,5 @@
--- PayHere Payments Table
-CREATE TABLE IF NOT EXISTS payments (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    order_id VARCHAR(100) UNIQUE NOT NULL,
-    amount DECIMAL(10,2) NOT NULL,
-    currency VARCHAR(3) DEFAULT 'LKR',
-    first_name VARCHAR(100) NOT NULL,
-    last_name VARCHAR(100) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    phone VARCHAR(20) NOT NULL,
-    address TEXT NOT NULL,
-    city VARCHAR(100) NOT NULL,
-    country VARCHAR(100) DEFAULT 'Sri Lanka',
-    status ENUM('pending', 'completed', 'failed', 'cancelled') DEFAULT 'pending',
-    payment_method VARCHAR(50) DEFAULT 'payhere',
-    payhere_payment_id VARCHAR(100) NULL,
-    payhere_status_code VARCHAR(10) NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_order_id (order_id),
-    INDEX idx_status (status),
-    INDEX idx_created_at (created_at)
-);
+-- Class Backend Database Initialization (Clean Version)
+-- This contains only class and enrollment-related tables
 
 -- Classes table
 CREATE TABLE IF NOT EXISTS classes (
@@ -30,7 +9,7 @@ CREATE TABLE IF NOT EXISTS classes (
     teacher VARCHAR(100) NOT NULL,
     teacher_id VARCHAR(50),
     stream VARCHAR(50) NOT NULL,
-    delivery_method ENUM('online', 'physical', 'hybrid', 'other') NOT NULL,
+    delivery_method ENUM('online', 'physical', 'hybrid1', 'hybrid2', 'hybrid3', 'hybrid4') NOT NULL,
     delivery_other VARCHAR(100),
     schedule_day VARCHAR(20) NOT NULL,
     schedule_start_time TIME NOT NULL,
@@ -43,12 +22,19 @@ CREATE TABLE IF NOT EXISTS classes (
     payment_tracking JSON,
     payment_tracking_free_days INT DEFAULT 7,
     zoom_link TEXT,
+    video_url TEXT,
     description TEXT,
     course_type ENUM('theory', 'revision') NOT NULL DEFAULT 'theory',
     revision_discount_price DECIMAL(10,2) DEFAULT 0.00,
     related_theory_id INT,
     status ENUM('active', 'inactive', 'archived') NOT NULL DEFAULT 'active',
     current_students INT DEFAULT 0,
+    enable_tute_collection BOOLEAN DEFAULT FALSE,
+    tute_collection_type ENUM('speed_post', 'physical_class', 'both') DEFAULT 'speed_post',
+    speed_post_fee DECIMAL(10,2) DEFAULT 300.00,
+    class_medium ENUM('Sinhala', 'English', 'Both') DEFAULT 'Sinhala',
+    enable_new_window_join BOOLEAN DEFAULT TRUE,
+    enable_overlay_join BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_status (status),
@@ -56,6 +42,9 @@ CREATE TABLE IF NOT EXISTS classes (
     INDEX idx_delivery_method (delivery_method),
     INDEX idx_stream (stream),
     INDEX idx_teacher (teacher),
+    INDEX idx_tute_collection (enable_tute_collection),
+    INDEX idx_tute_collection_type (tute_collection_type),
+    INDEX idx_class_medium (class_medium),
     FOREIGN KEY (related_theory_id) REFERENCES classes(id) ON DELETE SET NULL
 );
 
@@ -95,79 +84,28 @@ CREATE TABLE IF NOT EXISTS attendance (
     INDEX idx_class_date (class_id, attendance_date)
 );
 
--- Financial records table
+-- Financial records table for tracking payments
 CREATE TABLE IF NOT EXISTS financial_records (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    transaction_id VARCHAR(20) UNIQUE NOT NULL,
-    date DATE NOT NULL,
-    type ENUM('income', 'expense') NOT NULL,
-    category VARCHAR(100) NOT NULL,
-    person_name VARCHAR(200),
-    user_id VARCHAR(10),
-    person_role VARCHAR(50),
-    class_name VARCHAR(100),
-    class_id INT,
+    user_id VARCHAR(10) NOT NULL,
+    class_id INT NOT NULL,
+    transaction_id VARCHAR(100) UNIQUE,
+    payment_type ENUM('class_payment', 'registration', 'material', 'other') NOT NULL DEFAULT 'class_payment',
+    payment_method ENUM('cash', 'card', 'bank_transfer', 'online', 'payhere') NOT NULL,
     amount DECIMAL(10,2) NOT NULL,
-    status ENUM('pending', 'paid', 'cancelled', 'refunded') DEFAULT 'pending',
-    payment_method VARCHAR(50),
-    reference_number VARCHAR(100),
-    notes TEXT,
-    created_by VARCHAR(10),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE SET NULL,
-    INDEX idx_date (date),
-    INDEX idx_type (type),
-    INDEX idx_category (category),
-    INDEX idx_status (status),
-    INDEX idx_user_id (user_id),
-    INDEX idx_class_id (class_id)
-);
-
--- Payment history table
-CREATE TABLE IF NOT EXISTS payment_history (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    enrollment_id INT NOT NULL,
-    amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'LKR',
+    status ENUM('pending', 'completed', 'failed', 'refunded') DEFAULT 'completed',
     payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    payment_method VARCHAR(50),
+    description TEXT,
+    channel ENUM('online', 'physical', 'mobile') DEFAULT 'physical',
     reference_number VARCHAR(100),
-    status ENUM('pending', 'completed', 'failed', 'refunded') DEFAULT 'pending',
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (enrollment_id) REFERENCES enrollments(id) ON DELETE CASCADE,
-    INDEX idx_enrollment (enrollment_id),
-    INDEX idx_payment_date (payment_date),
-    INDEX idx_status (status)
-);
-
--- Session Schedules table
-CREATE TABLE IF NOT EXISTS session_schedules (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    class_id INT,
-    subject VARCHAR(100) NOT NULL,
-    class_name VARCHAR(100) NOT NULL,
-    teacher VARCHAR(100) NOT NULL,
-    teacher_id VARCHAR(50) NOT NULL,
-    session_date DATE NOT NULL,
-    start_time TIME NOT NULL,
-    end_time TIME NOT NULL,
-    delivery_method ENUM('online', 'physical', 'hybrid', 'other') NOT NULL,
-    delivery_other VARCHAR(100),
-    zoom_link TEXT,
-    hall VARCHAR(100),
-    description TEXT,
-    status ENUM('scheduled', 'completed', 'cancelled') DEFAULT 'scheduled',
-    created_by VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_teacher_id (teacher_id),
-    INDEX idx_session_date (session_date),
+    FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
+    INDEX idx_user (user_id),
+    INDEX idx_class (class_id),
+    INDEX idx_transaction (transaction_id),
     INDEX idx_status (status),
-    INDEX idx_delivery_method (delivery_method),
-    INDEX idx_class_name (class_name),
-    INDEX idx_subject (subject)
+    INDEX idx_payment_date (payment_date)
 );
-
--- Note: PayHere specific columns and indexes for financial_records table
--- will be added manually if needed, as IF NOT EXISTS is not supported in MySQL 8.0 

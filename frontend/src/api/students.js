@@ -14,8 +14,23 @@ export const getAllStudents = async (filters = {}) => {
       }
     });
     
-    const endpoint = `/routes.php/students${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-    return await apiGet(endpoint);
+    // Call student backend directly
+    const studentBackendUrl = 'http://localhost:8086';
+    const endpoint = `/routes.php/getAllStudents${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    
+    const response = await fetch(`${studentBackendUrl}${endpoint}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data;
   } catch (error) {
     throw new Error(handleApiError(error, 'Failed to fetch students'));
   }
@@ -24,7 +39,46 @@ export const getAllStudents = async (filters = {}) => {
 // Get student by ID
 export const getStudentById = async (studentId) => {
   try {
-    return await apiGet(`/routes.php/students/${studentId}`);
+    const studentBackendUrl = 'http://localhost:8086';
+    const response = await fetch(`${studentBackendUrl}/routes.php/get_with_id/${studentId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Transform snake_case to camelCase for consistency
+    const transformedData = {
+      id: data.user_id,
+      studentId: data.user_id,
+      firstName: data.first_name,
+      lastName: data.last_name,
+      nic: data.nic,
+      mobile: data.mobile_number,
+      phone: data.mobile_number,
+      dateOfBirth: data.date_of_birth,
+      age: data.age,
+      gender: data.gender,
+      email: data.email,
+      school: data.school,
+      stream: data.stream,
+      address: data.address,
+      district: data.district,
+      parentName: data.parent_name,
+      parentMobile: data.parent_mobile_number,
+      barcodeData: data.barcode_data,
+      barcodeGeneratedAt: data.barcode_generated_at,
+      createdAt: data.created_at,
+      enrolledClasses: data.enrolledClasses || []
+    };
+    
+    return transformedData;
   } catch (error) {
     throw new Error(handleApiError(error, 'Failed to fetch student details'));
   }
@@ -33,7 +87,20 @@ export const getStudentById = async (studentId) => {
 // Get student by mobile number
 export const getStudentByMobile = async (mobile) => {
   try {
-    return await apiGet(`/routes.php/students/mobile/${mobile}`);
+    const studentBackendUrl = 'http://localhost:8086';
+    const response = await fetch(`${studentBackendUrl}/routes.php/students/mobile/${mobile}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data;
   } catch (error) {
     throw new Error(handleApiError(error, 'Failed to fetch student by mobile'));
   }
@@ -42,7 +109,20 @@ export const getStudentByMobile = async (mobile) => {
 // Get students by stream
 export const getStudentsByStream = async (stream) => {
   try {
-    return await apiGet(`/routes.php/students?stream=${stream}`);
+    const studentBackendUrl = 'http://localhost:8086';
+    const response = await fetch(`${studentBackendUrl}/routes.php/getAllStudents?stream=${stream}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data;
   } catch (error) {
     throw new Error(handleApiError(error, 'Failed to fetch students by stream'));
   }
@@ -51,7 +131,20 @@ export const getStudentsByStream = async (stream) => {
 // Get active students
 export const getActiveStudents = async () => {
   try {
-    return await apiGet('/routes.php/students?status=active');
+    const studentBackendUrl = 'http://localhost:8086';
+    const response = await fetch(`${studentBackendUrl}/routes.php/getAllStudents?status=active`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data;
   } catch (error) {
     throw new Error(handleApiError(error, 'Failed to fetch active students'));
   }
@@ -69,16 +162,43 @@ export const createStudent = async (studentData) => {
 // Update student
 export const updateStudent = async (studentId, studentData) => {
   try {
-    return await apiPut(`/routes.php/students/${studentId}`, studentData);
+    const studentBackendUrl = 'http://localhost:8086';
+    const response = await fetch(`${studentBackendUrl}/routes.php/update-student/${studentId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(studentData),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data;
   } catch (error) {
     throw new Error(handleApiError(error, 'Failed to update student'));
   }
 };
 
-// Delete student
+// Delete student (uses student backend delete endpoint)
 export const deleteStudent = async (studentId) => {
   try {
-    return await apiDelete(`/routes.php/students/${studentId}`);
+    const studentBackendUrl = 'http://localhost:8086';
+    const response = await fetch(`${studentBackendUrl}/routes.php/delete-student/${studentId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data;
   } catch (error) {
     throw new Error(handleApiError(error, 'Failed to delete student'));
   }

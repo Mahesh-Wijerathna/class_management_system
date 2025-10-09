@@ -5,7 +5,7 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomButton from '../../../components/CustomButton';
 import CustomSelectField from '../../../components/CustomSelectField';
-import { FaEdit, FaTrash, FaPlus, FaCalendar, FaBook, FaUser, FaClock, FaMoneyBill, FaVideo, FaUsers, FaGraduationCap, FaSync } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaPlus, FaCalendar, FaBook, FaUser, FaClock, FaMoneyBill, FaVideo, FaUsers, FaGraduationCap, FaSync, FaTimes } from 'react-icons/fa';
 import * as Yup from 'yup';
 import BasicTable from '../../../components/BasicTable';
 import { getAllClasses, createClass, updateClass, deleteClass } from '../../../api/classes';
@@ -30,12 +30,24 @@ const statusOptions = [
   { value: 'inactive', label: 'Inactive' },
 ];
 
+const tuteCollectionTypeOptions = [
+  { value: 'speed_post', label: 'Speed Post Only' },
+  { value: 'physical_class', label: 'Physical Class Only' },
+  { value: 'both', label: 'Both Speed Post & Physical Class' },
+];
+
+const classMediumOptions = [
+  { value: 'Sinhala', label: 'Sinhala' },
+  { value: 'English', label: 'English' },
+  { value: 'Both', label: 'Both Sinhala & English' },
+];
+
 const validationSchema = Yup.object().shape({
   className: Yup.string().required('Class Name is required'),
   subject: Yup.string().required('Subject is required'),
   teacher: Yup.string().required('Teacher is required'),
   stream: Yup.string().oneOf(streamOptions.map(o => o.value), 'Invalid stream').required('Stream is required'),
-  deliveryMethod: Yup.string().oneOf(['online', 'physical', 'hybrid', 'other'], 'Invalid delivery method').required('Delivery Method is required'),
+  deliveryMethod: Yup.string().oneOf(['online', 'physical', 'hybrid1', 'hybrid2', 'hybrid3', 'hybrid4'], 'Invalid delivery method').required('Delivery Method is required'),
   deliveryOther: Yup.string().when('deliveryMethod', {
     is: (val) => val === 'other',
     then: (schema) => schema.required('Please specify delivery method'),
@@ -67,12 +79,34 @@ const validationSchema = Yup.object().shape({
   maxStudents: Yup.number().min(1, 'Must be at least 1').required('Maximum Students is required'),
   fee: Yup.number().min(0, 'Must be 0 or greater').required('Fee is required'),
   zoomLink: Yup.string().when('deliveryMethod', {
-    is: (val) => val === 'online' || val === 'hybrid',
+    is: (val) => val === 'online' || val === 'hybrid1' || val === 'hybrid3' || val === 'hybrid4',
     then: (schema) => schema.required('Zoom Link is required'),
-    otherwise: (schema) => schema.notRequired(), // Optional for 'other' and 'physical'
+    otherwise: (schema) => schema.notRequired(),
+  }),
+  videoUrl: Yup.string().when('deliveryMethod', {
+    is: (val) => val === 'hybrid2' || val === 'hybrid3' || val === 'hybrid4',
+    then: (schema) => schema.notRequired(), // Temporarily make it not required for testing
+    otherwise: (schema) => schema.notRequired(),
   }),
   courseType: Yup.string().oneOf(['theory', 'revision'], 'Invalid course type').required('Course Type is required'),
   status: Yup.string().oneOf(statusOptions.map(o => o.value), 'Invalid status').required('Status is required'),
+  // New fields for Tute and Paper Collection
+  enableTuteCollection: Yup.boolean().required('Tute collection setting is required'),
+  tuteCollectionType: Yup.string().when('enableTuteCollection', {
+    is: true,
+    then: (schema) => schema.oneOf(['speed_post', 'physical_class', 'both'], 'Invalid tute collection type').required('Tute collection type is required'),
+    otherwise: (schema) => schema.notRequired(),
+  }),
+  speedPostFee: Yup.number().when('enableTuteCollection', {
+    is: true,
+    then: (schema) => schema.min(0, 'Speed post fee must be 0 or greater').required('Speed post fee is required'),
+    otherwise: (schema) => schema.notRequired(),
+  }),
+  // New field for Class Medium
+  classMedium: Yup.string().oneOf(['Sinhala', 'English', 'Both'], 'Invalid medium').required('Class medium is required'),
+  // New fields for Zoom Join Methods
+  enableNewWindowJoin: Yup.boolean().required('New window join setting is required'),
+  enableOverlayJoin: Yup.boolean().required('Overlay join setting is required'),
 });
 
 const initialValues = {
@@ -81,7 +115,7 @@ const initialValues = {
   teacher: '',
   teacherId: '',
   stream: '',
-  deliveryMethod: 'online',
+  deliveryMethod: 'physical',
   deliveryOther: '',
   schedule: {
     day: '',
@@ -96,10 +130,20 @@ const initialValues = {
   paymentTracking: false,
   paymentTrackingFreeDays: 7,
   zoomLink: '',
+  videoUrl: '',
   description: '',
   courseType: 'theory',
   revisionDiscountPrice: '', 
-  status: 'active' // Changed from '' to 'active' (default status)
+  status: 'active', // Changed from '' to 'active' (default status)
+  // New fields for Tute and Paper Collection
+  enableTuteCollection: false,
+  tuteCollectionType: 'speed_post',
+  speedPostFee: 300, // Default speed post fee
+  // New field for Class Medium
+  classMedium: 'Sinhala', // Default medium
+  // New fields for Zoom Join Methods
+  enableNewWindowJoin: true, // Default to enabled
+  enableOverlayJoin: true, // Default to enabled
 };
 
 function formatTime(timeStr) {
@@ -125,6 +169,9 @@ const CreateClass = ({ onLogout }) => {
   const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: 'Delete', cancelText: 'Cancel', type: 'danger' });
   const [zoomLoading, setZoomLoading] = useState(false);
   const [zoomError, setZoomError] = useState('');
+  const [videoFile, setVideoFile] = useState(null);
+  const [videoUploading, setVideoUploading] = useState(false);
+  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
   // State for revision relation (must be at top level, not inside render callback)
   const [revisionRelation, setRevisionRelation] = React.useState('none'); // 'none' | 'related' | 'unrelated'
   // State for selected theory class id (for autofill)
@@ -152,27 +199,26 @@ const CreateClass = ({ onLogout }) => {
     }
   };
 
-  // Load teachers from backend
+  // Load teachers from teacher backend directly (same pattern as student system)
   const loadTeachers = async () => {
     try {
       setLoadingTeachers(true);
-      console.log('Loading teachers...');
+      console.log('Loading teachers from teacher backend...');
+      
+      // Get all teacher data from teacher backend directly
       const response = await getActiveTeachers();
-      console.log('Teachers response:', response);
-      if (response.success) {
-        console.log('Teachers loaded successfully:', response.data?.length || 0, 'teachers');
-        // Remove duplicates based on teacherId
-        const uniqueTeachers = response.data?.filter((teacher, index, self) => 
-          index === self.findIndex(t => t.teacherId === teacher.teacherId)
-        ) || [];
-        console.log('Unique teachers after filtering:', uniqueTeachers.length);
-        setTeacherList(uniqueTeachers);
+      console.log('Teacher backend response:', response);
+      
+      if (response.success && response.data) {
+        console.log('Teachers loaded successfully from teacher backend:', response.data.length, 'teachers');
+        console.log('Teachers data:', response.data);
+        setTeacherList(response.data);
       } else {
-        console.error('Failed to load teachers:', response.message);
+        console.error('Failed to load teachers from teacher backend:', response.message);
         setTeacherList([]);
       }
     } catch (error) {
-      console.error('Error loading teachers:', error);
+      console.error('Error loading teachers from teacher backend:', error);
       setTeacherList([]);
     } finally {
       setLoadingTeachers(false);
@@ -254,7 +300,7 @@ const CreateClass = ({ onLogout }) => {
     }
   };
 
-  // Get teacher list from localStorage (from TeacherInfo.jsx)
+  // Create teacher options from API data
   const teacherOptions = [
     { value: '', label: 'Select Teacher', key: 'select-teacher' },
     ...teacherList.map(t => ({ 
@@ -267,7 +313,8 @@ const CreateClass = ({ onLogout }) => {
   console.log('Teacher list:', teacherList);
   console.log('Teacher options:', teacherOptions);
 
-  const handleSubmit = async (values, { resetForm }) => {
+  const handleSubmit = async (values, { resetForm, setFieldError }) => {
+    console.log('=== FORM SUBMISSION STARTED ===');
     console.log('Form submitted with values:', values);
     let submitValues = { ...values };
     // If revision+related, always use related theory class values for main fields
@@ -342,16 +389,25 @@ const CreateClass = ({ onLogout }) => {
       status: submitValues.status || 'active',
       paymentTracking: paymentTrackingObj,
       zoomLink: submitValues.zoomLink || '', // Ensure zoom link is included
+        videoUrl: videoFile ? videoFile.url : '', // Include video URL if uploaded
       description: submitValues.description || ''
     };
 
-    // Debug: Log the normalized values to see if zoom link is included
+    // Debug: Log the normalized values to see if zoom link and video URL are included
     console.log('Saving class with zoom link:', normalizedSubmitValues.zoomLink);
+    console.log('Saving class with video URL:', normalizedSubmitValues.videoUrl);
+    console.log('Video file state:', videoFile);
     
     if (editingId) {
       // Update the class using API
       try {
+        console.log('Updating class with ID:', editingId);
+        console.log('Update data:', normalizedSubmitValues);
+        console.log('Video URL in update data:', normalizedSubmitValues.videoUrl);
+        
         const response = await updateClass(editingId, normalizedSubmitValues);
+        console.log('Update response:', response);
+        
         if (response.success) {
           // Reload classes from backend
           await loadClasses();
@@ -378,6 +434,15 @@ const CreateClass = ({ onLogout }) => {
                   status: normalizedSubmitValues.status, // Update status (active/inactive)
                   paymentTracking: normalizedSubmitValues.paymentTracking,
                   paymentTrackingFreeDays: normalizedSubmitValues.paymentTrackingFreeDays,
+                  // New fields for Tute and Paper Collection
+                  enableTuteCollection: normalizedSubmitValues.enableTuteCollection,
+                  tuteCollectionType: normalizedSubmitValues.tuteCollectionType,
+                  speedPostFee: normalizedSubmitValues.speedPostFee,
+                  // New field for Class Medium
+                  classMedium: normalizedSubmitValues.classMedium,
+                  // New fields for Zoom Join Methods
+                  enableNewWindowJoin: normalizedSubmitValues.enableNewWindowJoin,
+                  enableOverlayJoin: normalizedSubmitValues.enableOverlayJoin,
                   // Preserve student-specific data
                   // paymentStatus, paymentMethod, purchaseDate, attendance, etc. remain unchanged
                 };
@@ -402,9 +467,10 @@ const CreateClass = ({ onLogout }) => {
             type: 'success',
           });
         } else {
+          console.error('Update failed:', response);
           setAlertBox({
             open: true,
-            message: 'Failed to update class. Please try again.',
+            message: response.message || 'Failed to update class. Please try again.',
             onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
             onCancel: null,
             confirmText: 'OK',
@@ -416,7 +482,7 @@ const CreateClass = ({ onLogout }) => {
         console.error('Error updating class:', error);
         setAlertBox({
           open: true,
-          message: 'Failed to update class. Please try again.',
+          message: `Error updating class: ${error.message}`,
           onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
           onCancel: null,
           confirmText: 'OK',
@@ -430,6 +496,7 @@ const CreateClass = ({ onLogout }) => {
         console.log('Creating class with data:', normalizedSubmitValues);
         const response = await createClass(normalizedSubmitValues);
         console.log('Create class response:', response);
+        console.log('Video URL in create data:', normalizedSubmitValues.videoUrl);
         if (response.success) {
           // Reload classes from backend
           await loadClasses();
@@ -475,18 +542,107 @@ const CreateClass = ({ onLogout }) => {
       zoomLink: currentZoomLink || '' // Preserve the zoom link
     });
     setSubmitKey(prev => prev + 1);
+    
+    // Clear video file and editing state after successful submission
+    setVideoFile(null);
+    if (editingId) {
+      setEditingId(null);
+    }
+    console.log('=== FORM SUBMISSION COMPLETED ===');
   };
 
   const handleEdit = (id) => {
+    console.log('Edit clicked for ID:', id);
+    console.log('Available classes:', classes);
     const cls = classes.find(c => c.id === id);
+    console.log('Found class:', cls);
     if (cls) {
-      setFormValues(cls);
+      // Properly map the class data to form values
+      const mappedClassData = {
+        className: cls.className || '',
+        subject: cls.subject || '',
+        teacher: cls.teacher || '',
+        teacherId: cls.teacherId || '',
+        stream: cls.stream || '',
+        deliveryMethod: cls.deliveryMethod || 'online',
+        deliveryOther: cls.deliveryOther || '',
+        schedule: {
+          day: cls.schedule?.day || '',
+          startTime: cls.schedule?.startTime || '',
+          endTime: cls.schedule?.endTime || '',
+          frequency: cls.schedule?.frequency || 'weekly'
+        },
+        startDate: cls.startDate || '',
+        endDate: cls.endDate || '',
+        maxStudents: cls.maxStudents || 30,
+        fee: cls.fee || 0,
+        paymentTracking: cls.paymentTracking?.enabled || false,
+        paymentTrackingFreeDays: cls.paymentTracking?.freeDays || 7,
+        zoomLink: cls.zoomLink || '',
+        videoUrl: cls.videoUrl || '',
+        description: cls.description || '',
+        courseType: cls.courseType || 'theory',
+        status: cls.status || 'active',
+        revisionDiscountPrice: cls.revisionDiscountPrice || '',
+        relatedTheoryId: cls.relatedTheoryId || null,
+        // New fields for Tute and Paper Collection
+        enableTuteCollection: cls.enableTuteCollection || false,
+        tuteCollectionType: cls.tuteCollectionType || 'speed_post',
+        speedPostFee: cls.speedPostFee || 300,
+                  // New field for Class Medium
+          classMedium: cls.classMedium || 'Sinhala',
+          // New fields for Zoom Join Methods
+          enableNewWindowJoin: cls.enableNewWindowJoin !== undefined ? cls.enableNewWindowJoin : true,
+          enableOverlayJoin: cls.enableOverlayJoin !== undefined ? cls.enableOverlayJoin : true
+      };
+      
+      console.log('Mapped class data for form:', mappedClassData);
+      setFormValues(mappedClassData);
       setEditingId(id);
       setSubmitKey(prev => prev + 1);
+      
+      // Set video file state if there's an existing video URL
+      console.log('Class video URL:', cls.videoUrl);
+      if (cls.videoUrl) {
+        console.log('Setting existing video file for edit:', cls.videoUrl);
+        setVideoFile({
+          name: 'Existing Video', // We don't have the original filename, so use a generic name
+          size: 0, // We don't have the original size
+          type: 'video/*', // Generic video type
+          url: cls.videoUrl,
+          uploadedAt: new Date().toISOString(),
+          isExisting: true // Flag to indicate this is an existing video
+        });
+      } else {
+        setVideoFile(null);
+      }
+      
+      // Show success message
+      setAlertBox({
+        open: true,
+        message: `Editing class: ${cls.className}`,
+        onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+        onCancel: null,
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'info',
+      });
+    } else {
+      console.error('Class not found for ID:', id);
+      setAlertBox({
+        open: true,
+        message: 'Class not found. Please refresh the page and try again.',
+        onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+        onCancel: null,
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'danger',
+      });
     }
   };
 
   const handleDelete = (id) => {
+    console.log('Delete clicked for ID:', id);
     setAlertBox({
       open: true,
       message: 'Are you sure you want to delete this class? This will also remove it from all enrolled students.',
@@ -598,6 +754,18 @@ const CreateClass = ({ onLogout }) => {
         <h1 className="text-2xl font-bold mb-4">Class Management</h1>
         <p className="mb-6 text-gray-700">Create, update, and manage classes with different delivery methods and course types.</p>
 
+        {editingId && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center gap-2">
+              <FaEdit className="text-blue-600" />
+              <span className="text-blue-800 font-medium">Editing Mode Active</span>
+            </div>
+            <p className="text-blue-700 text-sm mt-1">
+              You are currently editing a class. Make your changes and click "Update Class" to save, or "Cancel Edit" to discard changes.
+            </p>
+          </div>
+        )}
+
         <BasicForm
           key={submitKey}
           initialValues={formValues}
@@ -634,6 +802,100 @@ const CreateClass = ({ onLogout }) => {
                 setZoomError('Failed to generate Zoom link. Please try again.');
               } finally {
                 setZoomLoading(false);
+              }
+            };
+
+            const handleVideoUpload = async (file) => {
+              console.log('Video upload started with file:', file);
+              if (!file) return;
+              
+              // Validate file type
+              const allowedTypes = ['video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/flv'];
+              if (!allowedTypes.includes(file.type)) {
+                setAlertBox({
+                  open: true,
+                  message: 'Please select a valid video file (MP4, AVI, MOV, WMV, FLV)',
+                  onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+                  onCancel: null,
+                  confirmText: 'OK',
+                  cancelText: '',
+                  type: 'danger',
+                });
+                return;
+              }
+
+              // Validate file size (max 500MB)
+              const maxSize = 500 * 1024 * 1024; // 500MB
+              if (file.size > maxSize) {
+                setAlertBox({
+                  open: true,
+                  message: 'Video file size must be less than 500MB',
+                  onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+                  onCancel: null,
+                  confirmText: 'OK',
+                  cancelText: '',
+                  type: 'danger',
+                });
+                return;
+              }
+
+              setVideoUploading(true);
+              setVideoUploadProgress(0);
+              
+              try {
+                // Simulate upload progress
+                const uploadInterval = setInterval(() => {
+                  setVideoUploadProgress(prev => {
+                    if (prev >= 90) {
+                      clearInterval(uploadInterval);
+                      return 90;
+                    }
+                    return prev + 10;
+                  });
+                }, 200);
+
+                // Simulate upload delay
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                clearInterval(uploadInterval);
+                setVideoUploadProgress(100);
+                
+                // Store file info (in real implementation, this would be uploaded to server)
+                const videoFileData = {
+                  name: file.name,
+                  size: file.size,
+                  type: file.type,
+                  url: URL.createObjectURL(file), // For preview
+                  uploadedAt: new Date().toISOString()
+                };
+                console.log('Setting video file data:', videoFileData);
+                setVideoFile(videoFileData);
+                // Also set the form field value for validation
+                setFieldValue('videoUrl', videoFileData.url);
+
+                setAlertBox({
+                  open: true,
+                  message: 'Video uploaded successfully!',
+                  onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+                  onCancel: null,
+                  confirmText: 'OK',
+                  cancelText: '',
+                  type: 'success',
+                });
+              } catch (error) {
+                console.error('Error uploading video:', error);
+                setAlertBox({
+                  open: true,
+                  message: 'Failed to upload video. Please try again.',
+                  onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+                  onCancel: null,
+                  confirmText: 'OK',
+                  cancelText: '',
+                  type: 'danger',
+                });
+              } finally {
+                setVideoUploading(false);
+                setVideoUploadProgress(0);
               }
             };
 
@@ -894,7 +1156,21 @@ const CreateClass = ({ onLogout }) => {
                 {/* Delivery Method */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">Delivery Method *</label>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                        <input
+                          type="radio"
+                          name="deliveryMethod"
+                          value="physical"
+                          checked={values.deliveryMethod === 'physical'}
+                          onChange={handleChange}
+                          className="mr-2"
+                        />
+                        <div>
+                          <div className="font-medium">Physical Only</div>
+                          <div className="text-sm text-gray-500">In-person classes only</div>
+                        </div>
+                      </label>
                     <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
                       <input
                         type="radio"
@@ -906,64 +1182,66 @@ const CreateClass = ({ onLogout }) => {
                       />
                       <div>
                         <div className="font-medium">Online Only</div>
-                        <div className="text-sm text-gray-500">Live streaming classes</div>
+                          <div className="text-sm text-gray-500">Live streaming classes only</div>
                       </div>
                     </label>
                     <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
                       <input
                         type="radio"
                         name="deliveryMethod"
-                        value="physical"
-                        checked={values.deliveryMethod === 'physical'}
+                          value="hybrid1"
+                          checked={values.deliveryMethod === 'hybrid1'}
                         onChange={handleChange}
                         className="mr-2"
                       />
                       <div>
-                        <div className="font-medium">Physical Only</div>
-                        <div className="text-sm text-gray-500">In-person classes</div>
+                          <div className="font-medium">Hybrid 1</div>
+                          <div className="text-sm text-gray-500">Physical + Online</div>
                       </div>
                     </label>
                     <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
                       <input
                         type="radio"
                         name="deliveryMethod"
-                        value="hybrid"
-                        checked={values.deliveryMethod === 'hybrid'}
+                          value="hybrid2"
+                          checked={values.deliveryMethod === 'hybrid2'}
                         onChange={handleChange}
                         className="mr-2"
                       />
                       <div>
-                        <div className="font-medium">Hybrid</div>
-                        <div className="text-sm text-gray-500">Alternating weeks</div>
+                          <div className="font-medium">Hybrid 2</div>
+                          <div className="text-sm text-gray-500">Physical + Recorded</div>
                       </div>
                     </label>
                     <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
                       <input
                         type="radio"
                         name="deliveryMethod"
-                        value="other"
-                        checked={values.deliveryMethod === 'other'}
+                          value="hybrid3"
+                          checked={values.deliveryMethod === 'hybrid3'}
                         onChange={handleChange}
                         className="mr-2"
                       />
                       <div>
-                        <div className="font-medium">Other</div>
-                        <div className="text-sm text-gray-500">Custom (describe below)</div>
+                          <div className="font-medium">Hybrid 3</div>
+                          <div className="text-sm text-gray-500">Online + Recorded</div>
                       </div>
                     </label>
-                  </div>
-                  {values.deliveryMethod === 'other' && (
-                    <CustomTextField
-                      id="deliveryOther"
-                      name="deliveryOther"
-                      type="text"
-                      label="Describe Delivery Method *"
-                      value={values.deliveryOther}
+                      <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                        <input
+                          type="radio"
+                          name="deliveryMethod"
+                          value="hybrid4"
+                          checked={values.deliveryMethod === 'hybrid4'}
                       onChange={handleChange}
-                      error={errors.deliveryOther}
-                      touched={touched.deliveryOther}
-                    />
-                  )}
+                          className="mr-2"
+                        />
+                        <div>
+                          <div className="font-medium">Hybrid 4</div>
+                          <div className="text-sm text-gray-500">Physical + Online + Recorded</div>
+                        </div>
+                      </label>
+                    </div>
                   {errors.deliveryMethod && touched.deliveryMethod && (
                     <div className="text-red-600 text-sm mt-1">{errors.deliveryMethod}</div>
                   )}
@@ -1072,6 +1350,63 @@ const CreateClass = ({ onLogout }) => {
                     touched={touched.status}
                     required
                   />
+                  <CustomSelectField
+                    id="classMedium"
+                    name="classMedium"
+                    label="Class Medium *"
+                    value={values.classMedium}
+                    onChange={handleChange}
+                    options={classMediumOptions}
+                    error={errors.classMedium}
+                    touched={touched.classMedium}
+                    required
+                  />
+                </div>
+                {/* Tute and Paper Collection Settings */}
+                <div className="border-t pt-4 mb-4">
+                  <h3 className="text-lg font-semibold mb-4 text-gray-800">Payment Tracking and Tute Collection Settings</h3>
+                  <div className="flex flex-col md:flex-row items-center mb-4 gap-2">
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        name="enableTuteCollection"
+                        checked={values.enableTuteCollection}
+                        onChange={handleChange}
+                        className="mr-2"
+                      />
+                      <label className="text-sm text-gray-700 font-medium">
+                        Enable Tute and Paper Collection
+                      </label>
+                    </div>
+                  </div>
+                  {values.enableTuteCollection && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <CustomSelectField
+                        id="tuteCollectionType"
+                        name="tuteCollectionType"
+                        label="Collection Type *"
+                        value={values.tuteCollectionType}
+                        onChange={handleChange}
+                        options={tuteCollectionTypeOptions}
+                        error={errors.tuteCollectionType}
+                        touched={touched.tuteCollectionType}
+                        required
+                      />
+                      <CustomTextField
+                        id="speedPostFee"
+                        name="speedPostFee"
+                        type="number"
+                        label="Speed Post Fee (Rs.)"
+                        value={values.speedPostFee}
+                        onChange={handleChange}
+                        error={errors.speedPostFee}
+                        touched={touched.speedPostFee}
+                        icon={FaMoneyBill}
+                        min="0"
+                        disabled={values.tuteCollectionType === 'physical_class'}
+                      />
+                    </div>
+                  )}
                 </div>
                 {/* Payment Tracking (for all classes) */}
                 <div className="flex flex-col md:flex-row items-center mb-2 gap-2">
@@ -1103,21 +1438,70 @@ const CreateClass = ({ onLogout }) => {
                     </div>
                   )}
                 </div>
-                {/* Zoom Link for online, hybrid, and other */}
-                {(values.deliveryMethod === 'online' || values.deliveryMethod === 'hybrid' || values.deliveryMethod === 'other') && (
+                {/* Zoom Link for online and hybrid classes */}
+                {(values.deliveryMethod === 'online' || values.deliveryMethod === 'hybrid1' || values.deliveryMethod === 'hybrid3' || values.deliveryMethod === 'hybrid4') && (
                   <div>
                     <div className="mb-2">
                       <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded border border-blue-200">
                         <FaVideo className="inline mr-1" />
-                        <strong>Zoom Link Required:</strong> For online and hybrid classes, you must provide a zoom link. You can either enter one manually or click "Create Zoom Link" to generate one automatically.
+                        <strong>Zoom Link Required:</strong> For online and hybrid classes with online component, you must provide a zoom link. You can either enter one manually or click "Create Zoom Link" to generate one automatically.
                       </div>
+                    </div>
+                    
+                    {/* Zoom Join Method Settings */}
+                    <div className="border-t pt-4 mb-4">
+                      <h3 className="text-lg font-semibold mb-4 text-gray-800">Zoom Join Method Settings</h3>
+                      <div className="text-sm text-gray-600 mb-4">
+                        Choose which join methods students can use when joining this class:
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex items-center p-3 border rounded-lg">
+                          <input
+                            type="checkbox"
+                            name="enableNewWindowJoin"
+                            checked={values.enableNewWindowJoin}
+                            onChange={handleChange}
+                            className="mr-3"
+                          />
+                          <div>
+                            <label className="text-sm font-medium text-gray-700">
+                              New Window (Recommended) ⭐
+                            </label>
+                            <div className="text-xs text-gray-500">
+                              Opens in a separate window with full features - Default selection for students
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center p-3 border rounded-lg">
+                          <input
+                            type="checkbox"
+                            name="enableOverlayJoin"
+                            checked={values.enableOverlayJoin}
+                            onChange={handleChange}
+                            className="mr-3"
+                          />
+                          <div>
+                            <label className="text-sm font-medium text-gray-700">
+                              Overlay View
+                            </label>
+                            <div className="text-xs text-gray-500">
+                              Opens as an overlay on the current page
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      {!values.enableNewWindowJoin && !values.enableOverlayJoin && (
+                        <div className="text-sm text-red-600 bg-red-50 p-2 rounded border border-red-200 mt-2">
+                          ⚠️ At least one join method must be enabled for students to join the class.
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <CustomTextField
                         id="zoomLink"
                         name="zoomLink"
                         type="url"
-                        label={values.deliveryMethod === 'other' ? "Zoom Link (Optional)" : "Zoom Link *"}
+                        label="Zoom Link *"
                         value={values.zoomLink}
                         onChange={handleChange}
                         error={errors.zoomLink}
@@ -1135,7 +1519,7 @@ const CreateClass = ({ onLogout }) => {
                       </CustomButton>
                     </div>
                     {zoomError && <div className="text-red-600 text-sm mt-1">{zoomError}</div>}
-                    {!values.zoomLink && (values.deliveryMethod === 'online' || values.deliveryMethod === 'hybrid') && (
+                    {!values.zoomLink && (values.deliveryMethod === 'online' || values.deliveryMethod === 'hybrid1' || values.deliveryMethod === 'hybrid3' || values.deliveryMethod === 'hybrid4') && (
                       <div className="text-orange-600 text-sm mt-1">
                         ⚠️ Please enter a zoom link or click "Create Zoom Link" to generate one.
                       </div>
@@ -1143,7 +1527,119 @@ const CreateClass = ({ onLogout }) => {
                   </div>
                 )}
                 
-                
+                {/* Video Upload for recorded content */}
+                {(values.deliveryMethod === 'hybrid2' || values.deliveryMethod === 'hybrid3' || values.deliveryMethod === 'hybrid4') && (
+                  <div>
+                    <div className="mb-2">
+                      <div className="text-sm text-green-600 bg-green-50 p-2 rounded border border-green-200">
+                        <FaVideo className="inline mr-1" />
+                        <strong>Recorded Video Required:</strong> For hybrid classes with recorded content, you must upload a video file. Students will be able to watch this video during the scheduled class time.
+                      </div>
+                    </div>
+                    
+                    {/* Video Upload Section */}
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 bg-gray-50">
+                      {!videoFile ? (
+                        <div className="text-center">
+                          <div className="mb-4">
+                            <FaVideo className="mx-auto h-12 w-12 text-gray-400" />
+                          </div>
+                          <div className="mb-4">
+                            <label htmlFor="video-upload" className="cursor-pointer">
+                              <span className="mt-2 block text-sm font-medium text-gray-900">
+                                Upload Video File
+                              </span>
+                              <span className="mt-1 block text-xs text-gray-500">
+                                MP4, AVI, MOV, WMV, FLV up to 500MB
+                              </span>
+                            </label>
+                          </div>
+                          <input
+                            id="video-upload"
+                            name="video-upload"
+                            type="file"
+                            accept="video/*"
+                            className="sr-only"
+                            onChange={(e) => {
+                              console.log('Video file input changed:', e.target.files[0]);
+                              const file = e.target.files[0];
+                              if (file) {
+                                handleVideoUpload(file);
+                              }
+                            }}
+                            disabled={videoUploading}
+                          />
+                          <CustomButton
+                            type="button"
+                            onClick={() => {
+                              console.log('Choose video file clicked');
+                              const input = document.getElementById('video-upload');
+                              console.log('Video input element:', input);
+                              if (input) {
+                                input.click();
+                              } else {
+                                console.error('Video input element not found');
+                              }
+                            }}
+                            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2"
+                            disabled={videoUploading}
+                          >
+                            {videoUploading ? 'Uploading...' : 'Choose Video File'}
+                          </CustomButton>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <div className="mb-4">
+                            <FaVideo className="mx-auto h-8 w-8 text-green-600" />
+                          </div>
+                          <div className="mb-2">
+                            <h3 className="text-sm font-medium text-gray-900">
+                              {videoFile.isExisting ? 'Existing Video' : videoFile.name}
+                            </h3>
+                            <p className="text-xs text-gray-500">
+                              {videoFile.isExisting ? (
+                                `Existing video • Last updated ${new Date(videoFile.uploadedAt).toLocaleDateString()}`
+                              ) : (
+                                `${(videoFile.size / (1024 * 1024)).toFixed(2)} MB • Uploaded ${new Date(videoFile.uploadedAt).toLocaleDateString()}`
+                              )}
+                            </p>
+                          </div>
+                          <div className="flex justify-center">
+                            <CustomButton
+                              type="button"
+                              onClick={() => {
+                                console.log('Remove video clicked');
+                                setVideoFile(null);
+                                setFieldValue('videoUrl', '');
+                              }}
+                              className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                            >
+                              Remove Video
+                            </CustomButton>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Upload Progress */}
+                      {videoUploading && (
+                        <div className="mt-4">
+                          <div className="flex justify-between text-sm text-gray-600 mb-1">
+                            <span>Uploading...</span>
+                            <span>{videoUploadProgress}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${videoUploadProgress}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Video URL is handled in form submission, no hidden input needed */}
+                  </div>
+                )}
                 
                 {/* Description */}
                 <div>
@@ -1158,12 +1654,47 @@ const CreateClass = ({ onLogout }) => {
                   />
                 </div>
                 {/* Form Actions */}
-                <div className="flex justify-center">
+                <div className="flex justify-center gap-4">
+                  {editingId && (
+                    <CustomButton
+                      type="button"
+                      onClick={() => {
+                        console.log('Cancel edit clicked');
+                        setEditingId(null);
+                        setFormValues(initialValues);
+                        setVideoFile(null);
+                        setSubmitKey(prev => prev + 1);
+                        setAlertBox({
+                          open: true,
+                          message: 'Edit cancelled. You can now create a new class.',
+                          onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+                          onCancel: null,
+                          confirmText: 'OK',
+                          cancelText: '',
+                          type: 'info',
+                        });
+                      }}
+                      className="px-4 py-2 bg-gray-500 text-white hover:bg-gray-600 active:bg-gray-700 rounded flex items-center justify-center gap-2"
+                    >
+                      <FaTimes /> Cancel Edit
+                    </CustomButton>
+                  )}
                   <CustomButton
                     type="submit"
-                    className="w-2/3 max-w-xs py-2 px-4 bg-[#1a365d] text-white hover:bg-[#13294b] active:bg-[#0f2038] rounded flex items-center justify-center gap-2"
+                    className="px-4 py-2 bg-[#1a365d] text-white hover:bg-[#13294b] active:bg-[#0f2038] rounded flex items-center justify-center gap-2"
                   >
                     {editingId ? <FaEdit /> : <FaPlus />} {editingId ? 'Update Class' : 'Create Class'}
+                  </CustomButton>
+                  <CustomButton
+                    type="button"
+                    onClick={() => {
+                      console.log('Test button clicked');
+                      console.log('Current form values:', values);
+                      console.log('Current video file:', videoFile);
+                    }}
+                    className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded flex items-center justify-center gap-2"
+                  >
+                    Test Form State
                   </CustomButton>
                 </div>
               </div>
@@ -1206,6 +1737,7 @@ const CreateClass = ({ onLogout }) => {
             </div>
           ) : (
           <BasicTable
+            rowClassName={row => editingId === row.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''}
             columns={[
               { key: 'className', label: 'Class Name', render: row => {
                 // For revision class with related theory, show related theory className
@@ -1236,7 +1768,18 @@ const CreateClass = ({ onLogout }) => {
                 }
                 return row.stream || 'N/A';
               } },
-              { key: 'deliveryMethod', label: 'Delivery', render: row => row.deliveryMethod || 'N/A' },
+              { key: 'deliveryMethod', label: 'Delivery', render: row => {
+                const method = row.deliveryMethod || 'N/A';
+                const methodLabels = {
+                  'physical': 'Physical Only',
+                  'online': 'Online Only',
+                  'hybrid1': 'Hybrid 1 (Physical + Online)',
+                  'hybrid2': 'Hybrid 2 (Physical + Recorded)',
+                  'hybrid3': 'Hybrid 3 (Online + Recorded)',
+                  'hybrid4': 'Hybrid 4 (Physical + Online + Recorded)'
+                };
+                return methodLabels[method] || method;
+              } },
               { key: 'schedule', label: 'Schedule', render: row => {
                 if (!row.schedule) return 'N/A';
                 if (row.schedule.frequency === 'no-schedule') {
@@ -1264,9 +1807,9 @@ const CreateClass = ({ onLogout }) => {
             actions={row => (
               <div className="flex gap-2">
                 <button
-                  className="text-blue-600 hover:underline"
+                  className={`${editingId === row.id ? 'text-green-600 bg-green-100 p-1 rounded' : 'text-blue-600 hover:underline'}`}
                   onClick={() => handleEdit(row.id)}
-                  title="Edit"
+                  title={editingId === row.id ? "Currently Editing" : "Edit"}
                 >
                   <FaEdit />
                 </button>

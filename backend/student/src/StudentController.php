@@ -58,13 +58,43 @@ class StudentController {
         }
     }
    public function getStudentById($user_id) {
-        $student = $this->model->getStudentById($user_id);
+        $student = $this->model->getStudentByUserId($user_id);
         if ($student) {
             return $student; // ✅ Return as array
         } else {
             http_response_code(404);
             return ['error' => 'Student not found'];
         }
+    }
+
+    public function updateStudent($user_id, $data) {
+        // Check if student exists
+        $existingStudent = $this->model->getStudentByUserId($user_id);
+        if (!$existingStudent) {
+            return ['success' => false, 'message' => 'Student not found'];
+        }
+
+        // Update student data
+        $result = $this->model->updateStudent($user_id, $data);
+        if ($result) {
+            return ['success' => true, 'message' => 'Student updated successfully'];
+        } else {
+            return ['success' => false, 'message' => 'Failed to update student'];
+        }
+    }
+
+    public function generateBarcodeForStudent($user_id) {
+        $result = $this->model->generateBarcodeForStudent($user_id);
+        if ($result) {
+            return ['success' => true, 'message' => 'Barcode generated successfully'];
+        } else {
+            return ['success' => false, 'message' => 'Failed to generate barcode'];
+        }
+    }
+
+    public function generateBarcodesForAllStudents() {
+        $count = $this->model->generateBarcodesForAllStudents();
+        return ['success' => true, 'message' => "Generated barcodes for {$count} students"];
     }
 
 }

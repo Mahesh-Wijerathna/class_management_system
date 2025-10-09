@@ -46,7 +46,8 @@ const TeacherAllClasses = () => {
         console.log('Teacher data:', teacherData); // Debug log
         
         // Check if we have teacher data with teacherId
-        const teacherId = teacherData?.teacherId || teacherData?.id || null;
+        const teacherId = teacherData?.teacherId || teacherData?.id || teacherData?.userid || null;
+        console.log('Extracted teacherId:', teacherId); // Debug log
         
         if (teacherId) {
           const response = await getClassesByTeacher(teacherId);
