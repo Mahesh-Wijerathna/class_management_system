@@ -300,9 +300,18 @@ const BarcodeAttendanceScanner = () => {
     };
 
     getAllClasses().then(data => {
-      if (data && Array.isArray(data.data)) { setClasses(data.data); computeDefaultSelection(data.data); }
-      else if (Array.isArray(data)) { setClasses(data); computeDefaultSelection(data); }
-      else setClasses([]);
+      let allClasses = [];
+      if (data && Array.isArray(data.data)) { allClasses = data.data; }
+      else if (Array.isArray(data)) { allClasses = data; }
+      
+      // Filter to only show physical and hybrid classes (not online-only)
+      const physicalClasses = allClasses.filter(c => {
+        const method = (c.delivery_method || c.deliveryMethod || '').toLowerCase();
+        return method === 'physical' || method.startsWith('hybrid');
+      });
+      
+      setClasses(physicalClasses);
+      computeDefaultSelection(physicalClasses);
     }).catch(() => setClasses([]));
   }, []);
 
@@ -471,7 +480,29 @@ const BarcodeAttendanceScanner = () => {
         const markedSet = successfullyMarkedRef.current[normalized] || new Set();
         if (markedSet.has(String(cid))) { results.push({ classId: cid, ok: false, message: 'Already marked (session)' }); continue; }
                 const r = await fetchIsEnrolled(normalized, cid);
-                if (!r.enrolled) { results.push({ classId: cid, ok: false, message: 'Not enrolled', raw: r.raw }); continue; }
+                if (!r.enrolled) { 
+                  const reason = r.raw?.reason || 'unknown';
+                  let message = 'Not enrolled';
+                  
+                  // Match MyClasses.jsx payment logic
+                  if (reason === 'free_card') {
+                    message = 'Free Card - Access granted';
+                    // Allow access even though enrolled=false (this shouldn't happen, but handle it)
+                  } else if (reason === 'half_card_paid') {
+                    message = 'Half Card - Paid';
+                  } else if (reason === 'half_payment_required') {
+                    message = 'Half Card - 50% payment required';
+                  } else if (reason === 'grace_period_expired') {
+                    message = 'Payment required - grace period expired';
+                  } else if (reason === 'payment_required') {
+                    message = 'Payment required';
+                  } else if (reason === 'not_enrolled') {
+                    message = 'Not enrolled';
+                  }
+                  
+                  results.push({ classId: cid, ok: false, message, raw: r.raw }); 
+                  continue; 
+                }
         const payload = { classId: cid, studentId: normalized, attendanceData: { method, status: 'present', join_time: new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Colombo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace('T', ' ') } };
         const response = await fetch(`${process.env.REACT_APP_ATTENDANCE_BACKEND_URL}/mark-attendance`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -717,7 +748,29 @@ const BarcodeAttendanceScanner = () => {
         const markedSet = successfullyMarkedRef.current[normalized] || new Set();
         if (markedSet.has(String(cid))) { results.push({ classId: cid, ok: false, message: 'Already marked (session)' }); continue; }
   const r = await fetchIsEnrolled(normalized, cid);
-  if (!r.enrolled) { results.push({ classId: cid, ok: false, message: 'Not enrolled', raw: r.raw }); continue; }
+  if (!r.enrolled) { 
+    const reason = r.raw?.reason || 'unknown';
+    let message = 'Not enrolled';
+    
+    // Match MyClasses.jsx payment logic
+    if (reason === 'free_card') {
+      message = 'Free Card - Access granted';
+      // Allow access even though enrolled=false (this shouldn't happen, but handle it)
+    } else if (reason === 'half_card_paid') {
+      message = 'Half Card - Paid';
+    } else if (reason === 'half_payment_required') {
+      message = 'Half Card - 50% payment required';
+    } else if (reason === 'grace_period_expired') {
+      message = 'Payment required - grace period expired';
+    } else if (reason === 'payment_required') {
+      message = 'Payment required';
+    } else if (reason === 'not_enrolled') {
+      message = 'Not enrolled';
+    }
+    
+    results.push({ classId: cid, ok: false, message, raw: r.raw }); 
+    continue; 
+  }
         const payload = { classId: cid, studentId: normalized, attendanceData: { method: 'barcode', status: 'present', join_time: new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Colombo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace('T', ' ') } };
         const response = await fetch(`${process.env.REACT_APP_ATTENDANCE_BACKEND_URL}/mark-attendance`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -986,6 +1039,51 @@ const BarcodeAttendanceScanner = () => {
                     <div className="summary-list">
                       {studentEnrollmentsPreview.map((p) => {
                         const found = classes.find(x => String(x.id) === String(p.classId));
+                        const paymentStatus = p.enrollRaw?.payment_status;
+                        const reason = p.enrollRaw?.reason;
+                        
+                        let statusText = 'Not enrolled';
+                        let statusColor = '#b91c1c';
+                        let statusDetail = '';
+                        
+                        if (p.enrolled) {
+                          // Successfully enrolled cases
+                          if (reason === 'free_card') {
+                            statusText = 'Free Card';
+                            statusColor = '#9333ea'; // Purple
+                            statusDetail = 'No payment required';
+                          } else if (reason === 'half_card_paid') {
+                            statusText = 'Half Card';
+                            statusColor = '#2563eb'; // Blue
+                            statusDetail = '50% paid';
+                          } else if (reason === 'within_grace_period') {
+                            statusText = 'Enrolled & Paid';
+                            statusColor = '#059669'; // Green
+                            const daysRemaining = p.enrollRaw?.days_remaining;
+                            statusDetail = daysRemaining ? `${daysRemaining} days grace` : 'Within grace period';
+                          } else {
+                            statusText = 'Enrolled & Paid';
+                            statusColor = '#059669'; // Green
+                          }
+                        } else {
+                          // Blocked cases
+                          if (reason === 'half_payment_required') {
+                            statusText = 'Half Card';
+                            statusColor = '#ea580c'; // Orange
+                            statusDetail = '50% payment required';
+                          } else if (reason === 'grace_period_expired') {
+                            statusText = 'Grace Period Expired';
+                            statusColor = '#dc2626'; // Red
+                            statusDetail = 'Payment required';
+                          } else if (reason === 'payment_required') {
+                            statusText = 'Payment Required';
+                            statusColor = '#d97706'; // Amber
+                          } else if (reason === 'not_enrolled') {
+                            statusText = 'Not Enrolled';
+                            statusColor = '#b91c1c'; // Red
+                          }
+                        }
+                        
                         return (
                           <div key={p.classId} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0' }}>
                             <div>
@@ -993,7 +1091,9 @@ const BarcodeAttendanceScanner = () => {
                               <div className="small">{found ? `${found.schedule_start_time || ''} - ${found.schedule_end_time || ''}` : ''}</div>
                             </div>
                             <div style={{ textAlign:'right' }}>
-                              <div style={{ color: p.enrolled ? '#059669' : '#b91c1c', fontWeight:700 }}>{p.enrolled ? 'Enrolled' : 'Not enrolled'}</div>
+                              <div style={{ color: statusColor, fontWeight:700 }}>{statusText}</div>
+                              {statusDetail && <div className="small" style={{ color: '#6b7280' }}>{statusDetail}</div>}
+                              {paymentStatus && <div className="small" style={{ color: '#9ca3af', fontSize: '11px' }}>Status: {paymentStatus}</div>}
                               <div className="small">{p.markedInSession ? 'Marked (session)' : 'Not marked'}</div>
                             </div>
                           </div>
@@ -1027,11 +1127,14 @@ const BarcodeAttendanceScanner = () => {
         </div>
 
   <div className="right" aria-hidden={!(panelOpen && !manualSingle)} style={{ display: (panelOpen && !manualSingle) ? 'block' : 'none' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
             <div style={{ fontWeight:700 }}>Today's classes</div>
             <div style={{ display:'flex', gap:8 }}>
               <button className="btn btn-muted" onClick={() => setPanelOpen(p => !p)} aria-expanded={panelOpen}>{panelOpen ? <><FaChevronUp /></> : <><FaChevronDown /></>}</button>
             </div>
+          </div>
+          <div style={{ fontSize:12, color:'#6b7280', marginBottom:8, fontStyle:'italic' }}>
+            Showing only physical & hybrid classes
           </div>
 
           <div className="class-list" style={{ display: (panelOpen && !manualSingle) ? 'block' : 'none' }}>
