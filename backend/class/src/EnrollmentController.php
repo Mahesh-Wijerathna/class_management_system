@@ -14,6 +14,8 @@ class EnrollmentController {
     // Get all enrollments for a student
     public function getStudentEnrollments($studentId) {
         try {
+            // MICROSERVICES FIX: Only query class-backend tables, no financial_records join
+            // Payment history should be fetched from payment-backend service separately
             $stmt = $this->db->prepare("
                 SELECT 
                     e.*,
@@ -39,23 +41,10 @@ class EnrollmentController {
                     c.payment_tracking,
                     c.payment_tracking_free_days,
                     c.enable_new_window_join,
-                    c.enable_overlay_join,
-                    GROUP_CONCAT(
-                        JSON_OBJECT(
-                            'transaction_id', fr.transaction_id,
-                            'date', fr.date,
-                            'amount', fr.amount,
-                            'payment_method', fr.payment_method,
-                            'reference_number', fr.reference_number,
-                            'status', fr.status,
-                            'notes', fr.notes
-                        ) ORDER BY fr.date DESC SEPARATOR '|'
-                    ) as payment_history_details
+                    c.enable_overlay_join
                 FROM enrollments e
                 LEFT JOIN classes c ON e.class_id = c.id
-                LEFT JOIN financial_records fr ON e.student_id = fr.user_id AND e.class_id = fr.class_id
                 WHERE e.student_id = ?
-                GROUP BY e.id
                 ORDER BY e.enrollment_date DESC
             ");
             
@@ -91,6 +80,8 @@ class EnrollmentController {
     // Get all enrollments for a specific class
     public function getClassEnrollments($classId) {
         try {
+            // MICROSERVICES FIX: Only query class-backend tables, no financial_records join
+            // Payment history should be fetched from payment-backend service separately
             $stmt = $this->db->prepare("
                 SELECT 
                     e.*,
@@ -115,23 +106,10 @@ class EnrollmentController {
                     c.payment_tracking,
                     c.payment_tracking_free_days,
                     c.enable_new_window_join,
-                    c.enable_overlay_join,
-                    GROUP_CONCAT(
-                        JSON_OBJECT(
-                            'transaction_id', fr.transaction_id,
-                            'date', fr.date,
-                            'amount', fr.amount,
-                            'payment_method', fr.payment_method,
-                            'reference_number', fr.reference_number,
-                            'status', fr.status,
-                            'notes', fr.notes
-                        ) ORDER BY fr.date DESC SEPARATOR '|'
-                    ) as payment_history_details
+                    c.enable_overlay_join
                 FROM enrollments e
                 LEFT JOIN classes c ON e.class_id = c.id
-                LEFT JOIN financial_records fr ON e.student_id = fr.user_id AND e.class_id = fr.class_id
                 WHERE e.class_id = ?
-                GROUP BY e.id
                 ORDER BY e.enrollment_date DESC
             ");
             
@@ -697,6 +675,89 @@ class EnrollmentController {
             
         } catch (Exception $e) {
             error_log("Error updating class student count for class {$classId}: " . $e->getMessage());
+        }
+    }
+    
+    // CRITICAL FIX: Update enrollment payment status for renewal payments
+    public function updateEnrollmentPayment($data) {
+        try {
+            $enrollmentId = $data['enrollment_id'] ?? null;
+            $studentId = $data['student_id'] ?? null;
+            $classId = $data['class_id'] ?? null;
+            $paymentStatus = $data['payment_status'] ?? 'paid';
+            $paidAmount = $data['paid_amount'] ?? 0;
+            $nextPaymentDate = $data['next_payment_date'] ?? null;
+            $status = $data['status'] ?? 'active';
+            
+            // Find enrollment by student_id and class_id if enrollment_id not provided
+            if (!$enrollmentId && $studentId && $classId) {
+                $stmt = $this->db->prepare("
+                    SELECT id FROM enrollments 
+                    WHERE student_id = ? AND class_id = ? 
+                    LIMIT 1
+                ");
+                $stmt->bind_param("si", $studentId, $classId);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                if ($row = $result->fetch_assoc()) {
+                    $enrollmentId = $row['id'];
+                } else {
+                    return [
+                        'success' => false,
+                        'message' => 'Enrollment not found'
+                    ];
+                }
+            }
+            
+            if (!$enrollmentId) {
+                return [
+                    'success' => false,
+                    'message' => 'Enrollment ID is required'
+                ];
+            }
+            
+            // Update enrollment with payment information
+            $stmt = $this->db->prepare("
+                UPDATE enrollments SET
+                    payment_status = ?,
+                    paid_amount = paid_amount + ?,
+                    next_payment_date = ?,
+                    status = ?,
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            
+            $stmt->bind_param("sdssi", 
+                $paymentStatus,
+                $paidAmount,
+                $nextPaymentDate,
+                $status,
+                $enrollmentId
+            );
+            
+            if ($stmt->execute()) {
+                error_log("ENROLLMENT_PAYMENT_UPDATE: Enrollment $enrollmentId updated successfully for renewal payment");
+                
+                return [
+                    'success' => true,
+                    'message' => 'Enrollment payment updated successfully',
+                    'enrollmentId' => $enrollmentId
+                ];
+            } else {
+                error_log("ENROLLMENT_PAYMENT_UPDATE_ERROR: Failed to update enrollment $enrollmentId - " . $stmt->error);
+                
+                return [
+                    'success' => false,
+                    'message' => 'Failed to update enrollment payment'
+                ];
+            }
+        } catch (Exception $e) {
+            error_log("ENROLLMENT_PAYMENT_UPDATE_EXCEPTION: " . $e->getMessage());
+            
+            return [
+                'success' => false,
+                'message' => 'Error updating enrollment payment: ' . $e->getMessage()
+            ];
         }
     }
 }

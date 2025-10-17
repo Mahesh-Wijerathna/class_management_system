@@ -11,10 +11,10 @@ CREATE TABLE IF NOT EXISTS classes (
     stream VARCHAR(50) NOT NULL,
     delivery_method ENUM('online', 'physical', 'hybrid1', 'hybrid2', 'hybrid3', 'hybrid4') NOT NULL,
     delivery_other VARCHAR(100),
-    schedule_day VARCHAR(20) NOT NULL,
-    schedule_start_time TIME NOT NULL,
-    schedule_end_time TIME NOT NULL,
-    schedule_frequency ENUM('weekly', 'bi-weekly', 'monthly') NOT NULL DEFAULT 'weekly',
+    schedule_day VARCHAR(20),
+    schedule_start_time TIME,
+    schedule_end_time TIME,
+    schedule_frequency ENUM('weekly', 'bi-weekly', 'monthly', 'no-schedule') NOT NULL DEFAULT 'weekly',
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     max_students INT NOT NULL DEFAULT 50,
@@ -68,26 +68,5 @@ CREATE TABLE IF NOT EXISTS enrollments (
     INDEX idx_payment_status (payment_status)
 );
 
--- Attendance table
-CREATE TABLE IF NOT EXISTS attendance (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    student_id VARCHAR(10) NOT NULL,
-    class_id INT NOT NULL,
-    attendance_date DATE NOT NULL,
-    status ENUM('present', 'absent', 'late', 'excused') NOT NULL,
-    marked_by VARCHAR(10),
-    marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    notes TEXT,
-    FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
-    UNIQUE KEY unique_attendance (student_id, class_id, attendance_date),
-    INDEX idx_student_date (student_id, attendance_date),
-    INDEX idx_class_date (class_id, attendance_date)
-);
 
-    marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    notes TEXT,
-    FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
-    UNIQUE KEY unique_attendance (student_id, class_id, attendance_date),
-    INDEX idx_student_date (student_id, attendance_date),
-    INDEX idx_class_date (class_id, attendance_date)
-);
+

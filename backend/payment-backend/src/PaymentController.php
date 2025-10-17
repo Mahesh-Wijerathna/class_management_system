@@ -36,13 +36,32 @@ class PaymentController {
                 return ['success' => false, 'message' => 'Class not found'];
             }
 
-            // Check if student is already enrolled in this class (only check paid enrollments)
-            $isEnrolled = $this->checkStudentEnrollmentFromClassBackend($studentId, $classId);
-            if ($isEnrolled) {
-                return [
-                    'success' => false, 
-                    'message' => 'You are already enrolled in this class'
-                ];
+            // Check if this is a renewal payment (indicated by payment method or notes)
+            $isRenewal = isset($data['isRenewal']) && $data['isRenewal'] === true;
+            $isRenewalFromNotes = isset($data['notes']) && (
+                strpos($data['notes'], 'Renewal Payment') !== false ||
+                strpos($data['notes'], 'Early Payment') !== false ||
+                strpos($data['notes'], 'Next Month Renewal') !== false
+            );
+            
+            // Only check enrollment for NEW enrollments, not renewals
+            if (!$isRenewal && !$isRenewalFromNotes) {
+                $isEnrolled = $this->checkStudentEnrollmentFromClassBackend($studentId, $classId);
+                if ($isEnrolled) {
+                    return [
+                        'success' => false, 
+                        'message' => 'You are already enrolled in this class. Use "Pay Early" or "Renew Payment" for monthly payments.'
+                    ];
+                }
+            } else {
+                // For renewals, verify the student IS enrolled
+                $isEnrolled = $this->checkStudentEnrollmentFromClassBackend($studentId, $classId);
+                if (!$isEnrolled) {
+                    return [
+                        'success' => false, 
+                        'message' => 'Cannot process renewal payment - you are not enrolled in this class yet.'
+                    ];
+                }
             }
 
             // Use the final amount calculated by frontend (includes all discounts and fees)
@@ -232,14 +251,74 @@ class PaymentController {
                 // Check if enrollment already exists (idempotency)
                 $existingEnrollment = $this->checkExistingEnrollment($payment['user_id'], $payment['class_id']);
                 if ($existingEnrollment) {
+                    // CRITICAL FIX: For renewal payments, update the existing enrollment
+                    error_log("RENEWAL_PAYMENT: Transaction $transactionId - Updating existing enrollment");
+                    
+                    try {
+                        $userId = $payment['user_id'];
+                        $classId = $payment['class_id'];
+                        $amount = $payment['amount'];
+                        $enrollmentId = $existingEnrollment['id'];
+                        
+                        // Update enrollment payment status and next payment date
+                        $updateEnrollmentData = [
+                            'enrollment_id' => $enrollmentId,
+                            'student_id' => $userId,
+                            'class_id' => $classId,
+                            'payment_status' => 'paid',
+                            'paid_amount' => $amount,
+                            'next_payment_date' => $nextPaymentDate,
+                            'status' => 'active'
+                        ];
+                        
+                        $url = "http://class-backend/routes.php/update_enrollment_payment";
+                        $context = stream_context_create([
+                            'http' => [
+                                'method' => 'POST',
+                                'header' => 'Content-Type: application/json',
+                                'content' => json_encode($updateEnrollmentData)
+                            ]
+                        ]);
+                        
+                        $response = file_get_contents($url, false, $context);
+                        
+                        if ($response !== FALSE) {
+                            $updateResult = json_decode($response, true);
+                            error_log("ENROLLMENT_UPDATE_SUCCESS: Transaction $transactionId - Enrollment updated for renewal");
+                        } else {
+                            error_log("ENROLLMENT_UPDATE_WARNING: Transaction $transactionId - Failed to update enrollment, but payment recorded");
+                        }
+                        
+                        // Create payment history record for renewal
+                        $paymentHistoryStmt = $this->db->prepare("
+                            INSERT INTO payment_history (
+                                enrollment_id, amount, payment_method, reference_number, status, notes
+                            ) VALUES (?, ?, ?, ?, ?, ?)
+                        ");
+                        
+                        $paymentMethod = $payment['payment_method'] ?? 'online';
+                        $referenceNumber = $payment['reference_number'] ?? $transactionId;
+                        $notes = "Renewal payment - Transaction: $transactionId";
+                        $status = 'completed';
+                        
+                        $paymentHistoryStmt->bind_param("idssss", 
+                            $enrollmentId, $amount, $paymentMethod, $referenceNumber, $status, $notes
+                        );
+                        
+                        $paymentHistoryStmt->execute();
+                        
+                    } catch (Exception $updateError) {
+                        error_log("ENROLLMENT_UPDATE_ERROR: Transaction $transactionId - " . $updateError->getMessage());
+                    }
+                    
                     return [
                         'success' => true,
                         'enrollmentId' => $existingEnrollment['id'],
-                        'message' => 'Enrollment already exists'
+                        'message' => 'Enrollment renewed successfully'
                     ];
                 }
                 
-                // Create enrollment in class backend
+                // Create enrollment in class backend (for new enrollments)
                 try {
                     $userId = $payment['user_id'];
                     $classId = $payment['class_id'];

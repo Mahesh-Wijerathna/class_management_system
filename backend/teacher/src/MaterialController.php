@@ -168,12 +168,33 @@ class MaterialController {
             );
 
             if (!$watermarkSuccess) {
-                // Check if it's an encrypted PDF error
-                $lastError = error_get_last();
-                if ($lastError && strpos($lastError['message'], 'encrypted') !== false) {
-                    return ['success' => false, 'message' => 'This PDF is encrypted and cannot be watermarked. Please ask your teacher to re-upload an unencrypted version.'];
-                }
-                return ['success' => false, 'message' => 'Failed to apply watermark. The PDF may be corrupted or encrypted.'];
+                // If watermarking fails (e.g., encrypted PDF), provide original file
+                error_log("Warning: Watermarking failed for material {$materialId}. Providing original file.");
+                
+                // Log access
+                $this->model->logAccess([
+                    'material_id' => $materialId,
+                    'student_id' => $studentId,
+                    'student_name' => $studentName,
+                    'access_type' => 'download',
+                    'ip_address' => $_SERVER['REMOTE_ADDR'] ?? '',
+                    'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+                    'watermark_applied' => 0
+                ]);
+
+                // Increment download count
+                $this->model->incrementDownloadCount($materialId);
+
+                // Return original file
+                return [
+                    'success' => true,
+                    'file_path' => $material['original_file_path'],
+                    'file_name' => $material['title'] . '.pdf',
+                    'password' => null,
+                    'password_protected' => false,
+                    'watermarked' => false,
+                    'warning' => 'This PDF could not be watermarked (may be encrypted by teacher)'
+                ];
             }
 
             // Check if PDFtk is available for password protection

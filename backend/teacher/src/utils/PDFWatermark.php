@@ -20,6 +20,9 @@ class PDFWatermark {
         $this->studentName = $studentName;
         $this->teacherName = $teacherName;
         $this->className = $className;
+        
+        // Set timezone to Asia/Colombo (Sri Lanka)
+        date_default_timezone_set('Asia/Colombo');
         $this->timestamp = date('Y-m-d H:i:s');
     }
 
