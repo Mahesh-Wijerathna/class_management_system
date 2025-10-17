@@ -8,6 +8,8 @@ import { getStudentCard, getCardTypeInfo, getCardStatus, isCardValid } from '../
 import { getStudentEnrollments, markAttendance, requestForgetCard, requestLatePayment, convertEnrollmentToMyClass, getPaymentHistoryForClass } from '../../../api/enrollments';
 import { trackZoomAttendance, trackJoinButtonClick } from '../../../api/attendance';
 import { getUserData } from '../../../api/apiUtils';
+import { getMaterialsByClass, downloadMaterial } from '../../../api/materials';
+import { getRecordingsByClass, downloadRecording, getStreamingUrl } from '../../../api/recordings';
 import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt, FaCalendarWeek, FaTasks, FaFilePdf, FaFileWord, FaFilePowerpoint, FaUpload, FaRedo, FaPauseCircle, FaExpand } from 'react-icons/fa';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 
@@ -55,10 +57,64 @@ const MyClasses = ({ onLogout }) => {
   const [alertBox, setAlertBox] = useState({ open: false, message: '', type: 'info', title: '' });
   const navigate = useNavigate();
   const [hallBookings, setHallBookings] = useState([]);
+  
+  // Materials state
+  const [materials, setMaterials] = useState([]);
+  const [loadingMaterials, setLoadingMaterials] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
+  // Recordings state
+  const [recordings, setRecordings] = useState([]);
+  const [loadingRecordings, setLoadingRecordings] = useState(false);
+  const [selectedRecording, setSelectedRecording] = useState(null);
+  const [showRecordingPlayer, setShowRecordingPlayer] = useState(false);
+  const [downloadingRecordingId, setDownloadingRecordingId] = useState(null);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [isMaximized, setIsMaximized] = useState(false);
+
+  // Prevent screen recording and video capture attempts
+  useEffect(() => {
+    if (showRecordingPlayer) {
+      // Disable keyboard shortcuts that might be used for recording
+      const handleKeyDown = (e) => {
+        // Prevent common screen recording shortcuts
+        if (
+          (e.metaKey && e.shiftKey && (e.key === '5' || e.key === '4')) || // Mac screenshot/recording
+          (e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's')) || // Windows screenshot
+          e.key === 'PrintScreen' // Print screen
+        ) {
+          e.preventDefault();
+          setAlertBox({
+            open: true,
+            message: '⚠️ Screen recording and screenshots are not allowed for protected content.',
+            type: 'warning',
+            title: 'Action Blocked'
+          });
+        }
+      };
+
+      // Add warning message on video load
+      const videoWarningTimer = setTimeout(() => {
+        setAlertBox({
+          open: true,
+          message: 'This video is protected with watermarks containing your student ID. Unauthorized sharing is prohibited and will be tracked.',
+          type: 'info',
+          title: '🔒 Protected Content'
+        });
+      }, 1000);
+
+      document.addEventListener('keydown', handleKeyDown);
+
+      return () => {
+        document.removeEventListener('keydown', handleKeyDown);
+        clearTimeout(videoWarningTimer);
+      };
+    }
+  }, [showRecordingPlayer]);
 
 useEffect(() => {
   if (selectedClassForDetails) {
+    // Load hall bookings
     fetch(`http://localhost:8088/hallbook.php?list=1`)
       .then(res => res.json())
       .then(data => {
@@ -87,6 +143,12 @@ useEffect(() => {
         console.error('Error fetching hall bookings:', err);
         setHallBookings([]);
       });
+    
+    // Load materials for this class
+    loadMaterials(selectedClassForDetails.id);
+    
+    // Load recordings for this class
+    loadRecordings(selectedClassForDetails.id);
   }
 }, [selectedClassForDetails, myClasses]);
   
@@ -270,6 +332,188 @@ useEffect(() => {
       }
     } catch (err) {
       // Silent fail - enrollments are created automatically during payment
+    }
+  };
+
+  // Load materials for a specific class
+  const loadMaterials = async (classId) => {
+    if (!classId) return;
+    
+    try {
+      setLoadingMaterials(true);
+      const data = await getMaterialsByClass(classId);
+      
+      if (data.success) {
+        setMaterials(data.materials || []);
+      } else {
+        console.error('Failed to load materials:', data.message);
+        setMaterials([]);
+      }
+    } catch (error) {
+      console.error('Error loading materials:', error);
+      setMaterials([]);
+    } finally {
+      setLoadingMaterials(false);
+    }
+  };
+
+  // Load recordings for a class
+  const loadRecordings = async (classId) => {
+    if (!classId) return;
+    
+    try {
+      setLoadingRecordings(true);
+      const data = await getRecordingsByClass(classId);
+      
+      if (data.success) {
+        setRecordings(data.recordings || []);
+      } else {
+        console.error('Failed to load recordings:', data.message);
+        setRecordings([]);
+      }
+    } catch (error) {
+      console.error('Error loading recordings:', error);
+      setRecordings([]);
+    } finally {
+      setLoadingRecordings(false);
+    }
+  };
+
+  // Handle recording playback
+  const handleWatchRecording = (recording) => {
+    setSelectedRecording(recording);
+    setShowRecordingPlayer(true);
+  };
+
+  // Handle recording download with progress
+  const handleDownloadRecording = async (recording) => {
+    const userData = getUserData();
+    if (!userData || !userData.userid) {
+      alert('Please log in to download recordings');
+      return;
+    }
+
+    // Prevent multiple simultaneous downloads
+    if (downloadingRecordingId) {
+      setAlertBox({
+        open: true,
+        message: 'Please wait for the current download to complete',
+        type: 'warning',
+        title: 'Download in Progress'
+      });
+      return;
+    }
+
+    try {
+      setDownloadingRecordingId(recording.id);
+      setDownloadProgress(0);
+
+      // Show initial processing message
+      setAlertBox({
+        open: true,
+        message: '🔄 Creating watermarked video... This may take 5-10 minutes for large videos. Please be patient.',
+        type: 'info',
+        title: 'Processing Watermarks'
+      });
+
+      const studentName = userData.fullname || userData.fullName || userData.name || userData.firstName || userData.username || 'Student';
+      
+      // Simulate progress while waiting for backend
+      const progressInterval = setInterval(() => {
+        setDownloadProgress(prev => {
+          if (prev >= 90) return 90; // Cap at 90% until actual download completes
+          return prev + 5;
+        });
+      }, 300);
+
+      const blob = await downloadRecording(
+        recording.id,
+        userData.userid,
+        studentName
+      );
+
+      clearInterval(progressInterval);
+      setDownloadProgress(100);
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = recording.file_name || `recording_${recording.id}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setAlertBox({
+        open: true,
+        message: '✅ Recording downloaded successfully! Check your downloads folder.',
+        type: 'success',
+        title: 'Download Complete'
+      });
+
+      // Reset after a delay
+      setTimeout(() => {
+        setDownloadingRecordingId(null);
+        setDownloadProgress(0);
+      }, 2000);
+
+    } catch (error) {
+      console.error('Error downloading recording:', error);
+      setDownloadingRecordingId(null);
+      setDownloadProgress(0);
+      setAlertBox({
+        open: true,
+        message: error.message || 'Failed to download recording',
+        type: 'error',
+        title: 'Download Failed'
+      });
+    }
+  };
+
+  // Handle material download - Direct download, password required to open PDF
+  const handleDownloadMaterial = async (material) => {
+    const userData = getUserData();
+    if (!userData || !userData.userid) {
+      alert('Please log in to download materials');
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+
+      // Get student name with multiple fallbacks
+      const studentName = userData.fullname || userData.fullName || userData.name || userData.firstName || userData.username || 'Student';
+
+      // Call download API with student credentials
+      const blob = await downloadMaterial(
+        material.id,
+        userData.userid,
+        studentName
+      );
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = material.file_name || material.filename || `material_${material.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      // Show info message
+      alert(`Downloaded successfully!\n\nTo open this PDF, use your Student ID as the password:\n${userData.userid}`);
+      
+      // Reload materials to update download count
+      if (selectedClassForDetails) {
+        loadMaterials(selectedClassForDetails.id);
+      }
+    } catch (error) {
+      console.error('Error downloading material:', error);
+      alert(error.message || 'Failed to download material. Please try again.');
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -3224,53 +3468,64 @@ useEffect(() => {
                       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                         <FaFileAlt /> Course Materials
                       </h3>
-                      <div className="space-y-4">
-                        {/* Sample materials - in real app, this would come from teacher */}
-                        <div className="bg-white p-4 rounded-lg border">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <FaFilePdf className="text-red-500 text-xl" />
-                              <div>
-                                <div className="font-semibold">Physics Chapter 1 Notes</div>
-                                <div className="text-sm text-gray-500">PDF • 2.5 MB • Uploaded 2 days ago</div>
+                      
+                      {loadingMaterials ? (
+                        <div className="text-center py-8">
+                          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                          <p className="mt-2 text-gray-600">Loading materials...</p>
+                        </div>
+                      ) : materials.length === 0 ? (
+                        <div className="text-center py-8">
+                          <FaFileAlt className="mx-auto text-gray-400 text-4xl mb-2" />
+                          <p className="text-gray-500">No materials available yet.</p>
+                          <p className="text-sm text-gray-400 mt-1">Your teacher will upload course materials here.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {materials.map((material) => (
+                            <div key={material.id} className="bg-white p-4 rounded-lg border hover:shadow-md transition-shadow">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3 flex-1">
+                                  <FaFilePdf className="text-red-500 text-xl flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-semibold truncate">{material.title}</div>
+                                    <div className="text-sm text-gray-500">
+                                      {material.category && (
+                                        <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs mr-2">
+                                          {material.category}
+                                        </span>
+                                      )}
+                                      PDF • {(material.file_size / (1024 * 1024)).toFixed(2)} MB
+                                      {material.download_count > 0 && (
+                                        <span className="ml-2">• {material.download_count} downloads</span>
+                                      )}
+                                    </div>
+                                    <div className="text-xs text-gray-400 mt-1">
+                                      Uploaded {material.upload_date ? new Date(material.upload_date).toLocaleDateString() : 'Unknown'}
+                                    </div>
+                                  </div>
+                                </div>
+                                <button 
+                                  onClick={() => handleDownloadMaterial(material)}
+                                  disabled={isDownloading}
+                                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 transition-colors flex-shrink-0 ml-4"
+                                >
+                                  {isDownloading ? (
+                                    <>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                      Downloading...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <FaDownload /> Download
+                                    </>
+                                  )}
+                                </button>
                               </div>
                             </div>
-                            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                              <FaDownload /> Download
-                          </button>
-                          </div>
+                          ))}
                         </div>
-                        
-                        <div className="bg-white p-4 rounded-lg border">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <FaFileWord className="text-blue-500 text-xl" />
-                              <div>
-                                <div className="font-semibold">Practice Problems Set 1</div>
-                                <div className="text-sm text-gray-500">DOCX • 1.8 MB • Uploaded 1 week ago</div>
-                              </div>
-                            </div>
-                            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                              <FaDownload /> Download
-                          </button>
-                          </div>
-                        </div>
-                        
-                        <div className="bg-white p-4 rounded-lg border">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <FaFilePowerpoint className="text-orange-500 text-xl" />
-                              <div>
-                                <div className="font-semibold">Chapter 1 Presentation</div>
-                                <div className="text-sm text-gray-500">PPTX • 5.2 MB • Uploaded 3 days ago</div>
-                              </div>
-                            </div>
-                            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                              <FaDownload /> Download
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -3457,79 +3712,92 @@ useEffect(() => {
                       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                         <FaVideo /> Class Recordings
                       </h3>
+                      
+                      {/* Security Notice */}
+                      <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                        <div className="flex items-start">
+                          <FaShieldAlt className="text-yellow-600 mt-1 mr-3 flex-shrink-0" />
+                          <div>
+                            <h4 className="font-semibold text-yellow-800 mb-1">🔒 Protected Content Notice</h4>
+                            <p className="text-sm text-yellow-700">
+                              All videos are watermarked with your <strong>Student ID ({getUserData()?.userid})</strong> and name. 
+                              Unauthorized sharing, recording, or distribution is <strong>strictly prohibited</strong> and will be tracked.
+                              Your viewing activity is logged for security purposes.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
                       <div className="space-y-4">
-                        {/* Sample recordings - in real app, this would come from teacher */}
-                        <div className="bg-white p-4 rounded-lg border">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-3 flex-1">
-                              <div className="w-16 h-12 bg-gray-200 rounded flex items-center justify-center">
-                                <FaPlay className="text-gray-500" />
-                              </div>
-                              <div>
-                                <h4 className="font-semibold">Class 1: Introduction to Mechanics</h4>
-                                <div className="text-sm text-gray-500">Duration: 1h 25m • Recorded: Dec 1, 2025</div>
-                                <div className="text-xs text-gray-400 mt-1">Topics: Newton's Laws, Force, Motion</div>
+                        {loadingRecordings ? (
+                          <div className="text-center py-8">
+                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+                            <p className="mt-2 text-gray-600">Loading recordings...</p>
+                          </div>
+                        ) : recordings.length === 0 ? (
+                          <div className="text-center py-8 bg-white rounded-lg border">
+                            <FaVideo className="mx-auto text-4xl text-gray-400 mb-2" />
+                            <p className="text-gray-600">No recordings available yet</p>
+                            <p className="text-sm text-gray-400 mt-1">Your teacher hasn't uploaded any recordings for this class</p>
+                          </div>
+                        ) : (
+                          recordings.map((recording) => (
+                            <div key={recording.id} className="bg-white p-4 rounded-lg border hover:shadow-md transition-shadow">
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-center gap-3 flex-1">
+                                  <div className="w-16 h-12 bg-gradient-to-br from-red-500 to-purple-600 rounded flex items-center justify-center">
+                                    <FaPlay className="text-white" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <h4 className="font-semibold text-gray-900">{recording.title}</h4>
+                                    <div className="text-sm text-gray-500 mt-1">
+                                      {recording.duration && (
+                                        <>
+                                          Duration: {Math.floor(recording.duration / 60)}:{(recording.duration % 60).toString().padStart(2, '0')} min
+                                          {' • '}
+                                        </>
+                                      )}
+                                      Uploaded: {new Date(recording.upload_date).toLocaleDateString()}
+                                      {recording.category && (
+                                        <>
+                                          {' • '}
+                                          <span className="inline-block px-2 py-0.5 bg-gray-100 rounded text-xs">
+                                            {recording.category}
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
+                                    {recording.description && (
+                                      <p className="text-xs text-gray-400 mt-1 line-clamp-2">{recording.description}</p>
+                                    )}
+                                    <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                                      <span className="flex items-center gap-1">
+                                        <FaEye /> {recording.view_count || 0} views
+                                      </span>
+                                      <span className="flex items-center gap-1">
+                                        <FaDownload /> {recording.download_count || 0} downloads
+                                      </span>
+                                      {recording.file_size && (
+                                        <span>
+                                          Size: {(recording.file_size / (1024 * 1024)).toFixed(2)} MB
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex flex-col gap-2 ml-4">
+                                  <button 
+                                    onClick={() => handleWatchRecording(recording)}
+                                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2 whitespace-nowrap"
+                                  >
+                                    <FaPlay /> Watch
+                                  </button>
+                                  
+                                </div>
                               </div>
                             </div>
-                            <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2">
-                              <FaPlay /> Watch
-                            </button>
-                          </div>
-                        </div>
-                        
-                        <div className="bg-white p-4 rounded-lg border">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-3 flex-1">
-                              <div className="w-16 h-12 bg-gray-200 rounded flex items-center justify-center">
-                                <FaPlay className="text-gray-500" />
-                              </div>
-                              <div>
-                                <h4 className="font-semibold">Class 2: Kinematics and Dynamics</h4>
-                                <div className="text-sm text-gray-500">Duration: 1h 42m • Recorded: Dec 3, 2025</div>
-                                <div className="text-xs text-gray-400 mt-1">Topics: Velocity, Acceleration, Free Fall</div>
-                              </div>
-                            </div>
-                            <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2">
-                              <FaPlay /> Watch
-                            </button>
-                          </div>
-                        </div>
-                        
-                        <div className="bg-white p-4 rounded-lg border">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-3 flex-1">
-                              <div className="w-16 h-12 bg-gray-200 rounded flex items-center justify-center">
-                                <FaPlay className="text-gray-500" />
-                              </div>
-                              <div>
-                                <h4 className="font-semibold">Class 3: Energy and Work</h4>
-                                <div className="text-sm text-gray-500">Duration: 1h 18m • Recorded: Dec 5, 2025</div>
-                                <div className="text-xs text-gray-400 mt-1">Topics: Kinetic Energy, Potential Energy, Conservation</div>
-                              </div>
-                            </div>
-                            <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2">
-                              <FaPlay /> Watch
-                            </button>
-                          </div>
-                        </div>
-                        
-                        <div className="bg-white p-4 rounded-lg border">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-3 flex-1">
-                              <div className="w-16 h-12 bg-gray-200 rounded flex items-center justify-center">
-                                <FaPlay className="text-gray-500" />
-                              </div>
-                              <div>
-                                <h4 className="font-semibold">Review Session: Exam Preparation</h4>
-                                <div className="text-sm text-gray-500">Duration: 2h 15m • Recorded: Dec 7, 2025</div>
-                                <div className="text-xs text-gray-400 mt-1">Topics: Practice Problems, Q&A, Tips</div>
-                              </div>
-                            </div>
-                            <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2">
-                              <FaPlay /> Watch
-                            </button>
-                          </div>
-                        </div>
+                          ))
+                        )}
                       </div>
                       
                       <div className="mt-6 bg-blue-50 p-4 rounded-lg">
@@ -3551,6 +3819,229 @@ useEffect(() => {
         )}
       </div>
       
+      {/* Recording Player Modal */}
+      {showRecordingPlayer && selectedRecording && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className={`bg-white rounded-lg overflow-auto transition-all duration-300 ${
+            isMaximized 
+              ? 'w-screen h-screen m-0 rounded-none' 
+              : 'w-full max-w-5xl max-h-[90vh]'
+          }`}>
+            <div className="p-4 border-b flex items-center justify-between bg-gray-50">
+              <div className="flex-1">
+                <h2 className="text-xl font-bold">{selectedRecording.title}</h2>
+                {selectedRecording.description && (
+                  <p className="text-sm text-gray-600 mt-1">{selectedRecording.description}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsMaximized(!isMaximized)}
+                  className="text-gray-500 hover:text-gray-700 p-2 hover:bg-gray-200 rounded"
+                  title={isMaximized ? "Restore" : "Maximize"}
+                >
+                  {isMaximized ? (
+                    // Restore icon
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                    </svg>
+                  ) : (
+                    // Maximize icon
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowRecordingPlayer(false);
+                    setSelectedRecording(null);
+                    setIsMaximized(false);
+                  }}
+                  className="text-gray-500 hover:text-gray-700 text-2xl font-bold p-2 hover:bg-gray-200 rounded"
+                  title="Close"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <div className={`${isMaximized ? 'p-0' : 'p-4'}`}>
+              <div className={`bg-black overflow-hidden relative ${isMaximized ? 'h-[calc(100vh-180px)]' : 'rounded-lg'}`}>
+                <style>
+                  {`
+                    @keyframes moveWatermark {
+                      0% {
+                        top: 10%;
+                        left: 5%;
+                      }
+                      25% {
+                        top: 70%;
+                        left: 80%;
+                      }
+                      50% {
+                        top: 30%;
+                        left: 10%;
+                      }
+                      75% {
+                        top: 60%;
+                        left: 70%;
+                      }
+                      100% {
+                        top: 10%;
+                        left: 5%;
+                      }
+                    }
+                    
+                    @keyframes fadeWatermark {
+                      0%, 100% { opacity: 0.4; }
+                      50% { opacity: 0.7; }
+                    }
+                    
+                    .video-watermark-moving {
+                      position: absolute;
+                      color: rgba(255, 255, 255, 0.6);
+                      font-size: 18px;
+                      font-weight: bold;
+                      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+                      z-index: 2147483647;
+                      pointer-events: none;
+                      animation: moveWatermark 30s linear infinite, fadeWatermark 3s ease-in-out infinite;
+                      white-space: nowrap;
+                      background: rgba(0, 0, 0, 0.3);
+                      padding: 5px 10px;
+                      border-radius: 5px;
+                      backdrop-filter: blur(2px);
+                    }
+                    
+                    .video-watermark-corner {
+                      position: absolute;
+                      color: rgba(255, 255, 255, 0.5);
+                      font-size: 14px;
+                      font-weight: 600;
+                      text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+                      z-index: 2147483647;
+                      pointer-events: none;
+                      background: rgba(0, 0, 0, 0.2);
+                      padding: 4px 8px;
+                      border-radius: 4px;
+                      backdrop-filter: blur(2px);
+                    }
+                    
+                    .video-watermark-center {
+                      position: absolute;
+                      top: 50%;
+                      left: 50%;
+                      transform: translate(-50%, -50%) rotate(-25deg);
+                      color: rgba(255, 255, 255, 0.15);
+                      font-size: 48px;
+                      font-weight: bold;
+                      text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.5);
+                      z-index: 2147483646;
+                      pointer-events: none;
+                      letter-spacing: 8px;
+                    }
+                    
+                    /* Hide fullscreen button in video controls */
+                    video::-webkit-media-controls-fullscreen-button {
+                      display: none !important;
+                    }
+                    
+                    video::-moz-media-controls-fullscreen-button {
+                      display: none !important;
+                    }
+                  `}
+                </style>
+                
+                {/* Moving watermark with Student ID */}
+                <div className="video-watermark-moving">
+                  🎓 ID: {getUserData()?.userid || 'Unknown'} | {getUserData()?.fullname || getUserData()?.fullName || getUserData()?.name || getUserData()?.firstName || getUserData()?.username || 'Student'}
+                </div>
+                
+                {/* Top-left corner watermark */}
+                <div className="video-watermark-corner" style={{ top: '10px', left: '10px' }}>
+                  TCMS - Student ID: {getUserData()?.userid}
+                </div>
+                
+                {/* Top-right corner watermark */}
+                <div className="video-watermark-corner" style={{ top: '10px', right: '10px' }}>
+                  {getUserData()?.fullname || getUserData()?.fullName || getUserData()?.name || getUserData()?.firstName || getUserData()?.username || 'Student'}
+                </div>
+                
+                {/* Bottom-left corner watermark */}
+                <div className="video-watermark-corner" style={{ bottom: '50px', left: '10px' }}>
+                  © TCMS {new Date().getFullYear()}
+                </div>
+                
+                {/* Bottom-right corner watermark */}
+                <div className="video-watermark-corner" style={{ bottom: '50px', right: '10px' }}>
+                  {new Date().toLocaleDateString()}
+                </div>
+                
+                {/* Large center diagonal watermark - Student ID */}
+                <div className="video-watermark-center" style={{ 
+                  fontSize: '120px', 
+                  fontWeight: 'bold',
+                  opacity: '0.2',
+                  top: '40%'
+                }}>
+                  {getUserData()?.userid || 'STUDENT'}
+                </div>
+                
+                {/* Secondary center watermark - TCMS */}
+                <div className="video-watermark-center" style={{ 
+                  fontSize: '40px',
+                  opacity: '0.15',
+                  top: '55%'
+                }}>
+                  TCMS PROTECTED
+                </div>
+                
+                <video
+                  controls
+                  autoPlay
+                  className={`w-full ${isMaximized ? 'h-[calc(100vh-180px)]' : ''}`}
+                  controlsList="nodownload nofullscreen"
+                  disablePictureInPicture
+                  onContextMenu={(e) => e.preventDefault()}
+                  src={getStreamingUrl(
+                    selectedRecording.id,
+                    getUserData()?.userid || '',
+                    getUserData()?.fullname || getUserData()?.fullName || getUserData()?.name || getUserData()?.firstName || getUserData()?.username || 'Student'
+                  )}
+                  style={{ objectFit: isMaximized ? 'contain' : 'initial' }}
+                >
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+              <div className={`${isMaximized ? 'p-4' : ''} mt-4 grid grid-cols-2 gap-4 text-sm`}>
+                <div className="bg-gray-50 p-3 rounded">
+                  <span className="text-gray-600">Category:</span>
+                  <span className="ml-2 font-semibold">{selectedRecording.category || 'N/A'}</span>
+                </div>
+                <div className="bg-gray-50 p-3 rounded">
+                  <span className="text-gray-600">Duration:</span>
+                  <span className="ml-2 font-semibold">
+                    {selectedRecording.duration 
+                      ? `${Math.floor(selectedRecording.duration / 60)}:${(selectedRecording.duration % 60).toString().padStart(2, '0')}`
+                      : 'N/A'}
+                  </span>
+                </div>
+                <div className="bg-gray-50 p-3 rounded">
+                  <span className="text-gray-600">Uploaded:</span>
+                  <span className="ml-2 font-semibold">
+                    {new Date(selectedRecording.upload_date).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="bg-gray-50 p-3 rounded">
+                  <span className="text-gray-600">Views:</span>
+                  <span className="ml-2 font-semibold">{selectedRecording.view_count || 0}</span>
+                </div>
+              </div>
+                          </div>
+          </div>
+        </div>
+      )}
+
       {/* BasicAlertBox for user notifications */}
       <BasicAlertBox
         open={alertBox.open}
