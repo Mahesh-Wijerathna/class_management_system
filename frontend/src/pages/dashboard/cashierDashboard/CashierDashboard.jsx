@@ -3147,7 +3147,11 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
 
 export default function CashierDashboard() {
   const user = useMemo(() => getUserData(), []);
-  const [isLocked, setIsLocked] = useState(false);
+  // Initialize lock state from sessionStorage (persists during browser session, but cleared when tab is closed)
+  const [isLocked, setIsLocked] = useState(() => {
+    const savedLockState = sessionStorage.getItem('cashier_locked');
+    return savedLockState === 'true';
+  });
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [scanValue, setScanValue] = useState('');
@@ -3187,6 +3191,13 @@ export default function CashierDashboard() {
       setOpeningTime(currentTime);
     }
   }, []);
+
+  // Show unlock modal on mount if the session was locked
+  useEffect(() => {
+    if (isLocked) {
+      setShowUnlockModal(true);
+    }
+  }, []); // Run only once on mount
   
   // Student details modal state
   const [showStudentDetails, setShowStudentDetails] = useState(false);
@@ -3467,11 +3478,13 @@ export default function CashierDashboard() {
     } else {
       // If unlocked, lock immediately
       setIsLocked(true);
+      sessionStorage.setItem('cashier_locked', 'true');
     }
   };
 
   const handleUnlock = () => {
     setIsLocked(false);
+    sessionStorage.setItem('cashier_locked', 'false');
     setShowUnlockModal(false);
     // Focus back to scan input after unlocking
     setTimeout(() => {
