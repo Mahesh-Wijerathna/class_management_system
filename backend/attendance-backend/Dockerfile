@@ -1,14 +1,3 @@
-<<<<<<< HEAD
-FROM php:8.2-apache
-
-RUN docker-php-ext-install pdo pdo_mysql
-RUN a2enmod rewrite
-
-COPY php.ini /usr/local/etc/php/
-COPY src/ /var/www/html/
-
-WORKDIR /var/www/html
-=======
 FROM php:8.1-apache
 
 # Install system dependencies
@@ -57,4 +46,3 @@ EXPOSE 80
 
 # Start Apache
 CMD ["apache2-foreground"]
->>>>>>> cd7986cdf52ec46c7124c09f9dead86097a32995

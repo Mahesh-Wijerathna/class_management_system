@@ -8,6 +8,7 @@ import { FaUser, FaPhone, FaIdCard, FaCalendarAlt, FaVenusMars, FaGraduationCap,
 import { Formik } from 'formik';
 import JsBarcode from 'jsbarcode';
 import { register, saveBarcode } from '../../../api/auth';
+import { createPayment } from '../../../api/payments';
 
 // Helper to parse NIC (Sri Lankan)
 function parseNIC(nic) {
@@ -112,6 +113,7 @@ const PhysicalStudentRegisterTab = () => {
   const [registeredStudent, setRegisteredStudent] = useState(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [admissionFeeCollected, setAdmissionFeeCollected] = useState(false);
   const [alertConfig, setAlertConfig] = useState({
     open: false,
     message: '',
@@ -263,6 +265,32 @@ const PhysicalStudentRegisterTab = () => {
         } catch (error) {
           console.error('Failed to save barcode data:', error);
           // Don't fail the registration if barcode save fails
+        }
+        
+        // CRITICAL: Record admission fee payment if collected during registration
+        if (admissionFeeCollected) {
+          try {
+            const admissionFeePayload = {
+              paymentType: 'admission_fee',
+              paymentMethod: 'cash',
+              channel: 'physical',
+              studentId: response.userid,
+              amount: 5000, // Default admission fee amount
+              notes: 'Admission Fee - Collected during physical registration',
+            };
+            
+            const admissionFeeResult = await createPayment(admissionFeePayload);
+            
+            if (admissionFeeResult?.success) {
+              console.log('Admission fee payment recorded successfully');
+            } else {
+              console.error('Failed to record admission fee payment:', admissionFeeResult?.message);
+              // Don't fail the registration if admission fee recording fails
+            }
+          } catch (error) {
+            console.error('Error recording admission fee payment:', error);
+            // Don't fail the registration if admission fee recording fails
+          }
         }
         
         // Send welcome WhatsApp message
@@ -679,6 +707,7 @@ const PhysicalStudentRegisterTab = () => {
                           parentMobile: '',
                         });
                         setSummaryValues({});
+                        setAdmissionFeeCollected(false);
                       }}
                     >
                       Register Another Student
@@ -702,6 +731,30 @@ const PhysicalStudentRegisterTab = () => {
               <CustomTextField label="District" value={summaryValues.district} readOnly icon={FaUser} />
               <CustomTextField label="Parent Name" value={summaryValues.parentName} readOnly icon={FaUser} />
               <CustomTextField label="Parent Mobile Number" value={summaryValues.parentMobile} readOnly icon={FaPhone} />
+              
+              {/* Admission Fee Checkbox - OPTIONAL (only for physical/hybrid classes) */}
+              <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 mb-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={admissionFeeCollected}
+                    onChange={(e) => setAdmissionFeeCollected(e.target.checked)}
+                    className="mt-1 w-5 h-5 text-[#3da58a] border-2 border-gray-300 rounded focus:ring-2 focus:ring-[#3da58a] cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm font-semibold text-gray-800">
+                      Admission Fee Collected (Optional)
+                    </span>
+                    <p className="text-xs text-gray-600 mt-1">
+                      ✅ Check this ONLY if the student paid admission fee AND will enroll in Physical Only/Hybrid 1/Hybrid 2/Hybrid4 classes.
+                    </p>
+                    <p className="text-xs text-blue-700 mt-1 font-medium">
+                      ℹ️ Not required for Online Only/ Hybrid 3 students. Can be collected later via Cashier Dashboard.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
               <div className="flex gap-4 mt-2">
                 <CustomButton type="button" onClick={() => setStep(2)}>
                   Back

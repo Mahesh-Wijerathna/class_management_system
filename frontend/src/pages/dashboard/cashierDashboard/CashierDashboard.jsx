@@ -9,6 +9,29 @@ import { getActiveClasses } from '../../../api/classes';
 import PhysicalStudentRegisterTab from '../adminDashboard/PhysicalStudentRegisterTab';
 import BarcodeScanner from '../../../components/BarcodeScanner';
 
+// Add CSS animation for toast notification
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes slide-in-top {
+    from {
+      transform: translate(-50%, -100px);
+      opacity: 0;
+    }
+    to {
+      transform: translate(-50%, 0);
+      opacity: 1;
+    }
+  }
+  
+  .animate-slide-in-top {
+    animation: slide-in-top 0.4s ease-out forwards;
+  }
+`;
+if (!document.head.querySelector('[data-toast-styles]')) {
+  style.setAttribute('data-toast-styles', 'true');
+  document.head.appendChild(style);
+}
+
 const Section = React.memo(({ title, children, right }) => (
   <div className="bg-white rounded-md shadow p-4">
     <div className="flex items-center justify-between border-b pb-2 mb-3">
@@ -655,63 +678,84 @@ const PaymentHistoryModal = ({ student, payments, onClose }) => {
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredPayments.map((payment, idx) => (
-                <div 
-                  key={idx}
-                  className="bg-white rounded-lg border border-slate-200 hover:shadow-md transition-shadow p-4"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="text-lg font-semibold text-slate-800">
-                          {payment.class_name || payment.className || payment.description || 'Class Payment'}
+              {filteredPayments.map((payment, idx) => {
+                const paymentType = payment.payment_type || payment.paymentType || 'class_payment';
+                const isAdmissionFee = paymentType === 'admission_fee';
+                const className = payment.class_name || payment.className || '';
+                
+                // Display label with payment type
+                let displayLabel = '';
+                if (isAdmissionFee) {
+                  displayLabel = className ? `Admission Fee (${className})` : 'Admission Fee';
+                } else {
+                  displayLabel = className || payment.description || 'Class Payment';
+                }
+                
+                return (
+                  <div 
+                    key={idx}
+                    className="bg-white rounded-lg border border-slate-200 hover:shadow-md transition-shadow p-4"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            {isAdmissionFee && (
+                              <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-semibold">
+                                ADMISSION FEE
+                              </span>
+                            )}
+                            <div className="text-lg font-semibold text-slate-800">
+                              {displayLabel}
+                            </div>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(payment.status)}`}>
+                            {(payment.status || 'completed').toUpperCase()}
+                          </span>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(payment.status)}`}>
-                          {(payment.status || 'completed').toUpperCase()}
-                        </span>
+                        
+                        <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <div className="text-xs text-slate-500 mb-1">Transaction ID</div>
+                            <div className="font-medium text-slate-700">
+                              {payment.transaction_id || payment.transactionId || payment.id || '-'}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-slate-500 mb-1">Payment Date</div>
+                            <div className="font-medium text-slate-700">
+                              {formatDate(payment.date || payment.createdAt || payment.created_at)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-slate-500 mb-1">Payment Method</div>
+                            <div className="font-medium text-slate-700">
+                              {payment.payment_method || payment.paymentMethod || 'Cash'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {payment.notes && (
+                          <div className="mt-2 text-sm text-slate-600 bg-slate-50 rounded p-2">
+                            <span className="font-medium">Notes:</span> {payment.notes}
+                          </div>
+                        )}
                       </div>
                       
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <div className="text-xs text-slate-500 mb-1">Transaction ID</div>
-                          <div className="font-medium text-slate-700">
-                            {payment.transaction_id || payment.transactionId || payment.id || '-'}
-                          </div>
+                      <div className="text-right ml-4">
+                        <div className="text-2xl font-bold text-emerald-600">
+                          LKR {Number(payment.amount || 0).toFixed(2)}
                         </div>
-                        <div>
-                          <div className="text-xs text-slate-500 mb-1">Payment Date</div>
-                          <div className="font-medium text-slate-700">
-                            {formatDate(payment.date || payment.createdAt || payment.created_at)}
+                        {payment.discount && Number(payment.discount) > 0 && (
+                          <div className="text-xs text-orange-600 mt-1">
+                            Discount: LKR {Number(payment.discount).toFixed(2)}
                           </div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-slate-500 mb-1">Payment Method</div>
-                          <div className="font-medium text-slate-700">
-                            {payment.payment_method || payment.paymentMethod || 'Cash'}
-                          </div>
-                        </div>
+                        )}
                       </div>
-
-                      {payment.notes && (
-                        <div className="mt-2 text-sm text-slate-600 bg-slate-50 rounded p-2">
-                          <span className="font-medium">Notes:</span> {payment.notes}
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="text-right ml-4">
-                      <div className="text-2xl font-bold text-emerald-600">
-                        LKR {Number(payment.amount || 0).toFixed(2)}
-                      </div>
-                      {payment.discount && Number(payment.discount) > 0 && (
-                        <div className="text-xs text-orange-600 mt-1">
-                          Discount: LKR {Number(payment.discount).toFixed(2)}
-                        </div>
-                      )}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -2301,18 +2345,249 @@ const QuickPaymentModal = ({ student, classData, onClose, onSuccess }) => {
   );
 };
 
+// Admission Fee Warning Modal - Information popup when student hasn't paid admission fee
+const AdmissionFeeWarningModal = ({ onClose }) => {
+  const buttonRef = React.useRef(null);
+
+  React.useEffect(() => {
+    // Auto-focus the button when modal opens
+    buttonRef.current?.focus();
+
+    // Handle Enter key press
+    const handleKeyPress = (e) => {
+      if (e.key === 'Enter') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyPress);
+    return () => document.removeEventListener('keydown', handleKeyPress);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md m-4" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-6 py-5 rounded-t-xl">
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <span>⚠️</span>
+            <span>Admission Fee Not Paid</span>
+          </h2>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4">
+            <p className="text-slate-800 font-medium mb-3">
+              This student has not paid the admission fee yet.
+            </p>
+            <div className="space-y-2 text-sm text-slate-700">
+              <p className="flex items-start gap-2">
+                <span className="text-orange-600 font-bold">•</span>
+                <span><strong>Required for:</strong> Physical, Hybrid 1, Hybrid 2, Hybrid 4 classes</span>
+              </p>
+              <p className="flex items-start gap-2">
+                <span className="text-emerald-600 font-bold">•</span>
+                <span><strong>Not needed for:</strong> Online Only, Hybrid 3 classes</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm text-blue-900">
+              <strong>💡 Note:</strong> The admission fee can be collected via the Cashier Dashboard when the student enrolls in their first physical or hybrid class.
+            </p>
+          </div>
+
+          <button
+            ref={buttonRef}
+            onClick={onClose}
+            className="w-full py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg font-semibold hover:from-yellow-600 hover:to-orange-600 transition-all shadow-md focus:outline-none focus:ring-4 focus:ring-yellow-300"
+          >
+            OK, I Understand
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* REMOVED: Complex Admission Fee Payment Modal
+ * This modal was too complex - replaced with simple warning approach
+ * Admission fee is now collected through Quick Enrollment modal's 2-option payment system
+ * Kept here for reference/future use if needed
+ *
+// Admission Fee Payment Modal - MANDATORY for first physical/hybrid enrollment
+const AdmissionFeeModal = ({ student, onClose, onSuccess }) => {
+  const [admissionFee, setAdmissionFee] = useState(5000); // Default admission fee
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handlePayAdmissionFee = async () => {
+    if (isProcessing) return;
+
+    try {
+      setIsProcessing(true);
+
+      const studentIdForPayment = student.studentId || student.id;
+      
+      // Record admission fee payment in payment backend (ALWAYS CASH)
+      const payload = {
+        paymentType: 'admission_fee',
+        paymentMethod: 'cash',
+        channel: 'physical',
+        studentId: studentIdForPayment,
+        amount: admissionFee,
+        notes: 'Admission Fee - First time physical/hybrid enrollment',
+      };
+      
+      const paymentRes = await createPayment(payload);
+      
+      if (!paymentRes?.success) {
+        alert(paymentRes?.message || 'Failed to record admission fee payment');
+        setIsProcessing(false);
+        return;
+      }
+
+      alert(`✅ Admission Fee Collected: LKR ${admissionFee.toFixed(2)}\n\nStudent can now proceed with class enrollment.`);
+      onSuccess();
+    } catch (error) {
+      console.error('Admission fee payment error:', error);
+      alert(error?.message || 'Failed to process admission fee payment');
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60]" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md m-4" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-5 rounded-t-xl">
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <FaExclamationTriangle className="text-3xl" />
+            <span>Admission Fee Required</span>
+          </h2>
+          <div className="text-sm opacity-90 mt-1">
+            {student.firstName} {student.lastName} ({student.studentId || student.id})
+          </div>
+        </div>
+
+        <div className="p-6">
+          <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 mb-5">
+            <div className="flex items-start gap-3">
+              <FaExclamationTriangle className="text-yellow-600 text-xl mt-1 flex-shrink-0" />
+              <div className="flex-1">
+                <h3 className="font-bold text-yellow-900 mb-2">First Physical/Hybrid Class Enrollment</h3>
+                <p className="text-sm text-yellow-800">
+                  This student is enrolling in a physical or hybrid class for the first time. 
+                  <strong> Admission fee MUST be collected before proceeding.</strong>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Admission Fee Amount (LKR) *
+              </label>
+              <input
+                type="number"
+                value={admissionFee}
+                onChange={(e) => setAdmissionFee(Number(e.target.value))}
+                className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none text-lg font-semibold"
+                min="0"
+                step="100"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Payment Method
+              </label>
+              <div className="w-full px-4 py-3 bg-slate-100 border-2 border-slate-300 rounded-lg text-slate-600 font-semibold flex items-center gap-2">
+                <FaMoneyBill className="text-green-600 text-lg" />
+                <span>Cash Only</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 rounded-lg p-4 mt-5 border-2 border-slate-200">
+            <div className="flex items-center justify-between text-lg font-bold">
+              <span className="text-slate-700">Total to Collect:</span>
+              <span className="text-orange-600">LKR {admissionFee.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-slate-50 px-6 py-4 rounded-b-xl flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={isProcessing}
+            className="flex-1 px-6 py-3 bg-slate-300 text-slate-700 rounded-lg font-semibold hover:bg-slate-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handlePayAdmissionFee}
+            disabled={isProcessing || admissionFee <= 0}
+            className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg font-semibold hover:from-orange-700 hover:to-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isProcessing ? (
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Processing...
+              </div>
+            ) : (
+              `Collect LKR ${admissionFee.toFixed(2)}`
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+*/
+
 // Quick Enrollment Modal for FAST enrollment workflow
-const QuickEnrollmentModal = ({ student, studentEnrollments = [], onClose, onSuccess }) => {
+const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayments = [], onClose, onSuccess }) => {
   const [availableClasses, setAvailableClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [payNow, setPayNow] = useState(true);
   const [printReceipt, setPrintReceipt] = useState(true);
+  const [paymentOption, setPaymentOption] = useState('both'); // 'both', 'admission_only', 'defer'
+  const [admissionFee, setAdmissionFee] = useState(1000); // Default admission fee, but can be edited
+  
+  // Check if admission fee is required
+  const admissionFeePaid = studentPayments.some(payment => {
+    const paymentType = (payment.payment_type || payment.paymentType || '').toLowerCase();
+    return paymentType === 'admission_fee';
+  });
+  
+  // Check if selected class requires physical attendance
+  const requiresPhysicalAttendance = (deliveryMethod) => {
+    const method = (deliveryMethod || '').toLowerCase().trim();
+    return method === 'physical' || 
+           method === 'physical only' ||
+           method === 'hybrid 1' || 
+           method === 'hybrid 2' || 
+           method === 'hybrid 4' ||
+           method.includes('physical');
+  };
+  
+  const selectedClassNeedsAdmissionFee = selectedClass && 
+    !admissionFeePaid && 
+    requiresPhysicalAttendance(selectedClass.delivery_method || selectedClass.deliveryMethod);
 
   useEffect(() => {
     loadClasses();
   }, []);
+  
+  // Set default payment option when admission fee is required
+  useEffect(() => {
+    if (selectedClassNeedsAdmissionFee) {
+      setPaymentOption('both'); // Default to paying everything
+      setPayNow(true);
+    }
+  }, [selectedClassNeedsAdmissionFee]);
 
   const loadClasses = async () => {
     try {
@@ -2322,9 +2597,19 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], onClose, onSuc
       
       // Filter out classes the student is already enrolled in
       const enrolledClassIds = studentEnrollments.map(enr => enr.classId || enr.class_id);
-      const unenrolledClasses = classes.filter(cls => !enrolledClassIds.includes(cls.id));
+      let filteredClasses = classes.filter(cls => !enrolledClassIds.includes(cls.id));
       
-      setAvailableClasses(unenrolledClasses);
+      // Filter by student's stream - only show classes matching student's stream
+      const studentStream = student.stream;
+      if (studentStream) {
+        filteredClasses = filteredClasses.filter(cls => {
+          const classStream = cls.stream;
+          // Match exactly if stream is specified
+          return classStream === studentStream;
+        });
+      }
+      
+      setAvailableClasses(filteredClasses);
     } catch (error) {
       console.error('Failed to load classes:', error);
       alert('Failed to load available classes');
@@ -2352,6 +2637,21 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], onClose, onSuc
       // Only apply discount if enrolled in theory class
       const canGetDiscount = isRevisionClass && discountPrice > 0 && isEnrolledInTheory;
       const finalFee = canGetDiscount ? monthlyFee - discountPrice : monthlyFee;
+      
+      // Check if admission fee needs to be collected
+      const needsAdmissionFee = selectedClassNeedsAdmissionFee;
+      
+      // CRITICAL VALIDATION: Block enrollment if admission fee is required but not being collected
+      if (needsAdmissionFee && paymentOption === 'defer') {
+        alert('❌ ENROLLMENT BLOCKED!\n\nAdmission fee (LKR ' + admissionFee.toLocaleString() + ') must be collected before enrolling in physical/hybrid classes.\n\nYou can either:\n1. Pay admission fee + monthly fee (LKR ' + (admissionFee + finalFee).toLocaleString() + ')\n2. Pay admission fee only (LKR ' + admissionFee.toLocaleString() + ') and defer monthly fee');
+        setSubmitting(false);
+        return;
+      }
+      
+      // Calculate what's being paid
+      const payingAdmissionFee = needsAdmissionFee && (paymentOption === 'both' || paymentOption === 'admission_only');
+      const payingMonthlyFee = paymentOption === 'both' || (!needsAdmissionFee && payNow);
+      const totalAmount = (payingAdmissionFee ? admissionFee : 0) + (payingMonthlyFee ? finalFee : 0);
 
       const studentIdToUse = student.studentId || student.id;
 
@@ -2359,9 +2659,9 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], onClose, onSuc
       const enrollmentData = {
         student_id: studentIdToUse,
         class_id: selectedClass.id,
-        payment_status: payNow ? 'paid' : 'pending',
+        payment_status: payingMonthlyFee ? 'paid' : 'pending',
         total_fee: finalFee,
-        paid_amount: payNow ? finalFee : 0,
+        paid_amount: payingMonthlyFee ? finalFee : 0,
         status: 'active'
       };
       
@@ -2379,46 +2679,76 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], onClose, onSuc
         return;
       }
 
-      // STEP 2: If paying now, record the payment in financial records
-      if (payNow) {
-        const studentIdForPayment = studentIdToUse; // Use same ID as enrollment
+      // STEP 2: Record payments based on payment option
+      const studentIdForPayment = studentIdToUse;
+      
+      // Create admission fee payment if needed
+      if (payingAdmissionFee) {
+        const admissionPayload = {
+          paymentType: 'admission_fee',
+          paymentMethod: 'cash',
+          channel: 'physical',
+          studentId: studentIdForPayment,
+          classId: selectedClass.id, // Include classId for backend validation
+          amount: admissionFee,
+          notes: paymentOption === 'admission_only' 
+            ? 'Admission Fee - Monthly fee deferred' 
+            : 'Admission Fee - Collected with first month payment',
+        };
         
-        const payload = {
+        const admissionPaymentRes = await createPayment(admissionPayload);
+        
+        if (!admissionPaymentRes?.success) {
+          const errorMsg = admissionPaymentRes?.message || 'Unknown error';
+          console.error('❌ Admission fee payment failed:', errorMsg);
+          alert('Enrollment created but admission fee payment recording failed: ' + errorMsg + '\n\nPlease collect the admission fee manually.');
+          setSubmitting(false);
+          return;
+        }
+      }
+      
+      // Create class payment if paying monthly fee
+      if (payingMonthlyFee) {
+        const classPayload = {
           paymentType: 'class_payment',
           paymentMethod: 'cash',
           channel: 'physical',
           studentId: studentIdForPayment,
           classId: selectedClass.id,
           amount: finalFee,
-          notes: 'First month payment (enrollment)', // Changed from 'note' to 'notes'
+          notes: needsAdmissionFee 
+            ? 'First month payment (+ admission fee)' 
+            : 'First month payment (enrollment)',
         };
         
-        const paymentRes = await createPayment(payload);
+        const paymentRes = await createPayment(classPayload);
         
         if (!paymentRes?.success) {
-          alert('Enrollment created but payment recording failed: ' + (paymentRes?.message || 'Unknown error'));
+          alert('Enrollment created but class payment recording failed: ' + (paymentRes?.message || 'Unknown error'));
           onSuccess({ enrolled: true, paid: false });
           return;
         }
         
-        // Extract transaction ID - API might return it in different fields
+        // Extract transaction ID for receipt
         const transactionId = paymentRes?.transactionId || paymentRes?.data?.transactionId || paymentRes?.data?.transaction_id;
         
         // Print receipt if option is selected
-        if (printReceipt && transactionId) {
+        if (printReceipt && transactionId && totalAmount > 0) {
           const receiptData = {
             transactionId: transactionId,
-            amount: finalFee,
+            amount: totalAmount,
             paymentMethod: 'Cash',
-            notes: 'First month payment (enrollment)',
+            notes: payingAdmissionFee && payingMonthlyFee
+              ? `Class Fee: LKR ${finalFee.toLocaleString()} + Admission Fee: LKR ${admissionFee.toLocaleString()}`
+              : payingAdmissionFee
+              ? `Admission Fee Only: LKR ${admissionFee.toLocaleString()} (Monthly fee pending)`
+              : 'First month payment',
             originalFee: canGetDiscount && discountPrice > 0 ? monthlyFee : null,
             discount: canGetDiscount && discountPrice > 0 ? discountPrice : null
           };
           
-          // Get cashier name from user data
           const userData = getUserData();
           
-          // Print receipt using fast print function
           printPaymentReceipt({
             student: student,
             classData: {
@@ -2429,11 +2759,19 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], onClose, onSuc
             cashierName: userData?.name || 'Cashier'
           });
         }
-        
-        onSuccess({ enrolled: true, paid: true, amount: finalFee });
-      } else {
-        onSuccess({ enrolled: true, paid: false });
       }
+      
+      // Success message based on payment option
+      const successMessage = payingAdmissionFee && !payingMonthlyFee
+        ? `Admission fee collected (LKR ${admissionFee.toLocaleString()}). Monthly fee pending.`
+        : `Enrollment complete! Total paid: LKR ${totalAmount.toLocaleString()}`;
+      
+      onSuccess({ 
+        enrolled: true, 
+        paid: totalAmount > 0, 
+        amount: totalAmount,
+        message: successMessage
+      });
     } catch (error) {
       alert(error?.message || 'Enrollment failed');
       setSubmitting(false);
@@ -2565,28 +2903,103 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], onClose, onSuc
                 </div>
               </div>
 
+              {/* Admission Fee Required Box - Moved to top */}
+              {selectedClass && selectedClassNeedsAdmissionFee && (
+                <div className="bg-orange-50 border-2 border-orange-400 rounded-lg p-4 mb-5">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">⚠️</span>
+                    <div className="flex-1">
+                      <div className="font-bold text-orange-900 mb-1">Admission Fee Required</div>
+                      <div className="text-sm text-orange-800 mb-3">
+                        Choose a payment option below. Admission fee must be collected before enrollment.
+                      </div>
+                      
+                      {/* Editable Admission Fee Input */}
+                      <div className="mt-3 bg-white rounded-lg p-3 border-2 border-orange-300">
+                        <label className="block text-xs font-semibold text-slate-700 mb-2">
+                          Admission Fee Amount (LKR) *
+                        </label>
+                        <input
+                          type="number"
+                          value={admissionFee}
+                          onChange={(e) => setAdmissionFee(Number(e.target.value) || 0)}
+                          className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none font-semibold text-lg"
+                          min="0"
+                          step="100"
+                          placeholder="Enter admission fee amount"
+                        />
+                        <div className="text-xs text-slate-500 mt-1">
+                          💡 Default: LKR 1,000 (can be adjusted)
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Selected Class Summary */}
               {selectedClass && (
                 <div className="bg-blue-50 border-2 border-blue-300 rounded-xl p-5 mb-5">
                   <div className="text-center">
                     <div className="text-sm text-blue-700 font-medium mb-2">Selected Class</div>
-                    <div className="text-2xl font-bold text-blue-900 mb-2">{selectedClass.class_name}</div>
-                    {canGetSelectedDiscount ? (
-                      <div className="text-lg">
-                        <span className="text-slate-500 line-through">LKR {selectedClassFee.toLocaleString()}</span>
-                        <span className="mx-2">→</span>
-                        <span className="text-emerald-600 font-bold">LKR {finalFee.toLocaleString()}</span>
-                        <div className="text-xs text-orange-600 mt-1">Theory class discount applied</div>
-                      </div>
-                    ) : isRevision && selectedClassDiscount > 0 && !isEnrolledInSelectedTheory ? (
-                      <div>
-                        <div className="text-xl font-bold text-slate-700">LKR {selectedClassFee.toLocaleString()}/month</div>
-                        <div className="text-sm text-amber-600 mt-2 bg-amber-50 rounded-lg p-2 border border-amber-200">
-                          ⚠️ Student must enroll in the related theory class first to get the LKR {selectedClassDiscount.toLocaleString()} discount
+                    <div className="text-2xl font-bold text-blue-900 mb-3">{selectedClass.class_name}</div>
+                    
+                    {/* Fee Breakdown */}
+                    <div className="bg-white rounded-lg p-4 mb-3">
+                      <div className="space-y-2 text-sm">
+                        {/* Class Fee */}
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-600">Monthly Class Fee:</span>
+                          <span className="font-semibold text-slate-800">
+                            LKR {finalFee.toLocaleString()}
+                          </span>
                         </div>
+                        
+                        {/* Discount if applicable */}
+                        {canGetSelectedDiscount && (
+                          <div className="flex justify-between items-center text-green-600">
+                            <span>Theory Class Discount:</span>
+                            <span className="font-semibold">- LKR {selectedClassDiscount.toLocaleString()}</span>
+                          </div>
+                        )}
+                        
+                        {/* Admission Fee if applicable */}
+                        {selectedClassNeedsAdmissionFee && payNow && (
+                          <>
+                            <div className="border-t border-slate-200 my-2"></div>
+                            <div className="flex justify-between items-center text-orange-600">
+                              <span className="flex items-center gap-1">
+                                <span>⚠️</span>
+                                <span>Admission Fee (First Time):</span>
+                              </span>
+                              <span className="font-semibold">LKR {admissionFee.toLocaleString()}</span>
+                            </div>
+                            <div className="text-xs text-orange-600 text-left bg-orange-50 rounded p-2 mt-1">
+                              💡 One-time fee for physical/hybrid class access
+                            </div>
+                          </>
+                        )}
+                        
+                        {/* Total */}
+                        {payNow && (
+                          <>
+                            <div className="border-t-2 border-blue-300 my-2"></div>
+                            <div className="flex justify-between items-center text-lg">
+                              <span className="font-bold text-blue-900">Total Amount:</span>
+                              <span className="font-bold text-emerald-600">
+                                LKR {(finalFee + (selectedClassNeedsAdmissionFee ? admissionFee : 0)).toLocaleString()}
+                              </span>
+                            </div>
+                          </>
+                        )}
                       </div>
-                    ) : (
-                      <div className="text-xl font-bold text-emerald-600">LKR {finalFee.toLocaleString()}/month</div>
+                    </div>
+                    
+                    {/* Warning for theory enrollment */}
+                    {isRevision && selectedClassDiscount > 0 && !isEnrolledInSelectedTheory && (
+                      <div className="text-sm text-amber-600 bg-amber-50 rounded-lg p-3 border border-amber-200">
+                        ⚠️ Enroll in theory class first to get LKR {selectedClassDiscount.toLocaleString()} discount
+                      </div>
                     )}
                   </div>
                 </div>
@@ -2594,28 +3007,100 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], onClose, onSuc
 
               {/* Payment Options */}
               <div className="space-y-3 mb-5">
-                <label className="flex items-center gap-3 cursor-pointer bg-slate-50 rounded-lg p-4 hover:bg-slate-100 transition-colors border-2 border-transparent hover:border-emerald-300">
-                  <input
-                    type="checkbox"
-                    checked={payNow}
-                    onChange={(e) => setPayNow(e.target.checked)}
-                    className="w-5 h-5 text-emerald-600 rounded focus:ring-2 focus:ring-emerald-500"
-                  />
-                  <div className="flex items-center gap-2 flex-1">
-                    <span className="text-xl">💰</span>
-                    <div>
-                      <div className="font-semibold text-slate-700">Pay First Month Now</div>
-                      <div className="text-xs text-slate-600">Complete enrollment with immediate payment</div>
+                {selectedClassNeedsAdmissionFee ? (
+                  /* Admission Fee Required - Show 2 options */
+                  <>
+                    {/* Option 1: Pay Everything (Admission + Monthly) */}
+                    <label className={`flex items-center gap-3 cursor-pointer rounded-lg p-4 transition-colors border-2 ${
+                      paymentOption === 'both'
+                        ? 'bg-emerald-50 border-emerald-500 shadow-md'
+                        : 'bg-white border-slate-300 hover:border-emerald-300'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="paymentOption"
+                        value="both"
+                        checked={paymentOption === 'both'}
+                        onChange={(e) => setPaymentOption(e.target.value)}
+                        className="w-5 h-5 text-emerald-600"
+                      />
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className="text-xl">💰</span>
+                        <div>
+                          <div className="font-semibold text-slate-800">Pay Everything Now (Recommended)</div>
+                          <div className="text-xs text-slate-600">Admission Fee + First Month Fee</div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-emerald-600">
+                          LKR {(finalFee + admissionFee).toLocaleString()}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          ({finalFee.toLocaleString()} + {admissionFee.toLocaleString()})
+                        </div>
+                      </div>
+                    </label>
+                    
+                    {/* Option 2: Pay Admission Fee Only */}
+                    <label className={`flex items-center gap-3 cursor-pointer rounded-lg p-4 transition-colors border-2 ${
+                      paymentOption === 'admission_only'
+                        ? 'bg-blue-50 border-blue-500 shadow-md'
+                        : 'bg-white border-slate-300 hover:border-blue-300'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="paymentOption"
+                        value="admission_only"
+                        checked={paymentOption === 'admission_only'}
+                        onChange={(e) => setPaymentOption(e.target.value)}
+                        className="w-5 h-5 text-blue-600"
+                      />
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className="text-xl">🎟️</span>
+                        <div>
+                          <div className="font-semibold text-slate-800">Pay Admission Fee Only</div>
+                          <div className="text-xs text-slate-600">Defer monthly fee for later</div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-blue-600">
+                          LKR {admissionFee.toLocaleString()}
+                        </div>
+                        <div className="text-xs text-orange-600">
+                          + LKR {finalFee.toLocaleString()} pending
+                        </div>
+                      </div>
+                    </label>
+                  </>
+                ) : (
+                  /* Normal Case - No Admission Fee Required */
+                  <label className="flex items-center gap-3 cursor-pointer bg-slate-50 rounded-lg p-4 hover:bg-slate-100 transition-colors border-2 border-transparent hover:border-emerald-300">
+                    <input
+                      type="checkbox"
+                      checked={payNow}
+                      onChange={(e) => setPayNow(e.target.checked)}
+                      className="w-5 h-5 text-emerald-600 rounded focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <div className="flex items-center gap-2 flex-1">
+                      <span className="text-xl">💰</span>
+                      <div>
+                        <div className="font-semibold text-slate-700">Pay First Month Now</div>
+                        <div className="text-xs text-slate-600">Complete enrollment with immediate payment</div>
+                      </div>
                     </div>
-                  </div>
-                  {selectedClass && payNow && (
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-emerald-600">LKR {finalFee.toLocaleString()}</div>
-                    </div>
-                  )}
-                </label>
+                    {selectedClass && payNow && (
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-emerald-600">
+                          LKR {finalFee.toLocaleString()}
+                        </div>
+                      </div>
+                    )}
+                  </label>
+                )}
 
-                {payNow && (
+                {/* Print Receipt Option - Show when paying something */}
+                {((selectedClassNeedsAdmissionFee && (paymentOption === 'both' || paymentOption === 'admission_only')) || 
+                  (!selectedClassNeedsAdmissionFee && payNow)) && (
                   <label className="flex items-center gap-3 cursor-pointer bg-slate-50 rounded-lg p-3 hover:bg-slate-100 transition-colors ml-8">
                     <input
                       type="checkbox"
@@ -2723,9 +3208,27 @@ export default function CashierDashboard() {
   // Quick enrollment modal state
   const [showQuickEnroll, setShowQuickEnroll] = useState(false);
   
+  // REMOVED: Complex admission fee modal (no longer used)
+  // Admission fee collected through Quick Enrollment modal instead
+  
+  // Admission fee status tracking
+  const [admissionFeeStatus, setAdmissionFeeStatus] = useState(null); // 'paid', 'not_paid', or null
+  const [showAdmissionFeeWarning, setShowAdmissionFeeWarning] = useState(false);
+  
   // Class filter/search state
   const [classSearchTerm, setClassSearchTerm] = useState('');
-  const [selectedClassFilter, setSelectedClassFilter] = useState('all');
+  const [selectedClassFilter, setSelectedClassFilter] = useState('needPayment');
+  
+  // Toast notification state
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  
+  // Show toast notification
+  const showToast = useCallback((message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => {
+      setToast({ show: false, message: '', type: 'success' });
+    }, 3000); // Auto-hide after 3 seconds
+  }, []);
 
   // Memoize search handler to prevent input re-renders
   const handleSearchChange = useCallback((e) => {
@@ -2892,10 +3395,17 @@ export default function CashierDashboard() {
           break;
         case 'F9':
           e.preventDefault();
-      setStudent(null);
-      setEnrollments([]);
-      setPayments([]);
-      setError('');
+          setStudent(null);
+          setEnrollments([]);
+          setPayments([]);
+          setError('');
+          setAdmissionFeeStatus(null); // Reset admission fee status
+          // Scroll to top of page and focus student lookup input after clearing
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          setTimeout(() => {
+            scanInputRef.current?.focus();
+            scanInputRef.current?.select();
+          }, 300);
           break;
       }
     };
@@ -2969,6 +3479,44 @@ export default function CashierDashboard() {
     }, 100);
   };
 
+  // Helper function to check if delivery method requires physical attendance
+  const requiresPhysicalAttendance = (deliveryMethod) => {
+    const method = (deliveryMethod || '').toLowerCase().trim();
+    // Delivery methods that include physical attendance:
+    // - physical (Physical Only)
+    // - hybrid 1 (Physical + Online)
+    // - hybrid 2 (Physical + Recorded)
+    // - hybrid 4 (Physical + Online + Recorded)
+    // NOT required for: online, hybrid 3 (Online + Recorded only)
+    return method === 'physical' || 
+           method === 'physical only' ||
+           method === 'hybrid 1' || 
+           method === 'hybrid 2' || 
+           method === 'hybrid 4' ||
+           method.includes('physical');
+  };
+
+  // Helper function to check if student needs to pay admission fee
+  const checkAdmissionFeeRequired = async (studentId, currentEnrollments, allPayments) => {
+    // Check if student has any enrollments that require physical attendance
+    const hasPhysicalEnrollment = currentEnrollments.some(enr => {
+      const deliveryMethod = enr.delivery_method || enr.deliveryMethod || '';
+      return requiresPhysicalAttendance(deliveryMethod);
+    });
+    
+    // If no physical attendance enrollments, admission fee not required yet
+    if (!hasPhysicalEnrollment) return false;
+    
+    // Check if admission fee has already been paid
+    const admissionFeePaid = allPayments.some(payment => {
+      const paymentType = (payment.payment_type || payment.paymentType || '').toLowerCase();
+      return paymentType === 'admission_fee';
+    });
+    
+    // If physical enrollment exists but no admission fee paid = REQUIRED
+    return !admissionFeePaid;
+  };
+
   const loadStudentData = async (studentId) => {
     try {
       setLoading(true);
@@ -2979,6 +3527,7 @@ export default function CashierDashboard() {
       setStudent(profile);
       
       // Fetch enrollments from class backend
+      let transformedEnrollments = [];
       try {
         const enrollRes = await fetch(`http://localhost:8087/routes.php/get_enrollments_by_student?studentId=${studentId}`);
         if (enrollRes.ok) {
@@ -2986,7 +3535,7 @@ export default function CashierDashboard() {
           const enrollments = enrollData?.data || enrollData || [];
           
           // Transform snake_case to camelCase for consistency
-          const transformedEnrollments = enrollments.map(enr => ({
+          transformedEnrollments = enrollments.map(enr => ({
             ...enr,
             classId: enr.class_id || enr.classId,
             className: enr.class_name || enr.className,
@@ -3004,7 +3553,8 @@ export default function CashierDashboard() {
             startDate: enr.start_date || enr.startDate,
             endDate: enr.end_date || enr.endDate,
             maxStudents: enr.max_students || enr.maxStudents,
-            currentStudents: enr.current_students || enr.currentStudents
+            currentStudents: enr.current_students || enr.currentStudents,
+            paymentTrackingFreeDays: enr.payment_tracking_free_days || enr.paymentTrackingFreeDays || 7
           }));
           
           setEnrollments(transformedEnrollments);
@@ -3019,6 +3569,38 @@ export default function CashierDashboard() {
       const payRes = await getStudentPayments(studentId);
       const fetchedPayments = payRes?.data || payRes || [];
       setPayments(fetchedPayments);
+      
+      // Check admission fee payment status
+      const admissionFeePaid = fetchedPayments.some(payment => {
+        const paymentType = (payment.payment_type || payment.paymentType || '').toLowerCase();
+        return paymentType === 'admission_fee';
+      });
+      
+      // Check if student has physical/hybrid enrollments
+      const hasPhysicalEnrollment = transformedEnrollments.some(enr => {
+        const deliveryMethod = enr.delivery_method || enr.deliveryMethod || '';
+        return requiresPhysicalAttendance(deliveryMethod);
+      });
+      
+      // Set admission fee status for badge display
+      if (admissionFeePaid) {
+        // Student has paid admission fee - always show green "PAID" badge
+        setAdmissionFeeStatus('paid');
+      } else {
+        // Student has NOT paid admission fee - show yellow "NOT PAID" badge + warning
+        // This applies whether they have physical enrollments or not
+        setAdmissionFeeStatus('not_paid');
+        setTimeout(() => {
+          setShowAdmissionFeeWarning(true);
+        }, 500);
+      }
+      
+      // Check if admission fee is required - just show simple warning (not blocking)
+      const needsAdmissionFee = await checkAdmissionFeeRequired(studentId, transformedEnrollments, fetchedPayments);
+      if (needsAdmissionFee) {
+        // Show simple warning modal (non-blocking)
+        // User can collect admission fee through Quick Enrollment modal
+      }
       
       // Add to recent students
       if (profile) {
@@ -3068,11 +3650,29 @@ export default function CashierDashboard() {
 
   // Memoize the student panel to prevent unnecessary re-renders that cause input focus loss
   const studentPanelContent = useMemo(() => {
-    // Calculate total outstanding balance based on actual enrollment data
+    // Calculate total outstanding balance based on monthly recurring payments
+    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM format
+    
     const totalOutstanding = enrollments.reduce((total, enr) => {
-      const totalFee = Number(enr.totalFee || 0);
-      const paidAmount = Number(enr.paidAmount || 0);
-      const outstanding = totalFee - paidAmount;
+      const monthly = Number(enr.monthlyFee || enr.fee || 0);
+      const discountPrice = Number(enr.revisionDiscountPrice || 0);
+      const isRevisionClass = enr.courseType === 'revision';
+      
+      // Calculate final monthly fee after discount
+      const finalMonthlyFee = isRevisionClass && discountPrice > 0 ? monthly - discountPrice : monthly;
+      
+      // Check if this class has payment for current month
+      const hasPaymentThisMonth = (payments || []).some(p => {
+        const paymentDate = p.payment_date || p.date;
+        const paymentClassId = p.class_id || p.classId;
+        const paymentMonth = paymentDate ? paymentDate.slice(0, 7) : null;
+        return paymentMonth === currentMonth && 
+               Number(paymentClassId) === Number(enr.classId || enr.class_id) &&
+               (p.status === 'paid' || p.status === 'completed');
+      });
+      
+      // For monthly recurring: outstanding = monthly fee if not paid this month, else 0
+      const outstanding = hasPaymentThisMonth ? 0 : finalMonthlyFee;
       return total + outstanding;
     }, 0);
 
@@ -3110,6 +3710,20 @@ export default function CashierDashboard() {
                       <span className="flex items-center gap-1"><FaPhone className="text-xs" /> {student.mobile || student.phone || 'N/A'}</span>
                     </div>
                     <div className="text-sm text-slate-500 mt-1">{student.school || 'School not specified'}</div>
+                    
+                    {/* Admission Fee Status Badge */}
+                    {admissionFeeStatus === 'paid' && (
+                      <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-green-100 border border-green-300 rounded-full text-xs font-semibold text-green-700">
+                        <span>✓</span>
+                        <span>Admission Fee Paid</span>
+                      </div>
+                    )}
+                    {admissionFeeStatus === 'not_paid' && (
+                      <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-yellow-100 border border-yellow-400 rounded-full text-xs font-semibold text-yellow-800">
+                        <span>⚠️</span>
+                        <span>Admission Fee Required for Physical/Hybrid Classes</span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 {totalOutstanding > 0 && (
@@ -3200,58 +3814,106 @@ export default function CashierDashboard() {
                     // Calculate final fee after discount
                     const finalMonthlyFee = isRevisionClass && discountPrice > 0 ? monthly - discountPrice : monthly;
                     
-                    // Get total fee and paid amount from enrollment
-                    let totalFee = Number(enr.totalFee || 0);
+                    // Get paid amount from enrollment for display purposes
                     const paidAmount = Number(enr.paidAmount || 0);
                     
-                    // If totalFee is not set or is using original fee, recalculate with discount
-                    // This ensures outstanding calculation uses the correct discounted fee
-                    if (totalFee === monthly && isRevisionClass && discountPrice > 0) {
-                      totalFee = finalMonthlyFee;
-                    }
-                    
-                    const outstanding = totalFee - paidAmount; // Calculate actual outstanding
-                    const paymentStatus = enr.paymentStatus || 'pending';
-                    
-                    // Check if payment already made this month to prevent duplicates
+                    // Check if MONTHLY CLASS payment already made this month (EXCLUDE admission fee)
                     const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM format
                     const hasPaymentThisMonth = (payments || []).some(p => {
                       const paymentDate = p.payment_date || p.date;
                       const paymentClassId = p.class_id || p.classId;
                       const paymentMonth = paymentDate ? paymentDate.slice(0, 7) : null;
+                      const paymentType = p.payment_type || p.paymentType || 'class_payment';
+                      
+                      // CRITICAL: Only count CLASS payments, NOT admission fee payments
                       return paymentMonth === currentMonth && 
                              Number(paymentClassId) === Number(enr.classId) &&
-                             (p.status === 'paid' || p.status === 'completed');
+                             (p.status === 'paid' || p.status === 'completed') &&
+                             paymentType !== 'admission_fee'; // EXCLUDE admission fee
                     });
                     
-                    // Format next payment date
+                    // For monthly recurring payments: outstanding = monthly fee if not paid this month, else 0
+                    const outstanding = hasPaymentThisMonth ? 0 : finalMonthlyFee;
+                    
+                    // Calculate payment dates - Always 1st of the month
                     let nextDueDisplay = 'N/A';
-                    if (enr.nextPaymentDate) {
-                      try {
-                        const dueDate = new Date(enr.nextPaymentDate);
-                        const today = new Date();
-                        const diffTime = dueDate - today;
-                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        
-                        // Format: "Nov 1, 2025 (24 days)"
-                        nextDueDisplay = dueDate.toLocaleDateString('en-US', { 
-                          month: 'short', 
-                          day: 'numeric', 
-                          year: 'numeric' 
-                        });
-                        
-                        if (diffDays > 0) {
-                          nextDueDisplay += ` (${diffDays} days)`;
-                        } else if (diffDays === 0) {
-                          nextDueDisplay += ' (Today)';
+                    let gracePeriodDisplay = '';
+                    let finalDueDisplay = '';
+                    
+                    // Always show next payment date, regardless of outstanding balance
+                    // Monthly payments are ongoing, so next payment is always 1st of next month
+                    try {
+                      const today = new Date();
+                      const currentMonthIndex = today.getMonth();
+                      const currentYear = today.getFullYear();
+                      
+                      // Determine next payment date based on whether this month is paid
+                      let nextPaymentDate;
+                      if (hasPaymentThisMonth || outstanding <= 0) {
+                        // Already paid this month - next payment is 1st of next month
+                        nextPaymentDate = new Date(currentYear, currentMonthIndex + 1, 1);
+                      } else {
+                        // Not paid yet - payment due this month
+                        if (today.getDate() > 1) {
+                          // Past the 1st but not paid - next payment is 1st of next month
+                          nextPaymentDate = new Date(currentYear, currentMonthIndex + 1, 1);
                         } else {
-                          nextDueDisplay += ` (${Math.abs(diffDays)} days overdue)`;
+                          // It's the 1st today - payment due today
+                          nextPaymentDate = new Date(currentYear, currentMonthIndex, 1);
                         }
-                      } catch (e) {
-                        nextDueDisplay = enr.nextPaymentDate;
                       }
-                    } else if (outstanding <= 0) {
-                      nextDueDisplay = 'Paid in full';
+                      
+                      // Get grace period days from class payment tracking (default 7 days)
+                      const gracePeriodDays = enr.paymentTrackingFreeDays || 7;
+                      
+                      // Final due date is payment date + grace period
+                      const finalDueDate = new Date(nextPaymentDate);
+                      finalDueDate.setDate(finalDueDate.getDate() + gracePeriodDays);
+                      
+                      // Calculate days until next payment date
+                      const diffTime = nextPaymentDate - today;
+                      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                      
+                      // Calculate days until final due date
+                      const finalDiffTime = finalDueDate - today;
+                      const finalDiffDays = Math.ceil(finalDiffTime / (1000 * 60 * 60 * 24));
+                      
+                      // Format next payment date
+                      nextDueDisplay = nextPaymentDate.toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric', 
+                        year: 'numeric' 
+                      });
+                      
+                      if (diffDays > 0) {
+                        nextDueDisplay += ` (${diffDays} days)`;
+                      } else if (diffDays === 0) {
+                        nextDueDisplay += ' (Today)';
+                      } else {
+                        nextDueDisplay += ` (${Math.abs(diffDays)} days ago)`;
+                      }
+                      
+                      // Grace period display
+                      gracePeriodDisplay = `${gracePeriodDays} days grace period`;
+                      
+                      // Format final due date
+                      finalDueDisplay = finalDueDate.toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric', 
+                        year: 'numeric' 
+                      });
+                      
+                      if (finalDiffDays > 0) {
+                        finalDueDisplay += ` (${finalDiffDays} days)`;
+                      } else if (finalDiffDays === 0) {
+                        finalDueDisplay += ' (Today - Final Day!)';
+                      } else {
+                        finalDueDisplay += ` (${Math.abs(finalDiffDays)} days OVERDUE!)`;
+                      }
+                      
+                    } catch (e) {
+                      console.error('Error calculating payment dates:', e);
+                      nextDueDisplay = 'Error calculating date';
                     }
                     
                     return (
@@ -3306,11 +3968,30 @@ export default function CashierDashboard() {
                                 )}
                               </div>
                             </div>
-                            <div className="flex items-center gap-6 text-sm">
+                            <div className="flex flex-col gap-2 text-sm">
                               <div className={`flex items-center gap-1 ${outstanding > 0 ? 'text-slate-600' : 'text-green-600'}`}>
                                 <FaClock className="text-xs" />
-                                Next Due: <span className="font-medium">{nextDueDisplay}</span>
+                                <span className="font-semibold">Next Payment Due:</span> <span className="font-medium">{nextDueDisplay}</span>
                               </div>
+                              
+                              {gracePeriodDisplay && (
+                                <div className="flex items-center gap-1 text-blue-600 text-xs">
+                                  <FaClock className="text-xs" />
+                                  <span className="font-semibold">Grace Period:</span> <span className="font-medium">{gracePeriodDisplay}</span>
+                                </div>
+                              )}
+                              
+                              {finalDueDisplay && (
+                                <div className={`flex items-center gap-1 ${
+                                  finalDueDisplay.includes('OVERDUE') ? 'text-red-600' : 
+                                  finalDueDisplay.includes('Final Day') ? 'text-orange-600' : 
+                                  'text-purple-600'
+                                } text-xs font-semibold`}>
+                                  <FaExclamationTriangle className="text-xs" />
+                                  <span>Final Due Date:</span> <span className="font-bold">{finalDueDisplay}</span>
+                                </div>
+                              )}
+                              
                               {outstanding > 0 ? (
                                 <div className="flex items-center gap-1 text-orange-600">
                                   <FaExclamationTriangle className="text-xs" />
@@ -3336,10 +4017,119 @@ export default function CashierDashboard() {
                           ) : (
                             <button
                               className="flex-1 bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700 transition-colors"
-                              onClick={() => {
-                                // Open Quick Payment Modal
-                                setQuickPayClass(enr);
-                                setShowQuickPay(true);
+                              onClick={async () => {
+                                // CRITICAL: Check if this class requires physical attendance and admission fee is required
+                                const deliveryMethod = enr.delivery_method || enr.deliveryMethod || '';
+                                const needsPhysicalAttendance = requiresPhysicalAttendance(deliveryMethod);
+                                
+                                if (needsPhysicalAttendance) {
+                                  const needsAdmissionFee = await checkAdmissionFeeRequired(
+                                    student.studentId || student.id,
+                                    enrollments,
+                                    payments
+                                  );
+                                  
+                                  if (needsAdmissionFee) {
+                                    showToast('⚠️ Admission fee must be collected first before class payment!', 'error');
+                                    // Note: User should collect admission fee through Quick Enrollment modal
+                                    return; // BLOCK payment
+                                  }
+                                }
+                                
+                                // Proceed with payment if admission fee check passed
+                                // Direct payment without modal
+                                const studentId = student.studentId || student.id;
+                                const classId = enr.classId || enr.id;
+                                
+                                try {
+                                  // Calculate final fee with discount
+                                  const monthlyFee = Number(enr.monthlyFee || enr.fee || 0);
+                                  const discountPrice = Number(enr.revisionDiscountPrice || 0);
+                                  const isRevisionClass = enr.courseType === 'revision';
+                                  const finalFee = isRevisionClass && discountPrice > 0 ? monthlyFee - discountPrice : monthlyFee;
+                                  
+                                  // Create payment
+                                  const payload = {
+                                    paymentType: 'class_payment',
+                                    paymentMethod: 'cash',
+                                    channel: 'physical',
+                                    studentId: studentId,
+                                    classId: classId,
+                                    amount: finalFee,
+                                    notes: isRevisionClass && discountPrice > 0 
+                                      ? `Monthly fee payment (${discountPrice} revision discount applied)`
+                                      : 'Monthly fee payment',
+                                  };
+                                  
+                                  const res = await createPayment(payload);
+                                  
+                                  if (res?.success) {
+                                    // Update enrollment paid_amount in class backend
+                                    try {
+                                      const enrollmentUpdateRes = await fetch('http://localhost:8087/routes.php/update_enrollment_payment', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          student_id: studentId,
+                                          class_id: classId,
+                                          payment_amount: finalFee
+                                        })
+                                      });
+                                      const updateResult = await enrollmentUpdateRes.json();
+                                      if (!updateResult?.success) {
+                                        console.error('Failed to update enrollment:', updateResult);
+                                      }
+                                    } catch (e) {
+                                      console.error('Failed to update enrollment payment:', e);
+                                    }
+                                    
+                                    // Extract transaction ID
+                                    const transactionId = res?.transactionId || res?.data?.transactionId || res?.data?.transaction_id;
+                                    
+                                    // Print receipt automatically
+                                    if (transactionId) {
+                                      const receiptData = {
+                                        transactionId: transactionId,
+                                        amount: finalFee,
+                                        paymentMethod: 'Cash',
+                                        notes: payload.notes,
+                                        originalFee: isRevisionClass && discountPrice > 0 ? monthlyFee : null,
+                                        discount: isRevisionClass && discountPrice > 0 ? discountPrice : null
+                                      };
+                                      
+                                      // Get cashier name from user data
+                                      const userData = getUserData();
+                                      
+                                      // Print receipt
+                                      printPaymentReceipt({
+                                        student: student,
+                                        classData: enr,
+                                        paymentData: receiptData,
+                                        cashierName: userData?.name || 'Cashier'
+                                      });
+                                    }
+                                    
+                                    // Update KPIs
+                                    setKpis(prev => ({
+                                      ...prev,
+                                      totalToday: Number(prev.totalToday) + Number(finalFee),
+                                      receipts: Number(prev.receipts) + 1
+                                    }));
+                                    
+                                    // Add delay to ensure database transaction is fully committed
+                                    await new Promise(resolve => setTimeout(resolve, 1000));
+                                    
+                                    // Reload student to update enrollment balances and payments
+                                    await loadStudentData(studentId);
+                                    
+                                    // Show success toast notification
+                                    showToast(`Payment successful! LKR ${finalFee.toLocaleString()} paid for ${enr.className || enr.subject}`, 'success');
+                                  } else {
+                                    showToast(res?.message || 'Payment failed', 'error');
+                                  }
+                                } catch (e) {
+                                  showToast(e?.message || 'Payment failed', 'error');
+                                }
                               }}
                             >
                               ⚡ Pay Now
@@ -3470,33 +4260,47 @@ export default function CashierDashboard() {
             ) : (
               <>
                 <div className="text-xs font-semibold text-slate-700 mb-2">Recent Payments</div>
-                {recentPayments.map((p, idx) => (
-                  <div 
-                    key={idx} 
-                    className="bg-slate-50 rounded-lg p-2.5 border border-slate-200 hover:bg-slate-100 transition-colors"
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-slate-700 truncate flex-1 mr-2">
-                        {p.class_name || p.className || p.description || 'Class payment'}
-                      </span>
-                      <span className="text-xs font-bold text-emerald-600 whitespace-nowrap">
-                        LKR {Number(p.amount || 0).toFixed(2)}
-                      </span>
+                {recentPayments.map((p, idx) => {
+                  const paymentType = p.payment_type || p.paymentType || 'class_payment';
+                  const isAdmissionFee = paymentType === 'admission_fee';
+                  const className = p.class_name || p.className || '';
+                  
+                  // Display label: Show payment type clearly
+                  let displayLabel = '';
+                  if (isAdmissionFee) {
+                    displayLabel = className ? `Admission Fee (${className})` : 'Admission Fee';
+                  } else {
+                    displayLabel = className || p.description || 'Class Payment';
+                  }
+                  
+                  return (
+                    <div 
+                      key={idx} 
+                      className="bg-slate-50 rounded-lg p-2.5 border border-slate-200 hover:bg-slate-100 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-slate-700 truncate flex-1 mr-2">
+                          {displayLabel}
+                        </span>
+                        <span className="text-xs font-bold text-emerald-600 whitespace-nowrap">
+                          LKR {Number(p.amount || 0).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                          (p.status||'completed')==='completed' ? 'bg-green-100 text-green-700' :
+                          (p.status||'')==='pending' ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {(p.status || 'completed').toUpperCase()}
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          {p.date || p.created_at || p.createdAt || '-'}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                        (p.status||'completed')==='completed' ? 'bg-green-100 text-green-700' :
-                        (p.status||'')==='pending' ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
-                        {(p.status || 'completed').toUpperCase()}
-                      </span>
-                      <span className="text-[10px] text-slate-500">
-                        {p.date || p.created_at || p.createdAt || '-'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {paymentCount > 5 && (
                   <div className="text-center pt-2">
                     <div className="text-xs text-emerald-600 font-medium">
@@ -3510,7 +4314,7 @@ export default function CashierDashboard() {
         </div>
       </div>
     );
-  }, [payments]);
+  }, [student, loading, error, enrollments, payments, classSearchTerm, selectedClassFilter, handleSearchChange, handleClearSearch, handleFilterChange, admissionFeeStatus]);
 
   // Memoize tools panel
   const toolsPanelContent = useMemo(() => (
@@ -3830,6 +4634,7 @@ export default function CashierDashboard() {
         <QuickEnrollmentModal 
           student={student}
           studentEnrollments={enrollments}
+          studentPayments={payments}
           onClose={() => {
             setShowQuickEnroll(false);
             // Scroll to student panel when modal closes (Cancel button)
@@ -3845,22 +4650,28 @@ export default function CashierDashboard() {
           onSuccess={async (enrollmentData) => {
             // Refresh data after enrollment
             try {
-              // Update KPIs immediately
-              if (enrollmentData.paid) {
-                setKpis(prev => ({
-                  ...prev,
-                  totalToday: Number(prev.totalToday) + Number(enrollmentData.amount || 0),
-                  receipts: Number(prev.receipts) + 1
-                }));
+              // Update KPIs immediately for ALL payments (including admission fees)
+              if (enrollmentData.paid && enrollmentData.amount > 0) {
+                setKpis(prev => {
+                  const newTotal = Number(prev.totalToday) + Number(enrollmentData.amount);
+                  const newReceipts = Number(prev.receipts) + 1;
+                  return {
+                    ...prev,
+                    totalToday: newTotal,
+                    receipts: newReceipts
+                  };
+                });
                 
                 // Add delay to ensure database transaction is fully committed
-                // This is critical for payment records to be available
                 await new Promise(resolve => setTimeout(resolve, 1000));
               }
               
               // Reload student to get updated enrollments AND payments
               await loadStudentData(student.studentId || student.id);
-              alert('✅ Student enrolled successfully!');
+              
+              // Show success message with payment details
+              const successMsg = enrollmentData.message || '✅ Student enrolled successfully!';
+              alert(successMsg);
               
               // Scroll to student panel to show updated enrollment
               setTimeout(() => {
@@ -3875,6 +4686,43 @@ export default function CashierDashboard() {
             setShowQuickEnroll(false);
             // Focus back to scan input for next student
             focusBackToScan();
+          }}
+        />
+      )}
+
+      {/* Admission Fee Warning Modal */}
+      {showAdmissionFeeWarning && (
+        <AdmissionFeeWarningModal
+          onClose={() => {
+            setShowAdmissionFeeWarning(false);
+            // Scroll to Student Information + Cashier Tools area and keep it there
+            setTimeout(() => {
+              if (mainContentRef.current) {
+                // Scroll to top of the main content area
+                const elementPosition = mainContentRef.current.getBoundingClientRect().top + window.pageYOffset;
+                const offsetPosition = elementPosition - 80; // 80px offset for header
+                
+                window.scrollTo({
+                  top: offsetPosition,
+                  behavior: 'smooth'
+                });
+                
+                // Brief highlight effect to show focus
+                mainContentRef.current.style.transition = 'box-shadow 0.3s ease';
+                mainContentRef.current.style.boxShadow = '0 0 0 4px rgba(34, 197, 94, 0.3)';
+                setTimeout(() => {
+                  if (mainContentRef.current) {
+                    mainContentRef.current.style.boxShadow = '';
+                  }
+                }, 800);
+              }
+            }, 150);
+            // Focus back to scan input but DON'T scroll
+            setTimeout(() => {
+              if (scanInputRef.current) {
+                scanInputRef.current.focus({ preventScroll: true });
+              }
+            }, 200);
           }}
         />
       )}
@@ -3949,6 +4797,33 @@ export default function CashierDashboard() {
           onClose={() => setShowUnlockModal(false)}
           onUnlock={handleUnlock}
         />
+      )}
+      
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-[9999] animate-slide-in-top ${
+          toast.type === 'success' ? 'bg-gradient-to-r from-green-500 to-emerald-600' : 
+          toast.type === 'error' ? 'bg-gradient-to-r from-red-500 to-red-600' : 
+          'bg-gradient-to-r from-blue-500 to-blue-600'
+        } text-white px-6 py-4 rounded-lg shadow-2xl min-w-[320px] max-w-md`}>
+          <div className="flex items-center gap-3">
+            <div className="text-2xl">
+              {toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : 'ℹ️'}
+            </div>
+            <div className="flex-1">
+              <div className="font-semibold text-lg">{toast.type === 'success' ? 'Success!' : toast.type === 'error' ? 'Error!' : 'Info'}</div>
+              <div className="text-sm opacity-95">{toast.message}</div>
+            </div>
+            <button 
+              onClick={() => setToast({ show: false, message: '', type: 'success' })}
+              className="text-white hover:bg-white/20 rounded-full p-1 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

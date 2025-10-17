@@ -326,9 +326,19 @@ useEffect(() => {
       // Get free days from class configuration
       const freeDays = cls.paymentTrackingFreeDays || 7;
       
-      // INDUSTRY STANDARD: Next payment is always 1st of next month, regardless of when class was purchased
-      // This ensures consistent billing cycles and proper grace period calculation
-      const nextPaymentDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+      // INDUSTRY STANDARD: Next payment is always 1st of the month
+      // If we're on or before the 1st, payment is due this month. Otherwise, next month.
+      let nextPaymentDate;
+      if (today.getDate() === 1) {
+        // It's the 1st today - payment due today
+        nextPaymentDate = new Date(today.getFullYear(), today.getMonth(), 1);
+      } else if (today.getDate() > 1) {
+        // We're past the 1st - next payment is 1st of next month
+        nextPaymentDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+      } else {
+        // Before the 1st (shouldn't happen, but fallback)
+        nextPaymentDate = new Date(today.getFullYear(), today.getMonth(), 1);
+      }
       
       if (hasPaymentTracking) {
         // Payment tracking enabled: has grace period
@@ -368,11 +378,20 @@ useEffect(() => {
     
     // Check if there's a payment history
     if (!cls.paymentHistory || cls.paymentHistory.length === 0) {
+      // Calculate next payment date as 1st of current or next month
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth();
+      const currentDay = today.getDate();
+      const nextPaymentDate = currentDay === 1 
+        ? new Date(currentYear, currentMonth, 1)
+        : new Date(currentYear, currentMonth + 1, 1);
+      
       return { 
         canAccess: false, 
         status: 'no-payment', 
         message: 'No payment history - payment required',
-        paymentTrackingEnabled: hasPaymentTracking
+        paymentTrackingEnabled: hasPaymentTracking,
+        nextPaymentDate: nextPaymentDate
       };
     }
 
@@ -386,14 +405,37 @@ useEffect(() => {
     // Get free days from payment history or class configuration
     const freeDays = latestPayment.freeDays || cls.paymentTrackingFreeDays || 7;
     
-    // Use next payment date from payment history or calculate it
+    // Use next payment date - ALWAYS calculate as 1st of month (ignore backend nextPaymentDate)
+    // INDUSTRY STANDARD: Payment is always due on the 1st of each month
     let nextPaymentDate;
-    if (latestPayment.nextPaymentDate) {
-      nextPaymentDate = new Date(latestPayment.nextPaymentDate);
+    const currentDay = today.getDate();
+    
+    // Check if we've paid for this month
+    const paymentMonth = paymentDate.getMonth();
+    const paymentYear = paymentDate.getFullYear();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    
+    // If payment was made this month, next payment is 1st of next month
+    // Otherwise, if we're within grace period of current month's 1st, next payment is 1st of next month
+    // If we're past grace period, payment is overdue for this month
+    
+    if ((paymentYear === currentYear && paymentMonth === currentMonth)) {
+      // Paid this month - next payment is 1st of next month
+      nextPaymentDate = new Date(currentYear, currentMonth + 1, 1);
     } else {
-      // INDUSTRY STANDARD: Next payment is always 1st of next month, regardless of payment date
-      // This ensures consistent billing cycles and proper grace period calculation
-      nextPaymentDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+      // Haven't paid this month
+      const thisMonthFirst = new Date(currentYear, currentMonth, 1);
+      const gracePeriodEnd = new Date(thisMonthFirst);
+      gracePeriodEnd.setDate(gracePeriodEnd.getDate() + freeDays);
+      
+      if (today <= gracePeriodEnd) {
+        // Still in grace period for this month - payment due is this month's 1st
+        nextPaymentDate = thisMonthFirst;
+      } else {
+        // Past grace period - payment overdue, but next cycle is next month's 1st
+        nextPaymentDate = new Date(currentYear, currentMonth + 1, 1);
+      }
     }
     
     // Calculate grace period end date based on payment tracking setting
@@ -439,11 +481,15 @@ useEffect(() => {
     }
 
     // If we're past the grace period, payment is required
+    // Still show next payment date as 1st of next month
+    const nextMonthPaymentDate = new Date(currentYear, currentMonth + 1, 1);
+    
     return { 
       canAccess: false, 
       status: 'payment-required', 
       message: 'Payment required - grace period expired',
-      paymentTrackingEnabled: paymentTrackingEnabled
+      paymentTrackingEnabled: paymentTrackingEnabled,
+      nextPaymentDate: nextMonthPaymentDate
     };
   };
 
@@ -475,7 +521,7 @@ useEffect(() => {
       currentDay,
       isFreePeriod: currentDay <= freeDays,
       daysRemaining: Math.max(0, freeDays - currentDay + 1),
-      nextPaymentDate: cls.nextPaymentDate ? new Date(cls.nextPaymentDate) : trackingStatus.nextPaymentDate,
+      nextPaymentDate: trackingStatus.nextPaymentDate, // Always use calculated value (1st of month)
       lastPaymentDate: cls.paymentHistory && cls.paymentHistory.length > 0 
         ? new Date(cls.paymentHistory[cls.paymentHistory.length - 1].date) 
         : null,

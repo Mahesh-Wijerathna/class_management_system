@@ -51,27 +51,34 @@ class PaymentController {
             }
 
             // CRITICAL: Prevent duplicate payment for the same class in the same month
-            $currentMonth = date('Y-m');
-            $dupCheckStmt = $this->db->prepare("
-                SELECT COUNT(*) as payment_count, MAX(date) as last_payment 
-                FROM financial_records 
-                WHERE user_id = ? 
-                AND class_id = ? 
-                AND DATE_FORMAT(date, '%Y-%m') = ?
-                AND status = 'paid'
-                AND type = 'income'
-            ");
-            $dupCheckStmt->bind_param("sis", $studentId, $classId, $currentMonth);
-            $dupCheckStmt->execute();
-            $dupResult = $dupCheckStmt->get_result()->fetch_assoc();
+            // BUT: Only check for class_payment duplicates, NOT admission_fee (admission fee is one-time)
+            // IMPORTANT: Only apply duplicate check for class_payment type, not admission_fee
+            $paymentType = $data['paymentType'] ?? 'class_payment';
             
-            if ($dupResult && $dupResult['payment_count'] > 0) {
-                error_log("DUPLICATE_PAYMENT_BLOCKED: Student $studentId attempted duplicate payment for class $classId in month $currentMonth");
-                return [
-                    'success' => false,
-                    'message' => 'Payment for this class has already been made this month (Last payment: ' . $dupResult['last_payment'] . '). Please wait until next month.',
-                    'error_code' => 'DUPLICATE_PAYMENT_BLOCKED'
-                ];
+            if ($paymentType === 'class_payment') {
+                $currentMonth = date('Y-m');
+                $dupCheckStmt = $this->db->prepare("
+                    SELECT COUNT(*) as payment_count, MAX(date) as last_payment 
+                    FROM financial_records 
+                    WHERE user_id = ? 
+                    AND class_id = ? 
+                    AND DATE_FORMAT(date, '%Y-%m') = ?
+                    AND status = 'paid'
+                    AND type = 'income'
+                    AND payment_type = 'class_payment'
+                ");
+                $dupCheckStmt->bind_param("sis", $studentId, $classId, $currentMonth);
+                $dupCheckStmt->execute();
+                $dupResult = $dupCheckStmt->get_result()->fetch_assoc();
+                
+                if ($dupResult && $dupResult['payment_count'] > 0) {
+                    error_log("DUPLICATE_PAYMENT_BLOCKED: Student $studentId attempted duplicate payment for class $classId in month $currentMonth");
+                    return [
+                        'success' => false,
+                        'message' => 'Payment for this class has already been made this month (Last payment: ' . $dupResult['last_payment'] . '). Please wait until next month.',
+                        'error_code' => 'DUPLICATE_PAYMENT_BLOCKED'
+                    ];
+                }
             }
 
             // Use the final amount calculated by frontend (includes all discounts and fees)
@@ -81,8 +88,8 @@ class PaymentController {
             $stmt = $this->db->prepare("
                 INSERT INTO financial_records (
                     transaction_id, date, type, category, person_name, user_id, person_role,
-                    class_name, class_id, amount, status, payment_method, reference_number, notes, created_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    class_name, class_id, amount, status, payment_method, reference_number, notes, created_by, payment_type
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
             $date = date('Y-m-d');
@@ -113,9 +120,9 @@ class PaymentController {
                 $notes = $baseNotes . (empty($baseNotes) ? '' : ' | ') . implode(', ', $studentDetails);
             }
 
-            $stmt->bind_param("ssssssssidsssss", 
+            $stmt->bind_param("ssssssssidssssss", 
                 $transactionId, $date, $type, $category, $personName, $userId, $personRole,
-                $className, $classId, $finalAmount, $status, $paymentMethod, $referenceNumber, $notes, $studentId
+                $className, $classId, $finalAmount, $status, $paymentMethod, $referenceNumber, $notes, $studentId, $paymentType
             );
 
             if (!$stmt->execute()) {
@@ -494,7 +501,7 @@ class PaymentController {
     // Get student's payment history
     public function getStudentPayments($studentId) {
         try {
-            // Get payments from financial_records table
+            // Get payments from financial_records table (INCLUDING admission_fee payments)
             $stmt = $this->db->prepare("
                 SELECT 
                     fr.transaction_id,
@@ -505,7 +512,8 @@ class PaymentController {
                     fr.status,
                     fr.reference_number,
                     fr.user_id,
-                    fr.class_id
+                    fr.class_id,
+                    fr.payment_type
                 FROM financial_records fr
                 WHERE fr.user_id = ?
                 ORDER BY fr.date DESC
@@ -517,12 +525,17 @@ class PaymentController {
 
             $payments = [];
             while ($row = $result->fetch_assoc()) {
-                // Get class details from class backend
-                if (isset($row['class_id'])) {
+                // Get class details from class backend (if class_id exists)
+                if (isset($row['class_id']) && $row['class_id']) {
                     $classDetails = $this->getClassFromClassBackend($row['class_id']);
                     if ($classDetails) {
                         $row['subject'] = $classDetails['subject'] ?? '';
                         $row['teacher'] = $classDetails['teacher'] ?? '';
+                        
+                        // If class_name is empty but we have class details, set it
+                        if (empty($row['class_name']) && isset($classDetails['className'])) {
+                            $row['class_name'] = $classDetails['className'];
+                        }
                     }
                 }
                 $payments[] = $row;
@@ -644,6 +657,7 @@ class PaymentController {
                     fr.amount,
                     fr.status,
                     fr.payment_method,
+                    fr.payment_type,
                     fr.reference_number,
                     fr.notes
                 FROM financial_records fr
@@ -666,6 +680,7 @@ class PaymentController {
                     'amount' => $row['amount'],
                     'status' => $row['status'],
                     'payment_method' => $row['payment_method'],
+                    'payment_type' => $row['payment_type'],
                     'reference_number' => $row['reference_number'],
                     'notes' => $row['notes']
                 ];

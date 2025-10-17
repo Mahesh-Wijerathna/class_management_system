@@ -660,24 +660,46 @@ const ClassPayments = () => {
       key: 'paymentStatus',
       label: 'Payment Status',
       render: (row) => {
+        // Determine row type and payment status
+        const rowType = row.row_type || 'class_payment';
+        const isAdmissionFee = rowType === 'admission_fee';
+        
         // Get payment method from payment backend data
         let paymentMethod = 'Unknown';
         const classData = selectedClass?.payments || [];
         const studentPayments = classData.filter(payment => payment.user_id === row.student_id);
         
-        if (studentPayments.length > 0) {
-          const method = studentPayments[0].payment_method?.toLowerCase() || 'unknown';
-          paymentMethod = method === 'cash' ? 'Cash' : 
-                         method === 'online' ? 'Online' : 
-                         method === 'card' ? 'Card' : 
-                         method;
+        if (isAdmissionFee) {
+          // For admission fee row, get payment method from admission fee payment
+          const admissionPayment = studentPayments.find(p => 
+            (p.payment_type || '').toLowerCase() === 'admission_fee'
+          );
+          if (admissionPayment) {
+            const method = admissionPayment.payment_method?.toLowerCase() || 'unknown';
+            paymentMethod = method === 'cash' ? 'Cash' : 
+                           method === 'online' ? 'Online' : 
+                           method === 'card' ? 'Card' : 
+                           method;
+          }
         } else {
-          // Fallback to enrollment payment_method
-          const method = row.payment_method?.toLowerCase() || 'unknown';
-          paymentMethod = method === 'cash' ? 'Cash' : 
-                         method === 'online' ? 'Online' : 
-                         method === 'card' ? 'Card' : 
-                         method;
+          // For class payment row, get payment method from class payments
+          const classPayments = studentPayments.filter(p => 
+            (p.payment_type || '').toLowerCase() !== 'admission_fee'
+          );
+          if (classPayments.length > 0) {
+            const method = classPayments[0].payment_method?.toLowerCase() || 'unknown';
+            paymentMethod = method === 'cash' ? 'Cash' : 
+                           method === 'online' ? 'Online' : 
+                           method === 'card' ? 'Card' : 
+                           method;
+          } else {
+            // Fallback to enrollment payment_method
+            const method = row.payment_method?.toLowerCase() || 'unknown';
+            paymentMethod = method === 'cash' ? 'Cash' : 
+                           method === 'online' ? 'Online' : 
+                           method === 'card' ? 'Card' : 
+                           method;
+          }
         }
 
         return (
@@ -691,6 +713,13 @@ const ClassPayments = () => {
                  row.payment_status || 'Not specified'}
               </span>
             </div>
+            {isAdmissionFee && (
+              <div className="flex justify-center">
+                <span className="px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                  ADMISSION FEE
+                </span>
+              </div>
+            )}
             <div className="flex justify-center">
               <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                 paymentMethod === 'Cash' ? 'bg-green-100 text-green-700' :
@@ -709,12 +738,36 @@ const ClassPayments = () => {
       key: 'amount',
       label: 'Amount',
       render: (row) => {
+        // Determine row type
+        const rowType = row.row_type || 'class_payment';
+        const isAdmissionFee = rowType === 'admission_fee';
+        
         // Get payment data from payment backend
         const classData = selectedClass?.payments || [];
         const studentPayments = classData.filter(payment => payment.user_id === row.student_id);
         
-        const fee = parseFloat(row.fee || 0);
-        const paid = studentPayments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
+        let fee = 0;
+        let paid = 0;
+        
+        if (isAdmissionFee) {
+          // For admission fee row: show admission fee amount as both fee and paid
+          const admissionPayment = studentPayments.find(p => 
+            (p.payment_type || '').toLowerCase() === 'admission_fee'
+          );
+          if (admissionPayment) {
+            fee = parseFloat(admissionPayment.amount || 0);
+            paid = parseFloat(admissionPayment.amount || 0); // Admission fee is fully paid
+          }
+        } else {
+          // For class payment row: show monthly fee and paid amount (excluding admission fees)
+          fee = parseFloat(row.fee || 0);
+          paid = studentPayments
+            .filter(payment => {
+              const paymentType = (payment.payment_type || '').toLowerCase();
+              return paymentType !== 'admission_fee'; // Only count class payments
+            })
+            .reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
+        }
         
         return (
           <div className="flex flex-col space-y-1">
@@ -1054,7 +1107,7 @@ const ClassPayments = () => {
                         </span>
                       )}
                       <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-full">
-                        {selectedClass.enrollments.length} students shown
+                        {selectedClass.enrollments.length} student{selectedClass.enrollments.length !== 1 ? 's' : ''} shown
                       </span>
                     </div>
                   )}
@@ -1113,12 +1166,60 @@ const ClassPayments = () => {
               })()}
               
               {/* Students Table */}
-              <BasicTable
-                columns={studentColumns}
-                data={selectedClass.enrollments}
-                actions={studentActions}
-                className=""
-              />
+              {(() => {
+                // Transform enrollments to show separate rows for admission fees
+                const expandEnrollmentsWithAdmissionFees = (enrollments, allPayments) => {
+                  const expandedData = [];
+                  
+                  enrollments.forEach(enrollment => {
+                    // Get all payments for this student in this class
+                    const studentPayments = allPayments.filter(
+                      payment => payment.user_id == enrollment.student_id && payment.class_id == enrollment.class_id
+                    );
+                    
+                    // Check if student has paid admission fee
+                    const admissionFeePayment = studentPayments.find(
+                      payment => (payment.payment_type || '').toLowerCase() === 'admission_fee'
+                    );
+                    
+                    // If admission fee exists, add it as a separate row
+                    if (admissionFeePayment) {
+                      expandedData.push({
+                        ...enrollment,
+                        payment_type: 'admission_fee',
+                        row_type: 'admission_fee',
+                        payment_status: 'paid',
+                        monthly_fee: parseFloat(admissionFeePayment.amount || 0),
+                        admission_fee_amount: parseFloat(admissionFeePayment.amount || 0)
+                      });
+                    }
+                    
+                    // Add monthly fee row (original enrollment)
+                    expandedData.push({
+                      ...enrollment,
+                      payment_type: 'class_payment',
+                      row_type: 'class_payment',
+                      // Keep original payment status for monthly fee
+                    });
+                  });
+                  
+                  return expandedData;
+                };
+                
+                const expandedEnrollments = expandEnrollmentsWithAdmissionFees(
+                  selectedClass.enrollments,
+                  selectedClass.payments || []
+                );
+                
+                return (
+                  <BasicTable
+                    columns={studentColumns}
+                    data={expandedEnrollments}
+                    actions={studentActions}
+                    className=""
+                  />
+                );
+              })()}
               
               <div className="mt-6 flex justify-end">
                 <button

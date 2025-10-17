@@ -1,13 +1,9 @@
 RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-<<<<<<< HEAD
-RewriteRule ^(.*)$ index.php [QSA,L]
-=======
 RewriteRule ^(.*)$ index.php [QSA,L]
 
 # Ensure PHP files are processed
 <Files "*.php">
     SetHandler application/x-httpd-php
 </Files>
->>>>>>> cd7986cdf52ec46c7124c09f9dead86097a32995
