@@ -159,14 +159,118 @@ class AttendanceController {
                 $resolvedUserId = $decoded;
             }
 
-            // Check enrollments in class DB
+            // Check enrollments in class DB with enhanced payment logic
             if ($this->classConn) {
-                $q = "SELECT 1 FROM enrollments WHERE student_id = ? AND class_id = ? LIMIT 1";
+                // Get enrollment and class data
+                $q = "SELECT e.payment_status, e.paid_amount, e.total_fee, e.next_payment_date, 
+                             c.payment_tracking, c.payment_tracking_free_days
+                      FROM enrollments e
+                      JOIN classes c ON e.class_id = c.id
+                      WHERE e.student_id = ? AND e.class_id = ? LIMIT 1";
                 if ($s = $this->classConn->prepare($q)) {
                     $s->bind_param('si', $resolvedUserId, $classId);
                     $s->execute();
-                    $exists = $s->get_result()->fetch_assoc();
-                    return ['success' => true, 'enrolled' => (bool)$exists];
+                    $result = $s->get_result()->fetch_assoc();
+                    
+                    if (!$result) {
+                        return ['success' => true, 'enrolled' => false, 'reason' => 'not_enrolled'];
+                    }
+                    
+                    $paymentStatus = $result['payment_status'];
+                    $paidAmount = floatval($result['paid_amount']);
+                    $totalFee = floatval($result['total_fee']);
+                    $nextPaymentDate = $result['next_payment_date'];
+                    $paymentTracking = $result['payment_tracking'];
+                    $freeDays = intval($result['payment_tracking_free_days'] ?? 7);
+                    
+                    // SPECIAL CASE 1: Free Card (overdue) - Always allow access
+                    if ($paymentStatus === 'overdue') {
+                        return [
+                            'success' => true, 
+                            'enrolled' => true,
+                            'payment_status' => 'overdue',
+                            'reason' => 'free_card',
+                            'message' => 'Free Card - No payment required'
+                        ];
+                    }
+                    
+                    // SPECIAL CASE 2: Half Card (partial) - Check if 50% is paid
+                    if ($paymentStatus === 'partial') {
+                        $halfFee = $totalFee / 2;
+                        $hasPaidHalf = $paidAmount >= $halfFee;
+                        return [
+                            'success' => true, 
+                            'enrolled' => $hasPaidHalf,
+                            'payment_status' => 'partial',
+                            'reason' => $hasPaidHalf ? 'half_card_paid' : 'half_payment_required',
+                            'message' => $hasPaidHalf ? 'Half Card - 50% paid' : 'Half Card - 50% payment required',
+                            'paid_amount' => $paidAmount,
+                            'required_amount' => $halfFee
+                        ];
+                    }
+                    
+                    // STANDARD CASE: Check payment status with grace period
+                    if ($paymentStatus === 'paid') {
+                        // Check if within grace period
+                        $today = new DateTime();
+                        $nextPayment = $nextPaymentDate ? new DateTime($nextPaymentDate) : null;
+                        
+                        if ($nextPayment) {
+                            // Parse payment tracking
+                            $hasPaymentTracking = false;
+                            if (is_string($paymentTracking)) {
+                                $trackingData = json_decode($paymentTracking, true);
+                                $hasPaymentTracking = isset($trackingData['enabled']) ? $trackingData['enabled'] : false;
+                            } else if (is_array($paymentTracking)) {
+                                $hasPaymentTracking = isset($paymentTracking['enabled']) ? $paymentTracking['enabled'] : false;
+                            }
+                            
+                            // Calculate grace period end date
+                            $gracePeriodEnd = clone $nextPayment;
+                            if ($hasPaymentTracking) {
+                                // Payment tracking enabled: add free days
+                                $gracePeriodEnd->modify("+{$freeDays} days");
+                            }
+                            
+                            // Check if within grace period
+                            if ($today <= $gracePeriodEnd) {
+                                return [
+                                    'success' => true, 
+                                    'enrolled' => true,
+                                    'payment_status' => 'paid',
+                                    'reason' => 'within_grace_period',
+                                    'grace_period_end' => $gracePeriodEnd->format('Y-m-d'),
+                                    'days_remaining' => $today->diff($gracePeriodEnd)->days
+                                ];
+                            } else {
+                                // Grace period expired
+                                return [
+                                    'success' => true, 
+                                    'enrolled' => false,
+                                    'payment_status' => 'paid',
+                                    'reason' => 'grace_period_expired',
+                                    'message' => 'Payment required - grace period expired'
+                                ];
+                            }
+                        }
+                        
+                        // No next payment date, allow access
+                        return [
+                            'success' => true, 
+                            'enrolled' => true,
+                            'payment_status' => 'paid',
+                            'reason' => 'paid_no_expiry'
+                        ];
+                    }
+                    
+                    // PENDING/OTHER: Payment required
+                    return [
+                        'success' => true, 
+                        'enrolled' => false,
+                        'payment_status' => $paymentStatus,
+                        'reason' => 'payment_required',
+                        'message' => 'Payment required'
+                    ];
                 }
             }
 

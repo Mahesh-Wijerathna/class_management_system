@@ -1751,12 +1751,25 @@ useEffect(() => {
     }
 
       const studentId = userData.userid;
-      const today = new Date().toISOString().split('T')[0];
+      
+      // Get current time in Asia/Colombo timezone
+      const now = new Date();
+      const colomboTime = now.toLocaleString('sv-SE', { 
+        timeZone: 'Asia/Colombo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      }).replace(' ', 'T');
+      
+      const today = colomboTime.split('T')[0];
       
       // Create attendance data
       const attendanceData = {
       date: today,
-      time: new Date().toISOString(),
+      time: colomboTime,
       status: 'present',
       method: 'manual',
         deliveryMethod: cls.deliveryMethod || 'online',

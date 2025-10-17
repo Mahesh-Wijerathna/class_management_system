@@ -319,6 +319,60 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
 
   // Payment Tracking Utility Functions
   const getPaymentTrackingInfo = (enrollment) => {
+    // SPECIAL CASE 1: Free Card (overdue) - Always allow access
+    if (enrollment.payment_status === 'overdue') {
+      return {
+        canAccess: true,
+        status: 'free-card',
+        message: 'Free Card - No payment required',
+        daysRemaining: 999,
+        nextPaymentDate: null,
+        gracePeriodEndDate: null,
+        freeDays: 0,
+        paymentTrackingEnabled: false,
+        isFreeCard: true
+      };
+    }
+    
+    // SPECIAL CASE 2: Half Card (partial) - Check if 50% is paid
+    if (enrollment.payment_status === 'partial') {
+      const paidAmount = parseFloat(enrollment.paid_amount || 0);
+      const totalFee = parseFloat(enrollment.total_fee || enrollment.fee || 0);
+      const halfFee = totalFee / 2;
+      const hasPaidHalf = paidAmount >= halfFee;
+      
+      if (hasPaidHalf) {
+        return {
+          canAccess: true,
+          status: 'half-card-paid',
+          message: `Half Card - 50% paid (${paidAmount.toFixed(2)}/${totalFee.toFixed(2)})`,
+          daysRemaining: 999,
+          nextPaymentDate: null,
+          gracePeriodEndDate: null,
+          freeDays: 0,
+          paymentTrackingEnabled: false,
+          isHalfCard: true,
+          paidAmount,
+          totalFee
+        };
+      } else {
+        return {
+          canAccess: false,
+          status: 'half-payment-required',
+          message: `Half Card - 50% payment required (${paidAmount.toFixed(2)}/${halfFee.toFixed(2)} of 50%)`,
+          daysRemaining: 0,
+          nextPaymentDate: null,
+          gracePeriodEndDate: null,
+          freeDays: 0,
+          paymentTrackingEnabled: false,
+          isHalfCard: true,
+          paidAmount,
+          requiredAmount: halfFee,
+          totalFee
+        };
+      }
+    }
+    
     // Check if payment tracking is enabled for this enrollment
     const hasPaymentTracking = enrollment.payment_tracking || enrollment.payment_tracking === true || enrollment.payment_tracking?.enabled;
     
@@ -510,6 +564,34 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
   // Get enrollment status info with payment tracking
   const getEnrollmentStatusInfo = (enrollment) => {
     const paymentTrackingInfo = getPaymentTrackingInfo(enrollment);
+    
+    // Check for special card types first
+    if (paymentTrackingInfo.isFreeCard) {
+      return {
+        status: 'free-card',
+        color: 'bg-purple-100 text-purple-800',
+        icon: <FaTicketAlt className="inline mr-1" />,
+        message: 'Free Card - No payment required'
+      };
+    }
+    
+    if (paymentTrackingInfo.isHalfCard) {
+      if (paymentTrackingInfo.canAccess) {
+        return {
+          status: 'half-card-paid',
+          color: 'bg-blue-100 text-blue-800',
+          icon: <FaCheck className="inline mr-1" />,
+          message: 'Half Card - 50% paid'
+        };
+      } else {
+        return {
+          status: 'half-payment-required',
+          color: 'bg-orange-100 text-orange-800',
+          icon: <FaExclamationTriangle className="inline mr-1" />,
+          message: 'Half Card - 50% payment required'
+        };
+      }
+    }
     
     // Check enrollment status first
     if (enrollment.status === 'suspended') {
