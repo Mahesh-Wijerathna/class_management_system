@@ -100,6 +100,11 @@ switch ($method) {
             $orderId = $input['order_id'] ?? '';
             $result = $devPaymentHelper->simulatePayHereConfirmation($orderId);
             echo json_encode($result);
+        } elseif ($path === '/update_delivery_status') {
+            $transactionId = $input['transaction_id'] ?? '';
+            $deliveryStatus = $input['delivery_status'] ?? '';
+            $result = $paymentController->updateDeliveryStatus($transactionId, $deliveryStatus);
+            echo json_encode($result);
         } else {
             http_response_code(404);
             echo json_encode(['error' => 'Endpoint not found']);

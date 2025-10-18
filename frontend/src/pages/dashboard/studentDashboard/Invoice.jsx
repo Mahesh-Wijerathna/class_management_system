@@ -127,7 +127,8 @@ const Invoice = () => {
         email: studentDetails?.email,
         mobile: studentDetails?.mobile_number,
         address: studentDetails?.address,
-        district: studentDetails?.district
+        district: studentDetails?.district,
+        medium: data.medium, // Include tute medium for delivery tracking
       };
 
       console.log('💾 Creating payment record with student details:', paymentRecordData);

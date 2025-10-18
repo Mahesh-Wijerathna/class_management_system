@@ -17,6 +17,7 @@ const TeacherEnrollments = () => {
   const [streamFilter, setStreamFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [deliveryFilter, setDeliveryFilter] = useState('');
+  const [courseTypeFilter, setCourseTypeFilter] = useState('');
   const [studentsData, setStudentsData] = useState({});
   const [showEnrollmentDetails, setShowEnrollmentDetails] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -150,8 +151,9 @@ const TeacherEnrollments = () => {
     const matchesStream = streamFilter === '' || classItem.stream === streamFilter;
     const matchesStatus = statusFilter === '' || classItem.status === statusFilter;
     const matchesDelivery = deliveryFilter === '' || classItem.deliveryMethod === deliveryFilter;
+    const matchesCourseType = courseTypeFilter === '' || classItem.courseType === courseTypeFilter || classItem.course_type === courseTypeFilter;
     
-    return matchesSearch && matchesStream && matchesStatus && matchesDelivery;
+    return matchesSearch && matchesStream && matchesStatus && matchesDelivery && matchesCourseType;
   });
 
   // Filter enrollments based on search term and status filter
@@ -313,6 +315,22 @@ const TeacherEnrollments = () => {
           </span>
         </div>
       )
+    },
+    {
+      key: 'courseType',
+      label: 'Course Type',
+      render: (row) => {
+        const courseType = row.courseType || row.course_type || 'theory';
+        return (
+          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+            courseType === 'revision' 
+              ? 'bg-amber-100 text-amber-800' 
+              : 'bg-indigo-100 text-indigo-800'
+          }`}>
+            {courseType === 'revision' ? '📝 Revision' : '📚 Theory'}
+          </span>
+        );
+      }
     },
     {
       key: 'enrollments',
@@ -535,6 +553,19 @@ const TeacherEnrollments = () => {
                   <option value="hybrid">Hybrid</option>
                 </select>
               </div>
+
+              {/* Course Type Filter */}
+              <div className="min-w-[140px]">
+                <select
+                  value={courseTypeFilter}
+                  onChange={(e) => setCourseTypeFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                >
+                  <option value="">All Types</option>
+                  <option value="theory">📚 Theory</option>
+                  <option value="revision">📝 Revision</option>
+                </select>
+              </div>
             </div>
 
             {/* Right side - Refresh Button */}
@@ -638,6 +669,30 @@ const TeacherEnrollments = () => {
                         </div>
                         <span className="text-xs font-bold text-gray-900 capitalize">
                           {selectedClass.deliveryMethod || 'N/A'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between py-1">
+                        <div className="flex items-center space-x-2">
+                          <div className={`p-1 rounded-full ${
+                            (selectedClass.courseType || selectedClass.course_type || 'theory') === 'revision'
+                              ? 'bg-amber-100'
+                              : 'bg-indigo-100'
+                          }`}>
+                            <FaBook className={`text-xs ${
+                              (selectedClass.courseType || selectedClass.course_type || 'theory') === 'revision'
+                                ? 'text-amber-600'
+                                : 'text-indigo-600'
+                            }`} />
+                          </div>
+                          <span className="text-xs font-medium text-gray-700">Type</span>
+                        </div>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                          (selectedClass.courseType || selectedClass.course_type || 'theory') === 'revision'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-indigo-100 text-indigo-800'
+                        }`}>
+                          {(selectedClass.courseType || selectedClass.course_type || 'theory') === 'revision' ? '📝 Revision' : '📚 Theory'}
                         </span>
                       </div>
                       

@@ -17,6 +17,7 @@ import ClassEnrollments from '../../pages/dashboard/adminDashboard/ClassEnrollme
 import ClassStudents from '../../pages/dashboard/adminDashboard/ClassStudents';
 import AllRoles from '../../pages/dashboard/adminDashboard/AllRoles';
 import RolesWithPermission from '../../pages/dashboard/adminDashboard/RolesWithPermission';
+import SpeedPostDeliveries from '../../pages/dashboard/adminDashboard/SpeedPostDeliveries';
 
 export const adminDashboardRoutes = [
   { path: "/admindashboard", element: <AdminDashboard/> },
@@ -37,6 +38,7 @@ export const adminDashboardRoutes = [
   { path: "/admin/classes/enrollments", element: <ClassEnrollments /> },
   { path: "/admin/classes/all/:classId", element: <ClassStudents /> },
   { path: "/admin/roles", element: <AllRoles /> },
-  { path: "/admin/roles/permissions", element: <RolesWithPermission /> }, 
+  { path: "/admin/roles/permissions", element: <RolesWithPermission /> },
+  { path: "/admin/speed-post-deliveries", element: <SpeedPostDeliveries /> }, 
   
 ]; 

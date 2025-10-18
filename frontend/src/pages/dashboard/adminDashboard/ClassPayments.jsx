@@ -1148,7 +1148,7 @@ const ClassPayments = () => {
                 </button>
               </div>
               
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {(() => {
                   // Get payment data from payment backend for this student and class
                   const classPayments = selectedClass?.payments || [];
@@ -1157,52 +1157,127 @@ const ClassPayments = () => {
                   );
                   
                   if (studentPayments.length > 0) {
-                    return studentPayments.map((payment, index) => (
-                      <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                        <div className="flex justify-between items-center mb-3">
-                          <span className="text-lg font-semibold text-gray-700">
-                            Payment #{index + 1}
-                          </span>
-                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                            payment.payment_method?.toLowerCase() === 'cash' ? 'bg-green-100 text-green-700' :
-                            payment.payment_method?.toLowerCase() === 'online' ? 'bg-blue-100 text-blue-700' :
-                            payment.payment_method?.toLowerCase() === 'card' ? 'bg-purple-100 text-purple-700' :
-                            'bg-gray-100 text-gray-700'
+                    // Sort by date (newest first)
+                    const sortedPayments = [...studentPayments].sort((a, b) => 
+                      new Date(b.date) - new Date(a.date)
+                    );
+                    
+                    return sortedPayments.map((payment, index) => (
+                      <div key={payment.transaction_id || index} className="bg-white border-2 border-gray-200 rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow">
+                        {/* Header */}
+                        <div className="flex justify-between items-start mb-4 pb-3 border-b border-gray-200">
+                          <div className="flex items-center space-x-3">
+                            <span className="text-lg font-bold text-gray-800">
+                              {payment.transaction_id || `Payment #${index + 1}`}
+                            </span>
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              payment.status?.toLowerCase() === 'paid' ? 'bg-green-100 text-green-700 border border-green-300' :
+                              payment.status?.toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
+                              payment.status?.toLowerCase() === 'overdue' ? 'bg-red-100 text-red-700 border border-red-300' :
+                              'bg-gray-100 text-gray-700 border border-gray-300'
+                            }`}>
+                              {payment.status?.toUpperCase() || 'N/A'}
+                            </span>
+                          </div>
+                          <span className={`px-4 py-1.5 rounded-lg text-sm font-semibold ${
+                            payment.payment_method?.toLowerCase() === 'cash' ? 'bg-green-100 text-green-800 border border-green-300' :
+                            payment.payment_method?.toLowerCase() === 'online' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
+                            payment.payment_method?.toLowerCase() === 'card' ? 'bg-purple-100 text-purple-800 border border-purple-300' :
+                            'bg-gray-100 text-gray-700 border border-gray-300'
                           }`}>
-                            {payment.payment_method?.toLowerCase() === 'cash' ? 'Cash' :
-                             payment.payment_method?.toLowerCase() === 'online' ? 'Online' :
-                             payment.payment_method?.toLowerCase() === 'card' ? 'Card' :
+                            {payment.payment_method?.toLowerCase() === 'cash' ? '💵 Cash' :
+                             payment.payment_method?.toLowerCase() === 'online' ? '💳 Online' :
+                             payment.payment_method?.toLowerCase() === 'card' ? '💳 Card' :
                              payment.payment_method || 'Unknown'}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-medium text-gray-600">Amount:</span>
-                          <span className="text-lg font-bold text-green-600">
+                        
+                        {/* Amount - Prominent Display */}
+                        <div className="mb-4">
+                          <div className="text-sm font-medium text-gray-500 mb-1">Amount Paid</div>
+                          <div className="text-3xl font-bold text-green-600">
                             {formatCurrency(payment.amount || 0)}
-                          </span>
+                          </div>
                         </div>
-                        {payment.date && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium text-gray-600">Date:</span>
-                            <span className="text-sm text-gray-700">
-                              {formatDate(payment.date)}
-                            </span>
+                        
+                        {/* Payment Details Grid */}
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          {payment.date && (
+                            <div>
+                              <div className="text-xs font-medium text-gray-500 mb-1">Payment Date</div>
+                              <div className="text-sm font-semibold text-gray-800 flex items-center">
+                                <FaCalendar className="mr-2 text-blue-500" size={14} />
+                                {formatDate(payment.date)}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {payment.reference_number && (
+                            <div>
+                              <div className="text-xs font-medium text-gray-500 mb-1">Reference Number</div>
+                              <div className="text-sm font-mono text-gray-800 bg-gray-50 px-2 py-1 rounded">
+                                {payment.reference_number}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {payment.class_name && (
+                            <div>
+                              <div className="text-xs font-medium text-gray-500 mb-1">Class</div>
+                              <div className="text-sm font-semibold text-gray-800">
+                                {payment.class_name}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {payment.person_name && (
+                            <div>
+                              <div className="text-xs font-medium text-gray-500 mb-1">Student Name</div>
+                              <div className="text-sm font-semibold text-gray-800">
+                                {payment.person_name}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Notes Section */}
+                        {payment.notes && (
+                          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div className="text-xs font-semibold text-blue-700 mb-2">Payment Details</div>
+                            <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                              {payment.notes}
+                            </div>
                           </div>
                         )}
-                        {payment.transaction_id && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium text-gray-600">Transaction ID:</span>
-                            <span className="text-sm text-gray-700">
-                              {payment.transaction_id}
-                            </span>
+                        
+                        {/* Additional Info */}
+                        <div className="mt-4 pt-3 border-t border-gray-200">
+                          <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+                            {payment.type && (
+                              <div>
+                                <span className="font-medium">Type:</span> {payment.type}
+                              </div>
+                            )}
+                            {payment.category && (
+                              <div>
+                                <span className="font-medium">Category:</span> {payment.category}
+                              </div>
+                            )}
+                            {payment.created_by && (
+                              <div className="col-span-2">
+                                <span className="font-medium">Created by:</span> {payment.created_by}
+                              </div>
+                            )}
                           </div>
-                        )}
+                        </div>
                       </div>
                     ));
                   } else {
                     return (
-                      <div className="text-center py-8">
-                        <div className="text-gray-500 text-lg">No payment history available</div>
+                      <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                        <div className="text-gray-400 text-6xl mb-4">💳</div>
+                        <div className="text-gray-600 text-lg font-medium mb-2">No Payment History</div>
+                        <div className="text-gray-500 text-sm">This student hasn't made any payments yet.</div>
                       </div>
                     );
                   }

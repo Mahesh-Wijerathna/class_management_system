@@ -23,7 +23,8 @@ const teacherSidebarSections = [
   {
     section: 'Attendance',
     items: [
-      { name: 'Student Attendance', path: '/teacher/attendance', icon: <FaUsersCog className="h-5 w-5" /> },
+      { name: 'Attendance Management', path: '/teacher/attendance-management', icon: <FaChartBar className="h-5 w-5" /> },
+      { name: 'Student Attendance Overview', path: '/teacher/attendance', icon: <FaUsersCog className="h-5 w-5" /> },
     ]
   },
   {
