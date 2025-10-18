@@ -54,10 +54,12 @@ CREATE TABLE IF NOT EXISTS financial_records (
     payment_method VARCHAR(50),
     reference_number VARCHAR(100),
     notes TEXT,
+    delivery_status ENUM('pending', 'processing', 'delivered') DEFAULT 'pending',
     created_by VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_transaction_id (transaction_id),
     INDEX idx_user_id (user_id),
     INDEX idx_class_id (class_id),
-    INDEX idx_status (status)
+    INDEX idx_status (status),
+    INDEX idx_delivery_status (delivery_status)
 );

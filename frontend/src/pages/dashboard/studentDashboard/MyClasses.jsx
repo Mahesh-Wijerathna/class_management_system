@@ -1386,10 +1386,53 @@ useEffect(() => {
       const userData = getUserData();
       const paymentHistory = await getPaymentHistoryForClass(userData.userid, cls.id);
       
-      // Update the class with payment history
+      // Extract price breakdown from first payment (initial enrollment payment)
+      let priceBreakdown = {
+        basePrice: cls.fee, // Use class fee as base price
+        purchasePrice: cls.total_fee || cls.paidAmount || cls.fee,
+        promoDiscount: 0,
+        theoryStudentDiscount: 0,
+        speedPostFee: 0
+      };
+
+      // Parse payment notes to extract discounts and fees
+      if (paymentHistory && paymentHistory.length > 0) {
+        // Get the first payment (enrollment payment) which should have the breakdown
+        const firstPayment = paymentHistory[0];
+        
+        if (firstPayment.notes) {
+          const notes = firstPayment.notes;
+          
+          // Extract Promo discount: "Promo: 500"
+          const promoMatch = notes.match(/Promo:\s*(\d+)/i);
+          if (promoMatch) {
+            priceBreakdown.promoDiscount = parseInt(promoMatch[1]);
+          }
+          
+          // Extract Theory Discount: "Theory Discount: 200"
+          const theoryMatch = notes.match(/Theory Discount:\s*(\d+)/i);
+          if (theoryMatch) {
+            priceBreakdown.theoryStudentDiscount = parseInt(theoryMatch[1]);
+          }
+          
+          // Extract Speed Post fee: "Speed Post: 225"
+          const speedPostMatch = notes.match(/Speed Post:\s*(\d+)/i);
+          if (speedPostMatch) {
+            priceBreakdown.speedPostFee = parseInt(speedPostMatch[1]);
+          }
+          
+          // Use the actual payment amount as purchase price
+          if (firstPayment.amount) {
+            priceBreakdown.purchasePrice = firstPayment.amount;
+          }
+        }
+      }
+      
+      // Update the class with payment history and price breakdown
       const updatedClass = {
         ...cls,
-        paymentHistory: paymentHistory
+        paymentHistory: paymentHistory,
+        ...priceBreakdown // Spread the price breakdown fields
       };
       
       setSelectedClassForDetails(updatedClass);
@@ -3238,43 +3281,202 @@ useEffect(() => {
                 {detailsActiveTab === 'payments' && (
                   <div className="space-y-6">
                     {/* Price Breakdown Section */}
-                    {selectedClassForDetails.basePrice && selectedClassForDetails.purchasePrice && (
-                      <div className="bg-blue-50 p-6 rounded-lg">
+                    {(() => {
+                      const basePrice = selectedClassForDetails.basePrice || selectedClassForDetails.fee;
+                      const finalPrice = selectedClassForDetails.purchasePrice || selectedClassForDetails.paidAmount || selectedClassForDetails.total_fee;
+                      const priceDifference = basePrice && finalPrice ? basePrice - finalPrice : 0;
+                      const hasDiscount = priceDifference > 0;
+                      const hasAdditionalFee = priceDifference < 0;
+                      
+                      // Show breakdown if we have both prices OR if there are specific discount/fee fields
+                      const shouldShowBreakdown = (basePrice && finalPrice) || 
+                                                  selectedClassForDetails.promoDiscount > 0 || 
+                                                  selectedClassForDetails.theoryStudentDiscount > 0 || 
+                                                  selectedClassForDetails.speedPostFee > 0;
+                      
+                      if (!shouldShowBreakdown) return null;
+                      
+                      return (
+                      <div className="bg-blue-50 p-6 rounded-lg border-2 border-blue-200">
                         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                          <FaMoneyBill /> Price Breakdown
+                          <FaMoneyBill /> Price Breakdown & Adjustments
                         </h3>
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span>Base Price:</span>
-                            <span className="line-through text-gray-500">LKR {parseInt(selectedClassForDetails.basePrice).toLocaleString()}</span>
+                        <div className="space-y-3">
+                          {/* Base Price */}
+                          <div className="bg-white p-3 rounded-lg">
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <div className="font-semibold">Base Class Fee</div>
+                                <div className="text-xs text-gray-600">Original monthly class fee</div>
+                              </div>
+                              <span className="font-bold text-gray-700">LKR {parseInt(basePrice).toLocaleString()}</span>
+                            </div>
                           </div>
+                          
+                          {/* Show general discount if we have a price difference but no specific breakdown */}
+                          {hasDiscount && !selectedClassForDetails.promoDiscount && !selectedClassForDetails.theoryStudentDiscount && !selectedClassForDetails.speedPostFee && (
+                            <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="font-semibold text-green-800 flex items-center gap-2">
+                                    <FaCheckCircle className="text-green-600" />
+                                    Total Discount Applied
+                                  </div>
+                                  <div className="text-xs text-green-700 mt-1">
+                                    <strong>Reason:</strong> Special discounts applied during enrollment. This may include:
+                                    <ul className="list-disc ml-4 mt-1">
+                                      <li>Early enrollment discount</li>
+                                      <li>Theory student discount (if enrolled in related theory class)</li>
+                                      <li>Promotional offers or campaigns</li>
+                                      <li>Multi-class enrollment benefits</li>
+                                      <li>Student loyalty rewards</li>
+                                    </ul>
+                                  </div>
+                                </div>
+                                <span className="font-bold text-green-700 ml-3 whitespace-nowrap">- LKR {Math.abs(priceDifference).toLocaleString()}</span>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Show general fee increase if price went up but no specific breakdown */}
+                          {hasAdditionalFee && !selectedClassForDetails.speedPostFee && (
+                            <div className="bg-orange-50 p-3 rounded-lg border border-orange-200">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="font-semibold text-orange-800 flex items-center gap-2">
+                                    <FaExclamationCircle className="text-orange-600" />
+                                    Additional Fees Applied
+                                  </div>
+                                  <div className="text-xs text-orange-700 mt-1">
+                                    <strong>Reason:</strong> Additional charges applied to your enrollment. This may include:
+                                    <ul className="list-disc ml-4 mt-1">
+                                      <li>Speed post delivery fee for study materials</li>
+                                      <li>Registration or processing fees</li>
+                                      <li>Special resource materials fees</li>
+                                      <li>Late enrollment surcharge</li>
+                                    </ul>
+                                  </div>
+                                </div>
+                                <span className="font-bold text-orange-700 ml-3 whitespace-nowrap">+ LKR {Math.abs(priceDifference).toLocaleString()}</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Theory Student Discount */}
                           {selectedClassForDetails.theoryStudentDiscount > 0 && (
-                            <div className="flex justify-between items-center text-green-700">
-                              <span>Theory Student Discount:</span>
-                              <span>- LKR {parseInt(selectedClassForDetails.theoryStudentDiscount).toLocaleString()}</span>
+                            <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="font-semibold text-green-800 flex items-center gap-2">
+                                    <FaCheckCircle className="text-green-600" />
+                                    Theory Student Discount
+                                  </div>
+                                  <div className="text-xs text-green-700 mt-1">
+                                    <strong>Reason:</strong> Special discount for students who already enrolled in theory classes. 
+                                    This encourages students to take multiple related classes.
+                                  </div>
+                                </div>
+                                <span className="font-bold text-green-700 ml-3 whitespace-nowrap">- LKR {parseInt(selectedClassForDetails.theoryStudentDiscount).toLocaleString()}</span>
+                              </div>
                             </div>
                           )}
-                          {selectedClassForDetails.speedPostFee > 0 && (
-                            <div className="flex justify-between items-center text-blue-700">
-                              <span>Speed Post Fee:</span>
-                              <span>+ LKR {parseInt(selectedClassForDetails.speedPostFee).toLocaleString()}</span>
-                            </div>
-                          )}
+
+                          {/* Promo Discount */}
                           {selectedClassForDetails.promoDiscount > 0 && (
-                            <div className="flex justify-between items-center text-green-700">
-                              <span>Promo Discount:</span>
-                              <span>- LKR {parseInt(selectedClassForDetails.promoDiscount).toLocaleString()}</span>
+                            <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="font-semibold text-green-800 flex items-center gap-2">
+                                    <FaTicketAlt className="text-green-600" />
+                                    Promotional Discount
+                                  </div>
+                                  <div className="text-xs text-green-700 mt-1">
+                                    <strong>Reason:</strong> Applied promotional discount code during enrollment. 
+                                    This could be from a special campaign, early bird offer, or referral bonus.
+                                  </div>
+                                </div>
+                                <span className="font-bold text-green-700 ml-3 whitespace-nowrap">- LKR {parseInt(selectedClassForDetails.promoDiscount).toLocaleString()}</span>
+                              </div>
                             </div>
                           )}
-                          <div className="border-t pt-2 mt-2">
-                            <div className="flex justify-between items-center font-bold text-lg">
-                              <span>Final Paid:</span>
-                              <span className="text-green-700">LKR {parseInt(selectedClassForDetails.purchasePrice).toLocaleString()}</span>
+
+                          {/* Speed Post Fee */}
+                          {selectedClassForDetails.speedPostFee > 0 && (
+                            <div className="bg-orange-50 p-3 rounded-lg border border-orange-200">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="font-semibold text-orange-800 flex items-center gap-2">
+                                    <FaExclamationCircle className="text-orange-600" />
+                                    Speed Post Delivery Fee
+                                  </div>
+                                  <div className="text-xs text-orange-700 mt-1">
+                                    <strong>Reason:</strong> Additional charge for courier delivery of study materials (books, notes, practice papers) 
+                                    to your registered address. This covers packaging, handling, and postal service charges. 
+                                    Materials will be delivered within 2-3 business days.
+                                  </div>
+                                </div>
+                                <span className="font-bold text-orange-700 ml-3 whitespace-nowrap">+ LKR {parseInt(selectedClassForDetails.speedPostFee).toLocaleString()}</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Calculation Summary */}
+                          <div className="bg-gray-100 p-3 rounded-lg">
+                            <div className="text-xs text-gray-600 mb-2">
+                              <strong>Calculation:</strong>
+                            </div>
+                            <div className="text-sm text-gray-700 space-y-1 mb-2">
+                              <div>Base Fee: LKR {parseInt(basePrice).toLocaleString()}</div>
+                              {selectedClassForDetails.theoryStudentDiscount > 0 && (
+                                <div>Less Theory Discount: - LKR {parseInt(selectedClassForDetails.theoryStudentDiscount).toLocaleString()}</div>
+                              )}
+                              {selectedClassForDetails.promoDiscount > 0 && (
+                                <div>Less Promo Discount: - LKR {parseInt(selectedClassForDetails.promoDiscount).toLocaleString()}</div>
+                              )}
+                              {hasDiscount && !selectedClassForDetails.promoDiscount && !selectedClassForDetails.theoryStudentDiscount && (
+                                <div>Less Total Discount: - LKR {Math.abs(priceDifference).toLocaleString()}</div>
+                              )}
+                              {selectedClassForDetails.speedPostFee > 0 && (
+                                <div>Plus Speed Post: + LKR {parseInt(selectedClassForDetails.speedPostFee).toLocaleString()}</div>
+                              )}
+                              {hasAdditionalFee && !selectedClassForDetails.speedPostFee && (
+                                <div>Plus Additional Fees: + LKR {Math.abs(priceDifference).toLocaleString()}</div>
+                              )}
                             </div>
                           </div>
+
+                          {/* Final Amount */}
+                          <div className="border-t-2 border-blue-300 pt-3 mt-2">
+                            <div className="bg-gradient-to-r from-green-100 to-green-50 p-4 rounded-lg border-2 border-green-300">
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <div className="font-bold text-lg text-green-900">Total Amount Paid</div>
+                                  <div className="text-xs text-green-700">This is your final monthly payment</div>
+                                </div>
+                                <span className="text-2xl font-bold text-green-700">LKR {parseInt(finalPrice).toLocaleString()}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Savings Summary - Show if there's any discount */}
+                          {hasDiscount && (
+                            <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-300">
+                              <div className="flex items-center gap-2">
+                                <FaStar className="text-yellow-600" />
+                                <div>
+                                  <div className="font-semibold text-yellow-800">You Saved:</div>
+                                  <div className="text-sm text-yellow-700">
+                                    Total discount of LKR {Math.abs(priceDifference).toLocaleString()} 
+                                    {' '}({Math.round((Math.abs(priceDifference) / basePrice) * 100)}% off base price)
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Payment Information Section */}
                     <div className="bg-green-50 p-6 rounded-lg">

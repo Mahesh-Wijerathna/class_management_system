@@ -4,6 +4,7 @@ import { getClassesByTeacher } from '../../../api/classes';
 import { getClassEnrollments } from '../../../api/enrollments';
 import { getAllStudents } from '../../../api/students';
 import { getUserData } from '../../../api/apiUtils';
+import axios from 'axios';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import teacherSidebarSections from './TeacherDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
@@ -81,16 +82,47 @@ const TeacherClassPayments = () => {
           setStudentsData(studentsMap);
         }
 
+        // Fetch all payments from payment backend
+        const globalPaymentData = {};
+        try {
+          const paymentsResponse = await axios.get('http://localhost:8090/routes.php/get_all_payments');
+          if (paymentsResponse.data.success && paymentsResponse.data.data) {
+            // Group payments by class_id
+            paymentsResponse.data.data.forEach(payment => {
+              const classId = payment.class_id;
+              if (!globalPaymentData[classId]) {
+                globalPaymentData[classId] = [];
+              }
+              globalPaymentData[classId].push(payment);
+            });
+            console.log('Payment data loaded from backend:', Object.keys(globalPaymentData).length, 'classes with payments');
+          }
+        } catch (error) {
+          console.error('Error loading global payment data:', error);
+        }
+
         const paymentData = {};
         for (const classItem of classesList) {
           try {
             const enrollmentsResponse = await getClassEnrollments(classItem.id);
             if (enrollmentsResponse.success) {
-              paymentData[classItem.id] = enrollmentsResponse.data || [];
+              const enrollments = enrollmentsResponse.data || [];
+              const classPayments = globalPaymentData[classItem.id] || [];
+              
+              // Store both enrollments and payments
+              paymentData[classItem.id] = {
+                enrollments: enrollments,
+                payments: classPayments
+              };
+              
+              console.log(`Class ${classItem.id}: ${enrollments.length} enrollments, ${classPayments.length} payments`);
             }
           } catch (error) {
             console.error(`Error loading payments for class ${classItem.id}:`, error);
-            paymentData[classItem.id] = [];
+            paymentData[classItem.id] = {
+              enrollments: [],
+              payments: []
+            };
           }
         }
         setClassPaymentData(paymentData);
@@ -151,59 +183,57 @@ const TeacherClassPayments = () => {
     try {
       const enrollmentsResponse = await getClassEnrollments(classItem.id);
       if (enrollmentsResponse.success) {
-        let filteredEnrollments = enrollmentsResponse.data || [];
+        const enrollments = enrollmentsResponse.data || [];
         
-        // Apply date filters to the enrollments only if filters are set
+        // Fetch payment data for this class
+        let classPayments = [];
+        try {
+          const paymentsResponse = await axios.get('http://localhost:8090/routes.php/get_all_payments');
+          if (paymentsResponse.data.success && paymentsResponse.data.data) {
+            classPayments = paymentsResponse.data.data.filter(payment => payment.class_id == classItem.id);
+          }
+        } catch (paymentError) {
+          console.error('Error fetching payments for class', classItem.id, ':', paymentError);
+        }
+        
+        // Apply date filters using payment backend data
+        let filteredEnrollments = enrollments;
+        
         if (dateFilter) {
-          // Filter by specific date
+          // Filter by specific date using payment data
           const targetDate = new Date(dateFilter);
           targetDate.setHours(0, 0, 0, 0);
           
-          filteredEnrollments = filteredEnrollments.filter(enrollment => {
-            if (!enrollment.payment_history_details) return false;
-            
-            try {
-              const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
-                try { return JSON.parse(p); } catch (e) { return null; }
-              }).filter(p => p);
-              
-              return paymentHistory.some(payment => {
-                if (!payment.date) return false;
-                const paymentDate = new Date(payment.date);
-                paymentDate.setHours(0, 0, 0, 0);
-                return paymentDate.getTime() === targetDate.getTime();
-              });
-            } catch (error) {
-              return false;
-            }
+          filteredEnrollments = enrollments.filter(enrollment => {
+            const studentPayments = classPayments.filter(payment => 
+              payment.user_id === enrollment.student_id
+            );
+            return studentPayments.some(payment => {
+              const paymentDate = new Date(payment.date);
+              paymentDate.setHours(0, 0, 0, 0);
+              return paymentDate.getTime() === targetDate.getTime();
+            });
           });
         } else if (monthFilter && yearFilter && monthFilter !== '' && yearFilter !== '') {
-          // Filter by month and year only if both are selected
+          // Filter by month and year using payment data
           const targetMonth = parseInt(monthFilter);
           const targetYear = parseInt(yearFilter);
           
-          filteredEnrollments = filteredEnrollments.filter(enrollment => {
-            if (!enrollment.payment_history_details) return false;
-            
-            try {
-              const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
-                try { return JSON.parse(p); } catch (e) { return null; }
-              }).filter(p => p);
-              
-              return paymentHistory.some(payment => {
-                if (!payment.date) return false;
-                const paymentDate = new Date(payment.date);
-                return paymentDate.getMonth() + 1 === targetMonth && paymentDate.getFullYear() === targetYear;
-              });
-            } catch (error) {
-              return false;
-            }
+          filteredEnrollments = enrollments.filter(enrollment => {
+            const studentPayments = classPayments.filter(payment => 
+              payment.user_id === enrollment.student_id
+            );
+            return studentPayments.some(payment => {
+              const paymentDate = new Date(payment.date);
+              return paymentDate.getMonth() + 1 === targetMonth && paymentDate.getFullYear() === targetYear;
+            });
           });
         }
         
         setSelectedClass({
           ...classItem,
-          enrollments: filteredEnrollments
+          enrollments: filteredEnrollments,
+          payments: classPayments
         });
         setShowPaymentDetails(true);
       }
@@ -226,7 +256,7 @@ const TeacherClassPayments = () => {
     setSelectedStudent(null);
   };
 
-  // Calculate payment statistics
+  // Calculate payment statistics using payment backend data
   const calculatePaymentStats = (enrollments) => {
     const totalStudents = enrollments.length;
     const paidStudents = enrollments.filter(e => e.payment_status === 'paid').length;
@@ -238,7 +268,6 @@ const TeacherClassPayments = () => {
     
     enrollments.forEach(enrollment => {
       const fee = parseFloat(enrollment.fee || 0);
-      const paid = parseFloat(enrollment.paid_amount || 0);
       
       if (fee === 0) {
         freeStudents++;
@@ -250,35 +279,24 @@ const TeacherClassPayments = () => {
       }
     });
     
-    let totalRevenue = 0;
-    let cashRevenue = 0;
-    let onlineRevenue = 0;
+    // Calculate revenue from payment backend data
+    const totalRevenue = selectedClass?.payments?.reduce((sum, payment) => {
+      return sum + parseFloat(payment.amount || 0);
+    }, 0) || 0;
     
-    enrollments.forEach(enrollment => {
-      if (enrollment.payment_history_details) {
-        try {
-          const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
-            try { return JSON.parse(p); } catch (e) { return null; }
-          }).filter(p => p);
-          
-          paymentHistory.forEach(payment => {
-            const amount = parseFloat(payment.amount || 0);
-            totalRevenue += amount;
-            
-            if (payment.payment_method?.toLowerCase() === 'cash') {
-              cashRevenue += amount;
-            } else if (payment.payment_method?.toLowerCase() === 'online' || payment.payment_method?.toLowerCase() === 'card') {
-              onlineRevenue += amount;
-            }
-          });
-        } catch (error) {
-          // Fallback to enrollment data
-          totalRevenue += parseFloat(enrollment.paid_amount || 0);
-        }
-      } else {
-        totalRevenue += parseFloat(enrollment.paid_amount || 0);
+    const cashRevenue = selectedClass?.payments?.reduce((sum, payment) => {
+      if (payment.payment_method?.toLowerCase() === 'cash') {
+        return sum + parseFloat(payment.amount || 0);
       }
-    });
+      return sum;
+    }, 0) || 0;
+    
+    const onlineRevenue = selectedClass?.payments?.reduce((sum, payment) => {
+      if (payment.payment_method?.toLowerCase() === 'online' || payment.payment_method?.toLowerCase() === 'card') {
+        return sum + parseFloat(payment.amount || 0);
+      }
+      return sum;
+    }, 0) || 0;
 
     return {
       totalStudents,
@@ -304,51 +322,38 @@ const TeacherClassPayments = () => {
     const matchesStatus = statusFilter === '' || classItem.status === statusFilter;
     const matchesDelivery = deliveryFilter === '' || classItem.deliveryMethod === deliveryFilter;
     
-    // Check if class has enrollments that match date filters
-    const enrollments = classPaymentData[classItem.id] || [];
+    // Check if class has payments that match date filters using payment backend data
+    const classData = classPaymentData[classItem.id] || { enrollments: [], payments: [] };
+    const payments = classData.payments || [];
     let matchesDateFilter = true;
     
     if (dateFilter || (monthFilter && yearFilter)) {
       matchesDateFilter = false;
       
-      for (const enrollment of enrollments) {
-        if (!enrollment.payment_history_details) continue;
+      for (const payment of payments) {
+        if (!payment.date) continue;
         
-        try {
-          const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
-            try { return JSON.parse(p); } catch (e) { return null; }
-          }).filter(p => p);
+        const paymentDate = new Date(payment.date);
+        
+        if (dateFilter) {
+          // Filter by specific date
+          const targetDate = new Date(dateFilter);
+          targetDate.setHours(0, 0, 0, 0);
+          paymentDate.setHours(0, 0, 0, 0);
           
-          for (const payment of paymentHistory) {
-            if (!payment.date) continue;
-            
-            const paymentDate = new Date(payment.date);
-            
-            if (dateFilter) {
-              // Filter by specific date
-              const targetDate = new Date(dateFilter);
-              targetDate.setHours(0, 0, 0, 0);
-              paymentDate.setHours(0, 0, 0, 0);
-              
-              if (paymentDate.getTime() === targetDate.getTime()) {
-                matchesDateFilter = true;
-                break;
-              }
-            } else if (monthFilter && yearFilter) {
-              // Filter by month and year
-              const targetMonth = parseInt(monthFilter);
-              const targetYear = parseInt(yearFilter);
-              
-              if (paymentDate.getMonth() + 1 === targetMonth && paymentDate.getFullYear() === targetYear) {
-                matchesDateFilter = true;
-                break;
-              }
-            }
+          if (paymentDate.getTime() === targetDate.getTime()) {
+            matchesDateFilter = true;
+            break;
           }
+        } else if (monthFilter && yearFilter) {
+          // Filter by month and year
+          const targetMonth = parseInt(monthFilter);
+          const targetYear = parseInt(yearFilter);
           
-          if (matchesDateFilter) break;
-        } catch (error) {
-          continue;
+          if (paymentDate.getMonth() + 1 === targetMonth && paymentDate.getFullYear() === targetYear) {
+            matchesDateFilter = true;
+            break;
+          }
         }
       }
     }
@@ -363,7 +368,7 @@ const TeacherClassPayments = () => {
   const uniqueStatuses = ['active', 'inactive']; // Fixed status options
   const uniqueDeliveryMethods = [...new Set(classes.map(c => c.deliveryMethod))].filter(Boolean).sort();
 
-  // Helper functions for monthly revenue calculations
+  // Helper functions for monthly revenue calculations using payment backend data
   const calculateCurrentMonthRevenue = () => {
     const currentMonth = new Date().getMonth() + 1;
     const currentYear = new Date().getFullYear();
@@ -372,31 +377,20 @@ const TeacherClassPayments = () => {
     let cashRevenue = 0;
     let onlineRevenue = 0;
     
-    Object.values(classPaymentData).forEach(enrollments => {
-      enrollments.forEach(enrollment => {
-        if (enrollment.payment_history_details) {
-          try {
-            const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
-              try { return JSON.parse(p); } catch (e) { return null; }
-            }).filter(p => p);
+    Object.values(classPaymentData).forEach(classData => {
+      const payments = classData.payments || [];
+      payments.forEach(payment => {
+        if (payment.date) {
+          const paymentDate = new Date(payment.date);
+          if (paymentDate.getMonth() + 1 === currentMonth && paymentDate.getFullYear() === currentYear) {
+            const amount = parseFloat(payment.amount || 0);
+            totalRevenue += amount;
             
-            paymentHistory.forEach(payment => {
-              if (payment.date) {
-                const paymentDate = new Date(payment.date);
-                if (paymentDate.getMonth() + 1 === currentMonth && paymentDate.getFullYear() === currentYear) {
-                  const amount = parseFloat(payment.amount || 0);
-                  totalRevenue += amount;
-                  
-                  if (payment.payment_method?.toLowerCase() === 'cash') {
-                    cashRevenue += amount;
-                  } else if (payment.payment_method?.toLowerCase() === 'online' || payment.payment_method?.toLowerCase() === 'card') {
-                    onlineRevenue += amount;
-                  }
-                }
-              }
-            });
-          } catch (error) {
-            // Skip malformed data
+            if (payment.payment_method?.toLowerCase() === 'cash') {
+              cashRevenue += amount;
+            } else if (payment.payment_method?.toLowerCase() === 'online' || payment.payment_method?.toLowerCase() === 'card') {
+              onlineRevenue += amount;
+            }
           }
         }
       });
@@ -414,31 +408,20 @@ const TeacherClassPayments = () => {
     let cashRevenue = 0;
     let onlineRevenue = 0;
     
-    Object.values(classPaymentData).forEach(enrollments => {
-      enrollments.forEach(enrollment => {
-        if (enrollment.payment_history_details) {
-          try {
-            const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
-              try { return JSON.parse(p); } catch (e) { return null; }
-            }).filter(p => p);
+    Object.values(classPaymentData).forEach(classData => {
+      const payments = classData.payments || [];
+      payments.forEach(payment => {
+        if (payment.date) {
+          const paymentDate = new Date(payment.date);
+          if (paymentDate.getMonth() + 1 === previousMonth && paymentDate.getFullYear() === previousYear) {
+            const amount = parseFloat(payment.amount || 0);
+            totalRevenue += amount;
             
-            paymentHistory.forEach(payment => {
-              if (payment.date) {
-                const paymentDate = new Date(payment.date);
-                if (paymentDate.getMonth() + 1 === previousMonth && paymentDate.getFullYear() === previousYear) {
-                  const amount = parseFloat(payment.amount || 0);
-                  totalRevenue += amount;
-                  
-                  if (payment.payment_method?.toLowerCase() === 'cash') {
-                    cashRevenue += amount;
-                  } else if (payment.payment_method?.toLowerCase() === 'online' || payment.payment_method?.toLowerCase() === 'card') {
-                    onlineRevenue += amount;
-                  }
-                }
-              }
-            });
-          } catch (error) {
-            // Skip malformed data
+            if (payment.payment_method?.toLowerCase() === 'cash') {
+              cashRevenue += amount;
+            } else if (payment.payment_method?.toLowerCase() === 'online' || payment.payment_method?.toLowerCase() === 'card') {
+              onlineRevenue += amount;
+            }
           }
         }
       });
@@ -448,109 +431,66 @@ const TeacherClassPayments = () => {
   };
 
   const calculateClassPaymentStats = (classId) => {
-    const enrollments = classPaymentData[classId] || [];
+    const classData = classPaymentData[classId] || { enrollments: [], payments: [] };
+    const enrollments = classData.enrollments || [];
+    const payments = classData.payments || [];
     
-    // Filter enrollments based on date filters
-    let filteredEnrollments = enrollments;
+    // Filter payments based on date filters
+    let filteredPayments = payments;
     
     if (dateFilter) {
       // Filter by specific date
       const targetDate = new Date(dateFilter);
       targetDate.setHours(0, 0, 0, 0);
       
-      filteredEnrollments = enrollments.filter(enrollment => {
-        if (!enrollment.payment_history_details) return false;
-        
-        try {
-          const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
-            try { return JSON.parse(p); } catch (e) { return null; }
-          }).filter(p => p);
-          
-          return paymentHistory.some(payment => {
-            if (!payment.date) return false;
-            const paymentDate = new Date(payment.date);
-            paymentDate.setHours(0, 0, 0, 0);
-            return paymentDate.getTime() === targetDate.getTime();
-          });
-        } catch (error) {
-          return false;
-        }
+      filteredPayments = payments.filter(payment => {
+        const paymentDate = new Date(payment.date);
+        paymentDate.setHours(0, 0, 0, 0);
+        return paymentDate.getTime() === targetDate.getTime();
       });
     } else if (monthFilter && yearFilter) {
       // Filter by month and year
       const targetMonth = parseInt(monthFilter);
       const targetYear = parseInt(yearFilter);
       
-      filteredEnrollments = enrollments.filter(enrollment => {
-        if (!enrollment.payment_history_details) return false;
-        
-        try {
-          const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
-            try { return JSON.parse(p); } catch (e) { return null; }
-          }).filter(p => p);
-          
-          return paymentHistory.some(payment => {
-            if (!payment.date) return false;
-            const paymentDate = new Date(payment.date);
-            return paymentDate.getMonth() + 1 === targetMonth && paymentDate.getFullYear() === targetYear;
-          });
-        } catch (error) {
-          return false;
-        }
+      filteredPayments = payments.filter(payment => {
+        const paymentDate = new Date(payment.date);
+        return paymentDate.getMonth() + 1 === targetMonth && paymentDate.getFullYear() === targetYear;
       });
     }
     
+    // Calculate revenue from filtered payments
     let totalPayments = 0;
     let cashPayments = 0;
     let onlinePayments = 0;
+    const paymentMethods = {};
     
-    filteredEnrollments.forEach(enrollment => {
-      if (enrollment.payment_history_details) {
-        try {
-          const paymentHistory = enrollment.payment_history_details.split('|').map(p => {
-            try { return JSON.parse(p); } catch (e) { return null; }
-          }).filter(p => p);
-          
-          paymentHistory.forEach(payment => {
-            const amount = parseFloat(payment.amount || 0);
-            totalPayments += amount;
-            
-            if (payment.payment_method?.toLowerCase() === 'cash') {
-              cashPayments += amount;
-            } else if (payment.payment_method?.toLowerCase() === 'online' || payment.payment_method?.toLowerCase() === 'card') {
-              onlinePayments += amount;
-            }
-          });
-        } catch (error) {
-          // Fallback to enrollment data
-          totalPayments += parseFloat(enrollment.paid_amount || 0);
-        }
-      } else {
-        totalPayments += parseFloat(enrollment.paid_amount || 0);
+    filteredPayments.forEach(payment => {
+      const amount = parseFloat(payment.amount || 0);
+      totalPayments += amount;
+      
+      const method = payment.payment_method?.toLowerCase() || 'unknown';
+      
+      if (method === 'cash') {
+        cashPayments += amount;
+      } else if (method === 'online' || method === 'card') {
+        onlinePayments += amount;
       }
+      
+      paymentMethods[method] = (paymentMethods[method] || 0) + 1;
     });
     
-    const studentsWithPayments = filteredEnrollments.filter(e => {
-      // Check if student has any payment history
-      if (e.payment_history_details) {
-        try {
-          const paymentHistory = e.payment_history_details.split('|').map(p => {
-            try { return JSON.parse(p); } catch (e) { return null; }
-          }).filter(p => p);
-          return paymentHistory.length > 0;
-        } catch (error) {
-          return false;
-        }
-      }
-      return parseFloat(e.paid_amount || 0) > 0;
-    }).length;
+    // Count unique students who made payments
+    const uniqueStudents = new Set(filteredPayments.map(p => p.user_id));
+    const studentsWithPayments = uniqueStudents.size;
     
     return {
       totalPayments,
       cashPayments,
       onlinePayments,
       studentsWithPayments,
-      totalEnrollments: enrollments.length
+      totalEnrollments: enrollments.length,
+      paymentMethods
     };
   };
 
@@ -806,13 +746,14 @@ const TeacherClassPayments = () => {
         const remaining = fee - paid;
         
         // Check if student has revision discount (enrolled in theory class)
-        const hasTheoryEnrollment = Object.values(classPaymentData).some(enrollments => 
-          enrollments.some(enrollment => 
+        const hasTheoryEnrollment = Object.values(classPaymentData).some(classData => {
+          const enrollments = classData.enrollments || [];
+          return enrollments.some(enrollment => 
             enrollment.student_id === row.student_id && 
             enrollment.course_type === 'theory' &&
             enrollment.status === 'active'
-          )
-        );
+          );
+        });
         
         // Check if current class is revision
         const isRevisionClass = row.course_type === 'revision';
@@ -1277,68 +1218,88 @@ const TeacherClassPayments = () => {
               </div>
               
               {/* Payment History */}
-              {selectedStudent.enrollment && selectedStudent.enrollment.payment_history_details && (
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold mb-3">Payment History</h3>
-                  <div className="space-y-3">
-                    {(() => {
-                      try {
-                        const paymentHistory = selectedStudent.enrollment.payment_history_details.split('|').map(p => {
-                          try { return JSON.parse(p); } catch (e) { return null; }
-                        }).filter(p => p);
-                        
-                        if (paymentHistory.length === 0) {
-                          return (
-                            <div className="text-gray-500 text-center py-4">
-                              No payment history available
-                            </div>
-                          );
-                        }
-                        
-                        return paymentHistory.map((payment, index) => (
-                          <div key={index} className="bg-gray-50 p-4 rounded-lg border">
-                            <div className="flex justify-between items-start">
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-2 mb-2">
-                                  <span className="text-sm font-medium text-gray-900">
-                                    Payment #{index + 1}
-                                  </span>
-                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                    payment.payment_method?.toLowerCase() === 'cash' ? 'bg-green-100 text-green-800' :
-                                    payment.payment_method?.toLowerCase() === 'online' || payment.payment_method?.toLowerCase() === 'card' ? 'bg-blue-100 text-blue-800' :
-                                    'bg-gray-100 text-gray-800'
-                                  }`}>
-                                    {payment.payment_method === 'cash' ? '💵 Cash' : 
-                                     payment.payment_method === 'online' || payment.payment_method === 'card' ? '💳 Online' : 
-                                     payment.payment_method || 'N/A'}
-                                  </span>
-                                </div>
-                                <div className="text-lg font-bold text-gray-900">
-                                  {formatCurrency(parseFloat(payment.amount || 0))}
-                                </div>
-                                <div className="text-sm text-gray-600">
-                                  {payment.date ? formatDate(payment.date) : 'Date not available'}
-                                </div>
-                                {payment.notes && (
-                                  <div className="text-sm text-gray-500 mt-1">
-                                    {payment.notes}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ));
-                      } catch (error) {
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold mb-3">Payment History</h3>
+                <div className="space-y-3">
+                  {(() => {
+                    try {
+                      // Get payments for this student from the payment backend data
+                      const studentPayments = selectedClass?.payments?.filter(
+                        payment => payment.user_id === selectedStudent.enrollment.student_id
+                      ) || [];
+                      
+                      if (studentPayments.length === 0) {
                         return (
-                          <div className="text-red-500 text-center py-4">
-                            Error loading payment history
+                          <div className="text-gray-500 text-center py-4">
+                            No payment history available
                           </div>
                         );
                       }
-                    })()}
-                  </div>
+                      
+                      // Sort payments by date (newest first)
+                      const sortedPayments = [...studentPayments].sort((a, b) => {
+                        return new Date(b.date) - new Date(a.date);
+                      });
+                      
+                      return sortedPayments.map((payment, index) => (
+                        <div key={payment.transaction_id || index} className="bg-gray-50 p-4 rounded-lg border">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2 mb-2">
+                                <span className="text-sm font-medium text-gray-900">
+                                  {payment.transaction_id || `Payment #${index + 1}`}
+                                </span>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  payment.payment_method?.toLowerCase() === 'cash' ? 'bg-green-100 text-green-800' :
+                                  payment.payment_method?.toLowerCase() === 'online' || payment.payment_method?.toLowerCase() === 'card' ? 'bg-blue-100 text-blue-800' :
+                                  'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {payment.payment_method === 'cash' ? '💵 Cash' : 
+                                   payment.payment_method === 'online' || payment.payment_method === 'card' ? '💳 Online' : 
+                                   payment.payment_method || 'N/A'}
+                                </span>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  payment.status?.toLowerCase() === 'paid' ? 'bg-green-100 text-green-800' :
+                                  payment.status?.toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {payment.status || 'N/A'}
+                                </span>
+                              </div>
+                              <div className="text-lg font-bold text-gray-900">
+                                {formatCurrency(parseFloat(payment.amount || 0))}
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                {payment.date ? formatDate(payment.date) : 'Date not available'}
+                              </div>
+                              {payment.notes && (
+                                <div className="text-sm text-gray-500 mt-2 p-2 bg-white rounded border border-gray-200">
+                                  <span className="font-medium">Notes: </span>
+                                  {payment.notes}
+                                </div>
+                              )}
+                              {payment.reference_number && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  Ref: {payment.reference_number}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ));
+                    } catch (error) {
+                      console.error('Error loading payment history:', error);
+                      return (
+                        <div className="text-red-500 text-center py-4">
+                          Error loading payment history: {error.message}
+                        </div>
+                      );
+                    }
+                  })()}
                 </div>
-              )}
+                </div>
+              
+              
               
               <div className="mt-6 flex justify-end">
                 <button

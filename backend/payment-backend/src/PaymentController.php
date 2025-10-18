@@ -89,6 +89,7 @@ class PaymentController {
             $referenceNumber = $transactionId;
             
             // Create comprehensive notes with student details
+            $tuteMedium = $data['medium'] ?? $data['tuteMedium'] ?? '';
             $studentDetails = [];
             if ($firstName) $studentDetails[] = "First Name: $firstName";
             if ($lastName) $studentDetails[] = "Last Name: $lastName";
@@ -96,6 +97,7 @@ class PaymentController {
             if ($mobile) $studentDetails[] = "Mobile: $mobile";
             if ($address) $studentDetails[] = "Address: $address";
             if ($district) $studentDetails[] = "District: $district";
+            if ($tuteMedium) $studentDetails[] = "Tute Medium: $tuteMedium";
             
             $baseNotes = $data['notes'] ?? '';
             $notes = $baseNotes;
@@ -694,7 +696,9 @@ class PaymentController {
                     fr.status,
                     fr.payment_method,
                     fr.reference_number,
-                    fr.notes
+                    fr.notes,
+                    fr.delivery_status,
+                    fr.created_at
                 FROM financial_records fr
                 WHERE fr.type = 'income' AND fr.category = 'class_enrollment'
                 ORDER BY fr.date DESC
@@ -716,7 +720,9 @@ class PaymentController {
                     'status' => $row['status'],
                     'payment_method' => $row['payment_method'],
                     'reference_number' => $row['reference_number'],
-                    'notes' => $row['notes']
+                    'notes' => $row['notes'],
+                    'delivery_status' => $row['delivery_status'],
+                    'created_at' => $row['created_at']
                 ];
             }
 
@@ -808,6 +814,60 @@ class PaymentController {
         } catch (Exception $e) {
             error_log("Error checking enrollment from class backend: " . $e->getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Update delivery status for a speed post transaction
+     */
+    public function updateDeliveryStatus($transactionId, $deliveryStatus) {
+        try {
+            // Validate delivery status
+            $validStatuses = ['pending', 'processing', 'delivered'];
+            if (!in_array($deliveryStatus, $validStatuses)) {
+                return [
+                    'success' => false,
+                    'message' => 'Invalid delivery status. Must be: pending, processing, or delivered'
+                ];
+            }
+
+            // Update the financial record with delivery status
+            $stmt = $this->db->prepare("
+                UPDATE financial_records 
+                SET delivery_status = ?
+                WHERE transaction_id = ?
+            ");
+            
+            $stmt->bind_param("ss", $deliveryStatus, $transactionId);
+            
+            if ($stmt->execute()) {
+                if ($stmt->affected_rows > 0) {
+                    return [
+                        'success' => true,
+                        'message' => 'Delivery status updated successfully',
+                        'data' => [
+                            'transaction_id' => $transactionId,
+                            'delivery_status' => $deliveryStatus
+                        ]
+                    ];
+                } else {
+                    return [
+                        'success' => false,
+                        'message' => 'Transaction not found or status unchanged'
+                    ];
+                }
+            } else {
+                return [
+                    'success' => false,
+                    'message' => 'Failed to update delivery status'
+                ];
+            }
+        } catch (Exception $e) {
+            error_log("Error updating delivery status: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Error updating delivery status: ' . $e->getMessage()
+            ];
         }
     }
 }
