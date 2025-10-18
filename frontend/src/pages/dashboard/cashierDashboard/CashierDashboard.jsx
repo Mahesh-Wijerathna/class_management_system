@@ -3228,7 +3228,7 @@ export default function CashierDashboard() {
   
   // Class filter/search state
   const [classSearchTerm, setClassSearchTerm] = useState('');
-  const [selectedClassFilter, setSelectedClassFilter] = useState('needPayment');
+  const [selectedClassFilter, setSelectedClassFilter] = useState('unpaid'); // Default to 'unpaid' (Need Payment)
   
   // Toast notification state
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -3296,9 +3296,13 @@ export default function CashierDashboard() {
           const paymentDate = p.payment_date || p.date;
           const paymentClassId = p.class_id || p.classId;
           const paymentMonth = paymentDate ? paymentDate.slice(0, 7) : null;
+          const paymentType = p.payment_type || p.paymentType || 'class_payment';
+          
+          // CRITICAL: Only count CLASS payments, NOT admission fee payments
           return paymentMonth === currentMonth && 
                  Number(paymentClassId) === Number(enr.classId) &&
-                 (p.status === 'paid' || p.status === 'completed');
+                 (p.status === 'paid' || p.status === 'completed') &&
+                 paymentType !== 'admission_fee'; // EXCLUDE admission fee
         });
         return !hasPaymentThisMonth;
       } else if (selectedClassFilter === 'paid') {
@@ -3307,9 +3311,13 @@ export default function CashierDashboard() {
           const paymentDate = p.payment_date || p.date;
           const paymentClassId = p.class_id || p.classId;
           const paymentMonth = paymentDate ? paymentDate.slice(0, 7) : null;
+          const paymentType = p.payment_type || p.paymentType || 'class_payment';
+          
+          // CRITICAL: Only count CLASS payments, NOT admission fee payments
           return paymentMonth === currentMonth && 
                  Number(paymentClassId) === Number(enr.classId) &&
-                 (p.status === 'paid' || p.status === 'completed');
+                 (p.status === 'paid' || p.status === 'completed') &&
+                 paymentType !== 'admission_fee'; // EXCLUDE admission fee
         });
         return hasPaymentThisMonth;
       }
@@ -3674,14 +3682,18 @@ export default function CashierDashboard() {
       // Calculate final monthly fee after discount
       const finalMonthlyFee = isRevisionClass && discountPrice > 0 ? monthly - discountPrice : monthly;
       
-      // Check if this class has payment for current month
+      // Check if this class has MONTHLY payment for current month (EXCLUDE admission fee)
       const hasPaymentThisMonth = (payments || []).some(p => {
         const paymentDate = p.payment_date || p.date;
         const paymentClassId = p.class_id || p.classId;
         const paymentMonth = paymentDate ? paymentDate.slice(0, 7) : null;
+        const paymentType = p.payment_type || p.paymentType || 'class_payment';
+        
+        // CRITICAL: Only count CLASS payments, NOT admission fee payments
         return paymentMonth === currentMonth && 
                Number(paymentClassId) === Number(enr.classId || enr.class_id) &&
-               (p.status === 'paid' || p.status === 'completed');
+               (p.status === 'paid' || p.status === 'completed') &&
+               paymentType !== 'admission_fee'; // EXCLUDE admission fee
       });
       
       // For monthly recurring: outstanding = monthly fee if not paid this month, else 0
@@ -3758,8 +3770,8 @@ export default function CashierDashboard() {
                 </span>
               </h4>
               
-              {/* Quick Filter & Search - Only show if student has multiple classes */}
-              {enrollments && enrollments.length > 2 && (
+              {/* Quick Filter & Search - Always show if student has classes */}
+              {enrollments && enrollments.length > 0 && (
                 <div className="mb-4 space-y-2">
                   {/* Search Box */}
                   <ClassSearchInput

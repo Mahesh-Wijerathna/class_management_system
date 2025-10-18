@@ -31,15 +31,28 @@ class PaymentController {
 
             // Get class information from class backend
             $classId = $data['classId'] ?? '';
-            $class = $this->getClassFromClassBackend($classId);
-            if (!$class) {
-                return ['success' => false, 'message' => 'Class not found'];
+            $paymentType = $data['paymentType'] ?? 'class_payment';
+            
+            // For admission_fee, classId is optional (can be collected before class enrollment)
+            if ($paymentType === 'admission_fee' && empty($classId)) {
+                // Admission fee without class - use default values
+                $class = [
+                    'className' => 'Admission Fee',
+                    'fee' => 0
+                ];
+            } else {
+                // For class payments, classId is required
+                $class = $this->getClassFromClassBackend($classId);
+                if (!$class) {
+                    return ['success' => false, 'message' => 'Class not found'];
+                }
             }
 
             // Check if student is already enrolled ONLY for online/new enrollments
             // Skip this check for physical/cashier payments (they're for existing enrollments)
+            // Also skip for admission_fee payments without a classId
             $channel = $data['channel'] ?? 'online';
-            if ($channel !== 'physical') {
+            if ($channel !== 'physical' && !empty($classId)) {
                 // Check if student is already enrolled in this class (only check paid enrollments)
                 $isEnrolled = $this->checkStudentEnrollmentFromClassBackend($studentId, $classId);
                 if ($isEnrolled) {
@@ -53,7 +66,7 @@ class PaymentController {
             // CRITICAL: Prevent duplicate payment for the same class in the same month
             // BUT: Only check for class_payment duplicates, NOT admission_fee (admission fee is one-time)
             // IMPORTANT: Only apply duplicate check for class_payment type, not admission_fee
-            $paymentType = $data['paymentType'] ?? 'class_payment';
+            // $paymentType already defined above
             
             if ($paymentType === 'class_payment') {
                 $currentMonth = date('Y-m');
@@ -94,12 +107,13 @@ class PaymentController {
 
             $date = date('Y-m-d');
             $type = 'income';
-            $category = 'class_enrollment';
+            $category = ($paymentType === 'admission_fee') ? 'admission_fee' : 'class_enrollment';
             $personName = $studentName;
             $userId = $studentId; // Use studentId as user_id
             $personRole = 'student';
             $className = $class['className'] ?? '';
-            $classId = $classId; // Include class_id
+            // For admission fee without class, classId will be empty
+            $classIdValue = !empty($classId) ? $classId : null;
             // For cash payments, status should be 'paid' immediately
             $status = ($data['paymentMethod'] === 'cash' || $data['status'] === 'paid') ? 'paid' : 'pending';
             $paymentMethod = $data['paymentMethod'] ?? 'online';
@@ -122,7 +136,7 @@ class PaymentController {
 
             $stmt->bind_param("ssssssssidssssss", 
                 $transactionId, $date, $type, $category, $personName, $userId, $personRole,
-                $className, $classId, $finalAmount, $status, $paymentMethod, $referenceNumber, $notes, $studentId, $paymentType
+                $className, $classIdValue, $finalAmount, $status, $paymentMethod, $referenceNumber, $notes, $studentId, $paymentType
             );
 
             if (!$stmt->execute()) {

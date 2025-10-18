@@ -113,7 +113,6 @@ const PhysicalStudentRegisterTab = () => {
   const [registeredStudent, setRegisteredStudent] = useState(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
-  const [admissionFeeCollected, setAdmissionFeeCollected] = useState(false);
   const [alertConfig, setAlertConfig] = useState({
     open: false,
     message: '',
@@ -121,6 +120,10 @@ const PhysicalStudentRegisterTab = () => {
     type: 'info',
     onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
   });
+  
+  // Admission fee state variables
+  const [collectAdmissionFee, setCollectAdmissionFee] = useState(false);
+  const [admissionFeeAmount, setAdmissionFeeAmount] = useState(1000); // Default admission fee
 
   // Generate unique student ID (same as online registration - S0 + 4 random digits)
   const generateStudentId = () => {
@@ -267,29 +270,37 @@ const PhysicalStudentRegisterTab = () => {
           // Don't fail the registration if barcode save fails
         }
         
-        // CRITICAL: Record admission fee payment if collected during registration
-        if (admissionFeeCollected) {
+        // Record admission fee payment if checkbox is checked
+        if (collectAdmissionFee && admissionFeeAmount > 0) {
           try {
-            const admissionFeePayload = {
+            const admissionPayload = {
               paymentType: 'admission_fee',
               paymentMethod: 'cash',
               channel: 'physical',
               studentId: response.userid,
-              amount: 5000, // Default admission fee amount
+              amount: admissionFeeAmount,
               notes: 'Admission Fee - Collected during physical registration',
             };
             
-            const admissionFeeResult = await createPayment(admissionFeePayload);
+            console.log('🔧 Sending admission fee payment payload:', admissionPayload);
             
-            if (admissionFeeResult?.success) {
-              console.log('Admission fee payment recorded successfully');
+            const admissionPaymentRes = await createPayment(admissionPayload);
+            
+            console.log('🔧 Admission fee payment response:', admissionPaymentRes);
+            
+            if (admissionPaymentRes?.success) {
+              console.log('✅ Admission fee payment recorded: LKR', admissionFeeAmount);
             } else {
-              console.error('Failed to record admission fee payment:', admissionFeeResult?.message);
-              // Don't fail the registration if admission fee recording fails
+              console.error('❌ Failed to record admission fee payment:', admissionPaymentRes);
+              console.error('❌ Error message:', admissionPaymentRes?.message);
+              console.error('❌ Full response:', JSON.stringify(admissionPaymentRes));
+              // Show warning but don't fail registration
+              alert('⚠️ Registration successful but admission fee payment recording failed.\n\nError: ' + (admissionPaymentRes?.message || 'Unknown error') + '\n\nPlease record the admission fee payment manually in the Cashier Dashboard.');
             }
           } catch (error) {
             console.error('Error recording admission fee payment:', error);
-            // Don't fail the registration if admission fee recording fails
+            console.error('Error details:', error.message, error.stack);
+            alert('⚠️ Registration successful but admission fee payment recording failed.\n\nError: ' + error.message + '\n\nPlease record the admission fee payment manually in the Cashier Dashboard.');
           }
         }
         
@@ -707,7 +718,9 @@ const PhysicalStudentRegisterTab = () => {
                           parentMobile: '',
                         });
                         setSummaryValues({});
-                        setAdmissionFeeCollected(false);
+                        // Reset admission fee state
+                        setCollectAdmissionFee(false);
+                        setAdmissionFeeAmount(1000);
                       }}
                     >
                       Register Another Student
@@ -732,29 +745,48 @@ const PhysicalStudentRegisterTab = () => {
               <CustomTextField label="Parent Name" value={summaryValues.parentName} readOnly icon={FaUser} />
               <CustomTextField label="Parent Mobile Number" value={summaryValues.parentMobile} readOnly icon={FaPhone} />
               
-              {/* Admission Fee Checkbox - OPTIONAL (only for physical/hybrid classes) */}
-              <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 mb-4">
+              {/* Admission Fee Section */}
+              <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 mt-4">
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={admissionFeeCollected}
-                    onChange={(e) => setAdmissionFeeCollected(e.target.checked)}
-                    className="mt-1 w-5 h-5 text-[#3da58a] border-2 border-gray-300 rounded focus:ring-2 focus:ring-[#3da58a] cursor-pointer"
+                    checked={collectAdmissionFee}
+                    onChange={(e) => setCollectAdmissionFee(e.target.checked)}
+                    className="mt-1 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
                   <div className="flex-1">
-                    <span className="text-sm font-semibold text-gray-800">
-                      Admission Fee Collected (Optional)
-                    </span>
-                    <p className="text-xs text-gray-600 mt-1">
-                      ✅ Check this ONLY if the student paid admission fee AND will enroll in Physical Only/Hybrid 1/Hybrid 2/Hybrid4 classes.
-                    </p>
-                    <p className="text-xs text-blue-700 mt-1 font-medium">
+                    <span className="font-semibold text-[#1a365d]">Admission Fee Collected (Optional)</span>
+                    <div className="text-xs text-green-700 mt-1">
+                      ✅ Check this ONLY if the student paid admission fee AND will enroll in Physical Only/Hybrid 1/Hybrid 2/Hybrid 4 classes.
+                    </div>
+                    <div className="text-xs text-blue-700 mt-1">
                       ℹ️ Not required for Online Only/ Hybrid 3 students. Can be collected later via Cashier Dashboard.
-                    </p>
+                    </div>
                   </div>
                 </label>
+                
+                {/* Admission Fee Amount Input - Only show when checkbox is checked */}
+                {collectAdmissionFee && (
+                  <div className="mt-4 bg-white rounded-lg p-3 border-2 border-blue-400">
+                    <label className="block text-sm font-semibold text-[#1a365d] mb-2">
+                      Admission Fee Amount (LKR) *
+                    </label>
+                    <input
+                      type="number"
+                      value={admissionFeeAmount}
+                      onChange={(e) => setAdmissionFeeAmount(Number(e.target.value) || 0)}
+                      className="w-full px-4 py-3 border-2 border-[#1a365d] rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-lg font-semibold"
+                      min="0"
+                      step="100"
+                      placeholder="Enter admission fee amount"
+                    />
+                    <div className="text-xs text-slate-600 mt-2">
+                      💡 Default: LKR 1,000 (can be adjusted)
+                    </div>
+                  </div>
+                )}
               </div>
-
+              
               <div className="flex gap-4 mt-2">
                 <CustomButton type="button" onClick={() => setStep(2)}>
                   Back
