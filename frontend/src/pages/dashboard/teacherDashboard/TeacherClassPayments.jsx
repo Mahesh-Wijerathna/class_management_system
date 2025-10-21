@@ -3,6 +3,7 @@ import { FaUsers, FaMoneyBill, FaCalendar, FaSearch, FaGraduationCap, FaExclamat
 import { getClassesByTeacher } from '../../../api/classes';
 import { getClassEnrollments } from '../../../api/enrollments';
 import { getAllStudents } from '../../../api/students';
+import { getAllEarningsConfigs } from '../../../api/earningsConfig';
 import { getUserData } from '../../../api/apiUtils';
 import axios from 'axios';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
@@ -26,6 +27,41 @@ const TeacherClassPayments = () => {
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [selectedClass, setSelectedClass] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  
+  // Load admin's earnings configuration from backend (read-only for teachers)
+  const [adminEarningsConfig, setAdminEarningsConfig] = useState({});
+  const [configLoading, setConfigLoading] = useState(false);
+  
+  // Load admin's class earnings configurations from backend
+  useEffect(() => {
+    loadAdminEarningsConfigs();
+  }, []);
+  
+  const loadAdminEarningsConfigs = async () => {
+    try {
+      setConfigLoading(true);
+      const response = await getAllEarningsConfigs();
+      if (response.success) {
+        setAdminEarningsConfig(response.data);
+      } else {
+        console.error('Failed to load admin earnings configs:', response.error);
+      }
+    } catch (error) {
+      console.error('Failed to load admin earnings config from backend:', error);
+    } finally {
+      setConfigLoading(false);
+    }
+  };
+  
+  // Get admin's config for a specific class (read-only)
+  const getAdminClassConfig = (classId) => {
+    return adminEarningsConfig[classId] || {
+      enableTeacherDashboard: false,
+      hallRentPercentage: 30,
+      payherePercentage: 3,
+      otherExpenses: []
+    };
+  };
 
   useEffect(() => {
     loadData();
@@ -1140,44 +1176,224 @@ const TeacherClassPayments = () => {
               {/* Payment Statistics */}
               {(() => {
                 const stats = calculatePaymentStats(selectedClass.enrollments);
+                const adminConfig = getAdminClassConfig(selectedClass.id);
+                const totalRevenue = stats.totalRevenue;
+                const cashRevenue = stats.cashRevenue;
+                const onlineRevenue = stats.onlineRevenue;
+                
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <p className="text-sm font-medium text-blue-600">Total Students</p>
-                      <p className="text-xl font-bold text-blue-900">{stats.totalStudents}</p>
-                    </div>
-                    <div className="bg-green-50 p-4 rounded-lg">
-                      <p className="text-sm font-medium text-green-600">Paid</p>
-                      <p className="text-xl font-bold text-green-900">{stats.paidStudents}</p>
-                    </div>
-                    <div className="bg-yellow-50 p-4 rounded-lg">
-                      <p className="text-sm font-medium text-yellow-600">Pending</p>
-                      <p className="text-xl font-bold text-yellow-900">{stats.pendingStudents}</p>
-                    </div>
-                    <div className="bg-red-50 p-4 rounded-lg">
-                      <p className="text-sm font-medium text-red-600">Free Card</p>
-                      <p className="text-xl font-bold text-red-900">{stats.freeStudents}</p>
-                    </div>
-                    <div className="bg-orange-50 p-4 rounded-lg">
-                      <p className="text-sm font-medium text-orange-600">Half Card</p>
-                      <p className="text-xl font-bold text-orange-900">{stats.halfPaidStudents}</p>
-                    </div>
-                    <div className="bg-purple-50 p-4 rounded-lg">
-                      <p className="text-sm font-medium text-purple-600">Total Revenue</p>
-                      <p className="text-sm font-bold text-purple-900">{formatCurrency(stats.totalRevenue)}</p>
-                      <div className="flex flex-col space-y-1 text-xs mt-2">
-                        <div className="flex justify-between">
-                          <span className="text-green-600 font-medium">Cash:</span>
-                          <span className="text-green-700">{formatCurrency(stats.cashRevenue)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-blue-600 font-medium">Online:</span>
-                          <span className="text-blue-700">{formatCurrency(stats.onlineRevenue)}</span>
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
+                      <div className="bg-blue-50 p-4 rounded-lg">
+                        <p className="text-sm font-medium text-blue-600">Total Students</p>
+                        <p className="text-xl font-bold text-blue-900">{stats.totalStudents}</p>
+                      </div>
+                      <div className="bg-green-50 p-4 rounded-lg">
+                        <p className="text-sm font-medium text-green-600">Paid</p>
+                        <p className="text-xl font-bold text-green-900">{stats.paidStudents}</p>
+                      </div>
+                      <div className="bg-yellow-50 p-4 rounded-lg">
+                        <p className="text-sm font-medium text-yellow-600">Pending</p>
+                        <p className="text-xl font-bold text-yellow-900">{stats.pendingStudents}</p>
+                      </div>
+                      <div className="bg-red-50 p-4 rounded-lg">
+                        <p className="text-sm font-medium text-red-600">Free Card</p>
+                        <p className="text-xl font-bold text-red-900">{stats.freeStudents}</p>
+                      </div>
+                      <div className="bg-orange-50 p-4 rounded-lg">
+                        <p className="text-sm font-medium text-orange-600">Half Card</p>
+                        <p className="text-xl font-bold text-orange-900">{stats.halfPaidStudents}</p>
+                      </div>
+                      <div className="bg-purple-50 p-4 rounded-lg">
+                        <p className="text-sm font-medium text-purple-600">Total Revenue</p>
+                        <p className="text-sm font-bold text-purple-900">{formatCurrency(stats.totalRevenue)}</p>
+                        <div className="flex flex-col space-y-1 text-xs mt-2">
+                          <div className="flex justify-between">
+                            <span className="text-green-600 font-medium">Cash:</span>
+                            <span className="text-green-700">{formatCurrency(stats.cashRevenue)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-blue-600 font-medium">Online:</span>
+                            <span className="text-blue-700">{formatCurrency(stats.onlineRevenue)}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
                     
-                  </div>
+                    {/* Teacher Dashboard - Only visible if Admin enabled it */}
+                    {adminConfig.enableTeacherDashboard && (
+                      <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-6 mb-6 border-2 border-purple-300 shadow-lg">
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-purple-200">
+                          <h3 className="text-xl font-bold text-purple-900 flex items-center gap-2">
+                            <span className="text-2xl">👨‍🏫</span>
+                            Teacher Dashboard - Detailed Revenue Analysis
+                          </h3>
+                          <span className="px-3 py-1 bg-blue-600 text-white text-sm rounded-full">
+                            Enabled by Admin
+                          </span>
+                        </div>
+                        
+                        {(() => {
+                          // Calculate earnings breakdown (same logic as admin)
+                          const hallRentPercentage = adminConfig.hallRentPercentage || 30;
+                          const payherePercentage = adminConfig.payherePercentage || 3;
+                          const otherExpenses = adminConfig.otherExpenses || [];
+                          
+                          const hallRentAmount = (totalRevenue * hallRentPercentage) / 100;
+                          const payhereAmount = (onlineRevenue * payherePercentage) / 100;
+                          const otherExpensesTotal = otherExpenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
+                          
+                          // Institute Share = Hall Rent + PayHere Fee + Other Expenses
+                          const instituteShare = hallRentAmount + payhereAmount + otherExpensesTotal;
+                          
+                          // Teacher Share = Total Revenue - Institute Share
+                          const teacherShare = totalRevenue - instituteShare;
+                          
+                          return (
+                            <div className="mt-4 space-y-6">
+                              {/* Revenue Distribution Cards */}
+                              <div>
+                                <h3 className="text-lg font-bold text-purple-900 mb-4">💎 Revenue Distribution</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                  {/* Teacher Earnings */}
+                                  <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg shadow-md p-5 border-2 border-blue-300">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <p className="text-sm font-medium text-blue-700">Teacher Earnings</p>
+                                      <span className="text-2xl">�‍🏫</span>
+                                    </div>
+                                    <p className="text-3xl font-bold text-blue-900">{formatCurrency(teacherShare)}</p>
+                                    <p className="text-xs text-blue-600 mt-1">Total Revenue - Institute Share</p>
+                                    <div className="mt-3 pt-3 border-t border-blue-200">
+                                      <p className="text-xs text-gray-600">From Total: {formatCurrency(totalRevenue)}</p>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Institute Earnings */}
+                                  <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg shadow-md p-5 border-2 border-indigo-300">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <p className="text-sm font-medium text-indigo-700">Institute Earnings</p>
+                                      <span className="text-2xl">🏛️</span>
+                                    </div>
+                                    <p className="text-3xl font-bold text-indigo-900">{formatCurrency(instituteShare)}</p>
+                                    <p className="text-xs text-indigo-600 mt-1">Hall + PayHere + Expenses</p>
+                                    <div className="mt-3 pt-3 border-t border-indigo-200">
+                                      <p className="text-xs text-gray-600">All Deductions</p>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Total Revenue */}
+                                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg shadow-md p-5 border-2 border-green-300">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <p className="text-sm font-medium text-green-700">Total Revenue</p>
+                                      <span className="text-2xl">�</span>
+                                    </div>
+                                    <p className="text-3xl font-bold text-green-900">{formatCurrency(totalRevenue)}</p>
+                                    <p className="text-xs text-green-600 mt-1">Gross collection</p>
+                                    <div className="mt-3">
+                                      <div className="flex justify-between text-xs text-gray-600">
+                                        <span>Teacher</span>
+                                        <span>{totalRevenue > 0 ? ((teacherShare / totalRevenue) * 100).toFixed(1) : 0}%</span>
+                                      </div>
+                                      <div className="flex justify-between text-xs text-gray-600 mt-1">
+                                        <span>Institute</span>
+                                        <span>{totalRevenue > 0 ? ((instituteShare / totalRevenue) * 100).toFixed(1) : 0}%</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              {/* Detailed Financial Breakdown */}
+                              <div className="bg-white rounded-lg shadow-md p-5">
+                                <h4 className="text-md font-bold text-gray-900 mb-4">� Detailed Financial Breakdown</h4>
+                                <div className="space-y-2">
+                                  <div className="flex justify-between py-2 border-b border-gray-200">
+                                    <span className="text-gray-700 font-medium">Total Revenue (Gross)</span>
+                                    <span className="text-lg font-bold text-purple-900">{formatCurrency(totalRevenue)}</span>
+                                  </div>
+                                  
+                                  <div className="pl-4 space-y-1 py-2 bg-red-50 rounded">
+                                    <p className="text-sm font-semibold text-red-700 mb-2">Deductions:</p>
+                                    <div className="flex justify-between text-sm">
+                                      <span className="text-gray-600">• Hall Rent ({hallRentPercentage}%)</span>
+                                      <span className="text-red-600 font-medium">- {formatCurrency(hallRentAmount)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                      <span className="text-gray-600">• PayHere Fee ({payherePercentage}% of online)</span>
+                                      <span className="text-red-600 font-medium">- {formatCurrency(payhereAmount)}</span>
+                                    </div>
+                                    {otherExpenses.map((expense, index) => (
+                                      expense.description && expense.amount ? (
+                                        <div key={index} className="flex justify-between text-sm">
+                                          <span className="text-gray-600">• {expense.description}</span>
+                                          <span className="text-red-600 font-medium">- {formatCurrency(parseFloat(expense.amount))}</span>
+                                        </div>
+                                      ) : null
+                                    ))}
+                                    <div className="flex justify-between text-sm font-semibold pt-2 border-t border-red-200 mt-2">
+                                      <span className="text-red-700">Institute Earnings (Total)</span>
+                                      <span className="text-red-700">{formatCurrency(instituteShare)}</span>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="flex justify-between py-2 border-b border-gray-200 bg-blue-50 px-3 rounded">
+                                    <span className="text-blue-800 font-semibold">Teacher Earnings</span>
+                                    <span className="text-xl font-bold text-blue-700">{formatCurrency(teacherShare)}</span>
+                                  </div>
+                                  
+                                  <div className="pl-4 space-y-1 py-2 bg-gray-50 rounded mt-2 p-3">
+                                    <p className="text-sm font-semibold text-gray-700 mb-2">Summary:</p>
+                                    <div className="flex justify-between text-sm">
+                                      <span className="text-gray-700">Total Revenue</span>
+                                      <span className="text-gray-900 font-bold">{formatCurrency(totalRevenue)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                      <span className="text-blue-700">�‍🏫 Teacher Earnings</span>
+                                      <span className="text-blue-900 font-bold">{formatCurrency(teacherShare)} ({totalRevenue > 0 ? ((teacherShare / totalRevenue) * 100).toFixed(1) : 0}%)</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                      <span className="text-indigo-700">🏛️ Institute Earnings</span>
+                                      <span className="text-indigo-900 font-bold">{formatCurrency(instituteShare)} ({totalRevenue > 0 ? ((instituteShare / totalRevenue) * 100).toFixed(1) : 0}%)</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              {/* Payment Summary */}
+                              <div className="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg shadow-lg p-5 text-white">
+                                <h4 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                                  <span className="text-2xl">📊</span>
+                                  Payment Summary
+                                </h4>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                  <div className="bg-white bg-opacity-20 rounded p-3">
+                                    <p className="text-sm opacity-90">Total Students</p>
+                                    <p className="text-2xl font-bold">{stats.totalStudents}</p>
+                                  </div>
+                                  <div className="bg-white bg-opacity-20 rounded p-3">
+                                    <p className="text-sm opacity-90">Students Paid</p>
+                                    <p className="text-2xl font-bold">{stats.paidStudents}</p>
+                                  </div>
+                                  <div className="bg-white bg-opacity-20 rounded p-3">
+                                    <p className="text-sm opacity-90">Payment Rate</p>
+                                    <p className="text-2xl font-bold">
+                                      {stats.totalStudents > 0 ? ((stats.paidStudents / stats.totalStudents) * 100).toFixed(1) : 0}%
+                                    </p>
+                                  </div>
+                                  <div className="bg-white bg-opacity-20 rounded p-3">
+                                    <p className="text-sm opacity-90">Avg. per Student</p>
+                                    <p className="text-xl font-bold">
+                                      {stats.paidStudents > 0 ? formatCurrency(totalRevenue / stats.paidStudents) : formatCurrency(0)}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </>
                 );
               })()}
               
