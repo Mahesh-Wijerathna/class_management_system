@@ -133,10 +133,13 @@ class PaymentController {
             if (!empty($studentDetails)) {
                 $notes = $baseNotes . (empty($baseNotes) ? '' : ' | ') . implode(', ', $studentDetails);
             }
+            
+            // Get cashier ID from request data (who is creating this payment)
+            $createdBy = $data['cashierId'] ?? $data['createdBy'] ?? $studentId; // Fallback to studentId for backward compatibility
 
             $stmt->bind_param("ssssssssidssssss", 
                 $transactionId, $date, $type, $category, $personName, $userId, $personRole,
-                $className, $classIdValue, $finalAmount, $status, $paymentMethod, $referenceNumber, $notes, $studentId, $paymentType
+                $className, $classIdValue, $finalAmount, $status, $paymentMethod, $referenceNumber, $notes, $createdBy, $paymentType
             );
 
             if (!$stmt->execute()) {
@@ -527,7 +530,9 @@ class PaymentController {
                     fr.reference_number,
                     fr.user_id,
                     fr.class_id,
-                    fr.payment_type
+                    fr.payment_type,
+                    fr.category,
+                    fr.type
                 FROM financial_records fr
                 WHERE fr.user_id = ?
                 ORDER BY fr.date DESC
@@ -671,7 +676,7 @@ class PaymentController {
                     fr.amount,
                     fr.status,
                     fr.payment_method,
-                    fr.payment_type,
+                    fr.category as payment_type,
                     fr.reference_number,
                     fr.notes
                 FROM financial_records fr
@@ -735,6 +740,103 @@ class PaymentController {
 
         } catch (Exception $e) {
             return ['success' => false, 'message' => 'Error retrieving payment stats: ' . $e->getMessage()];
+        }
+    }
+
+    // Get cashier statistics (daily or monthly)
+    public function getCashierStats($cashierId, $period = 'today') {
+        try {
+            // Determine date range based on period
+            if ($period === 'today') {
+                $dateCondition = "DATE(fr.created_at) = CURDATE()";
+            } elseif ($period === 'month') {
+                $dateCondition = "YEAR(fr.created_at) = YEAR(CURDATE()) AND MONTH(fr.created_at) = MONTH(CURDATE())";
+            } elseif ($period === 'all') {
+                $dateCondition = "1=1"; // No date filter
+            } else {
+                // Custom date range: period should be in format 'YYYY-MM-DD'
+                $dateCondition = "DATE(fr.created_at) = ?";
+            }
+
+            // Query to get cashier statistics
+            $sql = "
+                SELECT 
+                    COUNT(*) as total_receipts,
+                    SUM(CASE WHEN fr.status = 'paid' THEN fr.amount ELSE 0 END) as total_collected,
+                    SUM(CASE WHEN fr.status = 'pending' THEN 1 ELSE 0 END) as pending_count,
+                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_method = 'cash' THEN fr.amount ELSE 0 END) as cash_collected,
+                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_method = 'card' THEN fr.amount ELSE 0 END) as card_collected,
+                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_type = 'admission_fee' THEN fr.amount ELSE 0 END) as admission_fees,
+                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_type = 'class_payment' THEN fr.amount ELSE 0 END) as class_payments,
+                    MIN(fr.created_at) as first_transaction,
+                    MAX(fr.created_at) as last_transaction
+                FROM financial_records fr
+                WHERE fr.created_by = ? 
+                AND fr.type = 'income'
+                AND $dateCondition
+            ";
+
+            $stmt = $this->db->prepare($sql);
+            
+            if ($period !== 'today' && $period !== 'month' && $period !== 'all') {
+                $stmt->bind_param("ss", $cashierId, $period);
+            } else {
+                $stmt->bind_param("s", $cashierId);
+            }
+
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $stats = $result->fetch_assoc();
+
+            // Get recent transactions for this cashier
+            $recentSql = "
+                SELECT 
+                    fr.transaction_id,
+                    fr.date,
+                    fr.created_at,
+                    fr.person_name,
+                    fr.user_id,
+                    fr.class_name,
+                    fr.amount,
+                    fr.status,
+                    fr.payment_method,
+                    fr.payment_type
+                FROM financial_records fr
+                WHERE fr.created_by = ?
+                AND $dateCondition
+                AND fr.type = 'income'
+                ORDER BY fr.created_at DESC
+                LIMIT 50
+            ";
+
+            $recentStmt = $this->db->prepare($recentSql);
+            
+            if ($period !== 'today' && $period !== 'month' && $period !== 'all') {
+                $recentStmt->bind_param("ss", $cashierId, $period);
+            } else {
+                $recentStmt->bind_param("s", $cashierId);
+            }
+
+            $recentStmt->execute();
+            $recentResult = $recentStmt->get_result();
+            
+            $transactions = [];
+            while ($row = $recentResult->fetch_assoc()) {
+                $transactions[] = $row;
+            }
+
+            return [
+                'success' => true,
+                'data' => [
+                    'stats' => $stats,
+                    'transactions' => $transactions,
+                    'period' => $period,
+                    'cashierId' => $cashierId
+                ]
+            ];
+
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error retrieving cashier stats: ' . $e->getMessage()];
         }
     }
 

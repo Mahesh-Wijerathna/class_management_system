@@ -219,9 +219,12 @@ CREATE TABLE IF NOT EXISTS financial_records (
     date DATE NOT NULL,
     type ENUM('income', 'expense') NOT NULL,
     category VARCHAR(100) NOT NULL,
+    payment_type ENUM('class_payment', 'admission_fee') DEFAULT 'class_payment',
     person_name VARCHAR(200),
+    user_id VARCHAR(10),
     person_role VARCHAR(50),
     class_name VARCHAR(100),
+    class_id INT NULL,
     amount DECIMAL(10,2) NOT NULL,
     status ENUM('pending', 'paid', 'cancelled', 'refunded') DEFAULT 'pending',
     payment_method VARCHAR(50),
@@ -231,10 +234,15 @@ CREATE TABLE IF NOT EXISTS financial_records (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (created_by) REFERENCES users(userid) ON DELETE SET NULL,
+    FOREIGN KEY (user_id) REFERENCES users(userid) ON DELETE SET NULL,
+    FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE SET NULL,
     INDEX idx_date (date),
     INDEX idx_type (type),
     INDEX idx_category (category),
-    INDEX idx_status (status)
+    INDEX idx_payment_type (payment_type),
+    INDEX idx_status (status),
+    INDEX idx_user (user_id),
+    INDEX idx_class (class_id)
 );
 
 -- Payment history table

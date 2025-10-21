@@ -4,7 +4,7 @@ import { getUserData, logout as authLogout } from '../../../api/apiUtils';
 import { login } from '../../../api/auth';
 import { getBarcode as apiGetBarcode } from '../../../api/auth';
 import { getStudentById } from '../../../api/students';
-import { getStudentPayments, createPayment, generateInvoice } from '../../../api/payments';
+import { getStudentPayments, createPayment, generateInvoice, getCashierStats } from '../../../api/payments';
 import { getActiveClasses } from '../../../api/classes';
 import PhysicalStudentRegisterTab from '../adminDashboard/PhysicalStudentRegisterTab';
 import BarcodeScanner from '../../../components/BarcodeScanner';
@@ -2135,7 +2135,6 @@ const UnlockModal = ({ onClose, onUnlock, cashierName }) => {
 // Quick Payment Modal for FAST cashier workflow
 const QuickPaymentModal = ({ student, classData, onClose, onSuccess }) => {
   const [submitting, setSubmitting] = useState(false);
-  const [printReceipt, setPrintReceipt] = useState(true);
   const payButtonRef = useRef(null);
 
   const monthlyFee = Number(classData.monthlyFee || 0);
@@ -2169,7 +2168,9 @@ const QuickPaymentModal = ({ student, classData, onClose, onSuccess }) => {
         amount: finalFee, // Use final fee after discount
         notes: isRevisionClass && discountPrice > 0 
           ? `Monthly fee payment (${discountPrice} revision discount applied)`
-          : 'Monthly fee payment', // Changed from 'note' to 'notes'
+          : 'Monthly fee payment',
+        cashierId: getUserData()?.userid,
+        createdBy: getUserData()?.userid
       };
       
       const res = await createPayment(payload);
@@ -2196,8 +2197,8 @@ const QuickPaymentModal = ({ student, classData, onClose, onSuccess }) => {
         // Extract transaction ID - API might return it in different fields
         const transactionId = res?.transactionId || res?.data?.transactionId || res?.data?.transaction_id;
         
-        // Print receipt if option is selected
-        if (printReceipt && transactionId) {
+        // Always print receipt when payment is made
+        if (transactionId) {
           const receiptData = {
             transactionId: transactionId,
             amount: finalFee,
@@ -2295,22 +2296,6 @@ const QuickPaymentModal = ({ student, classData, onClose, onSuccess }) => {
               </div>
             </div>
           )}
-
-          {/* Print Receipt Option */}
-          <div className="mb-5">
-            <label className="flex items-center gap-3 cursor-pointer bg-slate-50 rounded-lg p-3 hover:bg-slate-100 transition-colors">
-              <input
-                type="checkbox"
-                checked={printReceipt}
-                onChange={(e) => setPrintReceipt(e.target.checked)}
-                className="w-5 h-5 text-emerald-600 rounded focus:ring-2 focus:ring-emerald-500"
-              />
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🖨️</span>
-                <span className="font-medium text-slate-700">Generate Payment Receipt</span>
-              </div>
-            </label>
-          </div>
 
           {/* Action Buttons */}
           <div className="flex gap-3">
@@ -2436,6 +2421,8 @@ const AdmissionFeeModal = ({ student, onClose, onSuccess }) => {
         studentId: studentIdForPayment,
         amount: admissionFee,
         notes: 'Admission Fee - First time physical/hybrid enrollment',
+        cashierId: getUserData()?.userid,
+        createdBy: getUserData()?.userid
       };
       
       const paymentRes = await createPayment(payload);
@@ -2552,7 +2539,6 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [payNow, setPayNow] = useState(true);
-  const [printReceipt, setPrintReceipt] = useState(true);
   const [paymentOption, setPaymentOption] = useState('both'); // 'both', 'admission_only', 'defer'
   const [admissionFee, setAdmissionFee] = useState(1000); // Default admission fee, but can be edited
   
@@ -2650,7 +2636,9 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
       
       // Calculate what's being paid
       const payingAdmissionFee = needsAdmissionFee && (paymentOption === 'both' || paymentOption === 'admission_only');
-      const payingMonthlyFee = paymentOption === 'both' || (!needsAdmissionFee && payNow);
+      const payingMonthlyFee = needsAdmissionFee 
+        ? (paymentOption === 'both')
+        : payNow;
       const totalAmount = (payingAdmissionFee ? admissionFee : 0) + (payingMonthlyFee ? finalFee : 0);
 
       const studentIdToUse = student.studentId || student.id;
@@ -2689,11 +2677,13 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
           paymentMethod: 'cash',
           channel: 'physical',
           studentId: studentIdForPayment,
-          classId: selectedClass.id, // Include classId for backend validation
+          classId: selectedClass.id,
           amount: admissionFee,
           notes: paymentOption === 'admission_only' 
             ? 'Admission Fee - Monthly fee deferred' 
             : 'Admission Fee - Collected with first month payment',
+          cashierId: getUserData()?.userid,
+          createdBy: getUserData()?.userid
         };
         
         const admissionPaymentRes = await createPayment(admissionPayload);
@@ -2719,6 +2709,8 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
           notes: needsAdmissionFee 
             ? 'First month payment (+ admission fee)' 
             : 'First month payment (enrollment)',
+          cashierId: getUserData()?.userid,
+          createdBy: getUserData()?.userid
         };
         
         const paymentRes = await createPayment(classPayload);
@@ -2729,11 +2721,30 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
           return;
         }
         
+        // Update enrollment paid_amount in class backend after successful payment
+        try {
+          const enrollmentUpdateRes = await fetch('http://localhost:8087/routes.php/update_enrollment_payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              student_id: studentIdForPayment,
+              class_id: selectedClass.id,
+              payment_amount: finalFee
+            })
+          });
+          const updateResult = await enrollmentUpdateRes.json();
+          if (!updateResult?.success) {
+            console.error('❌ Failed to update enrollment payment status:', updateResult);
+          }
+        } catch (e) {
+          console.error('❌ Failed to update enrollment payment:', e);
+        }
+        
         // Extract transaction ID for receipt
         const transactionId = paymentRes?.transactionId || paymentRes?.data?.transactionId || paymentRes?.data?.transaction_id;
         
-        // Print receipt if option is selected
-        if (printReceipt && transactionId && totalAmount > 0) {
+        // Always print receipt when payment is made
+        if (transactionId && totalAmount > 0) {
           const receiptData = {
             transactionId: transactionId,
             amount: totalAmount,
@@ -2947,11 +2958,11 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
                     {/* Fee Breakdown */}
                     <div className="bg-white rounded-lg p-4 mb-3">
                       <div className="space-y-2 text-sm">
-                        {/* Class Fee */}
+                        {/* Class Fee - Show ORIGINAL fee (before discount) */}
                         <div className="flex justify-between items-center">
                           <span className="text-slate-600">Monthly Class Fee:</span>
                           <span className="font-semibold text-slate-800">
-                            LKR {finalFee.toLocaleString()}
+                            LKR {selectedClassFee.toLocaleString()}
                           </span>
                         </div>
                         
@@ -3097,23 +3108,6 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
                     )}
                   </label>
                 )}
-
-                {/* Print Receipt Option - Show when paying something */}
-                {((selectedClassNeedsAdmissionFee && (paymentOption === 'both' || paymentOption === 'admission_only')) || 
-                  (!selectedClassNeedsAdmissionFee && payNow)) && (
-                  <label className="flex items-center gap-3 cursor-pointer bg-slate-50 rounded-lg p-3 hover:bg-slate-100 transition-colors ml-8">
-                    <input
-                      type="checkbox"
-                      checked={printReceipt}
-                      onChange={(e) => setPrintReceipt(e.target.checked)}
-                      className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                    />
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">🖨️</span>
-                      <span className="font-medium text-slate-700">Generate Payment Receipt</span>
-                    </div>
-                  </label>
-                )}
               </div>
 
               {/* Action Buttons */}
@@ -3147,6 +3141,14 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
 
 export default function CashierDashboard() {
   const user = useMemo(() => getUserData(), []);
+  
+  // Helper function to add cashier ID to payment payloads
+  const addCashierInfo = useCallback((payload) => ({
+    ...payload,
+    cashierId: user?.userid, // Add cashier ID for tracking
+    createdBy: user?.userid  // Alternative field name
+  }), [user]);
+  
   // Initialize lock state from sessionStorage (persists during browser session, but cleared when tab is closed)
   const [isLocked, setIsLocked] = useState(() => {
     const savedLockState = sessionStorage.getItem('cashier_locked');
@@ -3191,6 +3193,37 @@ export default function CashierDashboard() {
       setOpeningTime(currentTime);
     }
   }, []);
+  
+  // Load cashier KPIs from backend database
+  const loadCashierKPIs = useCallback(async () => {
+    try {
+      const cashierId = user?.userid || 'unknown';
+      const response = await getCashierStats(cashierId, 'today');
+      
+      if (response?.success && response?.data?.stats) {
+        const stats = response.data.stats;
+        setKpis({
+          totalToday: Number(stats.total_collected || 0),
+          receipts: Number(stats.total_receipts || 0),
+          pending: Number(stats.pending_count || 0),
+          drawer: Number(stats.cash_collected || 0)
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load cashier KPIs:', error);
+      // Keep existing KPIs on error
+    }
+  }, [user]);
+  
+  // Load KPIs on mount and set up auto-refresh
+  useEffect(() => {
+    loadCashierKPIs();
+    
+    // Refresh KPIs every 30 seconds to stay in sync with database
+    const refreshInterval = setInterval(loadCashierKPIs, 30000);
+    
+    return () => clearInterval(refreshInterval);
+  }, [loadCashierKPIs]);
 
   // Show unlock modal on mount if the session was locked
   useEffect(() => {
@@ -3588,11 +3621,11 @@ export default function CashierDashboard() {
       }
       
       const payRes = await getStudentPayments(studentId);
-      const fetchedPayments = payRes?.data || payRes || [];
+      const fetchedPayments = Array.isArray(payRes?.data) ? payRes.data : (Array.isArray(payRes) ? payRes : []);
       setPayments(fetchedPayments);
       
       // Check admission fee payment status
-      const admissionFeePaid = fetchedPayments.some(payment => {
+      const admissionFeePaid = Array.isArray(fetchedPayments) && fetchedPayments.some(payment => {
         const paymentType = (payment.payment_type || payment.paymentType || '').toLowerCase();
         return paymentType === 'admission_fee';
       });
@@ -4073,7 +4106,6 @@ export default function CashierDashboard() {
                                   const isRevisionClass = enr.courseType === 'revision';
                                   const finalFee = isRevisionClass && discountPrice > 0 ? monthlyFee - discountPrice : monthlyFee;
                                   
-                                  // Create payment
                                   const payload = {
                                     paymentType: 'class_payment',
                                     paymentMethod: 'cash',
@@ -4084,6 +4116,8 @@ export default function CashierDashboard() {
                                     notes: isRevisionClass && discountPrice > 0 
                                       ? `Monthly fee payment (${discountPrice} revision discount applied)`
                                       : 'Monthly fee payment',
+                                    cashierId: getUserData()?.userid,
+                                    createdBy: getUserData()?.userid
                                   };
                                   
                                   const res = await createPayment(payload);
@@ -4134,18 +4168,14 @@ export default function CashierDashboard() {
                                       });
                                     }
                                     
-                                    // Update KPIs
-                                    setKpis(prev => ({
-                                      ...prev,
-                                      totalToday: Number(prev.totalToday) + Number(finalFee),
-                                      receipts: Number(prev.receipts) + 1
-                                    }));
-                                    
                                     // Add delay to ensure database transaction is fully committed
                                     await new Promise(resolve => setTimeout(resolve, 1000));
                                     
                                     // Reload student to update enrollment balances and payments
                                     await loadStudentData(studentId);
+                                    
+                                    // Refresh KPIs from backend
+                                    await loadCashierKPIs();
                                     
                                     // Show success toast notification
                                     showToast(`Payment successful! LKR ${finalFee.toLocaleString()} paid for ${enr.className || enr.subject}`, 'success');
@@ -4168,7 +4198,8 @@ export default function CashierDashboard() {
                                 const r = await requestLatePay({ studentId, classId: enr.classId || enr.id });
                                 if (!r?.success) alert(r?.message || 'LatePay request failed');
                                 printNote({ title: 'Late Payment Permission', student, classRow: enr, reason: 'Allowed late payment for today only' });
-                                setKpis(prev => ({ ...prev, pending: Number(prev.pending) + 1 }));
+                                // Refresh KPIs from backend
+                                loadCashierKPIs();
                                 // Scroll back to student panel after generating note
                                 setTimeout(() => {
                                   studentPanelRef.current?.scrollIntoView({ 
@@ -4424,7 +4455,12 @@ export default function CashierDashboard() {
       <div className={`transition-all duration-300 ${isLocked ? 'blur-sm pointer-events-none select-none' : ''}`}>
         {activeTab === 'register' ? (
           <div className="p-4">
-            <PhysicalStudentRegisterTab />
+            <PhysicalStudentRegisterTab 
+              onAdmissionFeePaid={(amount) => {
+                // Refresh KPIs from backend after admission fee is collected
+                loadCashierKPIs();
+              }}
+            />
           </div>
         ) : (
           <div className="p-6">
@@ -4631,18 +4667,14 @@ export default function CashierDashboard() {
           onSuccess={async (paymentData) => {
             // Refresh data after payment
             try {
-              // Update KPIs immediately
-              setKpis(prev => ({
-                ...prev,
-                totalToday: Number(prev.totalToday) + Number(paymentData.amount),
-                receipts: Number(prev.receipts) + 1
-              }));
-              
               // Add delay to ensure database transaction is fully committed
               await new Promise(resolve => setTimeout(resolve, 1000));
               
               // Reload student to update enrollment balances and payments
               await loadStudentData(student.studentId || student.id);
+              
+              // Refresh KPIs from backend
+              await loadCashierKPIs();
             } catch (e) {
               console.error('Failed to refresh after payment:', e);
             }
@@ -4675,24 +4707,16 @@ export default function CashierDashboard() {
           onSuccess={async (enrollmentData) => {
             // Refresh data after enrollment
             try {
-              // Update KPIs immediately for ALL payments (including admission fees)
+              // Add delay to ensure database transaction is fully committed
               if (enrollmentData.paid && enrollmentData.amount > 0) {
-                setKpis(prev => {
-                  const newTotal = Number(prev.totalToday) + Number(enrollmentData.amount);
-                  const newReceipts = Number(prev.receipts) + 1;
-                  return {
-                    ...prev,
-                    totalToday: newTotal,
-                    receipts: newReceipts
-                  };
-                });
-                
-                // Add delay to ensure database transaction is fully committed
                 await new Promise(resolve => setTimeout(resolve, 1000));
               }
               
               // Reload student to get updated enrollments AND payments
               await loadStudentData(student.studentId || student.id);
+              
+              // Refresh KPIs from backend
+              await loadCashierKPIs();
               
               // Show success message with payment details
               const successMsg = enrollmentData.message || '✅ Student enrolled successfully!';

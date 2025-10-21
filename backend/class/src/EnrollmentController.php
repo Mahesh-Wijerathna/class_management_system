@@ -688,6 +688,69 @@ class EnrollmentController {
         }
     }
     
+    // Update enrollment payment status after payment is made
+    public function updateEnrollmentPayment($studentId, $classId, $paymentAmount) {
+        try {
+            // Get current enrollment
+            $stmt = $this->db->prepare("
+                SELECT id, paid_amount, total_fee 
+                FROM enrollments 
+                WHERE student_id = ? AND class_id = ?
+            ");
+            $stmt->bind_param("si", $studentId, $classId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $enrollment = $result->fetch_assoc();
+            
+            if (!$enrollment) {
+                return [
+                    'success' => false,
+                    'message' => 'Enrollment not found'
+                ];
+            }
+            
+            // Calculate new paid amount
+            $newPaidAmount = $enrollment['paid_amount'] + $paymentAmount;
+            
+            // Determine payment status (only 'paid' or 'pending')
+            $paymentStatus = 'pending';
+            if ($newPaidAmount >= $enrollment['total_fee']) {
+                $paymentStatus = 'paid';
+            }
+            
+            // Update enrollment
+            $stmt = $this->db->prepare("
+                UPDATE enrollments 
+                SET paid_amount = ?,
+                    payment_status = ?,
+                    updated_at = NOW()
+                WHERE id = ?
+            ");
+            $stmt->bind_param("dsi", $newPaidAmount, $paymentStatus, $enrollment['id']);
+            
+            if ($stmt->execute()) {
+                return [
+                    'success' => true,
+                    'message' => 'Enrollment payment updated successfully',
+                    'data' => [
+                        'paid_amount' => $newPaidAmount,
+                        'payment_status' => $paymentStatus
+                    ]
+                ];
+            } else {
+                return [
+                    'success' => false,
+                    'message' => 'Failed to update enrollment payment'
+                ];
+            }
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Error updating enrollment payment: ' . $e->getMessage()
+            ];
+        }
+    }
+    
     // Helper method to update the current_students count for a class
     public function updateClassStudentCount($classId) {
         try {
