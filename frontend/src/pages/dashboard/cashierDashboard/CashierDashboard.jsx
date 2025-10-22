@@ -2183,7 +2183,8 @@ const QuickPaymentModal = ({ student, classData, onClose, onSuccess }) => {
             body: JSON.stringify({
               student_id: student.studentId || student.id,
               class_id: classData.classId || classData.id,
-              payment_amount: finalFee
+              payment_amount: finalFee,
+              payment_status: 'paid'
             })
           });
           const updateResult = await enrollmentUpdateRes.json();
@@ -2729,7 +2730,8 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
             body: JSON.stringify({
               student_id: studentIdForPayment,
               class_id: selectedClass.id,
-              payment_amount: finalFee
+              payment_amount: finalFee,
+              payment_status: 'paid'
             })
           });
           const updateResult = await enrollmentUpdateRes.json();
@@ -4131,7 +4133,8 @@ export default function CashierDashboard() {
                                         body: JSON.stringify({
                                           student_id: studentId,
                                           class_id: classId,
-                                          payment_amount: finalFee
+                                          payment_amount: finalFee,
+                                          payment_status: 'paid'
                                         })
                                       });
                                       const updateResult = await enrollmentUpdateRes.json();

@@ -91,17 +91,11 @@ switch ($method) {
             $studentId = $input['studentId'];
             $result = $enrollmentController->requestLatePayment($classId, $studentId);
             echo json_encode($result);
-        } elseif ($path === '/update_enrollment_payment') {
-            $studentId = $input['student_id'];
-            $classId = $input['class_id'];
-            $paymentAmount = $input['payment_amount'];
-            $result = $enrollmentController->updateEnrollmentPayment($studentId, $classId, $paymentAmount);
-            echo json_encode($result);
         } elseif ($path === '/synchronize_payment_status') {
             $result = $enrollmentController->synchronizeAllPaymentStatuses();
             echo json_encode($result);
         } elseif ($path === '/update_enrollment_payment') {
-            // CRITICAL FIX: New endpoint for renewal payment updates
+            // Update enrollment payment with new array-based signature
             $result = $enrollmentController->updateEnrollmentPayment($input);
             echo json_encode($result);
         } else {
