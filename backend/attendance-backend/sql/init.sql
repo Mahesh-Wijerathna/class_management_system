@@ -24,6 +24,7 @@ DROP TABLE IF EXISTS attendance_logs;
 DROP TABLE IF EXISTS attendance_settings;
 DROP TABLE IF EXISTS attendance_summary;
 DROP TABLE IF EXISTS zoom_meetings;
+DROP TABLE IF EXISTS join_button_clicks;
 DROP TABLE IF EXISTS attendance_records;
 
 -- Create attendance_records table
@@ -38,6 +39,7 @@ CREATE TABLE attendance_records (
     join_time DATETIME,
     leave_time DATETIME,
     duration_minutes INT DEFAULT 0,
+    attendance_date DATE GENERATED ALWAYS AS (DATE(join_time)) STORED,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_class_id (class_id),
@@ -45,7 +47,8 @@ CREATE TABLE attendance_records (
     INDEX idx_meeting_id (meeting_id),
     INDEX idx_join_time (join_time),
     INDEX idx_source (source),
-    INDEX idx_status (attendance_status)
+    INDEX idx_status (attendance_status),
+    UNIQUE INDEX unique_student_class_date (class_id, student_id, attendance_date)
 );
 
 -- Create zoom_meetings table
@@ -63,6 +66,23 @@ CREATE TABLE zoom_meetings (
     INDEX idx_meeting_id (meeting_id),
     INDEX idx_class_id (class_id),
     INDEX idx_start_time (start_time)
+);
+
+-- Create join_button_clicks table to track all join button clicks
+CREATE TABLE join_button_clicks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    class_id INT NOT NULL,
+    student_id VARCHAR(50) NOT NULL,
+    student_name VARCHAR(255),
+    click_time DATETIME NOT NULL,
+    user_agent TEXT,
+    ip_address VARCHAR(45),
+    session_info JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_class_id (class_id),
+    INDEX idx_student_id (student_id),
+    INDEX idx_click_time (click_time),
+    INDEX idx_class_student_date (class_id, student_id, click_time)
 );
 
 -- Create attendance_summary table for analytics
@@ -157,7 +177,7 @@ WHERE NOT EXISTS (SELECT 1 FROM attendance_summary WHERE class_id = 3 AND date =
 
 -- Log successful initialization
 INSERT INTO attendance_logs (log_level, message, context) VALUES
-('INFO', 'Attendance system database initialized successfully', '{"tables_created": 5, "sample_data_inserted": true}');
+('INFO', 'Attendance system database initialized successfully', '{"tables_created": 6, "sample_data_inserted": true}');
 
 -- Create a view for easy attendance reporting
 CREATE OR REPLACE VIEW attendance_report AS
@@ -199,6 +219,8 @@ SHOW TABLES;
 SELECT 'attendance_records' as table_name, COUNT(*) as record_count FROM attendance_records
 UNION ALL
 SELECT 'zoom_meetings' as table_name, COUNT(*) as record_count FROM zoom_meetings
+UNION ALL
+SELECT 'join_button_clicks' as table_name, COUNT(*) as record_count FROM join_button_clicks
 UNION ALL
 SELECT 'attendance_summary' as table_name, COUNT(*) as record_count FROM attendance_summary
 UNION ALL

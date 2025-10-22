@@ -17,6 +17,7 @@ const AllClasses = ({ onLogout }) => {
   const [streamFilter, setStreamFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [deliveryFilter, setDeliveryFilter] = useState('');
+  const [courseTypeFilter, setCourseTypeFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState((new Date().getMonth() + 1).toString());
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString());
@@ -222,6 +223,7 @@ const AllClasses = ({ onLogout }) => {
     const matchesStream = streamFilter === '' || classItem.stream === streamFilter;
     const matchesStatus = statusFilter === '' || classItem.status === statusFilter;
     const matchesDelivery = deliveryFilter === '' || classItem.deliveryMethod === deliveryFilter;
+    const matchesCourseType = courseTypeFilter === '' || classItem.courseType === courseTypeFilter;
     
     // Apply date filters to revenue calculations (only if filters are explicitly set)
     let matchesDateFilter = true;
@@ -256,7 +258,7 @@ const AllClasses = ({ onLogout }) => {
       }
     }
     
-    return matchesSearch && matchesStream && matchesStatus && matchesDelivery && matchesDateFilter;
+    return matchesSearch && matchesStream && matchesStatus && matchesDelivery && matchesCourseType && matchesDateFilter;
   });
 
   // Define columns for BasicTable
@@ -311,6 +313,22 @@ const AllClasses = ({ onLogout }) => {
           </span>
         </div>
       )
+    },
+    {
+      key: 'courseType',
+      label: 'Course Type',
+      render: (row) => {
+        const courseType = row.courseType || row.course_type || 'theory';
+        return (
+          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+            courseType === 'revision' 
+              ? 'bg-amber-100 text-amber-800' 
+              : 'bg-indigo-100 text-indigo-800'
+          }`}>
+            {courseType === 'revision' ? '📝 Revision' : '📚 Theory'}
+          </span>
+        );
+      }
     },
     {
       key: 'schedule',
@@ -619,7 +637,7 @@ const AllClasses = ({ onLogout }) => {
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
         <div className="relative">
           <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           <input
@@ -662,6 +680,16 @@ const AllClasses = ({ onLogout }) => {
           {uniqueDeliveryMethods.map(method => (
             <option key={method} value={method}>{method}</option>
           ))}
+        </select>
+
+        <select
+          value={courseTypeFilter}
+          onChange={(e) => setCourseTypeFilter(e.target.value)}
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="">All Types</option>
+          <option value="theory">📚 Theory</option>
+          <option value="revision">📝 Revision</option>
         </select>
       </div>
 
@@ -973,7 +1001,13 @@ const AllClasses = ({ onLogout }) => {
                   </div>
                   <div>
                     <label className="font-medium text-gray-700">Course Type:</label>
-                    <p className="text-gray-900">{selectedClass.courseType}</p>
+                    <span className={`inline-block px-3 py-1 text-sm font-medium rounded-full ${
+                      selectedClass.courseType === 'revision' 
+                        ? 'bg-amber-100 text-amber-800' 
+                        : 'bg-indigo-100 text-indigo-800'
+                    }`}>
+                      {selectedClass.courseType === 'revision' ? '📝 Revision' : '📚 Theory'}
+                    </span>
                   </div>
                 </div>
               </div>

@@ -15,6 +15,7 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [streamFilter, setStreamFilter] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
+  const [enrollmentSearchTerm, setEnrollmentSearchTerm] = useState('');
 
 
   // Modal states
@@ -318,6 +319,60 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
 
   // Payment Tracking Utility Functions
   const getPaymentTrackingInfo = (enrollment) => {
+    // SPECIAL CASE 1: Free Card (overdue) - Always allow access
+    if (enrollment.payment_status === 'overdue') {
+      return {
+        canAccess: true,
+        status: 'free-card',
+        message: 'Free Card - No payment required',
+        daysRemaining: 999,
+        nextPaymentDate: null,
+        gracePeriodEndDate: null,
+        freeDays: 0,
+        paymentTrackingEnabled: false,
+        isFreeCard: true
+      };
+    }
+    
+    // SPECIAL CASE 2: Half Card (partial) - Check if 50% is paid
+    if (enrollment.payment_status === 'partial') {
+      const paidAmount = parseFloat(enrollment.paid_amount || 0);
+      const totalFee = parseFloat(enrollment.total_fee || enrollment.fee || 0);
+      const halfFee = totalFee / 2;
+      const hasPaidHalf = paidAmount >= halfFee;
+      
+      if (hasPaidHalf) {
+        return {
+          canAccess: true,
+          status: 'half-card-paid',
+          message: `Half Card - 50% paid (${paidAmount.toFixed(2)}/${totalFee.toFixed(2)})`,
+          daysRemaining: 999,
+          nextPaymentDate: null,
+          gracePeriodEndDate: null,
+          freeDays: 0,
+          paymentTrackingEnabled: false,
+          isHalfCard: true,
+          paidAmount,
+          totalFee
+        };
+      } else {
+        return {
+          canAccess: false,
+          status: 'half-payment-required',
+          message: `Half Card - 50% payment required (${paidAmount.toFixed(2)}/${halfFee.toFixed(2)} of 50%)`,
+          daysRemaining: 0,
+          nextPaymentDate: null,
+          gracePeriodEndDate: null,
+          freeDays: 0,
+          paymentTrackingEnabled: false,
+          isHalfCard: true,
+          paidAmount,
+          requiredAmount: halfFee,
+          totalFee
+        };
+      }
+    }
+    
     // Check if payment tracking is enabled for this enrollment
     const hasPaymentTracking = enrollment.payment_tracking || enrollment.payment_tracking === true || enrollment.payment_tracking?.enabled;
     
@@ -509,6 +564,34 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
   // Get enrollment status info with payment tracking
   const getEnrollmentStatusInfo = (enrollment) => {
     const paymentTrackingInfo = getPaymentTrackingInfo(enrollment);
+    
+    // Check for special card types first
+    if (paymentTrackingInfo.isFreeCard) {
+      return {
+        status: 'free-card',
+        color: 'bg-purple-100 text-purple-800',
+        icon: <FaTicketAlt className="inline mr-1" />,
+        message: 'Free Card - No payment required'
+      };
+    }
+    
+    if (paymentTrackingInfo.isHalfCard) {
+      if (paymentTrackingInfo.canAccess) {
+        return {
+          status: 'half-card-paid',
+          color: 'bg-blue-100 text-blue-800',
+          icon: <FaCheck className="inline mr-1" />,
+          message: 'Half Card - 50% paid'
+        };
+      } else {
+        return {
+          status: 'half-payment-required',
+          color: 'bg-orange-100 text-orange-800',
+          icon: <FaExclamationTriangle className="inline mr-1" />,
+          message: 'Half Card - 50% payment required'
+        };
+      }
+    }
     
     // Check enrollment status first
     if (enrollment.status === 'suspended') {
@@ -1778,6 +1861,18 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
                      <div className="text-right">
                        <div className="text-lg font-bold text-orange-600">
                          {selectedStudent.enrollments.filter(e => {
+                           // Free Card (overdue) - no payment required
+                           if (e.payment_status === 'overdue') return false;
+                           
+                           // Half Card (partial) - check if 50% is paid
+                           if (e.payment_status === 'partial') {
+                             const totalFee = parseFloat(e.total_fee || e.fee || 0);
+                             const paidAmount = parseFloat(e.paid_amount || 0);
+                             const halfFee = totalFee / 2;
+                             return paidAmount < halfFee; // Only needs payment if less than 50% paid
+                           }
+                           
+                           // Regular payment tracking for non-special cards
                            const paymentTrackingInfo = getPaymentTrackingInfo(e);
                            return (!paymentTrackingInfo.canAccess && paymentTrackingInfo.status === 'payment-required') || 
                                   (e.payment_status === 'pending');
@@ -1811,11 +1906,49 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
                  </div>
                </div>
              </div>
+
+               {/* Search Bar for Enrollments */}
+               <div className="mb-6">
+                 <div className="relative">
+                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                     <FaSearch className="text-gray-400" />
+                   </div>
+                   <input
+                     type="text"
+                     value={enrollmentSearchTerm}
+                     onChange={(e) => setEnrollmentSearchTerm(e.target.value)}
+                     placeholder="Search classes by name, subject, teacher, course type..."
+                     className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                   />
+                   {enrollmentSearchTerm && (
+                     <button
+                       onClick={() => setEnrollmentSearchTerm('')}
+                       className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                     >
+                       <FaTimes />
+                     </button>
+                   )}
+                 </div>
+               </div>
                           
                          {/* Modern Enrollment Cards Grid */}
             {selectedStudent.enrollments.length > 0 ? (
                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 gap-6">
-                 {selectedStudent.enrollments.map((enrollment, index) => {
+                 {selectedStudent.enrollments.filter(enrollment => {
+                   if (!enrollmentSearchTerm) return true;
+                   const searchLower = enrollmentSearchTerm.toLowerCase();
+                   const className = getClassName(enrollment).toLowerCase();
+                   const subject = (enrollment.subject || '').toLowerCase();
+                   const teacher = (enrollment.teacher || '').toLowerCase();
+                   const courseType = (enrollment.course_type || '').toLowerCase();
+                   const deliveryMethod = (enrollment.delivery_method || '').toLowerCase();
+                   
+                   return className.includes(searchLower) ||
+                          subject.includes(searchLower) ||
+                          teacher.includes(searchLower) ||
+                          courseType.includes(searchLower) ||
+                          deliveryMethod.includes(searchLower);
+                 }).map((enrollment, index) => {
                    const statusInfo = getEnrollmentStatusInfo(enrollment);
                    const paymentTrackingInfo = getPaymentTrackingInfo(enrollment);
                    const isUrgent = paymentTrackingInfo.daysRemaining <= 3 && paymentTrackingInfo.daysRemaining > 0;
@@ -1902,28 +2035,53 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
                                <FaMoneyBill className="text-green-600 text-xs" />
                              </div>
                              <div className="space-y-1">
-                               <div className="flex justify-between text-xs">
-                                 <span className="text-gray-600">Total:</span>
-                                 <span className="font-semibold text-gray-900">
-                                   {formatCurrency(enrollment.total_fee || 0)}
-                                 </span>
-                               </div>
-                               <div className="flex justify-between text-xs">
-                                 <span className="text-gray-600">Paid:</span>
-                                 <span className="font-semibold text-green-600">
-                                   {formatCurrency(enrollment.paid_amount || 0)}
-                                 </span>
-                               </div>
-                               <div className="flex justify-between text-xs">
-                                 <span className="text-gray-600">Balance:</span>
-                                 <span className={`font-semibold ${
-                                   (enrollment.total_fee - enrollment.paid_amount) > 0 
-                                     ? 'text-red-600' 
-                                     : 'text-green-600'
-                                 }`}>
-                                   {formatCurrency((enrollment.total_fee || 0) - (enrollment.paid_amount || 0))}
-                                 </span>
-                               </div>
+                               {(() => {
+                                 const totalFee = parseFloat(enrollment.total_fee || enrollment.fee || 0);
+                                 let displayFee = totalFee;
+                                 let cardType = null;
+                                 
+                                 // Check for special card types
+                                 if (enrollment.payment_status === 'overdue') {
+                                   // Free Card - No payment required
+                                   displayFee = 0;
+                                   cardType = 'Free Card';
+                                 } else if (enrollment.payment_status === 'partial') {
+                                   // Half Card - Only 50% required
+                                   displayFee = totalFee / 2;
+                                   cardType = 'Half Card';
+                                 }
+                                 
+                                 return (
+                                   <>
+                                     {cardType && (
+                                       <div className="flex justify-between text-xs mb-2 pb-2 border-b border-green-200">
+                                         <span className="text-purple-600 font-semibold">{cardType}</span>
+                                         <span className="text-purple-600 text-[10px]">
+                                           {cardType === 'Free Card' ? '100% OFF' : '50% OFF'}
+                                         </span>
+                                       </div>
+                                     )}
+                                     {cardType && (
+                                       <div className="flex justify-between text-xs mb-1">
+                                         <span className="text-gray-500 text-[10px]">Original Fee:</span>
+                                         <span className="text-gray-400 text-[10px] line-through">
+                                           {formatCurrency(totalFee)}
+                                         </span>
+                                       </div>
+                                     )}
+                                     <div className="flex justify-between items-center">
+                                       <span className="text-sm font-medium text-gray-700">Total:</span>
+                                       <span className={`text-lg font-bold ${
+                                         cardType === 'Free Card' ? 'text-purple-600' :
+                                         cardType === 'Half Card' ? 'text-blue-600' :
+                                         'text-gray-900'
+                                       }`}>
+                                         {formatCurrency(displayFee)}
+                                       </span>
+                                     </div>
+                                   </>
+                                 );
+                               })()}
                              </div>
                            </div>
                            
@@ -2074,6 +2232,21 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
                      </div>
                    );
                  })}
+                              </div>
+            ) : enrollmentSearchTerm ? (
+               <div className="text-center py-12">
+                 <div className="w-24 h-24 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                   <FaSearch className="text-gray-400 text-3xl" />
+                 </div>
+                 <h3 className="text-lg font-medium text-gray-900 mb-2">No Results Found</h3>
+                 <p className="text-gray-500 mb-6">No enrollments match your search "{enrollmentSearchTerm}"</p>
+                 <button
+                   onClick={() => setEnrollmentSearchTerm('')}
+                   className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                 >
+                   <FaTimes className="mr-2" />
+                   Clear Search
+                 </button>
                               </div>
             ) : (
                <div className="text-center py-12">

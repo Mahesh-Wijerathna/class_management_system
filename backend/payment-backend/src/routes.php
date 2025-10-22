@@ -15,6 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once 'PaymentController.php';
 require_once 'PayHereController.php';
 require_once 'DevPaymentHelper.php';
+require_once 'EarningsConfigController.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -39,6 +40,7 @@ if ($mysqli->connect_errno) {
 $paymentController = new PaymentController($mysqli);
 $payHereController = new PayHereController($mysqli);
 $devPaymentHelper = new DevPaymentHelper($mysqli);
+$earningsConfigController = new EarningsConfigController($mysqli);
 
 // Test endpoint
 if ($method === 'GET' && $path === '/test') {
@@ -100,6 +102,16 @@ switch ($method) {
             $orderId = $input['order_id'] ?? '';
             $result = $devPaymentHelper->simulatePayHereConfirmation($orderId);
             echo json_encode($result);
+        } elseif ($path === '/update_delivery_status') {
+            $transactionId = $input['transaction_id'] ?? '';
+            $deliveryStatus = $input['delivery_status'] ?? '';
+            $result = $paymentController->updateDeliveryStatus($transactionId, $deliveryStatus);
+            echo json_encode($result);
+        } elseif (preg_match('#^/earnings-config/(\d+)$#', $path, $matches)) {
+            // POST /earnings-config/{classId} - Save/Update earnings config
+            $classId = (int)$matches[1];
+            $result = $earningsConfigController->saveClassConfig($classId, $input);
+            echo json_encode($result);
         } else {
             http_response_code(404);
             echo json_encode(['error' => 'Endpoint not found']);
@@ -146,6 +158,15 @@ switch ($method) {
             $studentId = $_GET['studentId'];
             $classId = $_GET['classId'];
             $result = $devPaymentHelper->debugEnrollment($studentId, $classId);
+            echo json_encode($result);
+        } elseif ($path === '/earnings-config') {
+            // GET /earnings-config - Get all earnings configs
+            $result = $earningsConfigController->getAllConfigs();
+            echo json_encode($result);
+        } elseif (preg_match('#^/earnings-config/(\d+)$#', $path, $matches)) {
+            // GET /earnings-config/{classId} - Get specific class config
+            $classId = (int)$matches[1];
+            $result = $earningsConfigController->getClassConfig($classId);
             echo json_encode($result);
         } else {
             http_response_code(404);

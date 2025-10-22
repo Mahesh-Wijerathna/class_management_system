@@ -54,10 +54,29 @@ CREATE TABLE IF NOT EXISTS financial_records (
     payment_method VARCHAR(50),
     reference_number VARCHAR(100),
     notes TEXT,
+    delivery_status ENUM('pending', 'processing', 'delivered') DEFAULT 'pending',
     created_by VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_transaction_id (transaction_id),
     INDEX idx_user_id (user_id),
     INDEX idx_class_id (class_id),
-    INDEX idx_status (status)
+    INDEX idx_status (status),
+    INDEX idx_delivery_status (delivery_status)
 );
+
+-- Class Earnings Configuration Table
+-- Stores per-class earnings configuration including teacher dashboard access and revenue split settings
+CREATE TABLE IF NOT EXISTS class_earnings_config (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    class_id INT NOT NULL,
+    show_detailed_view BOOLEAN DEFAULT FALSE,
+    earnings_mode BOOLEAN DEFAULT FALSE,
+    enable_teacher_dashboard BOOLEAN DEFAULT FALSE,
+    hall_rent_percentage DECIMAL(5,2) DEFAULT 30.00,
+    payhere_percentage DECIMAL(5,2) DEFAULT 3.00,
+    other_expenses JSON DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_class (class_id),
+    INDEX idx_class_id (class_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Stores per-class earnings configuration including teacher dashboard access and revenue split settings';

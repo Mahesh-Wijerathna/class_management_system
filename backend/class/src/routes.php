@@ -100,6 +100,10 @@ switch ($method) {
         } elseif ($path === '/synchronize_payment_status') {
             $result = $enrollmentController->synchronizeAllPaymentStatuses();
             echo json_encode($result);
+        } elseif ($path === '/update_enrollment_payment') {
+            // CRITICAL FIX: New endpoint for renewal payment updates
+            $result = $enrollmentController->updateEnrollmentPayment($input);
+            echo json_encode($result);
         } else {
             http_response_code(404);
             echo json_encode(['error' => 'Endpoint not found']);

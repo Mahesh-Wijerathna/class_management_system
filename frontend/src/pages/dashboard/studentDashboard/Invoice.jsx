@@ -117,17 +117,23 @@ const Invoice = () => {
         classId: data.paymentData?.classId || data.classId,
         amount: payHereData.amount,
         paymentMethod: 'online',
-        notes: `Promo: ${data.discount || 0}, Theory Discount: 0, Speed Post: ${data.speedPostFee || 0}`,
+        // CRITICAL FIX: Use notes from paymentData (contains renewal info) or create default notes
+        notes: data.paymentData?.notes || `Promo: ${data.discount || 0}, Theory Discount: 0, Speed Post: ${data.speedPostFee || 0}`,
+        // CRITICAL FIX: Include isRenewal flag for renewal payments
+        isRenewal: data.isRenewal || false, // Pass renewal flag to backend
         // Include student details for database storage
         firstName: studentDetails?.first_name,
         lastName: studentDetails?.last_name,
         email: studentDetails?.email,
         mobile: studentDetails?.mobile_number,
         address: studentDetails?.address,
-        district: studentDetails?.district
+        district: studentDetails?.district,
+        medium: data.medium, // Include tute medium for delivery tracking
       };
 
       console.log('💾 Creating payment record with student details:', paymentRecordData);
+      console.log('🔄 Renewal payment flag:', data.isRenewal);
+      console.log('📝 Payment notes:', paymentRecordData.notes);
       
       let paymentRecordResponse;
       if (transactionId) {

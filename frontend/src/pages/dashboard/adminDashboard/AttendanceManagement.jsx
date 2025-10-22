@@ -38,6 +38,7 @@ const AttendanceManagement = ({ onLogout }) => {
   const [dayFilter, setDayFilter] = useState('');
   const [streamFilter, setStreamFilter] = useState('');
   const [deliveryFilter, setDeliveryFilter] = useState('');
+  const [courseTypeFilter, setCourseTypeFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState((new Date().getMonth() + 1).toString());
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString());
@@ -458,6 +459,7 @@ const AttendanceManagement = ({ onLogout }) => {
       teacher: classItem.teacher,
       stream: classItem.stream,
       deliveryMethod: classItem.deliveryMethod,
+      courseType: classItem.course_type || classItem.courseType || 'theory',
       scheduleDay: classItem.schedule_day,
       scheduleStartTime: classItem.schedule_start_time,
       scheduleEndTime: classItem.schedule_end_time,
@@ -483,8 +485,9 @@ const AttendanceManagement = ({ onLogout }) => {
     const matchesDay = !dayFilter || classItem.scheduleDay === dayFilter;
     const matchesStream = !streamFilter || classItem.stream === streamFilter;
     const matchesDelivery = !deliveryFilter || classItem.deliveryMethod === deliveryFilter;
+    const matchesCourseType = !courseTypeFilter || classItem.courseType === courseTypeFilter;
     
-    return matchesSearch && matchesDay && matchesStream && matchesDelivery;
+    return matchesSearch && matchesDay && matchesStream && matchesDelivery && matchesCourseType;
   });
 
   // Sort filtered classes
@@ -764,6 +767,23 @@ const AttendanceManagement = ({ onLogout }) => {
       )
     },
     {
+      key: 'courseType',
+      label: 'Course Type',
+      sortable: true,
+      render: (row) => {
+        const courseType = row.courseType || row.course_type || 'theory';
+        return (
+          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+            courseType === 'revision' 
+              ? 'bg-amber-100 text-amber-800' 
+              : 'bg-indigo-100 text-indigo-800'
+          }`}>
+            {courseType === 'revision' ? '📝 Revision' : '📚 Theory'}
+          </span>
+        );
+      }
+    },
+    {
       key: 'scheduleDay',
       label: 'Schedule',
       sortable: true,
@@ -1026,7 +1046,7 @@ const AttendanceManagement = ({ onLogout }) => {
   const renderDetailedTab = () => (
     <div className="space-y-6">
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
         <div className="relative">
           <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           <input
@@ -1069,6 +1089,16 @@ const AttendanceManagement = ({ onLogout }) => {
           {uniqueDeliveryMethods.map(method => (
             <option key={method} value={method}>{method}</option>
           ))}
+        </select>
+
+        <select
+          value={courseTypeFilter}
+          onChange={(e) => setCourseTypeFilter(e.target.value)}
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="">All Types</option>
+          <option value="theory">📚 Theory</option>
+          <option value="revision">📝 Revision</option>
         </select>
       </div>
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaUsers, FaUserSlash, FaGraduationCap, FaBook, FaChartBar, FaCog, FaCalendar, FaUserPlus, FaFileAlt, FaUsersCog, FaUserShield, FaDatabase, FaBell, FaSync, FaPlusSquare, FaClipboardList, FaTicketAlt, FaShieldAlt, FaMoneyBill, FaVideo, FaQrcode } from 'react-icons/fa';
+import { FaUsers, FaUserSlash, FaGraduationCap, FaBook, FaChartBar, FaCog, FaCalendar, FaUserPlus, FaFileAlt, FaUsersCog, FaUserShield, FaDatabase, FaBell, FaSync, FaPlusSquare, FaClipboardList, FaTicketAlt, FaShieldAlt, FaMoneyBill, FaVideo, FaQrcode, FaTruck } from 'react-icons/fa';
 
 // Sidebar sections for the admin dashboard
 const adminSidebarSections = [

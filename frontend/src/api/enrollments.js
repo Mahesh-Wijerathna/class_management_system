@@ -193,8 +193,11 @@ export const convertEnrollmentToMyClass = (enrollment) => {
     deliveryMethod: enrollment.delivery_method,
     courseType: enrollment.course_type,
     fee: enrollment.fee,
+    total_fee: enrollment.total_fee, // CRITICAL FIX: Map total_fee for discount display
+    paidAmount: enrollment.paid_amount, // Map paid_amount for tracking
     maxStudents: enrollment.max_students,
-    status: enrollment.status, // Use enrollment status, not class status
+    status: enrollment.class_status || enrollment.status, // Use class status (active/inactive)
+    enrollmentStatus: enrollment.status, // Keep enrollment status separately (active/completed/dropped/suspended)
     schedule: {
       day: enrollment.schedule_day,
       startTime: enrollment.schedule_start_time,

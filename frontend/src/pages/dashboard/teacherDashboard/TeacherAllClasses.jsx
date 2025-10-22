@@ -4,7 +4,9 @@ import teacherSidebarSections from './TeacherDashboardSidebar';
 import BasicCard from '../../../components/BasicCard';
 import { getClassesByTeacher } from '../../../api/classes';
 import { getUserData } from '../../../api/apiUtils';
-import { FaCalendar, FaClock, FaUser, FaBook, FaVideo, FaMapMarkerAlt, FaUsers, FaGraduationCap, FaEye, FaTimesCircle, FaInfoCircle, FaFileAlt, FaGraduationCap as FaExam, FaTasks } from 'react-icons/fa';
+import { getMaterialsByClass, uploadMaterial, deleteMaterial } from '../../../api/materials';
+import { getRecordingsByClass, uploadRecording, deleteRecording } from '../../../api/recordings';
+import { FaCalendar, FaClock, FaUser, FaBook, FaVideo, FaMapMarkerAlt, FaUsers, FaGraduationCap, FaEye, FaTimesCircle, FaInfoCircle, FaFileAlt, FaGraduationCap as FaExam, FaTasks, FaPlay, FaTrash, FaUpload } from 'react-icons/fa';
 
 const TeacherAllClasses = () => {
   const [classes, setClasses] = useState([]);
@@ -20,9 +22,20 @@ const TeacherAllClasses = () => {
   const [materials, setMaterials] = useState([]);
   const [showAddMaterial, setShowAddMaterial] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState(null);
-  const [newMaterial, setNewMaterial] = useState({ title: '', type: 'tute', description: '', file: null });
+  const [newMaterial, setNewMaterial] = useState({ title: '', category: 'notes', description: '', file: null });
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileError, setFileError] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  
+  // Recordings state
+  const [recordings, setRecordings] = useState([]);
+  const [showAddRecording, setShowAddRecording] = useState(false);
+  const [newRecording, setNewRecording] = useState({ title: '', category: 'lecture', description: '', file: null });
+  const [selectedRecordingFile, setSelectedRecordingFile] = useState(null);
+  const [recordingFileError, setRecordingFileError] = useState('');
+  const [recordingUploadProgress, setRecordingUploadProgress] = useState(0);
+  const [isUploadingRecording, setIsUploadingRecording] = useState(false);
   
   // Exams state
   const [exams, setExams] = useState([]);
@@ -80,14 +93,33 @@ const TeacherAllClasses = () => {
   };
 
   // Load class-specific data
-  const loadClassData = (classId) => {
-    // Load materials, exams, and assignments for this class
-    // For now, using localStorage to persist data
-    const storedMaterials = JSON.parse(localStorage.getItem(`materials_${classId}`) || '[]');
+  const loadClassData = async (classId) => {
+    // Load materials from API using materials.js
+    try {
+      const data = await getMaterialsByClass(classId);
+      if (data.success) {
+        setMaterials(data.materials || []);
+      }
+    } catch (error) {
+      console.error('Error loading materials:', error);
+      setMaterials([]);
+    }
+    
+    // Load recordings from API using recordings.js
+    try {
+      const data = await getRecordingsByClass(classId);
+      if (data.success) {
+        setRecordings(data.recordings || []);
+      }
+    } catch (error) {
+      console.error('Error loading recordings:', error);
+      setRecordings([]);
+    }
+    
+    // Load exams and assignments (still using localStorage for now)
     const storedExams = JSON.parse(localStorage.getItem(`exams_${classId}`) || '[]');
     const storedAssignments = JSON.parse(localStorage.getItem(`assignments_${classId}`) || '[]');
     
-    setMaterials(storedMaterials);
     setExams(storedExams);
     setAssignments(storedAssignments);
   };
@@ -98,32 +130,18 @@ const TeacherAllClasses = () => {
     setFileError('');
     
     if (file) {
-      // Check file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        setFileError('File size must be less than 10MB');
+      // Check file size (max 50MB for PDFs)
+      if (file.size > 50 * 1024 * 1024) {
+        setFileError('File size must be less than 50MB');
         setSelectedFile(null);
         return;
       }
       
-      // Check file type
-      const allowedTypes = [
-        'application/pdf',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-        'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-        'application/zip',
-        'application/x-zip-compressed',
-        'application/msword', // .doc
-        'application/vnd.ms-powerpoint', // .ppt
-        'application/vnd.ms-excel', // .xls
-        'text/plain', // .txt
-        'image/jpeg',
-        'image/png',
-        'image/gif'
-      ];
+      // Check file type - PDF only
+      const allowedTypes = ['application/pdf'];
       
       if (!allowedTypes.includes(file.type)) {
-        setFileError('File type not supported. Please upload PDF, DOCX, PPTX, XLSX, ZIP, DOC, PPT, XLS, TXT, or image files.');
+        setFileError('Only PDF files are allowed. Please upload a PDF file.');
         setSelectedFile(null);
         return;
       }
@@ -163,27 +181,48 @@ const TeacherAllClasses = () => {
   };
 
   // Materials handlers
-  const handleAddMaterial = () => {
-    if (!newMaterial.title.trim()) return;
+  const handleAddMaterial = async () => {
+    if (!newMaterial.title.trim() || !selectedFile) {
+      setFileError('Please enter a title and select a PDF file');
+      return;
+    }
     
-    const material = {
-      id: Date.now(),
-      ...newMaterial,
-      fileName: selectedFile ? selectedFile.name : null,
-      fileSize: selectedFile ? selectedFile.size : null,
-      fileType: selectedFile ? selectedFile.type : null,
-      createdAt: new Date().toISOString(),
-      classId: selectedClassForDetails.id
-    };
+    setIsUploading(true);
+    setUploadProgress(0);
     
-    const updatedMaterials = [...materials, material];
-    setMaterials(updatedMaterials);
-    localStorage.setItem(`materials_${selectedClassForDetails.id}`, JSON.stringify(updatedMaterials));
-    
-    setNewMaterial({ title: '', type: 'tute', description: '', file: null });
-    setSelectedFile(null);
-    setFileError('');
-    setShowAddMaterial(false);
+    try {
+      const teacherData = getUserData();
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('class_id', selectedClassForDetails.id);
+      formData.append('teacher_id', teacherData.teacherId || teacherData.userid);
+      formData.append('teacher_name', teacherData.name || 'Teacher');
+      formData.append('title', newMaterial.title);
+      formData.append('description', newMaterial.description || '');
+      formData.append('category', newMaterial.category || 'notes');
+      
+      // Use materials API
+      const data = await uploadMaterial(formData);
+      
+      if (data.success) {
+        // Reload materials list
+        await loadClassData(selectedClassForDetails.id);
+        
+        setNewMaterial({ title: '', category: 'notes', description: '', file: null });
+        setSelectedFile(null);
+        setFileError('');
+        setShowAddMaterial(false);
+        alert('Material uploaded successfully! Students will need to enter their ID to download.');
+      } else {
+        setFileError(data.message || 'Failed to upload material');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      setFileError(error.message || 'Failed to upload material. Please try again.');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   const handleEditMaterial = (material) => {
@@ -225,10 +264,129 @@ const TeacherAllClasses = () => {
     setShowAddMaterial(false);
   };
 
-  const handleDeleteMaterial = (materialId) => {
-    const updatedMaterials = materials.filter(m => m.id !== materialId);
-    setMaterials(updatedMaterials);
-    localStorage.setItem(`materials_${selectedClassForDetails.id}`, JSON.stringify(updatedMaterials));
+  const handleDeleteMaterial = async (materialId) => {
+    if (!window.confirm('Are you sure you want to delete this material?')) return;
+    
+    try {
+      const teacherData = getUserData();
+      // Use materials API
+      const data = await deleteMaterial(materialId, teacherData.teacherId || teacherData.userid);
+      
+      if (data.success) {
+        // Reload materials list
+        await loadClassData(selectedClassForDetails.id);
+        alert('Material deleted successfully');
+      } else {
+        alert(data.message || 'Failed to delete material');
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert(error.message || 'Failed to delete material. Please try again.');
+    }
+  };
+
+  // Recording handlers
+  const handleRecordingFileSelect = (event) => {
+    const file = event.target.files[0];
+    setRecordingFileError('');
+    
+    if (!file) return;
+    
+    // Validate file type (video or audio)
+    const validVideoTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
+    const validAudioTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg'];
+    const allValidTypes = [...validVideoTypes, ...validAudioTypes];
+    
+    if (!allValidTypes.includes(file.type)) {
+      setRecordingFileError('Please select a valid video (MP4, WebM, OGG, MOV) or audio (MP3, WAV, OGG) file');
+      event.target.value = '';
+      return;
+    }
+    
+    // Validate file size (max 500MB for videos)
+    const maxSize = 500 * 1024 * 1024; // 500MB
+    if (file.size > maxSize) {
+      setRecordingFileError('File size must not exceed 500MB');
+      event.target.value = '';
+      return;
+    }
+    
+    setSelectedRecordingFile(file);
+    setNewRecording({ ...newRecording, file });
+  };
+
+  const handleAddRecording = async () => {
+    if (!newRecording.title.trim() || !selectedRecordingFile) {
+      setRecordingFileError('Please enter a title and select a video/audio file');
+      return;
+    }
+    
+    setIsUploadingRecording(true);
+    setRecordingUploadProgress(0);
+    
+    try {
+      const teacherData = getUserData();
+      const formData = new FormData();
+      formData.append('file', selectedRecordingFile);
+      formData.append('class_id', selectedClassForDetails.id);
+      formData.append('teacher_id', teacherData.teacherId || teacherData.userid);
+      formData.append('teacher_name', teacherData.name || 'Teacher');
+      formData.append('title', newRecording.title);
+      formData.append('description', newRecording.description || '');
+      formData.append('category', newRecording.category || 'lecture');
+      
+      // Use recordings API with progress tracking
+      const data = await uploadRecording(formData, (progressEvent) => {
+        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        setRecordingUploadProgress(percentCompleted);
+      });
+      
+      if (data.success) {
+        // Reload recordings list
+        await loadClassData(selectedClassForDetails.id);
+        
+        setNewRecording({ title: '', category: 'lecture', description: '', file: null });
+        setSelectedRecordingFile(null);
+        setRecordingFileError('');
+        setShowAddRecording(false);
+        alert('Recording uploaded successfully!');
+      } else {
+        setRecordingFileError(data.message || 'Failed to upload recording');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      setRecordingFileError(error.message || 'Failed to upload recording. Please try again.');
+    } finally {
+      setIsUploadingRecording(false);
+      setRecordingUploadProgress(0);
+    }
+  };
+
+  const handleDeleteRecording = async (recordingId) => {
+    if (!window.confirm('Are you sure you want to delete this recording?')) return;
+    
+    try {
+      const teacherData = getUserData();
+      const data = await deleteRecording(recordingId, teacherData.teacherId || teacherData.userid);
+      
+      if (data.success) {
+        // Reload recordings list
+        await loadClassData(selectedClassForDetails.id);
+        alert('Recording deleted successfully');
+      } else {
+        alert(data.message || 'Failed to delete recording');
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert(error.message || 'Failed to delete recording. Please try again.');
+    }
+  };
+
+  const formatDuration = (seconds) => {
+    if (!seconds) return '0:00';
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   // Exams handlers
@@ -611,11 +769,12 @@ const TeacherAllClasses = () => {
 
               {/* Tab Navigation */}
               <div className="border-b border-gray-200">
-                <div className="flex space-x-8 px-6">
+                <div className="flex space-x-8 px-6 overflow-x-auto">
                   {[
                     { id: 'overview', label: 'Overview', icon: <FaInfoCircle /> },
                     { id: 'schedule', label: 'Schedule', icon: <FaCalendar /> },
                     { id: 'materials', label: 'Materials', icon: <FaFileAlt /> },
+                    { id: 'recordings', label: 'Recordings', icon: <FaVideo /> },
                     { id: 'exams', label: 'Exams', icon: <FaExam /> },
                     { id: 'assignments', label: 'Assignments', icon: <FaTasks /> }
                   ].map(tab => (
@@ -777,43 +936,43 @@ const TeacherAllClasses = () => {
                                   <div className="flex items-center gap-2 mb-2">
                                     <span className="font-semibold">{material.title}</span>
                                     <span className={`px-2 py-1 rounded-full text-xs ${
-                                      material.type === 'tute' ? 'bg-blue-100 text-blue-700' :
-                                      material.type === 'paper' ? 'bg-green-100 text-green-700' :
-                                      material.type === 'notes' ? 'bg-purple-100 text-purple-700' :
-                                      material.type === 'assignment' ? 'bg-orange-100 text-orange-700' :
-                                      'bg-gray-100 text-gray-700'
+                                      material.category === 'notes' ? 'bg-purple-100 text-purple-700' :
+                                      material.category === 'assignment' ? 'bg-orange-100 text-orange-700' :
+                                      material.category === 'past_paper' ? 'bg-green-100 text-green-700' :
+                                      material.category === 'video' ? 'bg-red-100 text-red-700' :
+                                      'bg-blue-100 text-blue-700'
                                     }`}>
-                                      {material.type.charAt(0).toUpperCase() + material.type.slice(1)}
+                                      {material.category ? material.category.replace('_', ' ').charAt(0).toUpperCase() + material.category.replace('_', ' ').slice(1) : 'Notes'}
+                                    </span>
+                                    <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
+                                      🔒 Password Protected
                                     </span>
                                   </div>
-                                                                     {material.description && (
-                                     <p className="text-sm text-gray-600 mb-2">{material.description}</p>
-                                   )}
-                                   {material.fileName && (
-                                     <div className="flex items-center gap-2 mb-2">
-                                       {getFileIcon(material.fileType)}
-                                       <span className="text-sm text-blue-600 font-medium">{material.fileName}</span>
-                                       {material.fileSize && (
-                                         <span className="text-xs text-gray-500">({formatFileSize(material.fileSize)})</span>
-                                       )}
-                                     </div>
-                                   )}
-                                   <p className="text-xs text-gray-500">
-                                     Added: {new Date(material.createdAt).toLocaleDateString()}
-                                   </p>
+                                  {material.description && (
+                                    <p className="text-sm text-gray-600 mb-2">{material.description}</p>
+                                  )}
+                                  {material.file_name && (
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <FaFileAlt className="text-red-500" />
+                                      <span className="text-sm text-blue-600 font-medium">{material.file_name}</span>
+                                      {material.file_size && (
+                                        <span className="text-xs text-gray-500">({formatFileSize(material.file_size)})</span>
+                                      )}
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                                    <span>Uploaded: {new Date(material.upload_date).toLocaleDateString()}</span>
+                                    {material.download_count > 0 && (
+                                      <span className="text-blue-600">📥 {material.download_count} downloads</span>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="flex gap-2">
-                                  <button
-                                    onClick={() => handleEditMaterial(material)}
-                                    className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
-                                  >
-                                    Edit
-                                  </button>
                                   <button
                                     onClick={() => handleDeleteMaterial(material.id)}
                                     className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
                                   >
-                                    Delete
+                                    🗑️ Delete
                                   </button>
                                 </div>
                               </div>
@@ -825,6 +984,90 @@ const TeacherAllClasses = () => {
                           <FaFileAlt className="text-4xl mx-auto mb-4 text-gray-300" />
                           <p>No materials uploaded yet.</p>
                           <p className="text-sm text-gray-400 mt-2">Click "Add Material" to upload tutes, papers, and other materials.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {detailsActiveTab === 'recordings' && (
+                  <div className="space-y-6">
+                    <div className="bg-purple-50 p-6 rounded-lg">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold flex items-center gap-2">
+                          <FaVideo /> Class Recordings
+                        </h3>
+                        <button
+                          onClick={() => setShowAddRecording(true)}
+                          className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
+                        >
+                          <FaUpload /> Upload Recording
+                        </button>
+                      </div>
+                      
+                      {recordings.length > 0 ? (
+                        <div className="space-y-3">
+                          {recordings.map((recording) => (
+                            <div key={recording.id} className="bg-white p-4 rounded-lg border">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <FaPlay className="text-purple-500" />
+                                    <span className="font-semibold">{recording.title}</span>
+                                    <span className={`px-2 py-1 rounded-full text-xs ${
+                                      recording.category === 'lecture' ? 'bg-blue-100 text-blue-700' :
+                                      recording.category === 'tutorial' ? 'bg-green-100 text-green-700' :
+                                      recording.category === 'lab' ? 'bg-orange-100 text-orange-700' :
+                                      recording.category === 'review' ? 'bg-purple-100 text-purple-700' :
+                                      'bg-gray-100 text-gray-700'
+                                    }`}>
+                                      {recording.category ? recording.category.charAt(0).toUpperCase() + recording.category.slice(1) : 'Lecture'}
+                                    </span>
+                                    <span className={`px-2 py-1 rounded-full text-xs ${
+                                      recording.recording_type === 'video' ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'
+                                    }`}>
+                                      {recording.recording_type === 'video' ? '🎥 Video' : '🎵 Audio'}
+                                    </span>
+                                  </div>
+                                  {recording.description && (
+                                    <p className="text-sm text-gray-600 mb-2">{recording.description}</p>
+                                  )}
+                                  <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
+                                    {recording.file_name && (
+                                      <span className="text-blue-600 font-medium">{recording.file_name}</span>
+                                    )}
+                                    {recording.duration && (
+                                      <span>⏱️ {formatDuration(recording.duration)}</span>
+                                    )}
+                                    {recording.file_size && (
+                                      <span>📁 {formatFileSize(recording.file_size)}</span>
+                                    )}
+                                    <span>📅 {new Date(recording.upload_date).toLocaleDateString()}</span>
+                                    {recording.view_count > 0 && (
+                                      <span className="text-green-600">👁️ {recording.view_count} views</span>
+                                    )}
+                                    {recording.download_count > 0 && (
+                                      <span className="text-blue-600">📥 {recording.download_count} downloads</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => handleDeleteRecording(recording.id)}
+                                    className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 flex items-center gap-1"
+                                  >
+                                    <FaTrash /> Delete
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          <FaVideo className="text-4xl mx-auto mb-4 text-gray-300" />
+                          <p>No recordings uploaded yet.</p>
+                          <p className="text-sm text-gray-400 mt-2">Click "Upload Recording" to add lecture videos and audio.</p>
                         </div>
                       )}
                     </div>
@@ -956,36 +1199,44 @@ const TeacherAllClasses = () => {
           </div>
         )}
 
-        {/* Add/Edit Material Modal */}
+        {/* Add Material Modal */}
         {showAddMaterial && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full">
-              <h3 className="text-lg font-bold mb-4">
-                {editingMaterial ? 'Edit Material' : 'Add Material'}
+            <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <FaFileAlt /> Upload Material (PDF)
               </h3>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-blue-800 flex items-center gap-2">
+                  🔒 <strong>Auto-Protection:</strong> PDF will be password-protected with student ID and watermarked
+                </p>
+              </div>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Title</label>
+                  <label className="block text-sm font-medium mb-1">Title *</label>
                   <input
                     type="text"
                     value={newMaterial.title}
                     onChange={(e) => setNewMaterial({...newMaterial, title: e.target.value})}
                     className="w-full border rounded px-3 py-2"
-                    placeholder="Material title"
+                    placeholder="e.g., Chapter 1 - Introduction to Chemistry"
+                    required
+                    disabled={isUploading}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Type</label>
+                  <label className="block text-sm font-medium mb-1">Category</label>
                   <select
-                    value={newMaterial.type}
-                    onChange={(e) => setNewMaterial({...newMaterial, type: e.target.value})}
+                    value={newMaterial.category}
+                    onChange={(e) => setNewMaterial({...newMaterial, category: e.target.value})}
                     className="w-full border rounded px-3 py-2"
+                    disabled={isUploading}
                   >
-                    <option value="tute">Tute</option>
-                    <option value="paper">Paper</option>
-                    <option value="notes">Notes</option>
-                    <option value="assignment">Assignment</option>
-                    <option value="other">Other</option>
+                    <option value="notes">📝 Notes</option>
+                    <option value="assignment">📋 Assignment</option>
+                    <option value="past_paper">📄 Past Paper</option>
+                    <option value="video">🎥 Video Link</option>
+                    <option value="other">📁 Other</option>
                   </select>
                 </div>
                 <div>
@@ -995,45 +1246,51 @@ const TeacherAllClasses = () => {
                      onChange={(e) => setNewMaterial({...newMaterial, description: e.target.value})}
                      className="w-full border rounded px-3 py-2"
                      rows="3"
-                     placeholder="Material description"
+                     placeholder="Brief description of the material..."
+                     disabled={isUploading}
                    />
                  </div>
                  <div>
-                   <label className="block text-sm font-medium mb-1">Upload File</label>
+                   <label className="block text-sm font-medium mb-1">Upload PDF File *</label>
                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
                      {selectedFile ? (
                        <div className="space-y-2">
                          <div className="flex items-center justify-center gap-2">
-                           {getFileIcon(selectedFile.type)}
-                           <span className="text-sm font-medium">{selectedFile.name}</span>
-                           <span className="text-xs text-gray-500">({formatFileSize(selectedFile.size)})</span>
+                           <FaFileAlt className="text-red-500 text-2xl" />
+                           <div className="text-left">
+                             <div className="text-sm font-medium">{selectedFile.name}</div>
+                             <div className="text-xs text-gray-500">{formatFileSize(selectedFile.size)}</div>
+                           </div>
                          </div>
-                         <button
-                           type="button"
-                           onClick={removeSelectedFile}
-                           className="text-red-600 text-sm hover:text-red-800"
-                         >
-                           Remove File
-                         </button>
+                         {!isUploading && (
+                           <button
+                             type="button"
+                             onClick={removeSelectedFile}
+                             className="text-red-600 text-sm hover:text-red-800"
+                           >
+                             Remove File
+                           </button>
+                         )}
                        </div>
                      ) : (
                        <div>
                          <input
                            type="file"
                            onChange={handleFileSelect}
-                           accept=".pdf,.docx,.pptx,.xlsx,.zip,.doc,.ppt,.xls,.txt,.jpg,.jpeg,.png,.gif"
+                           accept=".pdf,application/pdf"
                            className="hidden"
                            id="file-upload"
+                           disabled={isUploading}
                          />
                          <label
                            htmlFor="file-upload"
-                           className="cursor-pointer text-blue-600 hover:text-blue-800"
+                           className={`cursor-pointer text-blue-600 hover:text-blue-800 ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                          >
                            <div className="flex flex-col items-center">
-                             <FaFileAlt className="text-2xl mb-2" />
-                             <span className="text-sm">Click to upload file</span>
+                             <FaFileAlt className="text-3xl mb-2" />
+                             <span className="text-sm font-medium">Click to upload PDF</span>
                              <span className="text-xs text-gray-500 mt-1">
-                               PDF, DOCX, PPTX, XLSX, ZIP, DOC, PPT, XLS, TXT, or images (max 10MB)
+                               PDF files only (max 50MB)
                              </span>
                            </div>
                          </label>
@@ -1043,26 +1300,186 @@ const TeacherAllClasses = () => {
                    {fileError && (
                      <p className="text-red-600 text-xs mt-1">{fileError}</p>
                    )}
+                   {isUploading && (
+                     <div className="mt-3">
+                       <div className="w-full bg-gray-200 rounded-full h-2">
+                         <div 
+                           className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                           style={{ width: `${uploadProgress}%` }}
+                         />
+                       </div>
+                       <p className="text-sm text-gray-600 text-center mt-2">
+                         Uploading and securing PDF... {uploadProgress}%
+                       </p>
+                     </div>
+                   )}
                  </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={editingMaterial ? handleUpdateMaterial : handleAddMaterial}
-                    className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700"
+                    onClick={handleAddMaterial}
+                    className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isUploading || !newMaterial.title.trim() || !selectedFile}
                   >
-                    {editingMaterial ? 'Update' : 'Add'}
+                    {isUploading ? 'Uploading...' : '🔒 Upload & Secure'}
                   </button>
-                                     <button
+                  <button
                      onClick={() => {
                        setShowAddMaterial(false);
                        setEditingMaterial(null);
-                       setNewMaterial({ title: '', type: 'tute', description: '', file: null });
+                       setNewMaterial({ title: '', category: 'notes', description: '', file: null });
                        setSelectedFile(null);
                        setFileError('');
                      }}
-                     className="flex-1 bg-gray-600 text-white py-2 rounded hover:bg-gray-700"
+                     className="flex-1 bg-gray-600 text-white py-2 rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                     disabled={isUploading}
                    >
                      Cancel
                    </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Recording Modal */}
+        {showAddRecording && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <FaVideo /> Upload Recording
+              </h3>
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-purple-800 flex items-center gap-2">
+                  🎥 Upload lecture videos or audio recordings for students to view/download
+                </p>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Title *</label>
+                  <input
+                    type="text"
+                    value={newRecording.title}
+                    onChange={(e) => setNewRecording({...newRecording, title: e.target.value})}
+                    className="w-full border rounded px-3 py-2"
+                    placeholder="e.g., Lecture 5 - Thermodynamics"
+                    required
+                    disabled={isUploadingRecording}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Category</label>
+                  <select
+                    value={newRecording.category}
+                    onChange={(e) => setNewRecording({...newRecording, category: e.target.value})}
+                    className="w-full border rounded px-3 py-2"
+                    disabled={isUploadingRecording}
+                  >
+                    <option value="lecture">🎓 Lecture</option>
+                    <option value="tutorial">📚 Tutorial</option>
+                    <option value="lab">🔬 Lab Session</option>
+                    <option value="review">🔄 Review Session</option>
+                    <option value="other">📁 Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Description</label>
+                  <textarea
+                    value={newRecording.description}
+                    onChange={(e) => setNewRecording({...newRecording, description: e.target.value})}
+                    className="w-full border rounded px-3 py-2"
+                    rows="3"
+                    placeholder="Brief description of the recording..."
+                    disabled={isUploadingRecording}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Upload Video/Audio *</label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                    {selectedRecordingFile ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-center gap-2">
+                          <FaVideo className="text-purple-500 text-2xl" />
+                          <div className="text-left">
+                            <div className="text-sm font-medium">{selectedRecordingFile.name}</div>
+                            <div className="text-xs text-gray-500">{formatFileSize(selectedRecordingFile.size)}</div>
+                          </div>
+                        </div>
+                        {!isUploadingRecording && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedRecordingFile(null);
+                              setNewRecording({...newRecording, file: null});
+                              document.getElementById('recording-upload').value = '';
+                            }}
+                            className="text-red-600 text-sm hover:text-red-800"
+                          >
+                            Remove File
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        <input
+                          type="file"
+                          onChange={handleRecordingFileSelect}
+                          accept="video/*,audio/*"
+                          className="hidden"
+                          id="recording-upload"
+                          disabled={isUploadingRecording}
+                        />
+                        <label
+                          htmlFor="recording-upload"
+                          className={`cursor-pointer text-purple-600 hover:text-purple-800 ${isUploadingRecording ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <div className="flex flex-col items-center">
+                            <FaVideo className="text-3xl mb-2" />
+                            <span className="text-sm font-medium">Click to upload video/audio</span>
+                            <span className="text-xs text-gray-500 mt-1">
+                              MP4, WebM, OGG, MOV, MP3, WAV (max 500MB)
+                            </span>
+                          </div>
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                  {recordingFileError && (
+                    <p className="text-red-600 text-xs mt-1">{recordingFileError}</p>
+                  )}
+                  {isUploadingRecording && (
+                    <div className="mt-3">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${recordingUploadProgress}%` }}
+                        />
+                      </div>
+                      <p className="text-sm text-gray-600 text-center mt-2">
+                        Uploading recording... {recordingUploadProgress}%
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleAddRecording}
+                    className="flex-1 bg-purple-600 text-white py-2 rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    disabled={isUploadingRecording || !newRecording.title.trim() || !selectedRecordingFile}
+                  >
+                    {isUploadingRecording ? 'Uploading...' : <><FaUpload /> Upload Recording</>}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAddRecording(false);
+                      setNewRecording({ title: '', category: 'lecture', description: '', file: null });
+                      setSelectedRecordingFile(null);
+                      setRecordingFileError('');
+                    }}
+                    className="flex-1 bg-gray-600 text-white py-2 rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isUploadingRecording}
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
             </div>

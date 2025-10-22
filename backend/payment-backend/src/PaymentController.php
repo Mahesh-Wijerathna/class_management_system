@@ -48,17 +48,35 @@ class PaymentController {
                 }
             }
 
+            // Check if this is a renewal payment (indicated by payment method or notes)
+            $isRenewal = isset($data['isRenewal']) && $data['isRenewal'] === true;
+            $isRenewalFromNotes = isset($data['notes']) && (
+                strpos($data['notes'], 'Renewal Payment') !== false ||
+                strpos($data['notes'], 'Early Payment') !== false ||
+                strpos($data['notes'], 'Next Month Renewal') !== false
+            );
+            
             // Check if student is already enrolled ONLY for online/new enrollments
             // Skip this check for physical/cashier payments (they're for existing enrollments)
             // Also skip for admission_fee payments without a classId
+            // Also skip for renewal payments
             $channel = $data['channel'] ?? 'online';
-            if ($channel !== 'physical' && !empty($classId)) {
+            if ($channel !== 'physical' && !empty($classId) && !$isRenewal && !$isRenewalFromNotes) {
                 // Check if student is already enrolled in this class (only check paid enrollments)
                 $isEnrolled = $this->checkStudentEnrollmentFromClassBackend($studentId, $classId);
                 if ($isEnrolled) {
                     return [
                         'success' => false, 
-                        'message' => 'You are already enrolled in this class'
+                        'message' => 'You are already enrolled in this class. Use "Pay Early" or "Renew Payment" for monthly payments.'
+                    ];
+                }
+            } else if (($isRenewal || $isRenewalFromNotes) && !empty($classId)) {
+                // For renewals, verify the student IS enrolled
+                $isEnrolled = $this->checkStudentEnrollmentFromClassBackend($studentId, $classId);
+                if (!$isEnrolled) {
+                    return [
+                        'success' => false, 
+                        'message' => 'Cannot process renewal payment - you are not enrolled in this class yet.'
                     ];
                 }
             }
@@ -678,7 +696,9 @@ class PaymentController {
                     fr.payment_method,
                     fr.category as payment_type,
                     fr.reference_number,
-                    fr.notes
+                    fr.notes,
+                    fr.delivery_status,
+                    fr.created_at
                 FROM financial_records fr
                 WHERE fr.type = 'income' AND fr.category = 'class_enrollment'
                 ORDER BY fr.date DESC
@@ -701,7 +721,9 @@ class PaymentController {
                     'payment_method' => $row['payment_method'],
                     'payment_type' => $row['payment_type'],
                     'reference_number' => $row['reference_number'],
-                    'notes' => $row['notes']
+                    'notes' => $row['notes'],
+                    'delivery_status' => $row['delivery_status'] ?? null,
+                    'created_at' => $row['created_at'] ?? null
                 ];
             }
 

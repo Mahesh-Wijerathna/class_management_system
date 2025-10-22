@@ -501,9 +501,19 @@ const CreateClass = ({ onLogout }) => {
       };
     }
     // Ensure submitValues has the required structure
+    // Handle schedule properly - if no schedule data, use 'no-schedule' frequency
+    let scheduleData = submitValues.schedule || {};
+    if (!scheduleData.day || !scheduleData.startTime || !scheduleData.endTime) {
+      // No schedule provided, use 'no-schedule' frequency
+      scheduleData = { day: '', startTime: '', endTime: '', frequency: 'no-schedule' };
+    } else if (!scheduleData.frequency) {
+      // Schedule data provided but no frequency, default to weekly
+      scheduleData.frequency = 'weekly';
+    }
+    
     const normalizedSubmitValues = {
       ...submitValues,
-      schedule: submitValues.schedule || { day: '', startTime: '', endTime: '', frequency: 'weekly' },
+      schedule: scheduleData,
       fee: submitValues.fee || 0,
       maxStudents: submitValues.maxStudents || 50,
       status: submitValues.status || 'active',

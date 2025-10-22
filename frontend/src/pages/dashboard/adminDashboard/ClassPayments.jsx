@@ -3,6 +3,7 @@ import { FaUsers, FaMoneyBill, FaCalendar, FaSearch, FaFilter, FaDownload, FaPri
 import { getAllClasses } from '../../../api/classes';
 import { getClassEnrollments } from '../../../api/enrollments';
 import { getAllStudents } from '../../../api/students';
+import { getAllEarningsConfigs, saveClassEarningsConfig } from '../../../api/earningsConfig';
 import axios from 'axios';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import adminSidebarSections from './AdminDashboardSidebar';
@@ -24,6 +25,73 @@ const ClassPayments = () => {
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [classPaymentData, setClassPaymentData] = useState({});
+  
+  // Earnings Mode States - Per Class Configuration
+  const [classEarningsConfig, setClassEarningsConfig] = useState({});
+  const [configLoading, setConfigLoading] = useState(false);
+  
+  // Load class earnings configurations from backend
+  useEffect(() => {
+    loadEarningsConfigs();
+  }, []);
+  
+  const loadEarningsConfigs = async () => {
+    try {
+      setConfigLoading(true);
+      const response = await getAllEarningsConfigs();
+      if (response.success) {
+        setClassEarningsConfig(response.data);
+      } else {
+        console.error('Failed to load earnings configs:', response.error);
+      }
+    } catch (error) {
+      console.error('Failed to load earnings config from backend:', error);
+    } finally {
+      setConfigLoading(false);
+    }
+  };
+  
+  // Get or initialize config for a specific class
+  const getClassConfig = (classId) => {
+    return classEarningsConfig[classId] || {
+      showDetailedView: false,
+      earningsMode: false,
+      enableTeacherDashboard: false,
+      hallRentPercentage: 30,
+      payherePercentage: 3,
+      otherExpenses: []
+    };
+  };
+  
+  // Update config for a specific class
+  const updateClassConfig = async (classId, updates) => {
+    const newConfig = {
+      ...getClassConfig(classId),
+      ...updates
+    };
+    
+    // Update state immediately for responsive UI
+    setClassEarningsConfig(prev => ({
+      ...prev,
+      [classId]: newConfig
+    }));
+    
+    // Save to backend
+    try {
+      const response = await saveClassEarningsConfig(classId, newConfig);
+      if (response.success) {
+        console.log('Earnings config saved to backend for class:', classId);
+      } else {
+        console.error('Failed to save earnings config:', response.error);
+        // Revert state if save failed
+        await loadEarningsConfigs();
+      }
+    } catch (error) {
+      console.error('Failed to save earnings config to backend:', error);
+      // Revert state if save failed
+      await loadEarningsConfigs();
+    }
+  };
 
   // Load data on component mount
   useEffect(() => {
@@ -391,6 +459,33 @@ const ClassPayments = () => {
       totalRevenue: cashRevenue + onlineRevenue,
       cashRevenue,
       onlineRevenue
+    };
+  };
+
+  // Calculate ALL-TIME total revenue for a class (ignoring date filters)
+  const calculateAllTimeRevenue = (classId) => {
+    const classData = classPaymentData[classId] || { enrollments: [], payments: [] };
+    const payments = classData.payments || [];
+    
+    let cashRevenue = 0;
+    let onlineRevenue = 0;
+    
+    payments.forEach(payment => {
+      const amount = parseFloat(payment.amount || 0);
+      const method = payment.payment_method?.toLowerCase() || 'unknown';
+      
+      if (method === 'cash') {
+        cashRevenue += amount;
+      } else if (method === 'online' || method === 'card') {
+        onlineRevenue += amount;
+      }
+    });
+    
+    return {
+      totalRevenue: cashRevenue + onlineRevenue,
+      cashRevenue,
+      onlineRevenue,
+      totalPayments: payments.length
     };
   };
 
@@ -966,36 +1061,6 @@ const ClassPayments = () => {
             </div>
           </div>
           
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <div className="flex items-center">
-              <FaMoneyBill className="text-purple-600 text-xl mr-3" />
-              <div>
-                <p className="text-xs font-medium text-purple-600">Total Revenue</p>
-                <p className="text-lg font-bold text-purple-900">
-                  {formatCurrency(filteredClasses.reduce((sum, c) => {
-                    const stats = calculateClassPaymentStats(c.id);
-                    return sum + stats.totalPayments;
-                  }, 0))}
-                </p>
-                <div className="flex flex-col space-y-1 text-xs mt-2">
-                  <div className="flex justify-between">
-                    <span className="text-green-600 font-medium">Cash:</span>
-                    <span className="text-green-700">{formatCurrency(filteredClasses.reduce((sum, c) => {
-                      const stats = calculateClassPaymentStats(c.id);
-                      return sum + stats.cashRevenue;
-                    }, 0))}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-blue-600 font-medium">Online:</span>
-                    <span className="text-blue-700">{formatCurrency(filteredClasses.reduce((sum, c) => {
-                      const stats = calculateClassPaymentStats(c.id);
-                      return sum + stats.onlineRevenue;
-                    }, 0))}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
           
           <div className="bg-yellow-50 p-4 rounded-lg">
             <div className="flex items-center">
@@ -1011,6 +1076,38 @@ const ClassPayments = () => {
               </div>
             </div>
           </div>
+
+          <div className="bg-purple-50 p-4 rounded-lg">
+            <div className="flex items-center">
+              <FaMoneyBill className="text-purple-600 text-xl mr-3" />
+              <div>
+                <p className="text-xs font-medium text-purple-600">Total Revenue</p>
+                <p className="text-lg font-bold text-purple-900">
+                  {formatCurrency(filteredClasses.reduce((sum, c) => {
+                    const stats = calculateAllTimeRevenue(c.id);
+                    return sum + stats.totalRevenue;
+                  }, 0))}
+                </p>
+                <div className="flex flex-col space-y-1 text-xs mt-2">
+                  <div className="flex justify-between">
+                    <span className="text-green-600 font-medium">Cash:</span>
+                    <span className="text-green-700">{formatCurrency(filteredClasses.reduce((sum, c) => {
+                      const stats = calculateAllTimeRevenue(c.id);
+                      return sum + stats.cashRevenue;
+                    }, 0))}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-blue-600 font-medium">Online:</span>
+                    <span className="text-blue-700">{formatCurrency(filteredClasses.reduce((sum, c) => {
+                      const stats = calculateAllTimeRevenue(c.id);
+                      return sum + stats.onlineRevenue;
+                    }, 0))}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
 
           <div className="bg-green-50 p-4 rounded-lg">
             <div className="flex items-center">
@@ -1165,6 +1262,494 @@ const ClassPayments = () => {
                 );
               })()}
               
+              {/* Earnings Configuration & Breakdown */}
+              {(() => {
+                const classStats = calculateClassPaymentStats(selectedClass.id);
+                const config = getClassConfig(selectedClass.id);
+                
+                // Calculate earnings breakdown
+                const totalRevenue = classStats.totalPayments;
+                const cashRevenue = classStats.cashRevenue;
+                const onlineRevenue = classStats.onlineRevenue;
+                
+                // Deductions (Institute Earnings)
+                const hallRentAmount = (totalRevenue * config.hallRentPercentage) / 100;
+                const payhereAmount = (onlineRevenue * config.payherePercentage) / 100;
+                const otherExpensesTotal = (config.otherExpenses || []).reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
+                
+                // Institute Share = Hall Rent + PayHere Fee + Other Expenses
+                const instituteShare = hallRentAmount + payhereAmount + otherExpensesTotal;
+                
+                // Teacher Share = Total Revenue - Institute Share
+                const teacherShare = totalRevenue - instituteShare;
+                
+                // For display purposes
+                const totalDeductions = instituteShare;
+                const netRevenue = teacherShare;
+                
+                const addExpense = () => {
+                  updateClassConfig(selectedClass.id, {
+                    otherExpenses: [...(config.otherExpenses || []), { description: '', amount: '' }]
+                  });
+                };
+                
+                const updateExpense = (index, field, value) => {
+                  const updated = [...(config.otherExpenses || [])];
+                  updated[index][field] = value;
+                  updateClassConfig(selectedClass.id, { otherExpenses: updated });
+                };
+                
+                const removeExpense = (index) => {
+                  updateClassConfig(selectedClass.id, {
+                    otherExpenses: (config.otherExpenses || []).filter((_, i) => i !== index)
+                  });
+                };
+                
+                return (
+                  <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-6 mb-6 border border-purple-200">
+                    
+                    {/* Toggle for Detailed View */}
+                    <div className="flex items-center justify-between mb-6 pb-4 border-b border-purple-200">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          id={`detailedViewToggle-${selectedClass.id}`}
+                          checked={config.showDetailedView}
+                          onChange={(e) => updateClassConfig(selectedClass.id, { showDetailedView: e.target.checked })}
+                          className="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                        />
+                        <label htmlFor={`detailedViewToggle-${selectedClass.id}`} className="text-lg font-semibold text-purple-900 cursor-pointer">
+                          💰 Show Detailed Revenue Analysis
+                        </label>
+                      </div>
+                      {config.showDetailedView && (
+                        <span className="px-3 py-1 bg-purple-600 text-white text-sm rounded-full">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    
+                    {!config.showDetailedView ? (
+                      /* Simple Total Revenue Display - When Detailed View is OFF */
+                      <div className="bg-white rounded-lg shadow-lg p-8 border-2 border-purple-300">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-lg font-medium text-gray-600 mb-2">💵 Total Revenue</p>
+                            <p className="text-5xl font-bold text-purple-900">{formatCurrency(totalRevenue)}</p>
+                            <p className="text-sm text-gray-500 mt-3">Gross collection from all payments</p>
+                            <div className="flex gap-4 mt-4">
+                              <div className="flex items-center gap-2">
+                                <span className="w-3 h-3 bg-green-500 rounded-full"></span>
+                                <span className="text-sm text-gray-600">Cash: {formatCurrency(cashRevenue)}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
+                                <span className="text-sm text-gray-600">Online: {formatCurrency(onlineRevenue)}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-6xl opacity-20">💵</div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Detailed Revenue Analysis - When Detailed View is ON */
+                      <>
+                        {/* Net Revenue & Distribution Cards */}
+                        <div className="mb-6">
+                          <h3 className="text-lg font-bold text-purple-900 mb-4">💎 Revenue Distribution</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Teacher Earnings */}
+                        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg shadow-md p-5 border-2 border-blue-300">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium text-blue-700">Teacher Earnings</p>
+                            <span className="text-2xl">�‍🏫</span>
+                          </div>
+                          <p className="text-3xl font-bold text-blue-900">{formatCurrency(teacherShare)}</p>
+                          <p className="text-xs text-blue-600 mt-1">Total Revenue - Institute Share</p>
+                          <div className="mt-3 pt-3 border-t border-blue-200">
+                            <p className="text-xs text-gray-600">From Total: {formatCurrency(totalRevenue)}</p>
+                          </div>
+                        </div>
+                        
+                        {/* Institute Earnings */}
+                        <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg shadow-md p-5 border-2 border-indigo-300">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium text-indigo-700">Institute Earnings</p>
+                            <span className="text-2xl">�️</span>
+                          </div>
+                          <p className="text-3xl font-bold text-indigo-900">{formatCurrency(instituteShare)}</p>
+                          <p className="text-xs text-indigo-600 mt-1">Hall + PayHere + Expenses</p>
+                          <div className="mt-3 pt-3 border-t border-indigo-200">
+                            <p className="text-xs text-gray-600">All Deductions</p>
+                          </div>
+                        </div>
+                        
+                        {/* Total Revenue */}
+                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg shadow-md p-5 border-2 border-green-300">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium text-green-700">Total Revenue</p>
+                            <span className="text-2xl">💵</span>
+                          </div>
+                          <p className="text-3xl font-bold text-green-900">{formatCurrency(totalRevenue)}</p>
+                          <p className="text-xs text-green-600 mt-1">Gross collection</p>
+                          <div className="mt-3">
+                            <div className="flex justify-between text-xs text-gray-600">
+                              <span>Teacher</span>
+                              <span>{totalRevenue > 0 ? ((teacherShare / totalRevenue) * 100).toFixed(1) : 0}%</span>
+                            </div>
+                            <div className="flex justify-between text-xs text-gray-600 mt-1">
+                              <span>Institute</span>
+                              <span>{totalRevenue > 0 ? ((instituteShare / totalRevenue) * 100).toFixed(1) : 0}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Earnings Mode Toggle Checkbox */}
+                    <div className="flex items-center justify-between mb-6 pb-4 border-b border-purple-200">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          id={`earningsToggle-${selectedClass.id}`}
+                          checked={config.earningsMode}
+                          onChange={(e) => updateClassConfig(selectedClass.id, { earningsMode: e.target.checked })}
+                          className="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                        />
+                        <label htmlFor={`earningsToggle-${selectedClass.id}`} className="text-lg font-semibold text-purple-900 cursor-pointer">
+                          💰 Enable Earnings View & Configuration
+                        </label>
+                      </div>
+                      {config.earningsMode && (
+                        <span className="px-3 py-1 bg-purple-600 text-white text-sm rounded-full">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Teacher Dashboard Access Toggle - Admin Control */}
+                    <div className="mb-6 pb-4 border-b border-blue-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            id={`teacherDashboardToggle-${selectedClass.id}`}
+                            checked={config.enableTeacherDashboard}
+                            onChange={(e) => updateClassConfig(selectedClass.id, { enableTeacherDashboard: e.target.checked })}
+                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <label htmlFor={`teacherDashboardToggle-${selectedClass.id}`} className="text-lg font-semibold text-blue-900 cursor-pointer">
+                            👨‍🏫 Enable Teacher Dashboard View
+                          </label>
+                        </div>
+                        {config.enableTeacherDashboard && (
+                          <span className="px-3 py-1 bg-blue-600 text-white text-sm rounded-full">
+                            Enabled for Teachers
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600 ml-8">
+                        When enabled, teachers can see detailed revenue analysis for this class
+                      </p>
+                    </div>
+                    
+                    {/* Revenue Overview Cards - Always Visible */}
+                    <div className="mb-6">
+                      <h3 className="text-lg font-bold text-purple-900 mb-4">📊 Revenue Overview</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Total Revenue Card */}
+                        <div className="bg-white rounded-lg shadow-md p-5 border-l-4 border-purple-500">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium text-gray-600">Total Revenue</p>
+                            <span className="text-2xl">�</span>
+                          </div>
+                          <p className="text-2xl font-bold text-purple-900">{formatCurrency(totalRevenue)}</p>
+                          <p className="text-xs text-gray-500 mt-1">Gross collection</p>
+                        </div>
+                        
+                        {/* Cash Revenue Card */}
+                        <div className="bg-white rounded-lg shadow-md p-5 border-l-4 border-green-500">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium text-gray-600">Cash Payments</p>
+                            <span className="text-2xl">💵</span>
+                          </div>
+                          <p className="text-2xl font-bold text-green-900">{formatCurrency(cashRevenue)}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {totalRevenue > 0 ? ((cashRevenue / totalRevenue) * 100).toFixed(1) : 0}% of total
+                          </p>
+                        </div>
+                        
+                        {/* Online Revenue Card */}
+                        <div className="bg-white rounded-lg shadow-md p-5 border-l-4 border-blue-500">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium text-gray-600">Online Payments</p>
+                            <span className="text-2xl">💳</span>
+                          </div>
+                          <p className="text-2xl font-bold text-blue-900">{formatCurrency(onlineRevenue)}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {totalRevenue > 0 ? ((onlineRevenue / totalRevenue) * 100).toFixed(1) : 0}% of total
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Earnings Configuration - Only when enabled */}
+                    {config.earningsMode && (
+                      <>
+                        {/* Configuration Inputs */}
+                        <div className="mb-6">
+                          <h3 className="text-lg font-bold text-purple-900 mb-4">⚙️ Earnings Configuration</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            {/* Hall Rent */}
+                            <div className="bg-white p-4 rounded-lg shadow-sm">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                🏛️ Hall Rent (%)
+                              </label>
+                              <input
+                                type="number"
+                                value={config.hallRentPercentage}
+                                onChange={(e) => updateClassConfig(selectedClass.id, { hallRentPercentage: parseFloat(e.target.value) || 0 })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                placeholder="30"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">
+                                Amount: {formatCurrency(hallRentAmount)}
+                              </p>
+                            </div>
+                            
+                            {/* PayHere Fee */}
+                            <div className="bg-white p-4 rounded-lg shadow-sm">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                💳 PayHere Fee (% of online payments)
+                              </label>
+                              <input
+                                type="number"
+                                value={config.payherePercentage}
+                                onChange={(e) => updateClassConfig(selectedClass.id, { payherePercentage: parseFloat(e.target.value) || 0 })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                placeholder="3"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">
+                                Amount: {formatCurrency(payhereAmount)}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {/* Other Expenses */}
+                          <div className="bg-white p-4 rounded-lg shadow-sm">
+                            <div className="flex justify-between items-center mb-3">
+                              <label className="block text-sm font-medium text-gray-700">
+                                📋 Other Expenses
+                              </label>
+                              <button
+                                onClick={addExpense}
+                                className="px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
+                              >
+                                + Add Expense
+                              </button>
+                            </div>
+                            
+                            {(config.otherExpenses || []).length === 0 ? (
+                              <p className="text-sm text-gray-500 italic">No other expenses added</p>
+                            ) : (
+                              <div className="space-y-2">
+                                {(config.otherExpenses || []).map((expense, index) => (
+                                  <div key={index} className="flex gap-2">
+                                    <input
+                                      type="text"
+                                      value={expense.description}
+                                      onChange={(e) => updateExpense(index, 'description', e.target.value)}
+                                      placeholder="Description (e.g., Leaflets)"
+                                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    />
+                                    <input
+                                      type="number"
+                                      value={expense.amount}
+                                      onChange={(e) => updateExpense(index, 'amount', e.target.value)}
+                                      placeholder="Amount (LKR)"
+                                      className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                      min="0"
+                                      step="0.01"
+                                    />
+                                    <button
+                                      onClick={() => removeExpense(index)}
+                                      className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Deductions Summary Cards */}
+                        <div className="mb-6">
+                          <h3 className="text-lg font-bold text-purple-900 mb-4">� Deductions Breakdown</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            {/* Hall Rent Deduction */}
+                            <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-orange-500">
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-xs font-medium text-gray-600">Hall Rent</p>
+                                <span className="text-lg">🏛️</span>
+                              </div>
+                              <p className="text-xl font-bold text-orange-900">{formatCurrency(hallRentAmount)}</p>
+                              <p className="text-xs text-gray-500 mt-1">{config.hallRentPercentage}% of revenue</p>
+                            </div>
+                            
+                            {/* PayHere Fee Deduction */}
+                            <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-blue-500">
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-xs font-medium text-gray-600">PayHere Fee</p>
+                                <span className="text-lg">💳</span>
+                              </div>
+                              <p className="text-xl font-bold text-blue-900">{formatCurrency(payhereAmount)}</p>
+                              <p className="text-xs text-gray-500 mt-1">{config.payherePercentage}% of online</p>
+                            </div>
+                            
+                            {/* Other Expenses */}
+                            <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-yellow-500">
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-xs font-medium text-gray-600">Other Expenses</p>
+                                <span className="text-lg">📋</span>
+                              </div>
+                              <p className="text-xl font-bold text-yellow-900">{formatCurrency(otherExpensesTotal)}</p>
+                              <p className="text-xs text-gray-500 mt-1">{(config.otherExpenses || []).length} item(s)</p>
+                            </div>
+                            
+                            {/* Total Deductions */}
+                            <div className="bg-white rounded-lg shadow-md p-4 border-l-4 border-red-500">
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-xs font-medium text-gray-600">Total Deductions</p>
+                                <span className="text-lg">➖</span>
+                              </div>
+                              <p className="text-xl font-bold text-red-900">{formatCurrency(totalDeductions)}</p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {totalRevenue > 0 ? ((totalDeductions / totalRevenue) * 100).toFixed(1) : 0}% of revenue
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Net Revenue & Split Cards */}
+                        <div className="mb-6">
+                          <h3 className="text-lg font-bold text-purple-900 mb-4">💎 Net Revenue & Distribution</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* Net Revenue */}
+                            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg shadow-md p-5 border-2 border-green-300">
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-sm font-medium text-green-700">Net Revenue</p>
+                                <span className="text-2xl">💎</span>
+                              </div>
+                              <p className="text-3xl font-bold text-green-900">{formatCurrency(netRevenue)}</p>
+                              <p className="text-xs text-green-600 mt-1">After all deductions</p>
+                              <div className="mt-3 pt-3 border-t border-green-200">
+                                <p className="text-xs text-gray-600">Deducted: {formatCurrency(totalDeductions)}</p>
+                              </div>
+                            </div>
+                            
+                            {/* Teacher Share */}
+                            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg shadow-md p-5 border-2 border-blue-300">
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-sm font-medium text-blue-700">Teacher Share</p>
+                                <span className="text-2xl">👨‍🏫</span>
+                              </div>
+                              <p className="text-3xl font-bold text-blue-900">{formatCurrency(teacherShare)}</p>
+                              <p className="text-xs text-blue-600 mt-1">70% of net revenue</p>
+                              <div className="mt-3">
+                                <div className="w-full bg-blue-200 rounded-full h-3">
+                                  <div className="bg-blue-600 h-3 rounded-full" style={{ width: '70%' }}></div>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Institute Share */}
+                            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg shadow-md p-5 border-2 border-indigo-300">
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-sm font-medium text-indigo-700">Institute Share</p>
+                                <span className="text-2xl">🏛️</span>
+                              </div>
+                              <p className="text-3xl font-bold text-indigo-900">{formatCurrency(instituteShare)}</p>
+                              <p className="text-xs text-indigo-600 mt-1">30% of net revenue</p>
+                              <div className="mt-3">
+                                <div className="w-full bg-indigo-200 rounded-full h-3">
+                                  <div className="bg-indigo-600 h-3 rounded-full" style={{ width: '30%' }}></div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Detailed Breakdown Table */}
+                        <div className="bg-white rounded-lg shadow-md p-5">
+                          <h4 className="text-md font-bold text-gray-900 mb-4">📊 Detailed Financial Breakdown</h4>
+                          <div className="space-y-2">
+                            <div className="flex justify-between py-2 border-b border-gray-200">
+                              <span className="text-gray-700 font-medium">Total Revenue (Gross)</span>
+                              <span className="text-lg font-bold text-purple-900">{formatCurrency(totalRevenue)}</span>
+                            </div>
+                            
+                            <div className="pl-4 space-y-1 py-2 bg-red-50 rounded">
+                              <p className="text-sm font-semibold text-red-700 mb-2">Deductions:</p>
+                              <div className="flex justify-between text-sm">
+                                <span className="text-gray-600">• Hall Rent ({config.hallRentPercentage}%)</span>
+                                <span className="text-red-600 font-medium">- {formatCurrency(hallRentAmount)}</span>
+                              </div>
+                              <div className="flex justify-between text-sm">
+                                <span className="text-gray-600">• PayHere Fee ({config.payherePercentage}% of online)</span>
+                                <span className="text-red-600 font-medium">- {formatCurrency(payhereAmount)}</span>
+                              </div>
+                              {(config.otherExpenses || []).map((expense, index) => (
+                                expense.description && expense.amount ? (
+                                  <div key={index} className="flex justify-between text-sm">
+                                    <span className="text-gray-600">• {expense.description}</span>
+                                    <span className="text-red-600 font-medium">- {formatCurrency(parseFloat(expense.amount))}</span>
+                                  </div>
+                                ) : null
+                              ))}
+                              <div className="flex justify-between text-sm font-semibold pt-2 border-t border-red-200 mt-2">
+                                <span className="text-red-700">Institute Earnings (Total)</span>
+                                <span className="text-red-700">{formatCurrency(instituteShare)}</span>
+                              </div>
+                            </div>
+                            
+                            <div className="flex justify-between py-2 border-b border-gray-200 bg-blue-50 px-3 rounded">
+                              <span className="text-blue-800 font-semibold">Teacher Earnings</span>
+                              <span className="text-xl font-bold text-blue-700">{formatCurrency(teacherShare)}</span>
+                            </div>
+                            
+                            <div className="pl-4 space-y-1 py-2 bg-gray-50 rounded mt-2 p-3">
+                              <p className="text-sm font-semibold text-gray-700 mb-2">Summary:</p>
+                              <div className="flex justify-between text-sm">
+                                <span className="text-gray-700">Total Revenue</span>
+                                <span className="text-gray-900 font-bold">{formatCurrency(totalRevenue)}</span>
+                              </div>
+                              <div className="flex justify-between text-sm">
+                                <span className="text-blue-700">👨‍🏫 Teacher Earnings</span>
+                                <span className="text-blue-900 font-bold">{formatCurrency(teacherShare)} ({totalRevenue > 0 ? ((teacherShare / totalRevenue) * 100).toFixed(1) : 0}%)</span>
+                              </div>
+                              <div className="flex justify-between text-sm">
+                                <span className="text-indigo-700">🏛️ Institute Earnings</span>
+                                <span className="text-indigo-900 font-bold">{formatCurrency(instituteShare)} ({totalRevenue > 0 ? ((instituteShare / totalRevenue) * 100).toFixed(1) : 0}%)</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+              
               {/* Students Table */}
               {(() => {
                 // Transform enrollments to show separate rows for admission fees
@@ -1249,7 +1834,7 @@ const ClassPayments = () => {
                 </button>
               </div>
               
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {(() => {
                   // Get payment data from payment backend for this student and class
                   const classPayments = selectedClass?.payments || [];
@@ -1258,52 +1843,127 @@ const ClassPayments = () => {
                   );
                   
                   if (studentPayments.length > 0) {
-                    return studentPayments.map((payment, index) => (
-                      <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                        <div className="flex justify-between items-center mb-3">
-                          <span className="text-lg font-semibold text-gray-700">
-                            Payment #{index + 1}
-                          </span>
-                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                            payment.payment_method?.toLowerCase() === 'cash' ? 'bg-green-100 text-green-700' :
-                            payment.payment_method?.toLowerCase() === 'online' ? 'bg-blue-100 text-blue-700' :
-                            payment.payment_method?.toLowerCase() === 'card' ? 'bg-purple-100 text-purple-700' :
-                            'bg-gray-100 text-gray-700'
+                    // Sort by date (newest first)
+                    const sortedPayments = [...studentPayments].sort((a, b) => 
+                      new Date(b.date) - new Date(a.date)
+                    );
+                    
+                    return sortedPayments.map((payment, index) => (
+                      <div key={payment.transaction_id || index} className="bg-white border-2 border-gray-200 rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow">
+                        {/* Header */}
+                        <div className="flex justify-between items-start mb-4 pb-3 border-b border-gray-200">
+                          <div className="flex items-center space-x-3">
+                            <span className="text-lg font-bold text-gray-800">
+                              {payment.transaction_id || `Payment #${index + 1}`}
+                            </span>
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              payment.status?.toLowerCase() === 'paid' ? 'bg-green-100 text-green-700 border border-green-300' :
+                              payment.status?.toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
+                              payment.status?.toLowerCase() === 'overdue' ? 'bg-red-100 text-red-700 border border-red-300' :
+                              'bg-gray-100 text-gray-700 border border-gray-300'
+                            }`}>
+                              {payment.status?.toUpperCase() || 'N/A'}
+                            </span>
+                          </div>
+                          <span className={`px-4 py-1.5 rounded-lg text-sm font-semibold ${
+                            payment.payment_method?.toLowerCase() === 'cash' ? 'bg-green-100 text-green-800 border border-green-300' :
+                            payment.payment_method?.toLowerCase() === 'online' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
+                            payment.payment_method?.toLowerCase() === 'card' ? 'bg-purple-100 text-purple-800 border border-purple-300' :
+                            'bg-gray-100 text-gray-700 border border-gray-300'
                           }`}>
-                            {payment.payment_method?.toLowerCase() === 'cash' ? 'Cash' :
-                             payment.payment_method?.toLowerCase() === 'online' ? 'Online' :
-                             payment.payment_method?.toLowerCase() === 'card' ? 'Card' :
+                            {payment.payment_method?.toLowerCase() === 'cash' ? '💵 Cash' :
+                             payment.payment_method?.toLowerCase() === 'online' ? '💳 Online' :
+                             payment.payment_method?.toLowerCase() === 'card' ? '💳 Card' :
                              payment.payment_method || 'Unknown'}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-medium text-gray-600">Amount:</span>
-                          <span className="text-lg font-bold text-green-600">
+                        
+                        {/* Amount - Prominent Display */}
+                        <div className="mb-4">
+                          <div className="text-sm font-medium text-gray-500 mb-1">Amount Paid</div>
+                          <div className="text-3xl font-bold text-green-600">
                             {formatCurrency(payment.amount || 0)}
-                          </span>
+                          </div>
                         </div>
-                        {payment.date && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium text-gray-600">Date:</span>
-                            <span className="text-sm text-gray-700">
-                              {formatDate(payment.date)}
-                            </span>
+                        
+                        {/* Payment Details Grid */}
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          {payment.date && (
+                            <div>
+                              <div className="text-xs font-medium text-gray-500 mb-1">Payment Date</div>
+                              <div className="text-sm font-semibold text-gray-800 flex items-center">
+                                <FaCalendar className="mr-2 text-blue-500" size={14} />
+                                {formatDate(payment.date)}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {payment.reference_number && (
+                            <div>
+                              <div className="text-xs font-medium text-gray-500 mb-1">Reference Number</div>
+                              <div className="text-sm font-mono text-gray-800 bg-gray-50 px-2 py-1 rounded">
+                                {payment.reference_number}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {payment.class_name && (
+                            <div>
+                              <div className="text-xs font-medium text-gray-500 mb-1">Class</div>
+                              <div className="text-sm font-semibold text-gray-800">
+                                {payment.class_name}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {payment.person_name && (
+                            <div>
+                              <div className="text-xs font-medium text-gray-500 mb-1">Student Name</div>
+                              <div className="text-sm font-semibold text-gray-800">
+                                {payment.person_name}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Notes Section */}
+                        {payment.notes && (
+                          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div className="text-xs font-semibold text-blue-700 mb-2">Payment Details</div>
+                            <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                              {payment.notes}
+                            </div>
                           </div>
                         )}
-                        {payment.transaction_id && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium text-gray-600">Transaction ID:</span>
-                            <span className="text-sm text-gray-700">
-                              {payment.transaction_id}
-                            </span>
+                        
+                        {/* Additional Info */}
+                        <div className="mt-4 pt-3 border-t border-gray-200">
+                          <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+                            {payment.type && (
+                              <div>
+                                <span className="font-medium">Type:</span> {payment.type}
+                              </div>
+                            )}
+                            {payment.category && (
+                              <div>
+                                <span className="font-medium">Category:</span> {payment.category}
+                              </div>
+                            )}
+                            {payment.created_by && (
+                              <div className="col-span-2">
+                                <span className="font-medium">Created by:</span> {payment.created_by}
+                              </div>
+                            )}
                           </div>
-                        )}
+                        </div>
                       </div>
                     ));
                   } else {
                     return (
-                      <div className="text-center py-8">
-                        <div className="text-gray-500 text-lg">No payment history available</div>
+                      <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                        <div className="text-gray-400 text-6xl mb-4">💳</div>
+                        <div className="text-gray-600 text-lg font-medium mb-2">No Payment History</div>
+                        <div className="text-gray-500 text-sm">This student hasn't made any payments yet.</div>
                       </div>
                     );
                   }
