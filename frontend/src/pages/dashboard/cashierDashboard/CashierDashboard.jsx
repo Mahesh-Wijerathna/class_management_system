@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { FaLock, FaLockOpen, FaSignOutAlt, FaBarcode, FaUserPlus, FaMoneyBill, FaHistory, FaFileInvoice, FaStickyNote, FaSearch, FaCamera, FaUser, FaPhone, FaGraduationCap, FaClock, FaExclamationTriangle, FaCheckCircle, FaEdit, FaPlus } from 'react-icons/fa';
 import { getUserData, logout as authLogout } from '../../../api/apiUtils';
 import { login } from '../../../api/auth';
@@ -3367,7 +3367,10 @@ export default function CashierDashboard() {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentId, classId })
+      body: JSON.stringify({ 
+        student_id: studentId, 
+        class_id: classId 
+      })
     });
     return res.json();
   };
@@ -3377,7 +3380,10 @@ export default function CashierDashboard() {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentId, classId })
+      body: JSON.stringify({ 
+        student_id: studentId, 
+        class_id: classId 
+      })
     });
     return res.json();
   };
@@ -3385,33 +3391,422 @@ export default function CashierDashboard() {
   const printNote = ({ title, student, classRow, reason }) => {
     const w = window.open('', '_blank');
     if (!w) return;
-    const today = new Date().toLocaleString();
-    w.document.write(`
-      <html>
+    
+    const today = new Date();
+    const formattedDate = today.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+    const formattedTime = today.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    
+    const cashierName = getUserData()?.name || 'Cashier';
+    const studentId = student?.studentId || student?.id || '';
+    const className = classRow?.className || classRow?.class_name || classRow?.subject || '';
+    const teacherName = classRow?.teacher || classRow?.teacher_name || '';
+    
+    // Determine which type of note this is
+    const isLatePay = title.toLowerCase().includes('late');
+    const isEntryPermit = title.toLowerCase().includes('entry') || title.toLowerCase().includes('permit');
+    
+    let noteHTML = '';
+    
+    if (isLatePay) {
+      // Late Payment Permission Note - Thermal receipt style
+      noteHTML = `
+        <!DOCTYPE html>
+        <html>
         <head>
-          <title>${title}</title>
+          <title>Late Payment Permission - ${studentId}</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 24px; }
-            h1 { font-size: 20px; margin: 0 0 12px; }
-            .row { margin: 6px 0; }
-            .muted { color: #555; }
-            .box { border: 1px solid #ddd; padding: 12px; border-radius: 6px; }
+            @media print {
+              @page { margin: 0; }
+              body { margin: 0.5cm; }
+            }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: 'Courier New', monospace;
+              padding: 20px;
+              max-width: 80mm;
+              margin: 0 auto;
+            }
+            .receipt {
+              border: 2px dashed #333;
+              padding: 15px;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 2px solid #333;
+              padding-bottom: 10px;
+              margin-bottom: 15px;
+            }
+            .header .logo {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 8px;
+              margin-bottom: 5px;
+            }
+            .header .logo-icon {
+              font-size: 24px;
+            }
+            .header h1 {
+              font-size: 20px;
+              font-weight: bold;
+              margin: 0;
+            }
+            .header .subtitle {
+              font-size: 12px;
+              color: #666;
+            }
+            .validity-box {
+              background: #f0f0f0;
+              padding: 8px;
+              margin: 10px 0;
+              text-align: center;
+              border: 1px solid #999;
+              font-weight: bold;
+              font-size: 11px;
+            }
+            .section {
+              margin-bottom: 15px;
+              padding-bottom: 10px;
+              border-bottom: 1px dashed #999;
+            }
+            .section:last-child {
+              border-bottom: none;
+            }
+            .row {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 8px;
+              font-size: 13px;
+            }
+            .row .label {
+              font-weight: bold;
+              color: #333;
+            }
+            .row .value {
+              text-align: right;
+              color: #000;
+            }
+            .signatures {
+              margin-top: 30px;
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 20px;
+              text-align: center;
+            }
+            .sig-line {
+              border-top: 1px solid #000;
+              margin: 30px 5px 5px;
+            }
+            .sig-label {
+              font-size: 10px;
+              color: #666;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 20px;
+              padding-top: 15px;
+              border-top: 2px solid #333;
+              font-size: 10px;
+            }
+            .thank-you {
+              font-size: 12px;
+              font-weight: bold;
+              margin-bottom: 8px;
+            }
           </style>
         </head>
         <body>
-          <h1>${title}</h1>
-          <div class="box">
-            <div class="row"><strong>Date/Time:</strong> ${today}</div>
-            <div class="row"><strong>Student:</strong> ${student?.firstName || ''} ${student?.lastName || ''} (${student?.studentId || student?.id})</div>
-            <div class="row"><strong>Class:</strong> ${classRow?.className || classRow?.subject || classRow?.id || ''}</div>
-            ${reason ? `<div class="row"><strong>Reason:</strong> ${reason}</div>` : ''}
-            <div class="row muted">This is an auto-generated note for front-desk verification.</div>
+          <div class="receipt">
+            <div class="header">
+              <div class="logo">
+                <span class="logo-icon">🎓</span>
+                <h1>TCMS</h1>
+              </div>
+              <div class="subtitle">Late Payment Permission</div>
+            </div>
+
+            <div class="section">
+              <div class="row">
+                <span class="label">Date/Time:</span>
+                <span class="value">${formattedDate}, ${formattedTime}</span>
+              </div>
+              <div class="row">
+                <span class="label">Student:</span>
+                <span class="value">${student?.firstName || ''} ${student?.lastName || ''}</span>
+              </div>
+              <div class="row">
+                <span class="label">Student ID:</span>
+                <span class="value">${studentId}</span>
+              </div>
+              <div class="row">
+                <span class="label">Class:</span>
+                <span class="value">${className}</span>
+              </div>
+              <div class="row">
+                <span class="label">Teacher:</span>
+                <span class="value">${teacherName}</span>
+              </div>
+            </div>
+
+            <div class="section">
+              <div style="font-size: 12px; text-align: center; font-style: italic; color: #555;">
+                ${reason || 'Allowed late payment for today only'}
+              </div>
+            </div>
+
+            <div class="signatures">
+              <div>
+                <div class="sig-line"></div>
+                <div class="sig-label">Teacher Signature</div>
+                <div class="sig-label">${teacherName}</div>
+              </div>
+              <div>
+                <div class="sig-line"></div>
+                <div class="sig-label">Admin Signature</div>
+              </div>
+            </div>
+
+            <div class="footer">
+              <div class="thank-you">⚠️ Valid for today only - ${formattedDate}</div>
+              <div>Issued by: ${cashierName}</div>
+              <div style="margin-top: 5px;">This is a computer-generated note</div>
+            </div>
           </div>
-          <div style="margin-top:24px" class="row">__________________________<br/>Cashier Signature</div>
-          <script>window.print();</script>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+              }, 250);
+            };
+          </script>
         </body>
-      </html>
-    `);
+        </html>
+      `;
+    } else if (isEntryPermit) {
+      // Entry Permit - Thermal receipt style with scannable barcode
+      noteHTML = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Entry Permit - ${studentId}</title>
+          <style>
+            @media print {
+              @page { margin: 0; }
+              body { margin: 0.5cm; }
+            }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: 'Courier New', monospace;
+              padding: 20px;
+              max-width: 80mm;
+              margin: 0 auto;
+            }
+            .receipt {
+              border: 2px dashed #333;
+              padding: 15px;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 2px solid #333;
+              padding-bottom: 10px;
+              margin-bottom: 15px;
+            }
+            .header .logo {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 8px;
+              margin-bottom: 5px;
+            }
+            .header .logo-icon {
+              font-size: 24px;
+            }
+            .header h1 {
+              font-size: 20px;
+              font-weight: bold;
+              margin: 0;
+            }
+            .header .subtitle {
+              font-size: 12px;
+              color: #666;
+            }
+            .section {
+              margin-bottom: 15px;
+              padding-bottom: 10px;
+              border-bottom: 1px dashed #999;
+            }
+            .section:last-child {
+              border-bottom: none;
+            }
+            .row {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 8px;
+              font-size: 13px;
+            }
+            .row .label {
+              font-weight: bold;
+              color: #333;
+            }
+            .row .value {
+              text-align: right;
+              color: #000;
+            }
+            .barcode-section {
+              text-align: center;
+              margin: 15px 0;
+              padding: 15px 10px;
+              background: #f5f5f5;
+              border: 1px solid #999;
+            }
+            .barcode-label {
+              font-size: 11px;
+              color: #666;
+              margin-bottom: 10px;
+              font-weight: bold;
+            }
+            .barcode-img {
+              width: 100%;
+              max-width: 250px;
+              height: auto;
+              margin: 10px 0;
+            }
+            .barcode-id {
+              font-size: 14px;
+              font-weight: bold;
+              letter-spacing: 2px;
+              margin-top: 5px;
+            }
+            .signature {
+              margin-top: 30px;
+              text-align: center;
+            }
+            .sig-line {
+              border-top: 1px solid #000;
+              margin: 25px 20px 5px;
+            }
+            .sig-label {
+              font-size: 10px;
+              color: #666;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 20px;
+              padding-top: 15px;
+              border-top: 2px solid #333;
+              font-size: 10px;
+            }
+            .thank-you {
+              font-size: 12px;
+              font-weight: bold;
+              margin-bottom: 8px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="receipt">
+            <div class="header">
+              <div class="logo">
+                <span class="logo-icon">🎓</span>
+                <h1>TCMS</h1>
+              </div>
+              <div class="subtitle">Entry Permit</div>
+            </div>
+
+            <div class="section">
+              <div class="row">
+                <span class="label">Date/Time:</span>
+                <span class="value">${formattedDate}, ${formattedTime}</span>
+              </div>
+              <div class="row">
+                <span class="label">Student:</span>
+                <span class="value">${student?.firstName || ''} ${student?.lastName || ''}</span>
+              </div>
+              <div class="row">
+                <span class="label">Student ID:</span>
+                <span class="value">${studentId}</span>
+              </div>
+            </div>
+
+            <div class="section">
+              <div style="font-size: 12px; text-align: center; font-style: italic; color: #555;">
+                ${reason || 'Permit to enter without ID card - Valid for all classes today'}
+              </div>
+            </div>
+
+            <!-- Scannable Barcode Section -->
+            <div class="barcode-section">
+              <div class="barcode-label">STUDENT BARCODE - SCAN FOR ATTENDANCE</div>
+              <img src="https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(studentId)}&code=Code128&dpi=96&dataseparator=" 
+                   alt="Barcode" 
+                   class="barcode-img"
+                   onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+              <div class="barcode-id" style="display:none;">*${studentId}*</div>
+              <div class="barcode-id">${studentId}</div>
+            </div>
+
+            <!-- Cashier Signature -->
+            <div class="signature">
+              <div class="sig-line"></div>
+              <div class="sig-label">Cashier Signature</div>
+              <div class="sig-label">${cashierName}</div>
+            </div>
+
+            <div class="footer">
+              <div class="thank-you">⚠️ Valid for today only - ${formattedDate}</div>
+              <div>Valid for all classes today</div>
+              <div style="margin-top: 5px;">Issued by: ${cashierName}</div>
+            </div>
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+              }, 250);
+            };
+          </script>
+        </body>
+        </html>
+      `;
+    } else {
+      // Generic note format (fallback)
+      noteHTML = `
+        <html>
+          <head>
+            <title>${title}</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 24px; }
+              h1 { font-size: 20px; margin: 0 0 12px; }
+              .row { margin: 6px 0; }
+              .muted { color: #555; }
+              .box { border: 1px solid #ddd; padding: 12px; border-radius: 6px; }
+            </style>
+          </head>
+          <body>
+            <h1>${title}</h1>
+            <div class="box">
+              <div class="row"><strong>Date/Time:</strong> ${formattedDate}, ${formattedTime}</div>
+              <div class="row"><strong>Student:</strong> ${student?.firstName || ''} ${student?.lastName || ''} (${studentId})</div>
+              <div class="row"><strong>Class:</strong> ${className}</div>
+              ${reason ? `<div class="row"><strong>Reason:</strong> ${reason}</div>` : ''}
+              <div class="row muted">This is an auto-generated note for front-desk verification.</div>
+            </div>
+            <div style="margin-top:24px" class="row">__________________________<br/>Cashier Signature</div>
+            <script>window.print();</script>
+          </body>
+        </html>
+      `;
+    }
+    
+    w.document.write(noteHTML);
     w.document.close();
   };
 
@@ -3687,12 +4082,29 @@ export default function CashierDashboard() {
     }
   };
 
+  // Beep sound function (same as in BarcodeScanner)
+  const playBeep = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = 880;
+      o.connect(g);
+      g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.06, ctx.currentTime);
+      o.start();
+      o.stop(ctx.currentTime + 0.12);
+    } catch {}
+  };
+
   const handleScanSubmit = (e) => {
     e.preventDefault();
     if (!scanValue) return;
     const value = scanValue.trim();
     setScanValue('');
     if (isLocked) return;
+    playBeep(); // Play beep sound when searching for student
     loadStudentData(value);
   };
 
@@ -4193,36 +4605,49 @@ export default function CashierDashboard() {
                               ⚡ Pay Now
                             </button>
                           )}
-                          <button
-                            className="bg-orange-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-orange-700 transition-colors"
-                            onClick={async () => {
-                              const studentId = student.studentId || student.id;
-                              try {
-                                const r = await requestLatePay({ studentId, classId: enr.classId || enr.id });
-                                if (!r?.success) alert(r?.message || 'LatePay request failed');
-                                printNote({ title: 'Late Payment Permission', student, classRow: enr, reason: 'Allowed late payment for today only' });
-                                // Refresh KPIs from backend
-                                loadCashierKPIs();
-                                // Scroll back to student panel after generating note
-                                setTimeout(() => {
-                                  studentPanelRef.current?.scrollIntoView({ 
-                                    behavior: 'smooth', 
-                                    block: 'start' 
-                                  });
-                                }, 300);
-                              } catch (e) { alert(e?.message || 'LatePay request failed'); }
-                            }}
-                          >
-                            Late Note
-                          </button>
+                          {/* Late Note button - Disabled when already paid with tooltip */}
+                          <div className="relative group">
+                            <button
+                              disabled={hasPaymentThisMonth}
+                              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                                hasPaymentThisMonth
+                                  ? 'bg-orange-300 text-orange-100 cursor-not-allowed opacity-50'
+                                  : 'bg-orange-600 text-white hover:bg-orange-700'
+                              }`}
+                              onClick={() => {
+                                if (hasPaymentThisMonth) return;
+                                try {
+                                  printNote({ title: 'Late Payment Permission', student, classRow: enr, reason: 'Allowed late payment for today only' });
+                                  // Refresh KPIs from backend
+                                  loadCashierKPIs();
+                                  // Scroll back to student panel after generating note
+                                  setTimeout(() => {
+                                    studentPanelRef.current?.scrollIntoView({ 
+                                      behavior: 'smooth', 
+                                      block: 'start' 
+                                    });
+                                  }, 300);
+                                } catch (e) { 
+                                  console.error('Error printing late note:', e);
+                                  alert('Failed to generate late note'); 
+                                }
+                              }}
+                            >
+                              Late Pay
+                            </button>
+                            {/* Tooltip - Shows when button is disabled */}
+                            {hasPaymentThisMonth && (
+                              <div className="invisible group-hover:visible absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg whitespace-nowrap z-50 shadow-lg">
+                                ℹ️ Late Pay not needed - Payment already done this month
+                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
+                              </div>
+                            )}
+                          </div>
                           <button
                             className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                            onClick={async () => {
-                              const studentId = student.studentId || student.id;
+                            onClick={() => {
                               try {
-                                const r = await requestForgetCard({ studentId, classId: enr.classId || enr.id });
-                                if (!r?.success) alert(r?.message || 'Permit request failed');
-                                printNote({ title: 'Entry Permit - Forgot Card', student, classRow: enr, reason: 'Permit to enter without ID for this session' });
+                                printNote({ title: 'Entry Permit - Forgot Card', student, classRow: enr, reason: 'Permit to enter without ID for this session - Valid for all classes today' });
                                 // Scroll back to student panel after generating note
                                 setTimeout(() => {
                                   studentPanelRef.current?.scrollIntoView({ 
@@ -4230,7 +4655,10 @@ export default function CashierDashboard() {
                                     block: 'start' 
                                   });
                                 }, 300);
-                              } catch (e) { alert(e?.message || 'Permit request failed'); }
+                              } catch (e) { 
+                                console.error('Error printing entry permit:', e);
+                                alert('Failed to generate entry permit'); 
+                              }
                             }}
                           >
                             Entry Permit
@@ -4542,7 +4970,10 @@ export default function CashierDashboard() {
                     {recentStudents.slice(0, 5).map((recent, idx) => (
                       <button
                         key={idx}
-                        onClick={() => loadStudentData(recent.studentId)}
+                        onClick={() => {
+                          playBeep(); // Play beep sound when recent student is clicked
+                          loadStudentData(recent.studentId);
+                        }}
                         className="bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
                       >
                         {recent.name} ({recent.studentId})
