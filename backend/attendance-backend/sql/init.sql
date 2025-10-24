@@ -1,23 +1,9 @@
-<<<<<<< HEAD
-CREATE DATABASE attendance_system;
-
-USE attendance_system;
-
-CREATE TABLE IF NOT EXISTS attendance (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id VARCHAR(50) NOT NULL,
-    class_id VARCHAR(50) NOT NULL,
-    time_stamp DATETIME NOT NULL,
-    INDEX idx_user_class_time (user_id, class_id, time_stamp)
-);
-=======
 -- Attendance System Database Schema
 -- This script creates all necessary tables for the attendance management system
 -- This will run automatically when the MySQL container starts for the first time
 
--- Create database if it doesn't exist
-CREATE DATABASE IF NOT EXISTS attendance_system;
-USE attendance_system;
+-- Use the attendance database (created by docker-compose)
+USE attendance;
 
 -- Drop existing tables if they exist (for clean initialization)
 DROP TABLE IF EXISTS attendance_logs;
@@ -230,4 +216,3 @@ SELECT 'attendance_logs' as table_name, COUNT(*) as record_count FROM attendance
 
 -- Display initialization completion message
 SELECT 'Attendance System Database Initialization Complete!' as status;
->>>>>>> cd7986cdf52ec46c7124c09f9dead86097a32995

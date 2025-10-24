@@ -6,8 +6,10 @@ import { getBarcode as apiGetBarcode } from '../../../api/auth';
 import { getStudentById } from '../../../api/students';
 import { getStudentPayments, createPayment, generateInvoice, getCashierStats } from '../../../api/payments';
 import { getActiveClasses } from '../../../api/classes';
+import { getStudentAttendance } from '../../../api/attendance';
 import PhysicalStudentRegisterTab from '../adminDashboard/PhysicalStudentRegisterTab';
 import BarcodeScanner from '../../../components/BarcodeScanner';
+import AttendanceCalendar from '../../../components/AttendanceCalendar';
 
 // Add CSS animation for toast notification
 const style = document.createElement('style');
@@ -3240,6 +3242,10 @@ export default function CashierDashboard() {
   // Payment history modal state
   const [showPaymentHistory, setShowPaymentHistory] = useState(false);
   
+  // Attendance data state
+  const [attendanceData, setAttendanceData] = useState([]);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  
   // Day End Report modal state
   const [showDayEndReport, setShowDayEndReport] = useState(false);
   
@@ -3990,6 +3996,7 @@ export default function CashierDashboard() {
             ...enr,
             classId: enr.class_id || enr.classId,
             className: enr.class_name || enr.className,
+            subject: enr.subject,
             monthlyFee: enr.fee || enr.monthlyFee,
             revisionDiscountPrice: enr.revision_discount_price || enr.revisionDiscountPrice,
             studentId: enr.student_id || enr.studentId,
@@ -4020,6 +4027,38 @@ export default function CashierDashboard() {
       const payRes = await getStudentPayments(studentId);
       const fetchedPayments = Array.isArray(payRes?.data) ? payRes.data : (Array.isArray(payRes) ? payRes : []);
       setPayments(fetchedPayments);
+      
+      // Fetch student attendance data
+      try {
+        setAttendanceLoading(true);
+        const attendanceRes = await getStudentAttendance(studentId);
+        // API returns { success: true, data: [...], count: N }
+        const attendanceRecords = attendanceRes?.data || [];
+        console.log('Attendance data fetched:', attendanceRecords.length, 'records');
+        
+        // Enrich attendance records with class information from enrollments
+        const enrichedAttendance = attendanceRecords.map(record => {
+          // Find matching enrollment by class_id
+          const matchingEnrollment = transformedEnrollments.find(
+            enr => (enr.classId || enr.class_id) === record.class_id
+          );
+          
+          return {
+            ...record,
+            class_name: matchingEnrollment?.className || matchingEnrollment?.class_name || 'Unknown Class',
+            subject: matchingEnrollment?.subject || 'Subject N/A',
+            className: matchingEnrollment?.className || matchingEnrollment?.class_name || 'Unknown Class'
+          };
+        });
+        
+        console.log('Enriched attendance with class info:', enrichedAttendance);
+        setAttendanceData(Array.isArray(enrichedAttendance) ? enrichedAttendance : []);
+      } catch (e) {
+        console.error('Failed to fetch attendance:', e);
+        setAttendanceData([]);
+      } finally {
+        setAttendanceLoading(false);
+      }
       
       // Check admission fee payment status
       const admissionFeePaid = Array.isArray(fetchedPayments) && fetchedPayments.some(payment => {
@@ -5052,6 +5091,29 @@ export default function CashierDashboard() {
 
               {/* Payment History Panel (Bottom) */}
               {historyPanelContent}
+              
+              {/* Attendance Calendar Panel (Below Payment History) */}
+              {student && !loading && (
+                <div className="mt-4" onClick={(e) => {
+                  // When calendar panel is clicked, scroll it into view
+                  e.currentTarget.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'nearest',
+                    inline: 'nearest'
+                  });
+                }}>
+                  {attendanceLoading ? (
+                    <div className="bg-white rounded-md shadow-sm border-2 border-slate-200 p-6">
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mr-3"></div>
+                        <span className="text-slate-600">Loading attendance data...</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <AttendanceCalendar attendanceData={attendanceData} />
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
