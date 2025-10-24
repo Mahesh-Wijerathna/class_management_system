@@ -58,8 +58,8 @@ class UserController {
                 
                 "Next Steps:\n" .
                 "• Your account has been successfully created in TCMS\n" .
-                "• You can now login using your Student ID and password\n" .
-                "• For security, please reset your password using 'Forgot Password'\n\n" .
+                "• If Online registered student, You can now login using your Student ID and password\n" .
+                "• If Physical registered student, For security, please reset your password using 'Forgot Password'\n\n" .
                 "Account Status:\n" .
                 "✅ Account Created | ✅ Mobile Verified | ✅ Ready for Login";
 

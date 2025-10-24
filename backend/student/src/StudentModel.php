@@ -85,16 +85,19 @@ class StudentModel {
         // Auto-generate barcode data using student ID
         $barcodeData = $userid;
         $barcodeGeneratedAt = date('Y-m-d H:i:s');
+        
+        // Set registration method (default to 'Physical' for backward compatibility)
+        $registrationMethod = $studentData['registration_method'] ?? 'Physical';
 
         $stmt = $this->conn->prepare("
             INSERT INTO students (
                 user_id, first_name, last_name, nic, gender, age, email, mobile_number, 
                 parent_name, parent_mobile_number, stream, date_of_birth, school, address, district,
-                barcode_data, barcode_generated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                barcode_data, barcode_generated_at, registration_method
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         
-        $stmt->bind_param("sssssssssssssssss", 
+        $stmt->bind_param("ssssssssssssssssss", 
             $userid,
             $firstName,
             $lastName,
@@ -111,7 +114,8 @@ class StudentModel {
             $address,
             $district,
             $barcodeData,
-            $barcodeGeneratedAt
+            $barcodeGeneratedAt,
+            $registrationMethod
         );
 
         $result = $stmt->execute();

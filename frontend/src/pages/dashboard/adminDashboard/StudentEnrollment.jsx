@@ -179,10 +179,13 @@ const StudentEnrollment = () => {
           dateJoined: student.created_at?.split(' ')[0] || student.dateJoined || '',
           barcodeData: student.barcode_data || student.barcodeData || '',
           created_at: student.created_at || '',
-          // Determine registration type based on user ID pattern
-          // S0 + 4 digits = Online registration (new format)
-          // Other patterns = Physical registration (old format)
-          registrationType: (student.user_id || student.userid)?.match(/^S0\d{4}$/) ? 'Online' : 'Physical',
+          // Registration type determination
+          // Since both Online and Physical registration now use the same ID format (S0 + 4 digits),
+          // we need to rely on database field 'registration_method' if available
+          // For backward compatibility, default to 'Physical'
+          registrationType: student.registration_method || 
+                           student.registrationMethod || 
+                           'Physical', // Default to Physical when field doesn't exist
           enrolledClasses: []
         }));
         setStudents(studentData);

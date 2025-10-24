@@ -209,6 +209,7 @@ const PhysicalStudentRegisterTab = () => {
         mobile: summaryValues.mobile,
         password: 'Tsms@1234', // Default password for physical registration
         role: 'student',
+        registration_method: 'Physical', // Mark as physical registration
         // Additional fields for physical registration
         nic: summaryValues.idNumber || '',
         gender: summaryValues.gender,
@@ -267,6 +268,12 @@ const PhysicalStudentRegisterTab = () => {
         
         // Send welcome WhatsApp message
         try {
+          console.log('📱 Sending welcome WhatsApp message for physical registration...', {
+            userid: response.userid,
+            mobile: summaryValues.mobile,
+            name: `${summaryValues.firstName} ${summaryValues.lastName}`
+          });
+          
           const welcomeResponse = await fetch('http://localhost:8081/routes.php/send-welcome-whatsapp', {
             method: 'POST',
             headers: {
@@ -282,15 +289,39 @@ const PhysicalStudentRegisterTab = () => {
             })
           });
           
+          console.log('📱 WhatsApp API response status:', welcomeResponse.status);
+          
           const welcomeResult = await welcomeResponse.json();
+          console.log('📱 WhatsApp API response data:', welcomeResult);
+          
           if (welcomeResult.success) {
-            console.log('Welcome WhatsApp message sent successfully');
+            console.log('✅ Welcome WhatsApp message sent successfully');
+            setAlertConfig({
+              open: true,
+              message: `Registration successful!\n\nWelcome WhatsApp message sent to ${summaryValues.mobile}`,
+              title: 'WhatsApp Sent Successfully',
+              type: 'success',
+              onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+            });
           } else {
-            console.error('Failed to send welcome WhatsApp message:', welcomeResult.message);
+            console.error('❌ Failed to send welcome WhatsApp message:', welcomeResult.message);
+            setAlertConfig({
+              open: true,
+              message: `Registration successful, but WhatsApp message failed to send.\n\nError: ${welcomeResult.message || 'Unknown error'}`,
+              title: 'WhatsApp Send Failed',
+              type: 'warning',
+              onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+            });
           }
         } catch (error) {
-          console.error('Error sending welcome WhatsApp message:', error);
-          // Don't fail the registration if WhatsApp message fails
+          console.error('❌ Error sending welcome WhatsApp message:', error);
+          setAlertConfig({
+            open: true,
+            message: `Registration successful, but WhatsApp message could not be sent.\n\nError: ${error.message || 'Network error'}`,
+            title: 'WhatsApp Send Error',
+            type: 'warning',
+            onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
+          });
         }
         
         // Generate barcode on canvas after a short delay to ensure DOM is ready
