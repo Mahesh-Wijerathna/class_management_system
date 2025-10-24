@@ -414,6 +414,7 @@ export default function NewStudentRegister() {
       const userData = {
         role: 'student',
         password: summaryValues.password,
+        registration_method: 'Online', // Mark as online registration
         // Additional student data
         firstName: summaryValues.firstName,
         lastName: summaryValues.lastName,

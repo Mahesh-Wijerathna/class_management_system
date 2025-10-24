@@ -62,7 +62,8 @@ if ($method === 'POST' && $path === '/routes.php/user') {
             'dateOfBirth' => $data['dateOfBirth'] ?? '',
             'school' => $data['school'] ?? '',
             'address' => $data['address'] ?? '',
-            'district' => $data['district'] ?? ''
+            'district' => $data['district'] ?? '',
+            'registration_method' => $data['registration_method'] ?? 'Online' // Default to Online for web registration
         ];
         
         // First create the user in auth database

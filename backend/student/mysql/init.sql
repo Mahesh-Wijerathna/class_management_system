@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS students (
     parent_mobile_number VARCHAR(15),
     barcode_data VARCHAR(255) NULL,
     barcode_generated_at TIMESTAMP NULL,
+    registration_method ENUM('Online', 'Physical') DEFAULT 'Physical' COMMENT 'Method used to register student',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_barcode_data (barcode_data)
+    INDEX idx_barcode_data (barcode_data),
+    INDEX idx_registration_method (registration_method)
 );
