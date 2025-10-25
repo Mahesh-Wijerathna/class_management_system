@@ -116,11 +116,26 @@ class PaymentController {
             $finalAmount = $data['amount'] ?? $class['fee'] ?? 0;
 
             // Create financial record
-            $stmt = $this->db->prepare("
-                INSERT INTO financial_records (
-                    transaction_id, date, type, category, person_name, user_id, person_role,
-                    class_name, class_id, amount, status, payment_method, reference_number, notes, created_by, payment_type
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            // Determine card_type: prefer explicit input, otherwise infer from amount/notes
+            $cardType = $data['card_type'] ?? null;
+            if (!$cardType) {
+                if (floatval($finalAmount) == 0) {
+                    $cardType = 'free';
+                } else {
+                    $baseNotes = strtolower($data['notes'] ?? '');
+                    if (strpos($baseNotes, 'half') !== false) {
+                        $cardType = 'half';
+                    } else {
+                        $cardType = 'full';
+                    }
+                }
+            }
+
+            $stmt = $this->db->prepare("\
+                INSERT INTO financial_records (\
+                    transaction_id, date, type, category, person_name, user_id, person_role,\
+                    class_name, class_id, amount, status, payment_method, reference_number, notes, created_by, payment_type, card_type\
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\
             ");
 
             $date = date('Y-m-d');
@@ -155,9 +170,9 @@ class PaymentController {
             // Get cashier ID from request data (who is creating this payment)
             $createdBy = $data['cashierId'] ?? $data['createdBy'] ?? $studentId; // Fallback to studentId for backward compatibility
 
-            $stmt->bind_param("ssssssssidssssss", 
+            $stmt->bind_param("ssssssssidsssssss", 
                 $transactionId, $date, $type, $category, $personName, $userId, $personRole,
-                $className, $classIdValue, $finalAmount, $status, $paymentMethod, $referenceNumber, $notes, $createdBy, $paymentType
+                $className, $classIdValue, $finalAmount, $status, $paymentMethod, $referenceNumber, $notes, $createdBy, $paymentType, $cardType
             );
 
             if (!$stmt->execute()) {
@@ -822,7 +837,8 @@ class PaymentController {
                     fr.amount,
                     fr.status,
                     fr.payment_method,
-                    fr.payment_type
+                    fr.payment_type,
+                    fr.card_type
                 FROM financial_records fr
                 WHERE fr.created_by = ?
                 AND $dateCondition
@@ -847,11 +863,43 @@ class PaymentController {
                 $transactions[] = $row;
             }
 
+            // Also compute per-class aggregates for the requested period (useful for full report)
+            $classAggSql = "
+                SELECT 
+                    COALESCE(fr.class_name, 'Unspecified') as class_name,
+                    fr.class_id,
+                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_type = 'class_payment' THEN fr.amount ELSE 0 END) as total_amount,
+                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_type = 'class_payment' AND fr.card_type = 'full' THEN 1 ELSE 0 END) as full_count,
+                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_type = 'class_payment' AND fr.card_type = 'half' THEN 1 ELSE 0 END) as half_count,
+                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_type = 'class_payment' AND fr.card_type = 'free' THEN 1 ELSE 0 END) as free_count,
+                    COUNT(*) as tx_count
+                FROM financial_records fr
+                WHERE fr.created_by = ?
+                AND fr.type = 'income'
+                AND $dateCondition
+                GROUP BY fr.class_id, fr.class_name
+                ORDER BY total_amount DESC
+            ";
+
+            $classAggStmt = $this->db->prepare($classAggSql);
+            if ($period !== 'today' && $period !== 'month' && $period !== 'all') {
+                $classAggStmt->bind_param("ss", $cashierId, $period);
+            } else {
+                $classAggStmt->bind_param("s", $cashierId);
+            }
+            $classAggStmt->execute();
+            $classAggResult = $classAggStmt->get_result();
+            $perClass = [];
+            while ($crow = $classAggResult->fetch_assoc()) {
+                $perClass[] = $crow;
+            }
+
             return [
                 'success' => true,
                 'data' => [
                     'stats' => $stats,
                     'transactions' => $transactions,
+                    'perClass' => $perClass,
                     'period' => $period,
                     'cashierId' => $cashierId
                 ]

@@ -782,9 +782,112 @@ const PaymentHistoryModal = ({ student, payments, onClose }) => {
   );
 };
 
-// Day End Report Modal - Comprehensive daily summary
-const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime }) => {
+// Day End Report Modal - Comprehensive daily summary (supports 'summary' and 'full' modes)
+const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 'summary', transactions = [], perClass = [] }) => {
   const [isGenerating, setIsGenerating] = React.useState(false);
+  // Aggregate transactions by class for full report
+  const aggregatedByClass = React.useMemo(() => {
+    if (!Array.isArray(transactions)) return [];
+    // If server returned perClass aggregates, prefer those (they're more reliable)
+    if (Array.isArray(perClass) && perClass.length > 0) {
+      return perClass.map(p => ({
+        className: p.class_name || p.className || 'Unspecified',
+        teacher: p.teacher || p.teacher_name || '-',
+        freeCards: Number(p.free_count || 0),
+        halfCards: Number(p.half_count || 0),
+        totalAmount: Number(p.total_amount || 0),
+        txCount: Number(p.tx_count || 0)
+      }));
+    }
+
+    const map = {};
+    transactions.forEach(t => {
+      const cls = (t.class_name || t.className || 'Unspecified').trim() || 'Unspecified';
+      if (!map[cls]) {
+        map[cls] = {
+          className: cls,
+          teacher: t.teacher || t.teacher_name || '-',
+          freeCards: 0,
+          halfCards: 0,
+          totalAmount: 0,
+          txCount: 0
+        };
+      }
+      const amt = Number(t.amount || 0);
+      const ptype = (t.payment_type || t.paymentType || t.category || '').toLowerCase();
+      const cardType = (t.card_type || t.cardType || '').toString().toLowerCase();
+
+      // Prefer explicit card_type from backend when available
+      if (ptype === 'class_payment') {
+        if (cardType) {
+          if (cardType === 'free') map[cls].freeCards += 1;
+          else if (cardType === 'half') map[cls].halfCards += 1;
+          else map[cls].txCount += 1; // count as a class payment (full)
+        } else {
+          // Fallback heuristics: amount===0 => free, notes mention 'half' => half
+          if (amt === 0) {
+            map[cls].freeCards += 1;
+          } else {
+            const notes = (t.notes || t.description || t.note || '').toString();
+            if (notes && /half/i.test(notes)) {
+              map[cls].halfCards += 1;
+            }
+            map[cls].txCount += 1;
+          }
+        }
+
+        map[cls].totalAmount += amt;
+      }
+    });
+    return Object.values(map).sort((a,b) => b.totalAmount - a.totalAmount);
+  }, [transactions]);
+
+  // Overall totals for summary (full/half/free counts and amounts)
+  const aggregatedTotals = React.useMemo(() => {
+    const totals = {
+      fullCount: 0,
+      fullAmount: 0,
+      halfCount: 0,
+      halfAmount: 0,
+      freeCount: 0,
+      freeAmount: 0,
+    };
+    if (!Array.isArray(transactions)) return totals;
+    transactions.forEach(t => {
+      const amt = Number(t.amount || 0);
+      const ptype = (t.payment_type || t.paymentType || t.category || '').toLowerCase();
+      const cardType = (t.card_type || t.cardType || '').toString().toLowerCase();
+
+      if (ptype === 'class_payment') {
+        if (cardType) {
+          if (cardType === 'free') {
+            totals.freeCount += 1;
+            totals.freeAmount += 0;
+          } else if (cardType === 'half') {
+            totals.halfCount += 1;
+            totals.halfAmount += amt;
+          } else {
+            totals.fullCount += 1;
+            totals.fullAmount += amt;
+          }
+        } else {
+          // fallback heuristics
+          const notes = (t.notes || t.description || t.note || '').toString();
+          if (amt === 0) {
+            totals.freeCount += 1;
+            totals.freeAmount += 0;
+          } else if (/half/i.test(notes)) {
+            totals.halfCount += 1;
+            totals.halfAmount += amt;
+          } else {
+            totals.fullCount += 1;
+            totals.fullAmount += amt;
+          }
+        }
+      }
+    });
+    return totals;
+  }, [transactions]);
   
   const today = new Date();
   const dateStr = today.toLocaleDateString('en-US', { 
@@ -802,283 +905,123 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime }) => {
   const handlePrint = () => {
     setIsGenerating(true);
     setTimeout(() => {
-      const printWindow = window.open('', '_blank', 'width=800,height=600');
-      
+      const printWindow = window.open('', '_blank', 'width=1000,height=700');
       if (!printWindow) {
         alert('Please allow pop-ups to print the report');
         setIsGenerating(false);
         return;
       }
 
-      const reportHTML = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Day End Report - ${dateStr}</title>
-          <style>
-            @media print {
-              @page { margin: 0.5in; }
-              body { margin: 0; }
-              .no-print { display: none; }
-            }
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body {
-              font-family: Arial, sans-serif;
-              padding: 20px;
-              background: white;
-            }
-            .report-container {
-              max-width: 800px;
-              margin: 0 auto;
-            }
-            .header {
-              text-align: center;
-              border-bottom: 3px solid #059669;
-              padding-bottom: 20px;
-              margin-bottom: 30px;
-            }
-            .header-title {
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              gap: 10px;
-              margin-bottom: 10px;
-            }
-            .logo-icon {
-              font-size: 36px;
-            }
-            .header h1 {
-              font-size: 28px;
-              color: #059669;
-              margin: 0;
-            }
-            .header .subtitle {
-              font-size: 14px;
-              color: #64748b;
-            }
-            .meta-info {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 15px;
-              margin-bottom: 30px;
-              padding: 15px;
-              background: #f1f5f9;
-              border-radius: 8px;
-            }
-            .meta-item strong {
-              color: #334155;
-              margin-right: 8px;
-            }
-            .section {
-              margin-bottom: 30px;
-            }
-            .section-title {
-              font-size: 18px;
-              font-weight: bold;
-              color: #1e293b;
-              margin-bottom: 15px;
-              padding-bottom: 8px;
-              border-bottom: 2px solid #e2e8f0;
-            }
-            .summary-grid {
-              display: grid;
-              grid-template-columns: repeat(2, 1fr);
-              gap: 15px;
-              margin-bottom: 20px;
-            }
-            .summary-card {
-              padding: 15px;
-              border: 2px solid #e2e8f0;
-              border-radius: 8px;
-              background: #ffffff;
-            }
-            .summary-card .label {
-              font-size: 12px;
-              color: #64748b;
-              margin-bottom: 5px;
-            }
-            .summary-card .value {
-              font-size: 24px;
-              font-weight: bold;
-              color: #1e293b;
-            }
-            .summary-card .value.success {
-              color: #059669;
-            }
-            .summary-card .value.warning {
-              color: #ea580c;
-            }
-            .table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-top: 15px;
-            }
-            .table th, .table td {
-              padding: 10px;
-              text-align: left;
-              border-bottom: 1px solid #e2e8f0;
-            }
-            .table th {
-              background: #f8fafc;
-              font-weight: 600;
-              color: #475569;
-              font-size: 13px;
-            }
-            .table td {
-              font-size: 14px;
-              color: #334155;
-            }
-            .footer {
-              margin-top: 40px;
-              padding-top: 20px;
-              border-top: 2px solid #e2e8f0;
-              text-align: center;
-              font-size: 12px;
-              color: #64748b;
-            }
-            .signature-section {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 40px;
-              margin-top: 50px;
-            }
-            .signature-box {
-              text-align: center;
-            }
-            .signature-line {
-              border-top: 2px solid #000;
-              margin: 40px 20px 10px;
-            }
-            .signature-label {
-              font-size: 13px;
-              color: #475569;
-            }
-            .highlight {
-              background: #fef3c7;
-              padding: 15px;
-              border-left: 4px solid #f59e0b;
-              border-radius: 4px;
-              margin: 15px 0;
-            }
-            .status-success {
-              color: #059669;
-              font-weight: bold;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="report-container">
-            <!-- Header -->
-            <div class="header">
-              <div class="header-title">
-                <span class="logo-icon">🎓</span>
-                <h1>TCMS</h1>
-              </div>
-              <div class="subtitle">Day End Report</div>
-            </div>
+      // Build different HTML depending on mode
+      let reportHTML = '';
+      if (mode === 'full') {
+        // Build full report with per-class aggregation table
+        const rows = aggregatedByClass.map(r => `
+          <tr>
+            <td>${(r.className || '-')}</td>
+            <td>${(r.teacher || '-')}</td>
+            <td style="text-align:center">${r.halfCards || 0}</td>
+            <td style="text-align:center">${r.freeCards || 0}</td>
+            <td style="text-align:right">LKR ${Number(r.totalAmount || 0).toLocaleString()}</td>
+            <td style="text-align:center">${r.txCount || 0}</td>
+          </tr>
+        `).join('');
 
-            <!-- Meta Information -->
-            <div class="meta-info">
-              <div class="meta-item">
-                <strong>Date:</strong> ${dateStr}
-              </div>
-              <div class="meta-item">
-                <strong>Report Generated:</strong> ${timeStr}
-              </div>
-              <div class="meta-item">
-                <strong>Cashier:</strong> ${getUserData()?.name || 'Cashier'}
-              </div>
-              <div class="meta-item">
-                <strong>Report Type:</strong> Daily Summary
-              </div>
-            </div>
+        const totalCollected = aggregatedByClass.reduce((s, x) => s + (Number(x.totalAmount) || 0), 0);
+        reportHTML = `
+          <!doctype html>
+          <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>Full Day End Report - ${dateStr}</title>
+            <style>
+              body{font-family:Arial,sans-serif;padding:20px}
+              h1{color:#059669}
+              table{width:100%;border-collapse:collapse;margin-top:20px}
+              th,td{border:1px solid #e6e6e6;padding:8px;text-align:left}
+              th{background:#f8fafc}
+              .right{text-align:right}
+            </style>
+          </head>
+          <body>
+            <h1>TCMS - Full Day End Report</h1>
+            <div><strong>Date:</strong> ${dateStr}</div>
+            <div><strong>Generated:</strong> ${timeStr}</div>
+            <div><strong>Cashier:</strong> ${getUserData()?.name || 'Cashier'}</div>
 
-            <!-- Financial Summary -->
-            <div class="section">
-              <div class="section-title">Financial Summary</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Class Name</th>
+                  <th>Teacher</th>
+                  <th style="width:120px;text-align:center">Half Cards Issued</th>
+                  <th style="width:120px;text-align:center">Free Cards Issued</th>
+                  <th style="text-align:right">Total Amount Collected</th>
+                  <th style="width:120px;text-align:center">Transactions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows}
+                <tr>
+                  <td colspan="4" style="text-align:right;font-weight:bold">Grand Total</td>
+                  <td style="text-align:right;font-weight:bold">LKR ${Number(totalCollected).toLocaleString()}</td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div style="margin-top:30px;text-align:center;font-size:12px;color:#666">Generated by TCMS - Full Day End Report</div>
+            <script>window.print();</script>
+          </body>
+          </html>
+        `;
+      } else {
+        // Summary mode - existing report (kept largely same)
+        reportHTML = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Day End Report - ${dateStr}</title>
+            <style>
+              @media print { @page { margin: 0.5in; } body { margin: 0; } .no-print { display: none; } }
+              * { margin:0; padding:0; box-sizing:border-box }
+              body { font-family: Arial, sans-serif; padding:20px }
+              .report-container { max-width:800px; margin:0 auto }
+              .header { text-align:center; border-bottom:3px solid #059669; padding-bottom:20px; margin-bottom:30px }
+              .header h1 { font-size:28px; color:#059669 }
+              .meta-info { display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:30px; padding:15px; background:#f1f5f9; border-radius:8px }
+              .summary-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:15px}
+              .card{padding:15px;border:2px solid #e2e8f0;border-radius:8px;background:#fff}
+            </style>
+          </head>
+          <body>
+            <div class="report-container">
+              <div class="header"><h1>TCMS</h1><div>Day End Report</div></div>
+              <div class="meta-info">
+                <div><strong>Date:</strong> ${dateStr}</div>
+                <div><strong>Generated:</strong> ${timeStr}</div>
+                <div><strong>Cashier:</strong> ${getUserData()?.name || 'Cashier'}</div>
+                <div><strong>Report Type:</strong> Daily Summary</div>
+              </div>
               <div class="summary-grid">
-                <div class="summary-card">
-                  <div class="label">Today's Collections</div>
-                  <div class="value success">LKR ${Number(kpis.totalToday || 0).toLocaleString()}</div>
-                </div>
-                <div class="summary-card">
-                  <div class="label">Receipts Issued</div>
-                  <div class="value">${kpis.receipts || 0}</div>
-                </div>
-                <div class="summary-card">
-                  <div class="label">Pending Payments</div>
-                  <div class="value warning">${kpis.pending || 0}</div>
-                </div>
-                <div class="summary-card">
-                  <div class="label">Cash Drawer Total</div>
-                  <div class="value">LKR ${Number(kpis.drawer || 0).toLocaleString()}</div>
-                </div>
+                <div class="card"><div><strong>Today's Collections</strong></div><div>LKR ${Number(kpis.totalToday || 0).toLocaleString()}</div></div>
+                <div class="card"><div><strong>Receipts Issued</strong></div><div>${kpis.receipts || 0}</div></div>
+                <div class="card"><div><strong>Pending Payments</strong></div><div>${kpis.pending || 0}</div></div>
+                <div class="card"><div><strong>Cash Drawer</strong></div><div>LKR ${Number(kpis.drawer || 0).toLocaleString()}</div></div>
               </div>
-              ${kpis.totalToday > 0 ? `
-                <div class="highlight">
-                  <strong>💰 Average Transaction:</strong> LKR ${kpis.receipts > 0 ? (kpis.totalToday / kpis.receipts).toFixed(2) : '0.00'}
-                </div>
-              ` : ''}
+              <div style="margin-top:20px">Opening: ${openingTime || '-'} • Closing: ${timeStr}</div>
+              <div style="margin-top:30px;text-align:center;color:#666;font-size:12px">Generated by TCMS</div>
             </div>
-
-            <!-- Summary Notes -->
-            <div class="section">
-              <div class="section-title">Summary & Notes</div>
-              <table class="table">
-                <tbody>
-                  <tr>
-                    <td><strong>Opening Time:</strong></td>
-                    <td>${openingTime || '-'}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Closing Time:</strong></td>
-                    <td>${timeStr}</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Total Transactions:</strong></td>
-                    <td>${kpis.receipts || 0} receipts issued</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Payment Methods:</strong></td>
-                    <td>Cash</td>
-                  </tr>
-                  <tr>
-                    <td><strong>Status:</strong></td>
-                    <td class="status-success">Day End Completed</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <!-- Signature Section -->
-            <div class="signature-section">
-              <div class="signature-box">
-                <div class="signature-line"></div>
-                <div class="signature-label">Cashier Signature</div>
-              </div>
-              <div class="signature-box">
-                <div class="signature-line"></div>
-                <div class="signature-label">Manager Signature</div>
-              </div>
-            </div>
-
-            <!-- Footer -->
-            <div class="footer">
-              <div>Generated by TCMS (Tuition Class Management System)</div>
-              <div>This is a computer-generated report and requires proper authorization.</div>
-            </div>
-          </div>
-          <script>window.print();</script>
-        </body>
-        </html>
-      `;
+            <script>window.print();</script>
+          </body>
+          </html>
+        `;
+      }
 
       printWindow.document.write(reportHTML);
       printWindow.document.close();
-      
-      setTimeout(() => {
-        setIsGenerating(false);
-      }, 500);
+
+      setTimeout(() => setIsGenerating(false), 500);
     }, 100);
   };
 
@@ -1271,34 +1214,92 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime }) => {
                 </div>
               </div>
 
-              {/* Financial Summary */}
-              <div className="section">
-                <div className="section-title">Financial Summary</div>
-                <div className="summary-grid">
-                  <div className="summary-card">
-                    <div className="label">Today's Collections</div>
-                    <div className="value success">LKR {Number(kpis.totalToday || 0).toLocaleString()}</div>
-                  </div>
-                  <div className="summary-card">
-                    <div className="label">Receipts Issued</div>
-                    <div className="value">{kpis.receipts || 0}</div>
-                  </div>
-                  <div className="summary-card">
-                    <div className="label">Pending Payments</div>
-                    <div className="value warning">{kpis.pending || 0}</div>
-                  </div>
-                  <div className="summary-card">
-                    <div className="label">Cash Drawer Total</div>
-                    <div className="value">LKR {Number(kpis.drawer || 0).toLocaleString()}</div>
+              {/* Financial Summary / Full table depending on mode */}
+              {mode === 'full' ? (
+                <div className="section">
+                  <div className="section-title">Full Day - Collections by Class</div>
+                  <div className="overflow-x-auto">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Class Name</th>
+                          <th>Teacher</th>
+                          <th style={{ textAlign: 'center' }}>Half Cards Issued</th>
+                          <th style={{ textAlign: 'center' }}>Free Cards Issued</th>
+                          <th style={{ textAlign: 'right' }}>Total Amount Collected</th>
+                          <th style={{ textAlign: 'center' }}>Transactions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {aggregatedByClass.map((r, idx) => (
+                          <tr key={idx}>
+                            <td>{r.className}</td>
+                            <td>{r.teacher || '-'}</td>
+                            <td style={{ textAlign: 'center' }}>{r.halfCards || 0}</td>
+                            <td style={{ textAlign: 'center' }}>{r.freeCards || 0}</td>
+                            <td style={{ textAlign: 'right' }}>LKR {Number(r.totalAmount || 0).toLocaleString()}</td>
+                            <td style={{ textAlign: 'center' }}>{r.txCount || 0}</td>
+                          </tr>
+                        ))}
+                        <tr>
+                          <td colSpan={4} style={{ textAlign: 'right', fontWeight: 'bold' }}>Grand Total</td>
+                          <td style={{ textAlign: 'right', fontWeight: 'bold' }}>LKR {Number(aggregatedByClass.reduce((s, x) => s + (Number(x.totalAmount) || 0), 0)).toLocaleString()}</td>
+                          <td></td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-
-                {kpis.totalToday > 0 && (
-                  <div className="highlight">
-                    <strong>💰 Average Transaction:</strong> LKR {kpis.receipts > 0 ? (kpis.totalToday / kpis.receipts).toFixed(2) : '0.00'}
+              ) : (
+                <div className="section">
+                  <div className="section-title">Financial Summary</div>
+                  <div className="summary-grid">
+                    <div className="summary-card">
+                      <div className="label">Today's Collections</div>
+                      <div className="value success">LKR {Number(kpis.totalToday || 0).toLocaleString()}</div>
+                    </div>
+                    <div className="summary-card">
+                      <div className="label">Receipts Issued</div>
+                      <div className="value">{kpis.receipts || 0}</div>
+                    </div>
+                    <div className="summary-card">
+                      <div className="label">Pending Payments</div>
+                      <div className="value warning">{kpis.pending || 0}</div>
+                    </div>
+                    <div className="summary-card">
+                      <div className="label">Cash Drawer Total</div>
+                      <div className="value">LKR {Number(kpis.drawer || 0).toLocaleString()}</div>
+                    </div>
                   </div>
-                )}
-              </div>
+
+                  {/* Full/Half/Free breakdown */}
+                  <div style={{ marginTop: 16 }}>
+                    <div className="section-title">Card Issuance Breakdown (Today)</div>
+                    <div className="summary-grid">
+                      <div className="summary-card">
+                        <div className="label">Full Cards Issued (count)</div>
+                        <div className="value">{aggregatedTotals.fullCount || 0}</div>
+                        <div className="text-sm text-slate-500">Amount: LKR {Number(aggregatedTotals.fullAmount || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="summary-card">
+                        <div className="label">Half Cards Issued (count)</div>
+                        <div className="value">{aggregatedTotals.halfCount || 0}</div>
+                        <div className="text-sm text-slate-500">Amount: LKR {Number(aggregatedTotals.halfAmount || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="summary-card">
+                        <div className="label">Free Cards Issued</div>
+                        <div className="value">{aggregatedTotals.freeCount || 0}</div>
+                        <div className="text-sm text-slate-500">Amount: LKR {Number(aggregatedTotals.freeAmount || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="summary-card">
+                        <div className="label">Total Transactions</div>
+                        <div className="value">{kpis.receipts || 0}</div>
+                        <div className="text-sm text-slate-500">Total Collected: LKR {Number(kpis.totalToday || 0).toLocaleString()}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Summary Notes */}
               <div className="section">
@@ -3579,6 +3580,10 @@ export default function CashierDashboard() {
   
   // Day End Report modal state
   const [showDayEndReport, setShowDayEndReport] = useState(false);
+  const [dayEndMode, setDayEndMode] = useState('summary'); // 'summary' | 'full'
+  const [dayEndLoading, setDayEndLoading] = useState(false);
+  const [dayEndTransactions, setDayEndTransactions] = useState([]);
+  const [dayEndPerClass, setDayEndPerClass] = useState([]);
   
   // Month End Report modal state
   const [showMonthEndReport, setShowMonthEndReport] = useState(false);
@@ -5517,11 +5522,41 @@ export default function CashierDashboard() {
                     Close Out Cash
                   </button>
                   <button 
-                    onClick={() => setShowDayEndReport(true)}
+                    onClick={async () => {
+                      // Open summary modal immediately (uses existing kpis)
+                      setDayEndMode('summary');
+                      setShowDayEndReport(true);
+                    }}
                     className="w-full bg-blue-600 text-white py-2 px-3 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                   >
                     <FaFileInvoice />
-                    Day End Report
+                    Summary Day End Report
+                  </button>
+                  <button 
+                    onClick={async () => {
+                      // Open full report - fetch transactions for today then open modal
+                      try {
+                        setDayEndMode('full');
+                        setDayEndLoading(true);
+                        const cashierId = user?.userid || 'unknown';
+                        const res = await getCashierStats(cashierId, 'today');
+                        const transactions = res?.data?.transactions || [];
+                        const perClass = res?.data?.perClass || [];
+                        setDayEndTransactions(transactions);
+                        setDayEndPerClass(perClass);
+                        setShowDayEndReport(true);
+                      } catch (e) {
+                        console.error('Failed to load day-end transactions:', e);
+                        alert('Failed to load full day end report data');
+                      } finally {
+                        setDayEndLoading(false);
+                      }
+                    }}
+                    disabled={dayEndLoading}
+                    className={`w-full py-2 px-3 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${dayEndLoading ? 'bg-slate-300 text-slate-600 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
+                  >
+                    <FaFileInvoice />
+                    {dayEndLoading ? 'Loading Full Report...' : 'Full Day End Report'}
                   </button>
                   <button 
                     onClick={() => setShowMonthEndReport(true)}
@@ -5786,6 +5821,9 @@ export default function CashierDashboard() {
           kpis={kpis}
           recentStudents={recentStudents}
           openingTime={openingTime}
+          mode={dayEndMode}
+          transactions={dayEndTransactions}
+          perClass={dayEndPerClass}
           onClose={() => {
             setShowDayEndReport(false);
             focusBackToScan();
