@@ -188,6 +188,23 @@ export default function NewStudentRegister() {
         })
       });
 
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('❌ OTP API returned non-JSON response:', {
+          status: response.status,
+          statusText: response.statusText,
+          contentType: contentType,
+          url: response.url
+        });
+        
+        // Try to get the actual response text for debugging
+        const responseText = await response.text();
+        console.error('Response body:', responseText.substring(0, 500)); // First 500 chars
+        
+        throw new Error(`Server error: Expected JSON response but got ${contentType || 'unknown type'}`);
+      }
+
       const result = await response.json();
       
       if (result.success) {

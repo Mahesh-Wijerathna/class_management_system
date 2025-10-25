@@ -1,4 +1,7 @@
 <?php
+// Set JSON content type for all responses
+header('Content-Type: application/json');
+
 require_once __DIR__ . '/UserController.php';
 require_once __DIR__ . '/UserModel.php';
 
@@ -152,8 +155,8 @@ if ($method === 'POST' && $path === '/routes.php/registration-otp-request') {
         exit;
     }
     echo $controller->registrationOtpRequest($data['mobile']);
-        exit;
-    }
+    exit;
+}
     
 // VERIFY REGISTRATION OTP
 if ($method === 'POST' && $path === '/routes.php/verify-registration-otp') {
