@@ -2545,6 +2545,43 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
   const [paymentOption, setPaymentOption] = useState('both'); // 'both', 'admission_only', 'defer'
   const [admissionFee, setAdmissionFee] = useState(1000); // Default admission fee, but can be edited
   
+  // Free Card and Half Card State
+  const [cardType, setCardType] = useState('none'); // 'none', 'half', 'full'
+  const [cardValidFrom, setCardValidFrom] = useState('');
+  const [cardValidTo, setCardValidTo] = useState('');
+  const [cardNotes, setCardNotes] = useState('');
+  const [validFromOption, setValidFromOption] = useState('now'); // 'now', 'date', 'month'
+  const [validToOption, setValidToOption] = useState('class_end'); // 'class_end', 'date', 'month'
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [selectedToMonth, setSelectedToMonth] = useState('');
+  
+  // Auto-set dates based on options
+  useEffect(() => {
+    if (cardType === 'none') return;
+    
+    // Set Valid From date
+    if (validFromOption === 'now') {
+      const today = new Date().toISOString().split('T')[0];
+      setCardValidFrom(today);
+    } else if (validFromOption === 'month' && selectedMonth) {
+      // First day of selected month
+      setCardValidFrom(selectedMonth + '-01');
+    }
+    
+    // Set Valid To date
+    if (validToOption === 'class_end' && selectedClass) {
+      const classEndDate = selectedClass.end_date || selectedClass.endDate;
+      if (classEndDate) {
+        setCardValidTo(classEndDate);
+      }
+    } else if (validToOption === 'month' && selectedToMonth) {
+      // Last day of selected month
+      const [year, month] = selectedToMonth.split('-');
+      const lastDay = new Date(year, month, 0).getDate();
+      setCardValidTo(`${selectedToMonth}-${lastDay}`);
+    }
+  }, [validFromOption, validToOption, selectedMonth, selectedToMonth, cardType, selectedClass]);
+  
   // Check if admission fee is required
   const admissionFeePaid = studentPayments.some(payment => {
     const paymentType = (payment.payment_type || payment.paymentType || '').toLowerCase();
@@ -2609,6 +2646,24 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
 
   const handleEnroll = async () => {
     if (!selectedClass || submitting) return;
+    
+    // Validate card dates if a card is selected
+    if (cardType !== 'none') {
+      if (!cardValidFrom || !cardValidTo) {
+        alert('⚠️ Please specify validity period (From and To dates) for the card!');
+        setSubmitting(false);
+        return;
+      }
+      
+      const fromDate = new Date(cardValidFrom);
+      const toDate = new Date(cardValidTo);
+      
+      if (toDate <= fromDate) {
+        alert('⚠️ "Valid To" date must be after "Valid From" date!');
+        setSubmitting(false);
+        return;
+      }
+    }
 
     try {
       setSubmitting(true);
@@ -2625,7 +2680,19 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
       
       // Only apply discount if enrolled in theory class
       const canGetDiscount = isRevisionClass && discountPrice > 0 && isEnrolledInTheory;
-      const finalFee = canGetDiscount ? monthlyFee - discountPrice : monthlyFee;
+      let finalFee = canGetDiscount ? monthlyFee - discountPrice : monthlyFee;
+      
+      // Apply card discount ONLY if card is currently valid
+      const today = new Date();
+      const isCardCurrentlyValid = cardType !== 'none' && cardValidFrom && cardValidTo &&
+        new Date(cardValidFrom) <= today && 
+        new Date(cardValidTo) >= today;
+      
+      if (cardType === 'full' && isCardCurrentlyValid) {
+        finalFee = 0; // Full free card - 100% discount
+      } else if (cardType === 'half' && isCardCurrentlyValid) {
+        finalFee = finalFee / 2; // Half free card - 50% discount
+      }
       
       // Check if admission fee needs to be collected
       const needsAdmissionFee = selectedClassNeedsAdmissionFee;
@@ -2653,7 +2720,12 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
         payment_status: payingMonthlyFee ? 'paid' : 'pending',
         total_fee: finalFee,
         paid_amount: payingMonthlyFee ? finalFee : 0,
-        status: 'active'
+        status: 'active',
+        // Add card information
+        card_type: cardType,
+        card_valid_from: cardType !== 'none' ? cardValidFrom : null,
+        card_valid_to: cardType !== 'none' ? cardValidTo : null,
+        card_notes: cardType !== 'none' ? cardNotes : null
       };
       
       const enrollResponse = await fetch('http://localhost:8087/routes.php/create_enrollment', {
@@ -2700,8 +2772,17 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
         }
       }
       
-      // Create class payment if paying monthly fee
-      if (payingMonthlyFee) {
+      // Create class payment if paying monthly fee (and NOT full free card)
+      if (payingMonthlyFee && cardType !== 'full') {
+        // Build payment notes with card information
+        let paymentNotes = needsAdmissionFee 
+          ? 'First month payment (+ admission fee)' 
+          : 'First month payment (enrollment)';
+        
+        if (cardType === 'half') {
+          paymentNotes += ' - Half Free Card (50% discount)';
+        }
+        
         const classPayload = {
           paymentType: 'class_payment',
           paymentMethod: 'cash',
@@ -2709,9 +2790,7 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
           studentId: studentIdForPayment,
           classId: selectedClass.id,
           amount: finalFee,
-          notes: needsAdmissionFee 
-            ? 'First month payment (+ admission fee)' 
-            : 'First month payment (enrollment)',
+          notes: paymentNotes,
           cashierId: getUserData()?.userid,
           createdBy: getUserData()?.userid
         };
@@ -2776,10 +2855,15 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
         }
       }
       
-      // Success message based on payment option
-      const successMessage = payingAdmissionFee && !payingMonthlyFee
-        ? `Admission fee collected (LKR ${admissionFee.toLocaleString()}). Monthly fee pending.`
-        : `Enrollment complete! Total paid: LKR ${totalAmount.toLocaleString()}`;
+      // Success message based on payment option and card type
+      let successMessage;
+      if (cardType === 'full') {
+        successMessage = `Enrollment complete with Full Free Card! No payment required.`;
+      } else if (payingAdmissionFee && !payingMonthlyFee) {
+        successMessage = `Admission fee collected (LKR ${admissionFee.toLocaleString()}). Monthly fee pending.`;
+      } else {
+        successMessage = `Enrollment complete! Total paid: LKR ${totalAmount.toLocaleString()}`;
+      }
       
       onSuccess({ 
         enrolled: true, 
@@ -2805,7 +2889,14 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
   
   // Only apply discount if enrolled in theory class
   const canGetSelectedDiscount = isRevision && selectedClassDiscount > 0 && isEnrolledInSelectedTheory;
-  const finalFee = canGetSelectedDiscount ? selectedClassFee - selectedClassDiscount : selectedClassFee;
+  let finalFee = canGetSelectedDiscount ? selectedClassFee - selectedClassDiscount : selectedClassFee;
+  
+  // Apply card discount
+  if (cardType === 'full') {
+    finalFee = 0; // Full free card - no payment
+  } else if (cardType === 'half') {
+    finalFee = finalFee / 2; // Half free card - 50% discount
+  }
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
@@ -2917,6 +3008,246 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
                   )}
                 </div>
               </div>
+
+              {/* Free Card / Half Card Options */}
+              {selectedClass && (
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300 rounded-lg p-5 mb-5">
+                  <div className="text-center mb-4">
+                    <h3 className="text-lg font-bold text-purple-900 flex items-center justify-center gap-2">
+                      🎫 Special Cards (Optional)
+                    </h3>
+                    <p className="text-sm text-purple-700 mt-1">
+                      Grant full or half free access to this class
+                    </p>
+                  </div>
+
+                  {/* Card Type Selection */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    {/* Full Free Card */}
+                    <label className={`flex items-center gap-3 cursor-pointer rounded-lg p-4 transition-all border-2 ${
+                      cardType === 'full'
+                        ? 'bg-emerald-100 border-emerald-500 shadow-md'
+                        : 'bg-white border-slate-300 hover:border-emerald-300'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={cardType === 'full'}
+                        onChange={(e) => setCardType(e.target.checked ? 'full' : 'none')}
+                        className="w-5 h-5 text-emerald-600 rounded"
+                      />
+                      <div className="flex-1">
+                        <div className="font-semibold text-slate-800 flex items-center gap-1">
+                          <span>🆓</span>
+                          <span>Full Free Card</span>
+                        </div>
+                        <div className="text-xs text-slate-600 mt-1">100% discount - No payment</div>
+                      </div>
+                    </label>
+
+                    {/* Half Free Card */}
+                    <label className={`flex items-center gap-3 cursor-pointer rounded-lg p-4 transition-all border-2 ${
+                      cardType === 'half'
+                        ? 'bg-blue-100 border-blue-500 shadow-md'
+                        : 'bg-white border-slate-300 hover:border-blue-300'
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={cardType === 'half'}
+                        onChange={(e) => setCardType(e.target.checked ? 'half' : 'none')}
+                        className="w-5 h-5 text-blue-600 rounded"
+                      />
+                      <div className="flex-1">
+                        <div className="font-semibold text-slate-800 flex items-center gap-1">
+                          <span>🎟️</span>
+                          <span>Half Free Card</span>
+                        </div>
+                        <div className="text-xs text-slate-600 mt-1">50% discount - Pay half</div>
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* Validity Period - Show only if a card is selected */}
+                  {cardType !== 'none' && (
+                    <div className="bg-white rounded-lg p-4 border-2 border-purple-200">
+                      <div className="text-sm font-semibold text-purple-900 mb-3">
+                        📅 Card Validity Period
+                      </div>
+                      
+                      {/* Valid From Options */}
+                      <div className="mb-4">
+                        <label className="block text-xs font-medium text-slate-700 mb-2">
+                          Valid From <span className="text-red-500">*</span>
+                        </label>
+                        <div className="grid grid-cols-3 gap-2 mb-2">
+                          <button
+                            type="button"
+                            onClick={() => setValidFromOption('now')}
+                            className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                              validFromOption === 'now'
+                                ? 'bg-purple-100 border-purple-500 text-purple-900'
+                                : 'bg-white border-slate-300 text-slate-700 hover:border-purple-300'
+                            }`}
+                          >
+                            🕐 From Now
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setValidFromOption('month')}
+                            className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                              validFromOption === 'month'
+                                ? 'bg-purple-100 border-purple-500 text-purple-900'
+                                : 'bg-white border-slate-300 text-slate-700 hover:border-purple-300'
+                            }`}
+                          >
+                            📅 Month
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setValidFromOption('date')}
+                            className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                              validFromOption === 'date'
+                                ? 'bg-purple-100 border-purple-500 text-purple-900'
+                                : 'bg-white border-slate-300 text-slate-700 hover:border-purple-300'
+                            }`}
+                          >
+                            📆 Date
+                          </button>
+                        </div>
+                        
+                        {/* Show input based on selection */}
+                        {validFromOption === 'month' && (
+                          <input
+                            type="month"
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(e.target.value)}
+                            className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none text-sm"
+                            required
+                          />
+                        )}
+                        {validFromOption === 'date' && (
+                          <input
+                            type="date"
+                            value={cardValidFrom}
+                            onChange={(e) => setCardValidFrom(e.target.value)}
+                            className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none text-sm"
+                            required
+                          />
+                        )}
+                        {validFromOption === 'now' && (
+                          <div className="text-xs text-emerald-600 bg-emerald-50 rounded p-2 mt-1">
+                            ✓ Starting from today: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Valid To Options */}
+                      <div className="mb-3">
+                        <label className="block text-xs font-medium text-slate-700 mb-2">
+                          Valid To <span className="text-red-500">*</span>
+                        </label>
+                        <div className="grid grid-cols-3 gap-2 mb-2">
+                          <button
+                            type="button"
+                            onClick={() => setValidToOption('class_end')}
+                            className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                              validToOption === 'class_end'
+                                ? 'bg-purple-100 border-purple-500 text-purple-900'
+                                : 'bg-white border-slate-300 text-slate-700 hover:border-purple-300'
+                            }`}
+                          >
+                            🎓 Class End
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setValidToOption('month')}
+                            className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                              validToOption === 'month'
+                                ? 'bg-purple-100 border-purple-500 text-purple-900'
+                                : 'bg-white border-slate-300 text-slate-700 hover:border-purple-300'
+                            }`}
+                          >
+                            📅 Month
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setValidToOption('date')}
+                            className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                              validToOption === 'date'
+                                ? 'bg-purple-100 border-purple-500 text-purple-900'
+                                : 'bg-white border-slate-300 text-slate-700 hover:border-purple-300'
+                            }`}
+                          >
+                            📆 Date
+                          </button>
+                        </div>
+                        
+                        {/* Show input based on selection */}
+                        {validToOption === 'month' && (
+                          <input
+                            type="month"
+                            value={selectedToMonth}
+                            onChange={(e) => setSelectedToMonth(e.target.value)}
+                            className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none text-sm"
+                            required
+                          />
+                        )}
+                        {validToOption === 'date' && (
+                          <input
+                            type="date"
+                            value={cardValidTo}
+                            onChange={(e) => setCardValidTo(e.target.value)}
+                            className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none text-sm"
+                            required
+                          />
+                        )}
+                        {validToOption === 'class_end' && selectedClass && (
+                          <div className="text-xs text-emerald-600 bg-emerald-50 rounded p-2 mt-1">
+                            ✓ Until class ends: {selectedClass.end_date || selectedClass.endDate 
+                              ? new Date(selectedClass.end_date || selectedClass.endDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+                              : 'Not specified'}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">
+                          Notes (Optional)
+                        </label>
+                        <textarea
+                          value={cardNotes}
+                          onChange={(e) => setCardNotes(e.target.value)}
+                          className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none text-sm resize-none"
+                          rows="2"
+                          placeholder="Reason for granting card, sponsor name, etc."
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Card Discount Summary */}
+                  {cardType !== 'none' && (
+                    <div className="mt-3 bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-400 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">
+                            {cardType === 'full' ? '🎉' : '✨'}
+                          </span>
+                          <div>
+                            <div className="font-semibold text-emerald-900">
+                              {cardType === 'full' ? 'Full Free Card Applied!' : 'Half Free Card Applied!'}
+                            </div>
+                            <div className="text-xs text-emerald-700">
+                              {cardType === 'full' 
+                                ? 'Student will be enrolled without any monthly fee payment'
+                                : 'Student will pay only 50% of the monthly fee'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Admission Fee Required Box - Moved to top */}
               {selectedClass && selectedClassNeedsAdmissionFee && (
@@ -3132,7 +3463,7 @@ const QuickEnrollmentModal = ({ student, studentEnrollments = [], studentPayment
                       : 'bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl transform hover:scale-105'
                   }`}
                 >
-                  {submitting ? '⏳ Processing...' : payNow ? '💰 Enroll & Pay' : '✅ Enroll'}
+                  {submitting ? '⏳ Processing...' : cardType === 'full' ? '✅ Enroll' : (payNow ? '💰 Enroll & Pay' : '✅ Enroll')}
                 </button>
               </div>
             </>
@@ -4012,7 +4343,11 @@ export default function CashierDashboard() {
             endDate: enr.end_date || enr.endDate,
             maxStudents: enr.max_students || enr.maxStudents,
             currentStudents: enr.current_students || enr.currentStudents,
-            paymentTrackingFreeDays: enr.payment_tracking_free_days || enr.paymentTrackingFreeDays || 7
+            paymentTrackingFreeDays: enr.payment_tracking_free_days || enr.paymentTrackingFreeDays || 7,
+            card_type: enr.card_type || 'none',
+            card_valid_from: enr.card_valid_from,
+            card_valid_to: enr.card_valid_to,
+            card_notes: enr.card_notes
           }));
           
           setEnrollments(transformedEnrollments);
@@ -4183,7 +4518,11 @@ export default function CashierDashboard() {
       });
       
       // For monthly recurring: outstanding = monthly fee if not paid this month, else 0
-      const outstanding = hasPaymentThisMonth ? 0 : finalMonthlyFee;
+        // Exclude monthly fee from outstanding if free card is valid
+        const today = new Date();
+        const isFullCardValid = enr.card_type === 'full' && enr.card_valid_from && enr.card_valid_to &&
+          new Date(enr.card_valid_from) <= today && new Date(enr.card_valid_to) >= today;
+        const outstanding = (hasPaymentThisMonth || isFullCardValid) ? 0 : finalMonthlyFee;
       return total + outstanding;
     }, 0);
 
@@ -4323,7 +4662,16 @@ export default function CashierDashboard() {
                     const isRevisionClass = enr.courseType === 'revision';
                     
                     // Calculate final fee after discount
-                    const finalMonthlyFee = isRevisionClass && discountPrice > 0 ? monthly - discountPrice : monthly;
+                    let finalMonthlyFee = isRevisionClass && discountPrice > 0 ? monthly - discountPrice : monthly;
+                    
+                    // Apply card discount
+                    const cardType = enr.card_type || 'none';
+                    let originalFee = finalMonthlyFee;
+                    if (cardType === 'full') {
+                      finalMonthlyFee = 0; // Full free card
+                    } else if (cardType === 'half') {
+                      finalMonthlyFee = finalMonthlyFee / 2; // Half free card
+                    }
                     
                     // Get paid amount from enrollment for display purposes
                     const paidAmount = Number(enr.paidAmount || 0);
@@ -4456,11 +4804,59 @@ export default function CashierDashboard() {
                                   }`}>
                                     {isRevisionClass ? 'Revision' : 'Theory'}
                                   </span>
+                                  
+                                  {/* Card Type Tags */}
+                                    {(() => {
+                                      const today = new Date();
+                                      const isFullCardValid = enr.card_type === 'full' && enr.card_valid_from && enr.card_valid_to &&
+                                        new Date(enr.card_valid_from) <= today && new Date(enr.card_valid_to) >= today;
+                                      const isHalfCardValid = enr.card_type === 'half' && enr.card_valid_from && enr.card_valid_to &&
+                                        new Date(enr.card_valid_from) <= today && new Date(enr.card_valid_to) >= today;
+                                      if (isFullCardValid) {
+                                        return (
+                                          <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-emerald-400 to-green-500 text-white font-semibold animate-pulse">
+                                            🆓 Free Card
+                                          </span>
+                                        );
+                                      } else if (isHalfCardValid) {
+                                        return (
+                                          <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-400 to-cyan-500 text-white font-semibold">
+                                            🎟️ Half Card
+                                          </span>
+                                        );
+                                      } else {
+                                        return null;
+                                      }
+                                    })()}
                                 </div>
                               </div>
                               <div className="text-right">
                                 <div className="text-sm text-slate-600">Monthly Fee</div>
-                                {isRevisionClass && discountPrice > 0 ? (
+                                {cardType === 'full' ? (
+                                  <div>
+                                    <div className="text-sm text-slate-400 line-through">
+                                      LKR {originalFee.toLocaleString()}
+                                    </div>
+                                    <div className="text-lg font-bold text-emerald-600">
+                                      FREE
+                                      <span className="ml-2 text-xs text-emerald-600 font-normal">
+                                        (100% off)
+                                      </span>
+                                    </div>
+                                  </div>
+                                ) : cardType === 'half' ? (
+                                  <div>
+                                    <div className="text-sm text-slate-400 line-through">
+                                      LKR {originalFee.toLocaleString()}
+                                    </div>
+                                    <div className="text-lg font-bold text-blue-600">
+                                      LKR {finalMonthlyFee.toLocaleString()}
+                                      <span className="ml-2 text-xs text-blue-600 font-normal">
+                                        (50% off)
+                                      </span>
+                                    </div>
+                                  </div>
+                                ) : isRevisionClass && discountPrice > 0 ? (
                                   <div>
                                     <div className="text-sm text-slate-400 line-through">
                                       LKR {monthly.toLocaleString()}
@@ -4511,7 +4907,27 @@ export default function CashierDashboard() {
                               ) : (
                                 <div className="flex items-center gap-1 text-green-600">
                                   <FaCheckCircle className="text-xs" />
-                                  Paid: <span className="font-bold">LKR {paidAmount.toLocaleString()}</span>
+                                  Paid: <span className="font-bold">
+                                    {(() => {
+                                      const today = new Date();
+                                      const isFullCardValid = cardType === 'full' && 
+                                        enr.card_valid_from && enr.card_valid_to && 
+                                        new Date(enr.card_valid_from) <= today && 
+                                        new Date(enr.card_valid_to) >= today;
+                                      const isHalfCardValid = cardType === 'half' && 
+                                        enr.card_valid_from && enr.card_valid_to && 
+                                        new Date(enr.card_valid_from) <= today && 
+                                        new Date(enr.card_valid_to) >= today;
+                                      
+                                      if (isFullCardValid) {
+                                        return 'LKR 0 (Free Card)';
+                                      } else if (isHalfCardValid) {
+                                        return `LKR ${paidAmount.toLocaleString()} (Half Card)`;
+                                      } else {
+                                        return `LKR ${paidAmount.toLocaleString()}`;
+                                      }
+                                    })()}
+                                  </span>
                                 </div>
                               )}
                             </div>
@@ -4519,13 +4935,46 @@ export default function CashierDashboard() {
                         </div>
                         
                         {/* Action Buttons */}
-                        <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
-                          {hasPaymentThisMonth ? (
-                            <div className="flex-1 bg-green-50 border-2 border-green-300 text-green-700 px-4 py-2 rounded-lg font-semibold text-center flex items-center justify-center gap-2">
-                              <FaCheckCircle className="text-lg" />
-                              <span>Already Paid This Month</span>
-                            </div>
-                          ) : (
+                          <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+                            {(() => {
+                              // Check if free card is currently valid FIRST (highest priority)
+                              const today = new Date();
+                              const isCardValid = cardType === 'full' && 
+                                enr.card_valid_from && 
+                                enr.card_valid_to && 
+                                new Date(enr.card_valid_from) <= today && 
+                                new Date(enr.card_valid_to) >= today;
+                              // Disable Late Pay button ONLY for valid free card (not half card)
+                              const latePayDisabled = cardType === 'full' && enr.card_valid_from && enr.card_valid_to &&
+                                new Date(enr.card_valid_from) <= today && new Date(enr.card_valid_to) >= today;
+                              // Check free card BEFORE payment status
+                              if (isCardValid) {
+                                return (
+                                  <div className="relative group flex-1">
+                                    <button
+                                      disabled
+                                      className="w-full bg-gray-300 text-gray-500 px-4 py-2 rounded-lg font-medium cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                      <FaLock className="text-lg" />
+                                      <span>Pay Now</span>
+                                    </button>
+                                    {/* Tooltip */}
+                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                                      🆓 Free Card Active - No payment required
+                                      <div className="text-xs mt-1">Valid until: {new Date(enr.card_valid_to).toLocaleDateString()}</div>
+                                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
+                                    </div>
+                                  </div>
+                                );
+                              } else if (hasPaymentThisMonth) {
+                              return (
+                                <div className="flex-1 bg-green-50 border-2 border-green-300 text-green-700 px-4 py-2 rounded-lg font-semibold text-center flex items-center justify-center gap-2">
+                                  <FaCheckCircle className="text-lg" />
+                                  <span>Already Paid This Month</span>
+                                </div>
+                              );
+                            } else {
+                              return (
                             <button
                               className="flex-1 bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700 transition-colors"
                               onClick={async () => {
@@ -4553,11 +5002,31 @@ export default function CashierDashboard() {
                                 const classId = enr.classId || enr.id;
                                 
                                 try {
-                                  // Calculate final fee with discount
+                                  // Calculate final fee with discount and card
                                   const monthlyFee = Number(enr.monthlyFee || enr.fee || 0);
                                   const discountPrice = Number(enr.revisionDiscountPrice || 0);
                                   const isRevisionClass = enr.courseType === 'revision';
-                                  const finalFee = isRevisionClass && discountPrice > 0 ? monthlyFee - discountPrice : monthlyFee;
+                                  let finalFee = isRevisionClass && discountPrice > 0 ? monthlyFee - discountPrice : monthlyFee;
+                                  
+                                  // Apply card discount ONLY if card is currently valid
+                                  const cardType = enr.card_type || 'none';
+                                  const today = new Date();
+                                  const isCardCurrentlyValid = enr.card_valid_from && enr.card_valid_to &&
+                                    new Date(enr.card_valid_from) <= today && 
+                                    new Date(enr.card_valid_to) >= today;
+                                  
+                                  let paymentNotes = '';
+                                  if (cardType === 'full' && isCardCurrentlyValid) {
+                                    finalFee = 0; // Full free card
+                                    paymentNotes = ' (Full Free Card - 100% discount)';
+                                  } else if (cardType === 'half' && isCardCurrentlyValid) {
+                                    finalFee = finalFee / 2; // Half free card
+                                    paymentNotes = ' (Half Free Card - 50% discount)';
+                                  } else if (isRevisionClass && discountPrice > 0) {
+                                    paymentNotes = ` (${discountPrice} revision discount applied)`;
+                                  } else {
+                                    paymentNotes = '';
+                                  }
                                   
                                   const payload = {
                                     paymentType: 'class_payment',
@@ -4566,9 +5035,7 @@ export default function CashierDashboard() {
                                     studentId: studentId,
                                     classId: classId,
                                     amount: finalFee,
-                                    notes: isRevisionClass && discountPrice > 0 
-                                      ? `Monthly fee payment (${discountPrice} revision discount applied)`
-                                      : 'Monthly fee payment',
+                                    notes: 'Monthly fee payment' + paymentNotes,
                                     cashierId: getUserData()?.userid,
                                     createdBy: getUserData()?.userid
                                   };
@@ -4643,18 +5110,20 @@ export default function CashierDashboard() {
                             >
                               ⚡ Pay Now
                             </button>
-                          )}
+                              );
+                            }
+                          })()}
                           {/* Late Note button - Disabled when already paid with tooltip */}
                           <div className="relative group">
                             <button
-                              disabled={hasPaymentThisMonth}
+                              disabled={hasPaymentThisMonth || (cardType === 'full' && enr.card_valid_from && enr.card_valid_to && new Date(enr.card_valid_from) <= new Date() && new Date(enr.card_valid_to) >= new Date())}
                               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                                hasPaymentThisMonth
+                                hasPaymentThisMonth || (cardType === 'full' && enr.card_valid_from && enr.card_valid_to && new Date(enr.card_valid_from) <= new Date() && new Date(enr.card_valid_to) >= new Date())
                                   ? 'bg-orange-300 text-orange-100 cursor-not-allowed opacity-50'
                                   : 'bg-orange-600 text-white hover:bg-orange-700'
                               }`}
                               onClick={() => {
-                                if (hasPaymentThisMonth) return;
+                                if (hasPaymentThisMonth || (cardType === 'full' && enr.card_valid_from && enr.card_valid_to && new Date(enr.card_valid_from) <= new Date() && new Date(enr.card_valid_to) >= new Date())) return;
                                 try {
                                   printNote({ title: 'Late Payment Permission', student, classRow: enr, reason: 'Allowed late payment for today only' });
                                   // Refresh KPIs from backend

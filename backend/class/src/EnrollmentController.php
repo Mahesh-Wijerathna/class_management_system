@@ -224,11 +224,16 @@ class EnrollmentController {
                 INSERT INTO enrollments (
                     class_id, student_id, enrollment_date, 
                     status, payment_status, total_fee, paid_amount,
-                    next_payment_date
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    next_payment_date, card_type, card_valid_from, card_valid_to, card_notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
             
-            $stmt->bind_param("issssdss", 
+            $cardType = $enrollmentData['card_type'] ?? 'none';
+            $cardValidFrom = $enrollmentData['card_valid_from'] ?? null;
+            $cardValidTo = $enrollmentData['card_valid_to'] ?? null;
+            $cardNotes = $enrollmentData['card_notes'] ?? null;
+            
+            $stmt->bind_param("issssdssssss", 
                 $enrollmentData['class_id'],
                 $enrollmentData['student_id'],
                 $enrollmentDate,
@@ -236,7 +241,11 @@ class EnrollmentController {
                 $enrollmentData['payment_status'],
                 $enrollmentData['total_fee'],
                 $enrollmentData['paid_amount'],
-                $nextPaymentDate
+                $nextPaymentDate,
+                $cardType,
+                $cardValidFrom,
+                $cardValidTo,
+                $cardNotes
             );
             
             if ($stmt->execute()) {
