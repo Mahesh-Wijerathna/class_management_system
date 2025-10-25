@@ -3,8 +3,8 @@
 -- This will run automatically when the MySQL container starts for the first time
 
 -- Create database if it doesn't exist
-CREATE DATABASE IF NOT EXISTS attendance_system;
-USE attendance_system;
+CREATE DATABASE IF NOT EXISTS attendance;
+USE attendance;
 
 -- Drop existing tables if they exist (for clean initialization)
 DROP TABLE IF EXISTS attendance_logs;

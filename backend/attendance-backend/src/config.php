@@ -8,7 +8,7 @@ date_default_timezone_set('Asia/Colombo');
 $attendanceHost = getenv('DB_HOST') ?: 'attendance-db';
 $attendanceUser = getenv('DB_USER') ?: 'root';
 $attendancePass = getenv('DB_PASSWORD') ?: 'secret';
-$attendanceDB = getenv('DB_NAME') ?: 'attendance_system';
+$attendanceDB = getenv('DB_NAME') ?: 'attendance';
 
 // Class database (for class and enrollment data)
 $classHost = getenv('CLASS_DB_HOST') ?: 'host.docker.internal';

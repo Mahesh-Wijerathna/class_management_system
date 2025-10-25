@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS teachers (
     status ENUM('active', 'inactive') DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Teacher schedules table
 CREATE TABLE IF NOT EXISTS teacher_schedules (
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS teacher_schedules (
     status ENUM('active', 'inactive') DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (teacherId) REFERENCES teachers(teacherId) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Teacher hall assignments table
 CREATE TABLE IF NOT EXISTS teacher_halls (
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS teacher_halls (
     status ENUM('assigned', 'available', 'maintenance') DEFAULT 'assigned',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (teacherId) REFERENCES teachers(teacherId) ON DELETE CASCADE
-); 
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci; 
 
 
 CREATE TABLE IF NOT EXISTS hall_bookings (
@@ -52,13 +52,14 @@ CREATE TABLE IF NOT EXISTS hall_bookings (
   hall_name VARCHAR(100) NOT NULL,
   subject VARCHAR(100),
   class_id INT,
-  teacherId VARCHAR(10) DEFAULT NULL,
+  teacherId VARCHAR(10),
   date DATE NOT NULL,
   start_time TIME NOT NULL,
   end_time TIME NOT NULL,
   status ENUM('booked', 'cancelled') DEFAULT 'booked',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_hall_date_time (hall_name, date, start_time, end_time),
+  INDEX idx_teacherId (teacherId),
   FOREIGN KEY (teacherId) REFERENCES teachers(teacherId) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
