@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS financial_records (
     type ENUM('income', 'expense') NOT NULL,
     category VARCHAR(100) NOT NULL,
     payment_type ENUM('class_payment', 'admission_fee') DEFAULT 'class_payment',
-    card_type ENUM('full','half','free') DEFAULT 'full',
     person_name VARCHAR(200),
     user_id VARCHAR(50),
     person_role VARCHAR(50),
@@ -26,7 +25,6 @@ CREATE TABLE IF NOT EXISTS financial_records (
     INDEX idx_type (type),
     INDEX idx_category (category),
     INDEX idx_payment_type (payment_type),
-    INDEX idx_card_type (card_type),
     INDEX idx_status (status),
     INDEX idx_user_id (user_id),
     INDEX idx_class_id (class_id)

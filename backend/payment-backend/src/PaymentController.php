@@ -116,26 +116,11 @@ class PaymentController {
             $finalAmount = $data['amount'] ?? $class['fee'] ?? 0;
 
             // Create financial record
-            // Determine card_type: prefer explicit input, otherwise infer from amount/notes
-            $cardType = $data['card_type'] ?? null;
-            if (!$cardType) {
-                if (floatval($finalAmount) == 0) {
-                    $cardType = 'free';
-                } else {
-                    $baseNotes = strtolower($data['notes'] ?? '');
-                    if (strpos($baseNotes, 'half') !== false) {
-                        $cardType = 'half';
-                    } else {
-                        $cardType = 'full';
-                    }
-                }
-            }
-
-            $stmt = $this->db->prepare("\
-                INSERT INTO financial_records (\
-                    transaction_id, date, type, category, person_name, user_id, person_role,\
-                    class_name, class_id, amount, status, payment_method, reference_number, notes, created_by, payment_type, card_type\
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\
+            $stmt = $this->db->prepare("
+                INSERT INTO financial_records (
+                    transaction_id, date, type, category, person_name, user_id, person_role,
+                    class_name, class_id, amount, status, payment_method, reference_number, notes, created_by, payment_type
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
             $date = date('Y-m-d');
@@ -170,9 +155,9 @@ class PaymentController {
             // Get cashier ID from request data (who is creating this payment)
             $createdBy = $data['cashierId'] ?? $data['createdBy'] ?? $studentId; // Fallback to studentId for backward compatibility
 
-            $stmt->bind_param("ssssssssidsssssss", 
+            $stmt->bind_param("ssssssssidssssss", 
                 $transactionId, $date, $type, $category, $personName, $userId, $personRole,
-                $className, $classIdValue, $finalAmount, $status, $paymentMethod, $referenceNumber, $notes, $createdBy, $paymentType, $cardType
+                $className, $classIdValue, $finalAmount, $status, $paymentMethod, $referenceNumber, $notes, $createdBy, $paymentType
             );
 
             if (!$stmt->execute()) {
@@ -784,6 +769,8 @@ class PaymentController {
     public function getCashierStats($cashierId, $period = 'today') {
         try {
             // Determine date range based on period
+            // Note: Using CURDATE() ensures data persists for entire day (not reset on logout/login)
+            // Data automatically resets at midnight when new day starts
             if ($period === 'today') {
                 $dateCondition = "DATE(fr.created_at) = CURDATE()";
             } elseif ($period === 'month') {
@@ -834,11 +821,12 @@ class PaymentController {
                     fr.person_name,
                     fr.user_id,
                     fr.class_name,
+                    fr.class_id,
                     fr.amount,
                     fr.status,
                     fr.payment_method,
                     fr.payment_type,
-                    fr.card_type
+                    fr.notes
                 FROM financial_records fr
                 WHERE fr.created_by = ?
                 AND $dateCondition
@@ -859,40 +847,178 @@ class PaymentController {
             $recentResult = $recentStmt->get_result();
             
             $transactions = [];
+            $classCache = []; // Cache class data to avoid repeated API calls
+            
             while ($row = $recentResult->fetch_assoc()) {
+                // Fetch teacher information from class backend if class_id exists
+                if (!empty($row['class_id'])) {
+                    $classId = $row['class_id'];
+                    
+                    // Check cache first
+                    if (!isset($classCache[$classId])) {
+                        $classDetails = $this->getClassFromClassBackend($classId);
+                        $classCache[$classId] = $classDetails;
+                    }
+                    
+                    if ($classCache[$classId]) {
+                        $row['teacher'] = $classCache[$classId]['teacher'] ?? '';
+                        $row['teacher_name'] = $classCache[$classId]['teacher'] ?? '';
+                    }
+                }
+                
                 $transactions[] = $row;
             }
-
-            // Also compute per-class aggregates for the requested period (useful for full report)
-            $classAggSql = "
-                SELECT 
-                    COALESCE(fr.class_name, 'Unspecified') as class_name,
-                    fr.class_id,
-                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_type = 'class_payment' THEN fr.amount ELSE 0 END) as total_amount,
-                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_type = 'class_payment' AND fr.card_type = 'full' THEN 1 ELSE 0 END) as full_count,
-                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_type = 'class_payment' AND fr.card_type = 'half' THEN 1 ELSE 0 END) as half_count,
-                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_type = 'class_payment' AND fr.card_type = 'free' THEN 1 ELSE 0 END) as free_count,
-                    COUNT(*) as tx_count
-                FROM financial_records fr
-                WHERE fr.created_by = ?
-                AND fr.type = 'income'
-                AND $dateCondition
-                GROUP BY fr.class_id, fr.class_name
-                ORDER BY total_amount DESC
-            ";
-
-            $classAggStmt = $this->db->prepare($classAggSql);
-            if ($period !== 'today' && $period !== 'month' && $period !== 'all') {
-                $classAggStmt->bind_param("ss", $cashierId, $period);
-            } else {
-                $classAggStmt->bind_param("s", $cashierId);
-            }
-            $classAggStmt->execute();
-            $classAggResult = $classAggStmt->get_result();
+            
+            // Aggregate per-class data
             $perClass = [];
-            while ($crow = $classAggResult->fetch_assoc()) {
-                $perClass[] = $crow;
+            $classMap = [];
+            
+            foreach ($transactions as $tx) {
+                $className = $tx['class_name'] ?? 'Unspecified';
+                $classId = $tx['class_id'] ?? null;
+                
+                if (!isset($classMap[$className])) {
+                    $classMap[$className] = [
+                        'class_name' => $className,
+                        'teacher' => $tx['teacher'] ?? $tx['teacher_name'] ?? '-',
+                        'full_count' => 0,
+                        'half_count' => 0,
+                        'free_count' => 0,
+                        'total_amount' => 0,
+                        'tx_count' => 0
+                    ];
+                }
+                
+                // Count both class_payment and admission_fee transactions
+                $paymentType = $tx['payment_type'] ?? '';
+                if ($paymentType === 'class_payment' || $paymentType === 'admission_fee') {
+                    $classMap[$className]['tx_count']++;
+                    $classMap[$className]['total_amount'] += floatval($tx['amount'] ?? 0);
+                    
+                    // Only analyze card type for class_payment (admission fees don't use cards)
+                    if ($paymentType === 'class_payment') {
+                        // Determine card type with flexible pattern matching
+                        $notes = strtolower($tx['notes'] ?? '');
+                        $amount = floatval($tx['amount'] ?? 0);
+                        
+                        $isFreeCard = false;
+                        $isHalfCard = false;
+                        
+                        // Check for FREE CARD patterns
+                        if (strpos($notes, 'full free card') !== false) {
+                            $isFreeCard = true;
+                        } elseif (strpos($notes, '100%') !== false || strpos($notes, '100 %') !== false) {
+                            $isFreeCard = true;
+                        } elseif ($amount == 0 && (
+                            strpos($notes, 'free card') !== false ||
+                            strpos($notes, 'complimentary') !== false ||
+                            strpos($notes, 'free') !== false
+                        )) {
+                            $isFreeCard = true;
+                        }
+                        
+                        // Check for HALF CARD patterns
+                        if (!$isFreeCard) {
+                            if (strpos($notes, 'half free card') !== false) {
+                                $isHalfCard = true;
+                            } elseif (strpos($notes, '50%') !== false || strpos($notes, '50 %') !== false) {
+                                $isHalfCard = true;
+                            } elseif (strpos($notes, 'half') !== false && strpos($notes, 'discount') !== false) {
+                                $isHalfCard = true;
+                            }
+                        }
+                        
+                        // Count the card type
+                        if ($isFreeCard) {
+                            $classMap[$className]['free_count']++;
+                        } elseif ($isHalfCard) {
+                            $classMap[$className]['half_count']++;
+                        } else {
+                            $classMap[$className]['full_count']++;
+                        }
+                    }
+                }
             }
+            
+            // Convert to array and sort by total amount
+            $perClass = array_values($classMap);
+            usort($perClass, function($a, $b) {
+                return $b['total_amount'] - $a['total_amount'];
+            });
+            
+            // Calculate overall card counts from transactions
+            $fullCardsIssued = 0;
+            $halfCardsIssued = 0;
+            $freeCardsIssued = 0;
+            
+            error_log("====== Starting Card Count Calculation ======");
+            error_log("Total transactions to process: " . count($transactions));
+            
+            foreach ($transactions as $tx) {
+                error_log("TX ID: " . ($tx['transaction_id'] ?? 'unknown') . " | Type: " . ($tx['payment_type'] ?? 'unknown') . " | Status: " . ($tx['status'] ?? 'unknown'));
+                
+                // Only count paid class payments
+                if (($tx['payment_type'] ?? '') === 'class_payment' && ($tx['status'] ?? '') === 'paid') {
+                    $notes = strtolower($tx['notes'] ?? '');
+                    $amount = floatval($tx['amount'] ?? 0);
+                    
+                    // Log for debugging
+                    error_log("Processing TX: " . ($tx['transaction_id'] ?? 'unknown'));
+                    error_log("  Notes: " . $notes);
+                    error_log("  Amount: " . $amount);
+                    
+                    // Determine card type with flexible pattern matching
+                    $isFreeCard = false;
+                    $isHalfCard = false;
+                    
+                    // Check for FREE CARD patterns (check multiple variations)
+                    if (strpos($notes, 'full free card') !== false) {
+                        $isFreeCard = true;
+                    } elseif (strpos($notes, '100%') !== false || strpos($notes, '100 %') !== false) {
+                        $isFreeCard = true;
+                    } elseif ($amount == 0 && (
+                        strpos($notes, 'free card') !== false ||
+                        strpos($notes, 'complimentary') !== false ||
+                        strpos($notes, 'free') !== false
+                    )) {
+                        $isFreeCard = true;
+                    }
+                    
+                    // Check for HALF CARD patterns (only if not already identified as free)
+                    if (!$isFreeCard) {
+                        if (strpos($notes, 'half free card') !== false) {
+                            $isHalfCard = true;
+                        } elseif (strpos($notes, '50%') !== false || strpos($notes, '50 %') !== false) {
+                            $isHalfCard = true;
+                        } elseif (strpos($notes, 'half') !== false && strpos($notes, 'discount') !== false) {
+                            $isHalfCard = true;
+                        }
+                    }
+                    
+                    // Count the card type
+                    if ($isFreeCard) {
+                        $freeCardsIssued++;
+                        error_log("  -> Counted as FREE card");
+                    } elseif ($isHalfCard) {
+                        $halfCardsIssued++;
+                        error_log("  -> Counted as HALF card");
+                    } else {
+                        $fullCardsIssued++;
+                        error_log("  -> Counted as FULL card");
+                    }
+                }
+            }
+            
+            // Add card counts to stats
+            $stats['full_cards_issued'] = $fullCardsIssued;
+            $stats['half_cards_issued'] = $halfCardsIssued;
+            $stats['free_cards_issued'] = $freeCardsIssued;
+            
+            error_log("====== Final Card Counts ======");
+            error_log("Full Cards: $fullCardsIssued");
+            error_log("Half Cards: $halfCardsIssued");
+            error_log("Free Cards: $freeCardsIssued");
+            error_log("============================");
 
             return [
                 'success' => true,
