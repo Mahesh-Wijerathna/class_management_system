@@ -72,11 +72,21 @@ if (!document.head.querySelector('[data-toast-styles]')) {
 
 const Section = React.memo(({ title, children, right }) => (
 
-  <div className="bg-white rounded-md shadow p-4">
+  <div className="bg-gradient-to-br from-white/90 to-slate-50/80 backdrop-blur-md border border-white/20 rounded-2xl shadow-xl p-6">
 
-    <div className="flex items-center justify-between border-b pb-2 mb-3">
+    <div className="flex items-center justify-between border-b border-slate-200/50 pb-3 mb-4">
 
-      <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
+      <h3 className="text-lg font-bold text-slate-800 flex items-center gap-3">
+
+        <div className="bg-gradient-to-br from-slate-500 to-slate-600 p-2 rounded-xl">
+
+          <FaUser className="text-white text-sm" />
+
+        </div>
+
+        {title}
+
+      </h3>
 
       {right}
 
@@ -9655,7 +9665,23 @@ export default function CashierDashboard() {
 
       <div ref={studentPanelRef}>
 
-      <Section title="Student Information">
+      <div className="bg-gradient-to-br from-white/90 to-slate-50/80 backdrop-blur-md border border-white/20 rounded-2xl shadow-xl p-6">
+
+        <div className="flex items-center justify-between border-b border-slate-200/50 pb-3 mb-4">
+
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-3">
+
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 rounded-xl">
+
+              <FaUser className="text-white text-sm" />
+
+            </div>
+
+            Student Information
+
+          </h3>
+
+        </div>
 
         {loading ? (
 
@@ -10983,7 +11009,7 @@ export default function CashierDashboard() {
 
         )}
 
-      </Section>
+      </div>
 
       </div>
 
@@ -11011,33 +11037,33 @@ export default function CashierDashboard() {
 
         onClick={() => paymentCount > 0 && setShowPaymentHistory(true)}
 
-        className={`bg-white rounded-md shadow-sm border-2 transition-all ${
+        className={`bg-gradient-to-br from-white/90 to-slate-50/80 backdrop-blur-md border border-white/20 rounded-2xl shadow-xl transition-all ${
 
           paymentCount > 0 
 
-            ? 'border-emerald-200 hover:border-emerald-400 hover:shadow-md cursor-pointer' 
+            ? 'hover:shadow-2xl cursor-pointer hover:scale-105' 
 
-            : 'border-slate-200'
+            : ''
 
         }`}
 
       >
 
-        <div className="flex items-center justify-between border-b p-4 bg-gradient-to-r from-emerald-50 to-white">
+        <div className="flex items-center justify-between border-b border-slate-200/50 p-6">
 
           <div className="flex items-center gap-3">
 
-            <div className="bg-emerald-100 p-2 rounded-lg">
+            <div className="bg-gradient-to-br from-green-500 to-green-600 p-2 rounded-xl">
 
-              <FaHistory className="text-emerald-600 text-lg" />
+              <FaHistory className="text-white text-lg" />
 
             </div>
 
             <div>
 
-              <h3 className="text-sm font-semibold text-slate-800">Payment History</h3>
+              <h3 className="text-lg font-bold text-slate-800">Payment History</h3>
 
-              <div className="text-xs text-slate-500 mt-0.5">
+              <div className="text-sm text-slate-500 mt-0.5">
 
                 {paymentCount > 0 ? `${paymentCount} payment${paymentCount !== 1 ? 's' : ''} recorded` : 'No payments yet'}
 
@@ -11049,7 +11075,7 @@ export default function CashierDashboard() {
 
           {paymentCount > 0 && (
 
-            <div className="text-xs bg-emerald-600 text-white px-3 py-1 rounded-full font-medium">
+            <div className="text-sm bg-gradient-to-br from-green-500/90 to-green-600/90 backdrop-blur-sm text-white px-4 py-2 rounded-xl font-medium shadow-lg">
 
               Click to view all
 
@@ -11061,25 +11087,25 @@ export default function CashierDashboard() {
 
         
 
-        <div className="p-4">
+        <div className="p-6">
 
           {/* Summary Stats */}
 
           <div className="grid grid-cols-2 gap-3 mb-4">
 
-            <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+            <div className="bg-gradient-to-br from-green-50/80 to-green-100/60 backdrop-blur-sm rounded-xl p-3 border border-green-200/50 shadow-sm">
 
-              <div className="text-xs text-slate-600 mb-1">Total Paid</div>
+              <div className="text-sm text-green-700 mb-1">Total Paid</div>
 
-              <div className="text-lg font-bold text-emerald-600">LKR {total.toFixed(2)}</div>
+              <div className="text-xl font-bold text-green-800">LKR {total.toFixed(2)}</div>
 
             </div>
 
-            <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+            <div className="bg-gradient-to-br from-green-50/80 to-green-100/60 backdrop-blur-sm rounded-xl p-3 border border-green-200/50 shadow-sm">
 
-              <div className="text-xs text-slate-600 mb-1">Transactions</div>
+              <div className="text-sm text-green-700 mb-1">Transactions</div>
 
-              <div className="text-lg font-bold text-slate-800">{paymentCount}</div>
+              <div className="text-xl font-bold text-green-800">{paymentCount}</div>
 
             </div>
 
@@ -11417,7 +11443,7 @@ export default function CashierDashboard() {
               </div>
               <h3 className="text-xs font-semibold text-emerald-800 mb-2">Today's Collections</h3>
               <p className="text-xl font-bold text-emerald-900">LKR {Number(kpis.totalToday).toLocaleString()}</p>
-            </div>
+              </div>
 
             {/* Cash Drawer */}
             <div className="bg-gradient-to-br from-blue-50/80 to-blue-100/60 backdrop-blur-sm border border-blue-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
@@ -11439,7 +11465,7 @@ export default function CashierDashboard() {
               </div>
               <h3 className="text-xs font-semibold text-purple-800 mb-2">Receipts Issued</h3>
               <p className="text-xl font-bold text-purple-900">{kpis.receipts}</p>
-              </div>
+                </div>
 
             {/* Pending Payments */}
             <div className="bg-gradient-to-br from-orange-50/80 to-orange-100/60 backdrop-blur-sm border border-orange-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
@@ -11450,7 +11476,7 @@ export default function CashierDashboard() {
               </div>
               <h3 className="text-xs font-semibold text-orange-800 mb-2">Pending Payments</h3>
               <p className="text-xl font-bold text-orange-900">{kpis.pending}</p>
-            </div>
+              </div>
 
             {/* Full Cards */}
             <div className="bg-gradient-to-br from-violet-50/80 to-violet-100/60 backdrop-blur-sm border border-violet-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
@@ -11461,7 +11487,7 @@ export default function CashierDashboard() {
               </div>
               <h3 className="text-xs font-semibold text-violet-800 mb-2">Full Cards</h3>
               <p className="text-xl font-bold text-violet-900">{kpis.fullCardsIssued || 0}</p>
-                </div>
+            </div>
 
             {/* Half Cards */}
             <div className="bg-gradient-to-br from-indigo-50/80 to-indigo-100/60 backdrop-blur-sm border border-indigo-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
@@ -11472,7 +11498,7 @@ export default function CashierDashboard() {
               </div>
               <h3 className="text-xs font-semibold text-indigo-800 mb-2">Half Cards</h3>
               <p className="text-xl font-bold text-indigo-900">{kpis.halfCardsIssued || 0}</p>
-              </div>
+                </div>
 
             {/* Free Cards */}
             <div className="bg-gradient-to-br from-teal-50/80 to-teal-100/60 backdrop-blur-sm border border-teal-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
@@ -11483,15 +11509,31 @@ export default function CashierDashboard() {
               </div>
               <h3 className="text-xs font-semibold text-teal-800 mb-2">Free Cards</h3>
               <p className="text-xl font-bold text-teal-900">{kpis.freeCardsIssued || 0}</p>
-            </div>
+              </div>
 
-          </div>
+            </div>
 
 
 
           {/* Student Scanner - Full Width */}
 
-          <Section title="Student Lookup" right={<FaBarcode className="text-emerald-600" />}>
+          <div className="bg-gradient-to-br from-white/90 to-slate-50/80 backdrop-blur-md border border-white/20 rounded-2xl shadow-xl p-6">
+
+            <div className="flex items-center justify-between border-b border-slate-200/50 pb-3 mb-4">
+
+              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-3">
+
+                <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 p-2 rounded-xl">
+
+                  <FaBarcode className="text-white text-sm" />
+
+            </div>
+
+                Student Lookup
+
+              </h3>
+
+            </div>
 
             <div className="space-y-4">
 
@@ -11507,7 +11549,7 @@ export default function CashierDashboard() {
 
                   placeholder="Scan Student ID barcode or enter manually..."
 
-                  className="flex-1 border border-slate-300 rounded-lg px-4 py-3 text-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  className="flex-1 border border-slate-300/50 rounded-xl px-4 py-3 text-lg focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 bg-white/80 backdrop-blur-sm shadow-sm"
 
                 />
 
@@ -11515,7 +11557,7 @@ export default function CashierDashboard() {
 
                   type="submit"
 
-                  className="bg-emerald-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-emerald-700 transition-colors"
+                  className="bg-gradient-to-br from-emerald-500/90 to-emerald-600/90 backdrop-blur-sm text-white px-6 py-3 rounded-xl font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
 
                 >
 
@@ -11529,7 +11571,7 @@ export default function CashierDashboard() {
 
                   onClick={() => setShowScanner(true)}
 
-                  className="bg-blue-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                  className="bg-gradient-to-br from-blue-500/90 to-blue-600/90 backdrop-blur-sm text-white px-4 py-3 rounded-xl font-semibold hover:from-blue-600 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
 
                 >
 
@@ -11549,7 +11591,13 @@ export default function CashierDashboard() {
 
                 <div>
 
-                  <div className="text-sm text-slate-600 mb-2">Recent Students:</div>
+                  <div className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+
+                    Recent Students
+
+                  </div>
 
                   <div className="flex gap-2 flex-wrap">
 
@@ -11567,7 +11615,7 @@ export default function CashierDashboard() {
 
                         }}
 
-                        className="bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+                        className="bg-gradient-to-br from-emerald-50/80 to-emerald-100/60 hover:from-emerald-100 hover:to-emerald-200 border border-emerald-200/50 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-300 backdrop-blur-sm shadow-sm hover:shadow-md hover:scale-105"
 
                       >
 
@@ -11585,7 +11633,7 @@ export default function CashierDashboard() {
 
             </div>
 
-          </Section>
+          </div>
 
 
 
@@ -11826,7 +11874,7 @@ export default function CashierDashboard() {
 
                   {attendanceLoading ? (
 
-                    <div className="bg-white rounded-md shadow-sm border-2 border-slate-200 p-6">
+                    <div className="bg-gradient-to-br from-white/90 to-slate-50/80 backdrop-blur-md border border-white/20 rounded-2xl shadow-xl p-6">
 
                       <div className="flex items-center justify-center">
 
@@ -11840,7 +11888,31 @@ export default function CashierDashboard() {
 
                   ) : (
 
+                    <div className="bg-gradient-to-br from-white/90 to-slate-50/80 backdrop-blur-md border border-white/20 rounded-2xl shadow-xl overflow-hidden">
+
+                      <div className="flex items-center justify-between border-b border-slate-200/50 p-6">
+
+                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-3">
+
+                          <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 p-2 rounded-xl">
+
+                            <FaClock className="text-white text-sm" />
+
+                          </div>
+
+                          Attendance Calendar
+
+                        </h3>
+
+                      </div>
+
+                      <div className="p-6">
+
                     <AttendanceCalendar attendanceData={attendanceData} />
+
+                      </div>
+
+                    </div>
 
                   )}
 
