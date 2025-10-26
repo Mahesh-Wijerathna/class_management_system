@@ -1943,7 +1943,7 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                 <div class="label">Today's Collections</div>
 
-                <div class="value success">LKR ${Number(kpis.totalToday || 0).toLocaleString()}</div>
+                <div class="value success">LKR ${Number(kpis.total_collected || 0).toLocaleString()}</div>
 
               </div>
 
@@ -1951,7 +1951,7 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                 <div class="label">Receipts Issued</div>
 
-                <div class="value">${kpis.receipts || 0}</div>
+                <div class="value">${kpis.total_receipts || 0}</div>
 
               </div>
 
@@ -1959,7 +1959,7 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                 <div class="label">Pending Payments</div>
 
-                <div class="value warning">${kpis.pending || 0}</div>
+                <div class="value warning">${kpis.pending_count || 0}</div>
 
               </div>
 
@@ -1967,7 +1967,7 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                 <div class="label">Cash Drawer Total</div>
 
-                <div class="value">LKR ${Number(kpis.drawer || 0).toLocaleString()}</div>
+                <div class="value">LKR ${Number(kpis.cash_collected || 0).toLocaleString()}</div>
 
               </div>
 
@@ -2013,9 +2013,9 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                 <div class="label">Total Transactions</div>
 
-                <div class="value">${kpis.receipts || 0}</div>
+                <div class="value">${kpis.total_receipts || 0}</div>
 
-                <div class="amount">Total Collected: LKR ${Number(kpis.totalToday || 0).toLocaleString()}</div>
+                <div class="amount">Total Collected: LKR ${Number(kpis.total_collected || 0).toLocaleString()}</div>
 
               </div>
 
@@ -2651,9 +2651,9 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                         <div className="label">Total Transactions</div>
 
-                        <div className="value">{kpis.receipts || 0}</div>
+                        <div className="value">{kpis.total_receipts || 0}</div>
 
-                        <div className="text-sm text-slate-500">Total Collected: LKR {Number(kpis.totalToday || 0).toLocaleString()}</div>
+                        <div className="text-sm text-slate-500">Total Collected: LKR {Number(kpis.total_collected || 0).toLocaleString()}</div>
 
                       </div>
 
@@ -2752,7 +2752,7 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                       <div className="label">Today's Collections</div>
 
-                      <div className="value success">LKR {Number(kpis.totalToday || 0).toLocaleString()}</div>
+                      <div className="value success">LKR {Number(kpis.total_collected || 0).toLocaleString()}</div>
 
                     </div>
 
@@ -2760,7 +2760,7 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                       <div className="label">Receipts Issued</div>
 
-                      <div className="value">{kpis.receipts || 0}</div>
+                      <div className="value">{kpis.total_receipts || 0}</div>
 
                     </div>
 
@@ -2768,7 +2768,7 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                       <div className="label">Pending Payments</div>
 
-                      <div className="value warning">{kpis.pending || 0}</div>
+                      <div className="value warning">{kpis.pending_count || 0}</div>
 
                     </div>
 
@@ -2776,7 +2776,7 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                       <div className="label">Cash Drawer Total</div>
 
-                      <div className="value">LKR {Number(kpis.drawer || 0).toLocaleString()}</div>
+                      <div className="value">LKR {Number(kpis.cash_collected || 0).toLocaleString()}</div>
 
                     </div>
 
@@ -2826,9 +2826,9 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                         <div className="label">Total Transactions</div>
 
-                        <div className="value">{kpis.receipts || 0}</div>
+                        <div className="value">{kpis.total_receipts || 0}</div>
 
-                        <div className="text-sm text-slate-500">Total Collected: LKR {Number(kpis.totalToday || 0).toLocaleString()}</div>
+                        <div className="text-sm text-slate-500">Total Collected: LKR {Number(kpis.total_collected || 0).toLocaleString()}</div>
 
                       </div>
 
@@ -2872,7 +2872,7 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                       <td><strong>Total Transactions:</strong></td>
 
-                      <td>{kpis.receipts || 0} receipts issued</td>
+                      <td>{kpis.total_receipts || 0} receipts issued</td>
 
                     </tr>
 
@@ -3262,19 +3262,19 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
             <div class="summary-grid">
               <div class="summary-card">
                 <div class="label">Month's Collections</div>
-                <div class="value success">LKR ${Number(kpis.totalToday || 0).toLocaleString()}</div>
+                <div class="value success">LKR ${Number(kpis.total_collected || 0).toLocaleString()}</div>
               </div>
               <div class="summary-card">
                 <div class="label">Receipts Issued</div>
-                <div class="value">${kpis.receipts || 0}</div>
+                <div class="value">${kpis.total_receipts || 0}</div>
               </div>
               <div class="summary-card">
                 <div class="label">Pending Payments</div>
-                <div class="value warning">${kpis.pending || 0}</div>
+                <div class="value warning">${kpis.pending_count || 0}</div>
               </div>
               <div class="summary-card">
                 <div class="label">Cash Drawer Total</div>
-                <div class="value">LKR ${Number(kpis.drawer || 0).toLocaleString()}</div>
+                <div class="value">LKR ${Number(kpis.cash_collected || 0).toLocaleString()}</div>
               </div>
             </div>
 
@@ -3297,8 +3297,8 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
               </div>
               <div class="card">
                 <div class="label">Total Transactions</div>
-                <div class="value">${kpis.receipts || 0}</div>
-                <div class="amount">Total Collected: LKR ${Number(kpis.totalToday || 0).toLocaleString()}</div>
+                <div class="value">${kpis.total_receipts || 0}</div>
+                <div class="amount">Total Collected: LKR ${Number(kpis.total_collected || 0).toLocaleString()}</div>
               </div>
             </div>
 
@@ -3710,7 +3710,7 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
 
                   <div class="label">Total Monthly Collections</div>
 
-                  <div class="value success">LKR ${Number(kpis.totalToday || 0).toLocaleString()}</div>
+                  <div class="value success">LKR ${Number(kpis.total_collected || 0).toLocaleString()}</div>
 
                 </div>
 
@@ -3718,7 +3718,7 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
 
                   <div class="label">Total Receipts Issued</div>
 
-                  <div class="value">${kpis.receipts || 0}</div>
+                  <div class="value">${kpis.total_receipts || 0}</div>
 
                 </div>
 
@@ -3726,7 +3726,7 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
 
                   <div class="label">Pending Payments</div>
 
-                  <div class="value warning">${kpis.pending || 0}</div>
+                  <div class="value warning">${kpis.pending_count || 0}</div>
 
                 </div>
 
@@ -3734,21 +3734,66 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
 
                   <div class="label">Total Cash Collected</div>
 
-                  <div class="value">LKR ${Number(kpis.drawer || 0).toLocaleString()}</div>
+                  <div class="value">LKR ${Number(kpis.cash_collected || 0).toLocaleString()}</div>
 
                 </div>
 
               </div>
 
-              ${kpis.totalToday > 0 ? `
-
-                <div class="highlight">
-
-                  <strong>💰 Average Transaction Value:</strong> LKR ${kpis.receipts > 0 ? (kpis.totalToday / kpis.receipts).toFixed(2) : '0.00'}
 
                 </div>
 
-              ` : ''}
+
+
+            <!-- Card Issuance Breakdown -->
+
+            <div class="section">
+
+              <div class="section-title">Card Issuance Breakdown (Month)</div>
+
+              <div class="summary-grid">
+
+                <div class="summary-card">
+
+                  <div class="label">Full Cards Issued (count)</div>
+
+                  <div class="value">${aggregatedTotals.fullCount || 0}</div>
+
+                  <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Amount: LKR ${Number(aggregatedTotals.fullAmount || 0).toLocaleString()}</div>
+
+                </div>
+
+                <div class="summary-card">
+
+                  <div class="label">Half Cards Issued (count)</div>
+
+                  <div class="value">${aggregatedTotals.halfCount || 0}</div>
+
+                  <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Amount: LKR ${Number(aggregatedTotals.halfAmount || 0).toLocaleString()}</div>
+
+            </div>
+
+                <div class="summary-card">
+
+                  <div class="label">Free Cards Issued</div>
+
+                  <div class="value">${aggregatedTotals.freeCount || 0}</div>
+
+                  <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Amount: LKR ${Number(aggregatedTotals.freeAmount || 0).toLocaleString()}</div>
+
+                </div>
+
+                <div class="summary-card">
+
+                  <div class="label">Total Transactions</div>
+
+                  <div class="value">${kpis.total_receipts || 0}</div>
+
+                  <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Total Collected: LKR ${Number(kpis.total_collected || 0).toLocaleString()}</div>
+
+                </div>
+
+              </div>
 
             </div>
 
@@ -3784,7 +3829,7 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
 
                     <td><strong>Total Transactions:</strong></td>
 
-                    <td>${kpis.receipts || 0} receipts issued</td>
+                    <td>${kpis.total_receipts || 0} receipts issued</td>
 
                   </tr>
 
@@ -3896,7 +3941,7 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
 
                 <FaFileInvoice className="text-3xl" />
 
-                Month End Report
+                {mode === 'full' ? 'Month End Full Report' : 'Month End Summary Report'}
 
               </h2>
 
@@ -4256,155 +4301,197 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
 
 
 
-              {/* Financial Summary */}
-
+              {mode === 'full' ? (
+                <>
+                  {/* Financial Summary Section */}
               <div className="section">
-
                 <div className="section-title">Monthly Financial Summary</div>
-
                 <div className="summary-grid">
+                      <div className="summary-card">
+                        <div className="label">Month's Collections</div>
+                        <div className="value success">LKR {Number(kpis.total_collected || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="summary-card">
+                        <div className="label">Receipts Issued</div>
+                        <div className="value">{kpis.total_receipts || 0}</div>
+                      </div>
+                      <div className="summary-card">
+                        <div className="label">Pending Payments</div>
+                        <div className="value warning">{kpis.pending_count || 0}</div>
+                      </div>
+                      <div className="summary-card">
+                        <div className="label">Cash Drawer Total</div>
+                        <div className="value">LKR {Number(kpis.cash_collected || 0).toLocaleString()}</div>
+                      </div>
+                    </div>
+                  </div>
 
+                  {/* Card Issuance Breakdown */}
+                  <div className="section">
+                    <div className="section-title">Card Issuance Breakdown (Month)</div>
+                    <div className="summary-grid">
                   <div className="summary-card">
+                        <div className="label">Full Cards Issued (count)</div>
+                        <div className="value">{aggregatedTotals.fullCount || 0}</div>
+                        <div className="text-sm text-slate-500">Amount: LKR {Number(aggregatedTotals.fullAmount || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="summary-card">
+                        <div className="label">Half Cards Issued (count)</div>
+                        <div className="value">{aggregatedTotals.halfCount || 0}</div>
+                        <div className="text-sm text-slate-500">Amount: LKR {Number(aggregatedTotals.halfAmount || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="summary-card">
+                        <div className="label">Free Cards Issued</div>
+                        <div className="value">{aggregatedTotals.freeCount || 0}</div>
+                        <div className="text-sm text-slate-500">Amount: LKR {Number(aggregatedTotals.freeAmount || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="summary-card">
+                        <div className="label">Total Transactions</div>
+                        <div className="value">{kpis.total_receipts || 0}</div>
+                        <div className="text-sm text-slate-500">Total Collected: LKR {Number(kpis.total_collected || 0).toLocaleString()}</div>
+                      </div>
+                    </div>
+                  </div>
 
+                  {/* Collections by Class Table */}
+                  <div className="section">
+                    <div className="section-title">Month End - Collections by Class</div>
+                    <div className="overflow-x-auto">
+                      <table className="table">
+                        <thead>
+                          <tr>
+                            <th>Class Name</th>
+                            <th>Teacher</th>
+                            <th style={{ textAlign: 'center' }}>Full Cards Issued</th>
+                            <th style={{ textAlign: 'center' }}>Half Cards Issued</th>
+                            <th style={{ textAlign: 'center' }}>Free Cards Issued</th>
+                            <th style={{ textAlign: 'right' }}>Total Amount Collected</th>
+                            <th style={{ textAlign: 'center' }}>Transactions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {aggregatedByClass.map((r, idx) => (
+                            <tr key={idx}>
+                              <td>{r.className}</td>
+                              <td>{r.teacher || '-'}</td>
+                              <td style={{ textAlign: 'center' }}>{r.fullCards || 0}</td>
+                              <td style={{ textAlign: 'center' }}>{r.halfCards || 0}</td>
+                              <td style={{ textAlign: 'center' }}>{r.freeCards || 0}</td>
+                              <td style={{ textAlign: 'right' }}>LKR {Number(r.totalAmount || 0).toLocaleString()}</td>
+                              <td style={{ textAlign: 'center' }}>{r.txCount || 0}</td>
+                            </tr>
+                          ))}
+                          <tr>
+                            <td colSpan={5} style={{ textAlign: 'right', fontWeight: 'bold' }}>Grand Total</td>
+                            <td style={{ textAlign: 'right', fontWeight: 'bold' }}>LKR {Number(aggregatedByClass.reduce((s, x) => s + (Number(x.totalAmount) || 0), 0)).toLocaleString()}</td>
+                            <td></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                // Summary mode content (existing)
+                <>
+                  {/* Financial Summary */}
+                  <div className="section">
+                    <div className="section-title">Monthly Financial Summary</div>
+                    <div className="summary-grid">
+                      <div className="summary-card">
                     <div className="label">Total Monthly Collections</div>
-
-                    <div className="value success">LKR {Number(kpis.totalToday || 0).toLocaleString()}</div>
-
+                    <div className="value success">LKR {Number(kpis.total_collected || 0).toLocaleString()}</div>
                   </div>
-
                   <div className="summary-card">
-
                     <div className="label">Total Receipts Issued</div>
-
-                    <div className="value">{kpis.receipts || 0}</div>
-
+                    <div className="value">{kpis.total_receipts || 0}</div>
                   </div>
-
                   <div className="summary-card">
-
                     <div className="label">Pending Payments</div>
-
-                    <div className="value warning">{kpis.pending || 0}</div>
-
+                    <div className="value warning">{kpis.pending_count || 0}</div>
                   </div>
-
                   <div className="summary-card">
-
                     <div className="label">Total Cash Collected</div>
-
-                    <div className="value">LKR {Number(kpis.drawer || 0).toLocaleString()}</div>
-
+                    <div className="value">LKR {Number(kpis.cash_collected || 0).toLocaleString()}</div>
                   </div>
-
                 </div>
-
-
-
-                {kpis.totalToday > 0 && (
-
-                  <div className="highlight">
-
-                    <strong>💰 Average Transaction Value:</strong> LKR {kpis.receipts > 0 ? (kpis.totalToday / kpis.receipts).toFixed(2) : '0.00'}
-
                   </div>
 
-                )}
-
+                  {/* Card Issuance Breakdown */}
+                  <div className="section">
+                    <div className="section-title">Card Issuance Breakdown (Month)</div>
+                    <div className="summary-grid">
+                      <div className="summary-card">
+                        <div className="label">Full Cards Issued (count)</div>
+                        <div className="value">{aggregatedTotals.fullCount || 0}</div>
+                        <div className="text-sm text-slate-500">Amount: LKR {Number(aggregatedTotals.fullAmount || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="summary-card">
+                        <div className="label">Half Cards Issued (count)</div>
+                        <div className="value">{aggregatedTotals.halfCount || 0}</div>
+                        <div className="text-sm text-slate-500">Amount: LKR {Number(aggregatedTotals.halfAmount || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="summary-card">
+                        <div className="label">Free Cards Issued</div>
+                        <div className="value">{aggregatedTotals.freeCount || 0}</div>
+                        <div className="text-sm text-slate-500">Amount: LKR {Number(aggregatedTotals.freeAmount || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="summary-card">
+                        <div className="label">Total Transactions</div>
+                        <div className="value">{kpis.total_receipts || 0}</div>
+                        <div className="text-sm text-slate-500">Total Collected: LKR {Number(kpis.total_collected || 0).toLocaleString()}</div>
+                      </div>
+                    </div>
               </div>
-
-
 
               {/* Summary Notes */}
-
               <div className="section">
-
                 <div className="section-title">Summary & Notes</div>
-
                 <table className="table">
-
                   <tbody>
-
                     <tr>
-
                       <td><strong>Reporting Period:</strong></td>
-
                       <td>{periodStr}</td>
-
                     </tr>
-
                     <tr>
-
                       <td><strong>Report Date:</strong></td>
-
                       <td>{dateStr}</td>
-
                     </tr>
-
                     <tr>
-
                       <td><strong>Total Transactions:</strong></td>
-
-                      <td>{kpis.receipts || 0} receipts issued</td>
-
+                      <td>{kpis.total_receipts || 0} receipts issued</td>
                     </tr>
-
                     <tr>
-
                       <td><strong>Payment Methods:</strong></td>
-
                       <td>Cash</td>
-
                     </tr>
-
                     <tr>
-
                       <td><strong>Status:</strong></td>
-
                       <td style={{ color: '#059669', fontWeight: 'bold' }}>Month End Completed</td>
-
                     </tr>
-
                   </tbody>
-
                 </table>
-
               </div>
-
-
 
               {/* Signature Section */}
-
               <div className="signature-section">
-
                 <div className="signature-box">
-
                   <div className="signature-line"></div>
-
                   <div className="signature-label">Cashier Signature</div>
-
                 </div>
-
                 <div className="signature-box">
-
                   <div className="signature-line"></div>
-
                   <div className="signature-label">Manager Signature</div>
-
                 </div>
-
               </div>
-
-
 
               {/* Footer */}
-
               <div className="footer">
-
                 <div>Generated by TCMS (Tuition Class Management System)</div>
-
                 <div>This is a computer-generated report and requires proper authorization.</div>
-
               </div>
+                </>
+              )}
 
             </div>
 
@@ -7673,6 +7760,8 @@ export default function CashierDashboard() {
   const [monthEndTransactions, setMonthEndTransactions] = useState([]);
 
   const [monthEndPerClass, setMonthEndPerClass] = useState([]);
+
+  const [monthEndStats, setMonthEndStats] = useState({});
 
   
 
@@ -11525,288 +11614,187 @@ export default function CashierDashboard() {
             <div className="lg:col-span-1 space-y-4">
 
               {/* Cashier Tools Panel (Top) */}
-
-              <Section title="Cashier Tools" right={<FaEdit className="text-slate-600" />}>
-
-                <div className="space-y-2">
-
-                  <button className="w-full bg-emerald-600 text-white py-2 px-3 rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2">
-
-                    <FaMoneyBill />
-
-                    Start Cash Drawer
-
-                  </button>
-
-                  <button className="w-full bg-orange-600 text-white py-2 px-3 rounded-lg text-sm font-semibold hover:bg-orange-700 transition-colors flex items-center justify-center gap-2">
-
-                    <FaLock />
-
-                    Close Out Cash
-
-                  </button>
-
-                  <button 
-
-                    onClick={async () => {
-
-                      // Fetch fresh data before opening summary modal
-
-                      try {
-
-                      setDayEndMode('summary');
-
-                        setDayEndLoading(true);
-
-                        const cashierId = user?.userid || 'unknown';
-
-                        const res = await getCashierStats(cashierId, 'today');
-
-                        const transactions = res?.data?.transactions || [];
-
-                        const perClass = res?.data?.perClass || [];
-
-                        setDayEndTransactions(transactions);
-
-                        setDayEndPerClass(perClass);
-
-                      setShowDayEndReport(true);
-
-                      } catch (e) {
-
-                        console.error('Failed to load day-end transactions:', e);
-
-                        alert('Failed to load summary day end report data');
-
-                      } finally {
-
-                        setDayEndLoading(false);
-
-                      }
-
-                    }}
-
-                    disabled={dayEndLoading}
-
-                    className={`w-full py-2 px-3 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${dayEndLoading ? 'bg-slate-300 text-slate-600 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-
-                  >
-
-                    <FaFileInvoice />
-
-                    {dayEndLoading && dayEndMode === 'summary' ? 'Loading...' : 'Summary Day End Report'}
-
-                  </button>
-
-                  <button 
-
-                    onClick={async () => {
-
-                      // Open full report - fetch transactions for today then open modal
-
-                      try {
-
-                        setDayEndMode('full');
-
-                        setDayEndLoading(true);
-
-                        const cashierId = user?.userid || 'unknown';
-
-                        const res = await getCashierStats(cashierId, 'today');
-
-                        const transactions = res?.data?.transactions || [];
-
-                        const perClass = res?.data?.perClass || [];
-
-                        setDayEndTransactions(transactions);
-
-                        setDayEndPerClass(perClass);
-
-                        setShowDayEndReport(true);
-
-                      } catch (e) {
-
-                        console.error('Failed to load day-end transactions:', e);
-
-                        alert('Failed to load full day end report data');
-
-                      } finally {
-
-                        setDayEndLoading(false);
-
-                      }
-
-                    }}
-
-                    disabled={dayEndLoading}
-
-                    className={`w-full py-2 px-3 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${dayEndLoading ? 'bg-slate-300 text-slate-600 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
-
-                  >
-
-                    <FaFileInvoice />
-
-                    {dayEndLoading && dayEndMode === 'full' ? 'Loading...' : 'Full Day End Report'}
-
-                  </button>
-
-                  <button 
-
-                    onClick={async () => {
-
-                      // Fetch fresh data before opening summary modal
-
-                      try {
-
-                        setMonthEndMode('summary');
-
-                        setMonthEndLoading(true);
-
-                        const cashierId = user?.userid || 'unknown';
-
-                        const res = await getCashierStats(cashierId, 'month');
-
-                        const transactions = res?.data?.transactions || [];
-
-                        const perClass = res?.data?.perClass || [];
-
-                        setMonthEndTransactions(transactions);
-
-                        setMonthEndPerClass(perClass);
-
-                        setShowMonthEndReport(true);
-
-                      } catch (e) {
-
-                        console.error('Failed to load month-end transactions:', e);
-
-                        alert('Failed to load summary month end report data');
-
-                      } finally {
-
-                        setMonthEndLoading(false);
-
-                      }
-
-                    }}
-
-                    disabled={monthEndLoading}
-
-                    className={`w-full py-2 px-3 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${monthEndLoading ? 'bg-slate-300 text-slate-600 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
-
-                  >
-
-                    <FaFileInvoice />
-
-                    {monthEndLoading && monthEndMode === 'summary' ? 'Loading...' : 'Summary Month End Report'}
-
-                  </button>
-
-                  <button 
-
-                    onClick={async () => {
-
-                      // Open full report - fetch transactions for month then open modal
-
-                      try {
-
-                        setMonthEndMode('full');
-
-                        setMonthEndLoading(true);
-
-                        const cashierId = user?.userid || 'unknown';
-
-                        const res = await getCashierStats(cashierId, 'month');
-
-                        const transactions = res?.data?.transactions || [];
-
-                        const perClass = res?.data?.perClass || [];
-
-                        setMonthEndTransactions(transactions);
-
-                        setMonthEndPerClass(perClass);
-
-                        setShowMonthEndReport(true);
-
-                      } catch (e) {
-
-                        console.error('Failed to load month-end transactions:', e);
-
-                        alert('Failed to load full month end report data');
-
-                      } finally {
-
-                        setMonthEndLoading(false);
-
-                      }
-
-                    }}
-
-                    disabled={monthEndLoading}
-
-                    className={`w-full py-2 px-3 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${monthEndLoading ? 'bg-slate-300 text-slate-600 cursor-not-allowed' : 'bg-purple-600 text-white hover:bg-purple-700'}`}
-
-                  >
-
-                    <FaFileInvoice />
-
-                    {monthEndLoading && monthEndMode === 'full' ? 'Loading...' : 'Full Month End Report'}
-
-                  </button>
-
-                  <button 
-
-                    onClick={() => setActiveTab('register')}
-
-                    className="w-full bg-purple-600 text-white py-2 px-3 rounded-lg text-sm font-semibold hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
-
-                  >
-
-                    <FaUserPlus />
-
-                    Register Student
-
-                  </button>
-
-                  <button 
-
-                    onClick={() => {
-
-                      if (student) {
-
-                        setShowQuickEnroll(true);
-
-                      } else {
-
-                        alert('Please scan a student first to enroll them in a class');
-
-                      }
-
-                    }}
-
-                    disabled={!student}
-
-                    className={`w-full py-2 px-3 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
-
-                      student 
-
-                        ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
-
-                        : 'bg-slate-300 text-slate-500 cursor-not-allowed'
-
-                    }`}
-
-                  >
-
-                    <FaPlus />
-
-                    Enroll New Class
-
-                  </button>
-
+              <div className="bg-gradient-to-br from-white/90 to-slate-50/80 backdrop-blur-md border border-white/20 rounded-2xl shadow-xl p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-bold text-slate-800 flex items-center gap-3">
+                    <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-xl">
+                      <FaEdit className="text-white text-lg" />
+                    </div>
+                    Cashier Tools
+                  </h3>
                 </div>
 
-              </Section>
+                <div className="space-y-4">
+                  {/* Cash Drawer Controls */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button className="bg-gradient-to-br from-teal-500/90 to-teal-600/90 backdrop-blur-sm text-white py-3 px-4 rounded-xl text-sm font-semibold hover:from-teal-600 hover:to-teal-700 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105">
+                      <FaMoneyBill className="text-lg" />
+                    Start Cash Drawer
+                  </button>
+                    <button className="bg-gradient-to-br from-rose-500/90 to-rose-600/90 backdrop-blur-sm text-white py-3 px-4 rounded-xl text-sm font-semibold hover:from-rose-600 hover:to-rose-700 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105">
+                      <FaLock className="text-lg" />
+                    Close Out Cash
+                  </button>
+                  </div>
+
+                  {/* Day End Reports - Single Row */}
+                  <div className="grid grid-cols-2 gap-3">
+                  <button 
+                    onClick={async () => {
+                        try {
+                      setDayEndMode('summary');
+                          setDayEndLoading(true);
+                          const cashierId = user?.userid || 'unknown';
+                          const res = await getCashierStats(cashierId, 'today');
+                          const transactions = res?.data?.transactions || [];
+                          const perClass = res?.data?.perClass || [];
+                          setDayEndTransactions(transactions);
+                          setDayEndPerClass(perClass);
+                      setShowDayEndReport(true);
+                        } catch (e) {
+                          console.error('Failed to load day-end transactions:', e);
+                          alert('Failed to load summary day end report data');
+                        } finally {
+                          setDayEndLoading(false);
+                        }
+                      }}
+                      disabled={dayEndLoading}
+                      className={`py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 ${
+                        dayEndLoading 
+                          ? 'bg-slate-300/80 text-slate-600 cursor-not-allowed' 
+                          : 'bg-gradient-to-br from-cyan-500/90 to-cyan-600/90 backdrop-blur-sm text-white hover:from-cyan-600 hover:to-cyan-700'
+                      }`}
+                    >
+                      <FaFileInvoice className="text-lg" />
+                      {dayEndLoading && dayEndMode === 'summary' ? 'Loading...' : 'Summary Day End'}
+                  </button>
+                  <button 
+                    onClick={async () => {
+                      try {
+                        setDayEndMode('full');
+                        setDayEndLoading(true);
+                        const cashierId = user?.userid || 'unknown';
+                        const res = await getCashierStats(cashierId, 'today');
+                        const transactions = res?.data?.transactions || [];
+                        const perClass = res?.data?.perClass || [];
+                        setDayEndTransactions(transactions);
+                        setDayEndPerClass(perClass);
+                        setShowDayEndReport(true);
+                      } catch (e) {
+                        console.error('Failed to load day-end transactions:', e);
+                        alert('Failed to load full day end report data');
+                      } finally {
+                        setDayEndLoading(false);
+                      }
+                    }}
+                    disabled={dayEndLoading}
+                      className={`py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 ${
+                        dayEndLoading 
+                          ? 'bg-slate-300/80 text-slate-600 cursor-not-allowed' 
+                          : 'bg-gradient-to-br from-lime-500/90 to-lime-600/90 backdrop-blur-sm text-white hover:from-lime-600 hover:to-lime-700'
+                      }`}
+                    >
+                      <FaFileInvoice className="text-lg" />
+                      {dayEndLoading && dayEndMode === 'full' ? 'Loading...' : 'Full Day End'}
+                  </button>
+                  </div>
+
+                  {/* Month End Reports - Single Row */}
+                  <div className="grid grid-cols-2 gap-3">
+                  <button 
+                      onClick={async () => {
+                        try {
+                          setMonthEndMode('summary');
+                          setMonthEndLoading(true);
+                          const cashierId = user?.userid || 'unknown';
+                          const res = await getCashierStats(cashierId, 'month');
+                          const transactions = res?.data?.transactions || [];
+                          const perClass = res?.data?.perClass || [];
+                          const stats = res?.data?.stats || {};
+                          setMonthEndTransactions(transactions);
+                          setMonthEndPerClass(perClass);
+                          setMonthEndStats(stats);
+                          setShowMonthEndReport(true);
+                        } catch (e) {
+                          console.error('Failed to load month-end transactions:', e);
+                          alert('Failed to load summary month end report data');
+                        } finally {
+                          setMonthEndLoading(false);
+                        }
+                      }}
+                      disabled={monthEndLoading}
+                      className={`py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 ${
+                        monthEndLoading 
+                          ? 'bg-slate-300/80 text-slate-600 cursor-not-allowed' 
+                          : 'bg-gradient-to-br from-violet-500/90 to-violet-600/90 backdrop-blur-sm text-white hover:from-violet-600 hover:to-violet-700'
+                      }`}
+                    >
+                      <FaFileInvoice className="text-lg" />
+                      {monthEndLoading && monthEndMode === 'summary' ? 'Loading...' : 'Summary Month End'}
+                  </button>
+                  <button 
+                      onClick={async () => {
+                        try {
+                          setMonthEndMode('full');
+                          setMonthEndLoading(true);
+                          const cashierId = user?.userid || 'unknown';
+                          const res = await getCashierStats(cashierId, 'month');
+                          const transactions = res?.data?.transactions || [];
+                          const perClass = res?.data?.perClass || [];
+                          const stats = res?.data?.stats || {};
+                          setMonthEndTransactions(transactions);
+                          setMonthEndPerClass(perClass);
+                          setMonthEndStats(stats);
+                          setShowMonthEndReport(true);
+                        } catch (e) {
+                          console.error('Failed to load month-end transactions:', e);
+                          alert('Failed to load full month end report data');
+                        } finally {
+                          setMonthEndLoading(false);
+                        }
+                      }}
+                      disabled={monthEndLoading}
+                      className={`py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 ${
+                        monthEndLoading 
+                          ? 'bg-slate-300/80 text-slate-600 cursor-not-allowed' 
+                          : 'bg-gradient-to-br from-fuchsia-500/90 to-fuchsia-600/90 backdrop-blur-sm text-white hover:from-fuchsia-600 hover:to-fuchsia-700'
+                      }`}
+                    >
+                      <FaFileInvoice className="text-lg" />
+                      {monthEndLoading && monthEndMode === 'full' ? 'Loading...' : 'Full Month End'}
+                    </button>
+                  </div>
+
+                  {/* Student Management */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                    onClick={() => setActiveTab('register')}
+                      className="bg-gradient-to-br from-amber-500/90 to-amber-600/90 backdrop-blur-sm text-white py-3 px-4 rounded-xl text-sm font-semibold hover:from-amber-600 hover:to-amber-700 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105"
+                  >
+                      <FaUserPlus className="text-lg" />
+                    Register Student
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (student) {
+                        setShowQuickEnroll(true);
+                      } else {
+                        alert('Please scan a student first to enroll them in a class');
+                      }
+                    }}
+                    disabled={!student}
+                      className={`py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 ${
+                      student 
+                          ? 'bg-gradient-to-br from-sky-500/90 to-sky-600/90 backdrop-blur-sm text-white hover:from-sky-600 hover:to-sky-700' 
+                          : 'bg-slate-300/80 text-slate-500 cursor-not-allowed'
+                      }`}
+                    >
+                      <FaPlus className="text-lg" />
+                    Enroll New Class
+                  </button>
+                  </div>
+                </div>
+                </div>
 
 
 
@@ -12292,7 +12280,7 @@ export default function CashierDashboard() {
 
         <MonthEndReportModal
 
-          kpis={kpis}
+          kpis={monthEndStats}
 
           recentStudents={recentStudents}
 
