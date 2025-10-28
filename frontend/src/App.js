@@ -14,6 +14,8 @@ import { SidebarProvider } from './components/layout/SidebarContext';
 import ExamDesigner from './pages/dashboard/teacherDashboard/Exam/ExamDesigner';
 import MarkingView from './pages/dashboard/teacherDashboard/Exam/MarkingView';
 import ResultsView from './pages/dashboard/teacherDashboard/Exam/ResultsView';
+import ExamResult from './pages/dashboard/studentDashboard/ExamResult';
+import ExamResultsRouter from './pages/dashboard/ExamResultsRouter';
 
 function App() {
   return (
@@ -122,10 +124,10 @@ function App() {
         <Route
           path="/exam/:id/results"
           element={
-            <AuthGuard requiredRole="teacher">
+            <AuthGuard>
               <SidebarProvider>
                 <LogoutHandler>
-                  <ResultsView />
+                  <ExamResultsRouter />
                 </LogoutHandler>
               </SidebarProvider>
             </AuthGuard>

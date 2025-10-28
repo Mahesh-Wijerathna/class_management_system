@@ -5,6 +5,46 @@ import { FaBars, FaTimes, FaGraduationCap, FaSearch, FaStar, FaClock } from 'rea
 const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  
+  // Try to resolve route param values from several places (route state, local/session storage)
+  const resolveParamValue = (paramName) => {
+    // 1. Try location.state (common when navigating with state)
+    try {
+      const st = location?.state;
+      if (st) {
+        // directly matching keys
+        if (st[paramName]) return String(st[paramName]);
+        // nested exam object
+        if (st.exam && st.exam[paramName]) return String(st.exam[paramName]);
+        if (st.exam && st.exam.exam_id && paramName.toLowerCase().includes('exam')) return String(st.exam.exam_id);
+      }
+    } catch (e) {}
+
+    // 2. Try common local/session storage keys
+    const candidates = ['examId', 'exam_id', 'lastExamId', 'lastViewedExamId', 'currentExamId'];
+    for (const k of candidates) {
+      const raw = localStorage.getItem(k) || sessionStorage.getItem(k);
+      if (raw) return raw;
+    }
+
+    return null;
+  };
+
+  const resolvePathTemplate = (template) => {
+    // simple replace for :param segments
+    if (!template.includes(':')) return template;
+    const parts = template.split('/').map(Boolean);
+    const resolvedParts = parts.map(p => {
+      if (!p.startsWith(':')) return p;
+      const paramName = p.slice(1);
+      const val = resolveParamValue(paramName);
+      return val ? val : null;
+    });
+
+    // if any param couldn't be resolved, return null to indicate unresolved
+    if (resolvedParts.some(p => p === null)) return null;
+    return '/' + resolvedParts.join('/');
+  };
   const [internalIsOpen, setInternalIsOpen] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [collapsedSections, setCollapsedSections] = useState({});
@@ -280,7 +320,24 @@ const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen }) => {
                       <button
                         key={itemIdx}
                         onClick={() => {
-                          navigate(item.path);
+                          // support templated paths like /exam/:examId/results
+                          try {
+                            if (typeof item.path === 'string' && item.path.includes(':')) {
+                              const resolved = resolvePathTemplate(item.path);
+                              if (resolved) {
+                                navigate(resolved);
+                                return;
+                              }
+                              // fallback: send user to exams list so they can pick one
+                              navigate('/student/exams');
+                              return;
+                            }
+                            // normal path
+                            navigate(item.path);
+                          } catch (e) {
+                            console.error('Failed to navigate to', item.path, e);
+                            navigate(item.path);
+                          }
                         }}
                         onMouseEnter={(e) => handleMouseEnter(e, item.name)}
                         onMouseLeave={handleMouseLeave}

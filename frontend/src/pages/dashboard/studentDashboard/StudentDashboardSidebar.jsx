@@ -32,6 +32,11 @@ const studentSidebarSections = [
 		section: 'Performance',
 		items: [
 			{ name: 'My Performance', path: '/student/performance', icon: <FaChartBar className="h-5 w-5" /> },
+			// { name: 'Exams', path: '/student/exams', icon: <FaChartBar className="h-5 w-5" /> },
+			// Route template for linking to a specific exam's results. When rendering the exams list
+			// use `/exam/${"examId"}/results` or replace the placeholder with the real exam id.
+			{ name: 'Exam Results', path: '/exam/:examId/results', icon: <FaFileAlt className="h-5 w-5" /> },
+
 		],
 	},
 	{

@@ -64,25 +64,24 @@ const Dashboard = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         
           <h1 className="text-lg font-bold">Exam Marking Management</h1>
-          <div>
-            <button
+          <button
               onClick={handleCreateExam}
-              style={{
-                padding: '10px 14px',
-                backgroundColor: '#4CAF50',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer'
-              }}
+              className="px-4 py-2 bg-green-200 text-green-800 border border-green-400 rounded-lg hover:bg-green-200 transition-colors"
+              aria-label="Create new exam"
             >
               + Create New Exam
             </button>
-          </div>
         </div>
 
         {loading ? (
-          <p>Loading exams...</p>
+          <div className="p-6 bg-white rounded-lg shadow">
+            <div className="flex items-center justify-center h-32">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3da58a]"></div>
+              <span className="ml-2 text-gray-600">Loading exams...</span>
+            </div>
+          </div>
+          
+          // <p>Loading exams...</p>
         ) : exams.length === 0 ? (
           <div style={{ padding: 20, border: '1px dashed #ddd', borderRadius: 6 }}>
             <p style={{ margin: 0 }}>No exams found.</p>
@@ -96,7 +95,7 @@ const Dashboard = () => {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
             {exams.map((exam) => (
-              <div key={exam.exam_id} style={{ border: '1px solid #ddd', padding: 15, borderRadius: 6, background: '#fff' }}>
+              <div key={exam.exam_id} style={{ border: '1px solid #818181ff', padding: 15, borderRadius: 6, background: '#fff' }}>
                 <h3 style={{ marginTop: 0 }}>{exam.title}</h3>
                 <p style={{ margin: '6px 0', color: '#555' }}>Date: {exam.date}</p>
                 <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -111,15 +110,7 @@ const Dashboard = () => {
                   </Link>
                   <button
                     onClick={() => handleDeleteExam(exam.exam_id)}
-                    style={{
-                      marginLeft: 'auto',
-                      backgroundColor: '#f44336',
-                      color: 'white',
-                      border: 'none',
-                      padding: '6px 10px',
-                      borderRadius: 6,
-                      cursor: 'pointer'
-                    }}
+                    className="ml-auto px-3 py-2 bg-red-100 text-red-800 border border-red-400 rounded-lg hover:bg-red-200 transition-colors"
                   >
                     Delete
                   </button>

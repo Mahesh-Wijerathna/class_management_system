@@ -3,6 +3,8 @@ import { useParams , useNavigate } from 'react-router-dom';
 import { questionAPI } from '../../../../api/Examapi';
 import teacherSidebarSections from '../TeacherDashboardSidebar';
 import DashboardLayout from '../../../../components/layout/DashboardLayout';
+import { FaBars, FaTimes, FaGraduationCap, FaSearch, FaStar, FaSync } from 'react-icons/fa';
+
 
 const ExamDesigner = () => {
   const { id } = useParams();
@@ -10,6 +12,8 @@ const ExamDesigner = () => {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedQuestion, setSelectedQuestion] = useState(null);
+
+  
 
   useEffect(() => {
     fetchQuestions();
@@ -166,7 +170,12 @@ const ExamDesigner = () => {
   if (loading) {
     return (
       <DashboardLayout sidebarSections={Array.isArray(teacherSidebarSections) ? teacherSidebarSections : []}>
-        <div style={{ padding: 40, textAlign: 'center', color: '#666' }}>Loading...</div>
+        <div className="p-6 bg-white rounded-lg shadow">
+          <div className="flex items-center justify-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3da58a]"></div>
+            <span className="ml-2 text-gray-600">Loading exams...</span>
+          </div>
+        </div>
       </DashboardLayout>
     );
   }
@@ -176,25 +185,55 @@ const ExamDesigner = () => {
       <div style={{ fontFamily: 'Inter, Arial, sans-serif', color: '#222', height: '100%', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #eee', background: '#fafafa' }}>
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            <button
-              onClick={() => navigate('/teacher/exams/dashboard')}
-              style={styles.backBtn}
-              aria-label="Back to dashboard"
-            >
-              ← Back
-            </button>
+             <button
+                onClick={() => navigate('/teacher/exams/dashboard')}
+                className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-150 border-2 bg-white text-cyan-700 border-cyan-200 hover:bg-cyan-50"
+                aria-label="Back to dashboard"
+                >
+                ← Back
+                </button>
           <h1 className="text-lg font-bold">Question Hierarchy</h1>
             
-            {/* <h1 style={{ margin: 0, fontSize: 18 }}>Question Hierarchy</h1> */}
+    
           </div>
-          <div>
-            <button onClick={() => handleAddQuestion()} style={styles.btn}>Add Top-Level Question</button>
-            <button onClick={fetchQuestions} style={styles.btn}>Refresh</button>
+          <div className="flex items-center gap-3 flex-nowrap" style={{ overflowX: 'auto' }}>
+            <button
+              onClick={() => handleAddQuestion()}
+              className="px-4 py-2 bg-green-200 text-green-800 border border-green-400 rounded-lg hover:bg-green-200 transition-colors"
+            >
+              Add Top-Level Question
+            </button>
+
+            <button
+              onClick={fetchQuestions}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium"
+            >
+              <FaSync className="text-sm" />
+              Refresh
+            </button>
+
             {selectedQuestion && (
               <>
-                <button onClick={() => handleAddQuestion(selectedQuestion.part_id)} style={styles.btn}>Add Sub-Part</button>
-                <button onClick={handleUpdateQuestion} style={styles.btn}>Update</button>
-                <button onClick={handleDeleteQuestion} style={styles.btnDanger}>Delete</button>
+                <button
+                  onClick={() => handleAddQuestion(selectedQuestion.part_id)}
+                  className="px-4 py-2 bg-cyan-600 text-white border border-cyan-600 shadow-md rounded-lg hover:bg-cyan-700 transition-colors"
+                >
+                  Add Sub-Part
+                </button>
+
+                <button
+                  onClick={handleUpdateQuestion}
+                  className="px-4 py-2 bg-cyan-600 text-white border border-cyan-600 shadow-md rounded-lg hover:bg-cyan-700 transition-colors"
+                >
+                  Update
+                </button>
+
+                <button
+                  onClick={handleDeleteQuestion}
+                  className="px-4 py-2 bg-red-600 text-white border border-red-600 shadow-md rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Delete
+                </button>
               </>
             )}
           </div>
