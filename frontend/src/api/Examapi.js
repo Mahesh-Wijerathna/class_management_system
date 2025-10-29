@@ -33,6 +33,7 @@ export const questionAPI = {
 export const markAPI = {
   getResults: (examId) => api.get(`/exams/${examId}/results`),
   saveMarks: (examId, data) => api.post(`/exams/${examId}/marks`, data),
+  getByStudent: (studentIdentifier) => api.get(`/marks/student/${studentIdentifier}`),
 };
 
 export default api;

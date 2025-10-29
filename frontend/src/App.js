@@ -14,8 +14,7 @@ import { SidebarProvider } from './components/layout/SidebarContext';
 import ExamDesigner from './pages/dashboard/teacherDashboard/Exam/ExamDesigner';
 import MarkingView from './pages/dashboard/teacherDashboard/Exam/MarkingView';
 import ResultsView from './pages/dashboard/teacherDashboard/Exam/ResultsView';
-import ExamResult from './pages/dashboard/studentDashboard/ExamResult';
-import ExamResultsRouter from './pages/dashboard/ExamResultsRouter';
+// import ExamResult from './pages/dashboard/studentDashboard/ExamResult';
 
 function App() {
   return (
@@ -124,15 +123,29 @@ function App() {
         <Route
           path="/exam/:id/results"
           element={
-            <AuthGuard>
+            <AuthGuard requiredRole="teacher">
               <SidebarProvider>
                 <LogoutHandler>
-                  <ExamResultsRouter />
+                  <ResultsView />
                 </LogoutHandler>
               </SidebarProvider>
             </AuthGuard>
           }
         />
+
+        {/* Student exam results route
+        <Route
+          path="/student/exam/:id/results"
+          element={
+            <AuthGuard requiredRole="student">
+              <SidebarProvider>
+                <LogoutHandler>
+                  <ExamResult />
+                </LogoutHandler>
+              </SidebarProvider>
+            </AuthGuard>
+          }
+        /> */}
 
         {/* Student Routes - Protected with SidebarProvider */}
         {studentRoutes.map((route, index) => (

@@ -28,5 +28,15 @@ class MarkController {
             echo json_encode(['error' => 'Invalid data']);
         }
     }
+
+    public function getAll() {
+        $marks = $this->markModel->getAll();
+        echo json_encode($marks);
+    }
+
+    public function getByStudent($student_identifier) {
+        $marks = $this->markModel->getByStudentIdentifier($student_identifier);
+        echo json_encode($marks);
+    }
 }
 ?>

@@ -1,120 +1,180 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { markAPI } from '../../../api/Examapi';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { markAPI, examAPI } from '../../../api/Examapi';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import studentSidebarSections from './StudentDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
-
-function extractLoggedStudentId() {
-  // Try common storage locations and keys used in many apps
-  try {
-    const keys = ['studentId', 'student_id', 'student', 'user', 'userInfo', 'auth', 'userData'];
-    for (const k of keys) {
-      let raw = localStorage.getItem(k) || sessionStorage.getItem(k);
-      if (!raw) continue;
-      // try parse JSON
-      try {
-        const parsed = JSON.parse(raw);
-        // Try multiple possible fields
-  const candidates = ['student_id', 'studentId', 'userid', 'userId', 'id', 'username', 'registration_no', 'reg_no'];
-        for (const c of candidates) {
-          if (parsed && parsed[c]) return String(parsed[c]);
-        }
-      } catch (e) {
-        // raw value is not JSON — return it directly
-        return String(raw);
-      }
-    }
-  } catch (e) {
-    // ignore
-  }
-  return null;
-}
+import { getUserData } from '../../../api/apiUtils';
 
 const ExamResult = () => {
-  const { id, examId } = useParams();
-  const exam_id = id || examId;
-  const navigate = useNavigate();
-  const location = useLocation();
+	const { id } = useParams();
+	const navigate = useNavigate();
 
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+	const [rows, setRows] = useState([]);
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState('');
+		const [examTitle, setExamTitle] = useState('');
 
-  const studentId = extractLoggedStudentId();
+	const getLoggedStudentId = () => {
+		try {
+			const user = getUserData();
+			if (user) {
+				return (
+					user.userid || user.studentId || user.student_id || user.username || user.id || user.userId || null
+				);
+			}
+		} catch {}
+		const keys = ['studentId', 'student_id', 'userid', 'userId', 'username', 'id', 'userData'];
+		for (const k of keys) {
+			const raw = localStorage.getItem(k) || sessionStorage.getItem(k);
+			if (!raw) continue;
+			try {
+				const parsed = JSON.parse(raw);
+				const val = parsed.userid || parsed.studentId || parsed.student_id || parsed.username || parsed.id || parsed.userId;
+				if (val) return String(val);
+			} catch {
+				return String(raw);
+			}
+		}
+		return null;
+	};
 
-  useEffect(() => {
-    if (!exam_id) return;
-    fetchAndFilter();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exam_id, location.search]);
+	const studentIdentifier = getLoggedStudentId();
 
-  const fetchAndFilter = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const resp = await markAPI.getResults(exam_id);
-      const data = resp?.data ?? resp ?? [];
-      const arr = Array.isArray(data) ? data : [];
+	useEffect(() => {
+		// Remember current exam id for sidebar deep-links when available
+		try { if (id) sessionStorage.setItem('currentExamId', String(id)); } catch {}
 
-      if (!studentId) {
-        setResults([]);
-        setError('Logged student id not found. Please sign in.');
-        setLoading(false);
-        return;
-      }
+		const load = async () => {
+			setLoading(true);
+			setError('');
+			try {
+				if (!studentIdentifier) {
+					setRows([]);
+					setError('Logged student id not found. Please sign in.');
+					return;
+				}
+				// Fetch results for the logged-in student using the provided API
+				const resp = await markAPI.getByStudent(studentIdentifier);
+				const data = resp?.data ?? resp ?? [];
+				let arr = Array.isArray(data) ? data : [];
+				// If an exam id is present in URL, filter for that exam only
+				if (id) {
+					arr = arr.filter(r => String(r.exam_id ?? r.examId ?? r.exam) === String(id));
+				}
+				setRows(arr);
+			} catch (e) {
+				console.error('Failed to load results', e);
+				setError('Failed to load results');
+				setRows([]);
+			} finally {
+				setLoading(false);
+			}
+		};
+		load();
+	}, [id, studentIdentifier]);
 
-      // Accept multiple possible student id field names in the results
-      const filtered = arr.filter(r => {
-        const idFields = [r.student_identifier, r.student_id, r.studentIdentifier, r.registration_no, r.reg_no, r.username, r.user_id];
-        return idFields.some(f => f && String(f).toLowerCase() === String(studentId).toLowerCase());
-      });
+		// Fetch exam title if an exam id is present
+		useEffect(() => {
+			const fetchTitle = async () => {
+				if (!id) { setExamTitle(''); return; }
+				try {
+					const resp = await examAPI.getById(id);
+					const data = resp?.data ?? resp;
+					const title = data?.title || data?.exam_title || '';
+					setExamTitle(title || '');
+				} catch {
+					setExamTitle('');
+				}
+			};
+			fetchTitle();
+		}, [id]);
 
-      setResults(filtered);
-    } catch (err) {
-      console.error('Failed to load results', err);
-      setError('Failed to load results');
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+	// Quick stats
+	const stats = useMemo(() => {
+		const uniqueStudents = new Set();
+		rows.forEach(r => {
+			const sid = r.student_identifier || r.student_id || r.userid || r.user_id || r.reg_no || r.registration_no || r.username;
+			if (sid) uniqueStudents.add(String(sid));
+		});
+		return { studentCount: uniqueStudents.size, rowCount: rows.length };
+	}, [rows]);
 
-  return (
-    <DashboardLayout sidebarSections={Array.isArray(studentSidebarSections) ? studentSidebarSections : []}>
-      <div style={{ padding: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-          <button
-            onClick={() => navigate(-1)}
-            className="px-3 py-1 rounded bg-white border"
-          >
-            ← Back
-          </button>
-          <h2 style={{ margin: 0 }}>My Results</h2>
-        </div>
+	const columns = [
+			{ key: 'exam', label: 'Exam', render: (r) => examTitle || r.exam_title || r.title || r.exam || r.exam_id || '-' },
+			// { key: 'student_identifier', label: 'Student ID', render: (r) => r.student_identifier || r.student_id || r.userid || r.user_id || r.reg_no || r.registration_no || r.username || '-' },
+			// { key: 'student_name', label: 'Name', render: (r) => r.student_name || r.name || '-' },
+			{ key: 'label', label: 'Question', render: (r) => {
+					const isChild = Boolean(r.parent_part_id);
+					const parent = r.parent_label;
+					const label = r.label || r.question || '-';
+					return (
+						<div>
+							{isChild && (
+								<div className="text-xs text-gray-500" style={{ lineHeight: 1 }}>{parent}</div>
+							)}
+							<div style={{ paddingLeft: isChild ? 16 : 0, fontWeight: isChild ? 500 : 600 }}>{label}</div>
+						</div>
+					);
+				}
+			},
+			{ key: 'score_awarded', label: 'Score', render: (r) => {
+					const v = r.score_awarded ?? r.score ?? 0;
+					return <div style={{ textAlign: 'right', width: '100%' }}>{v}</div>;
+				}
+			},
+			{ key: 'max_marks', label: 'Max', render: (r) => {
+					const v = r.max_marks ?? r.max ?? '-';
+					return <div style={{ textAlign: 'right', width: '100%' }}>{v}</div>;
+				}
+			},
+			{ key: 'percent', label: '%', render: (r) => {
+					const s = Number(r.score_awarded ?? r.score ?? 0);
+					const m = Number(r.max_marks ?? r.max ?? 0);
+					const val = m ? ((s / m) * 100).toFixed(1) + '%' : '-';
+					return <div style={{ textAlign: 'right', width: '100%' }}>{val}</div>;
+				}
+			},
+	];
 
-        {!exam_id && (
-          <div style={{ color: '#666' }}>No exam selected. Open an exam link like <code>/exam/&lt;examId&gt;/results</code></div>
-        )}
+	return (
+		<DashboardLayout sidebarSections={Array.isArray(studentSidebarSections) ? studentSidebarSections : []}>
+			<div style={{ padding: 20 }}>
+				<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+					<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* <button
+                onClick={() => navigate(-1)}
+                className="px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-150 border-2 bg-white text-cyan-700 border-cyan-200 hover:bg-cyan-50"
+                aria-label="Back to dashboard"
+                >
+                ← Back
+                </button> */}
+          <h1 className="text-lg font-bold">My Exam Results</h1>
+						
+					</div>
+					<div style={{ color: '#444', fontWeight: 600 }}>
+						{stats.studentCount} students • {stats.rowCount} rows
+					</div>
+				</div>
 
-        {error ? (
-          <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>
-        ) : (
-          <BasicTable
-            loading={loading}
-            emptyMessage={studentId ? 'No results found for you in this exam.' : 'Not signed in.'}
-            columns={[
-              { key: 'student_identifier', label: 'Student ID' },
-              { key: 'label', label: 'Question' },
-              { key: 'score_awarded', label: 'Score Awarded' },
-              { key: 'max_marks', label: 'Max Marks' },
-            ]}
-            data={results}
-          />
-        )}
-      </div>
-    </DashboardLayout>
-  );
+				{!id && !studentIdentifier && (
+					<div style={{ color: '#666' }}>No exam selected and no logged student. Sign in or visit <code>/student/exam/&lt;examId&gt;/results</code></div>
+				)}
+
+				{error ? (
+					<div style={{ color: 'red', marginBottom: 8 }}>{error}</div>
+				) : (
+					<BasicTable
+						loading={loading}
+						emptyMessage={'No results found.'}
+						columns={columns}
+						data={rows}
+					/>
+				)}
+			</div>
+		</DashboardLayout>
+	);
 };
 
 export default ExamResult;
+
