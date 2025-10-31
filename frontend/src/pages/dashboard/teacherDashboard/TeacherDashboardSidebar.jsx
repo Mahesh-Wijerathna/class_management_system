@@ -51,6 +51,16 @@ const teacherSidebarSections = [
     ]
   },
   {
+    section: 'Exams',
+    items: [
+      {name: 'Exam Dashboard', path: '/teacher/exams/dashboard', icon: <FaCog className="h-5 w-5" /> },
+      // { name: 'Create Exam', path: '/teacher/exams/create', icon: <FaFolder className="h-5 w-5" /> },
+      // { name: 'Manage Exams', path: '/teacher/exams/manage', icon: <FaFileAlt className="h-5 w-5" /> },
+      // { name: 'View Exam Results', path: '/exam/${exam.exam_id}/results', icon: <FaFileAlt className="h-5 w-5" /> },
+      // { name: 'View Exam Results', path: '/exam/:id/results', icon: <FaFileAlt className="h-5 w-5" /> },
+    ]
+  },
+  {
     section: 'Communication',
     items: [
       { name: 'Announcements', path: '/teacher/announcements', icon: <FaBell className="h-5 w-5" /> },
@@ -70,5 +80,6 @@ const teacherSidebarSections = [
     ]
   },
 ];
+
 
 export default teacherSidebarSections;
