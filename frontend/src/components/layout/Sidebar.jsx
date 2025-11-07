@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FaBars, FaTimes, FaGraduationCap, FaSearch, FaStar, FaClock } from 'react-icons/fa';
 
-const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen }) => {
+const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen, isLocked = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [internalIsOpen, setInternalIsOpen] = useState(true);
@@ -160,7 +160,8 @@ const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen }) => {
             ${isOpen ? 'w-62' : 'w-17'}
             ${isMobile && !isOpen ? '-translate-x-full' : 'translate-x-0'}
             ${isMobile ? 'lg:translate-x-0' : ''}
-            ${isMobile ? 'w-62' : ''}`}
+            ${isMobile ? 'w-62' : ''}
+            ${isLocked ? 'blur-sm pointer-events-none select-none' : ''}`}
           style={{
             background: 'rgba(255, 255, 255, 0.03)',
             backdropFilter: 'blur(40px) saturate(250%) contrast(130%) brightness(110%)',

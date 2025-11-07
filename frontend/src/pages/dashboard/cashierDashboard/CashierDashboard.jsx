@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+// Cashier dashboard: payment date logic fix applied below
 
 import { FaLock, FaLockOpen, FaSignOutAlt, FaBarcode, FaUserPlus, FaMoneyBill, FaHistory, FaFileInvoice, FaStickyNote, FaSearch, FaCamera, FaUser, FaPhone, FaGraduationCap, FaClock, FaExclamationTriangle, FaCheckCircle, FaEdit, FaPlus, FaTicketAlt } from 'react-icons/fa';
 
@@ -19,6 +20,10 @@ import { getStudentAttendance } from '../../../api/attendance';
 import PhysicalStudentRegisterTab from '../adminDashboard/PhysicalStudentRegisterTab';
 
 import BarcodeScanner from '../../../components/BarcodeScanner';
+
+import DashboardLayout from '../../../components/layout/DashboardLayout';
+
+import cashierSidebarSections from './CashierDashboardSidebar';
 
 import AttendanceCalendar from '../../../components/AttendanceCalendar';
 
@@ -1578,7 +1583,7 @@ const PaymentHistoryModal = ({ student, payments, onClose }) => {
 
 // Day End Report Modal - Comprehensive daily summary (supports 'summary' and 'full' modes)
 
-const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 'summary', transactions = [], perClass = [] }) => {
+const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 'summary', transactions = [], perClass = [], cashDrawerSession = null }) => {
 
   const [isGenerating, setIsGenerating] = React.useState(false);
 
@@ -1716,12 +1721,17 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
       freeAmount: 0,
 
+      totalUniqueTransactions: 0, // Count unique transactions with class payments
+
     };
 
     if (!Array.isArray(transactions)) return totals;
 
     
     console.log('📊 Processing transactions for day-end report:', transactions.length);
+    
+    // Track unique transaction IDs for class payments
+    const uniqueTransactionIds = new Set();
     
     transactions.forEach(t => {
 
@@ -1735,6 +1745,10 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
 
       if (ptype === 'class_payment') {
+        // Track unique transactions for class payments
+        if (t.transaction_id) {
+          uniqueTransactionIds.add(t.transaction_id);
+        }
 
         if (cardType) {
 
@@ -1793,6 +1807,7 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
     });
 
+    totals.totalUniqueTransactions = uniqueTransactionIds.size;
     
     console.log('📊 Final totals:', totals);
     return totals;
@@ -1845,7 +1860,11 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
       }
 
-
+      // Extract values for template literals
+      const openingBalance = Number(cashDrawerSession?.startingFloat || 0);
+      const totalCollected = Number(kpis.total_collected || kpis.totalToday || 0);
+      const drawerBalance = Number(kpis.cash_collected || kpis.drawer || 0);
+      const expectedClosing = openingBalance + totalCollected;
 
       // Build different HTML depending on mode
 
@@ -1879,7 +1898,9 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
 
 
-        const totalCollected = aggregatedByClass.reduce((s, x) => s + (Number(x.totalAmount) || 0), 0);
+        // Calculate total collected from aggregated class data (more accurate than kpis.total_collected)
+        const totalCollectedFromClasses = aggregatedByClass.reduce((s, x) => s + (Number(x.totalAmount) || 0), 0);
+        const totalCollected = totalCollectedFromClasses > 0 ? totalCollectedFromClasses : Number(kpis.total_collected || kpis.totalToday || 0);
 
         reportHTML = `
 
@@ -1951,9 +1972,33 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
               <div class="summary-card">
 
-                <div class="label">Today's Collections</div>
+                <div class="label">Opening Balance</div>
 
-                <div class="value success">LKR ${Number(kpis.total_collected || 0).toLocaleString()}</div>
+              <div class="summary-card">
+
+                <div class="label">Today's Collections (Net)</div>
+
+                <div class="value success">LKR ${totalCollected.toLocaleString()}</div>
+
+              </div>
+
+              <div class="summary-card">
+
+                <div class="label">Expected Closing Balance</div>
+
+                <div class="value">LKR ${expectedClosing.toLocaleString()}</div>
+
+                <div style="font-size:11px;color:#64748b;margin-top:4px">Opening + Collections</div>
+
+              </div>
+
+              <div class="summary-card">
+
+                <div class="label">Cash Drawer Balance</div>
+
+                <div class="value">LKR ${drawerBalance.toLocaleString()}</div>
+
+                <div style="font-size:11px;color:#64748b;margin-top:4px">Current Total</div>
 
               </div>
 
@@ -1961,25 +2006,11 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                 <div class="label">Receipts Issued</div>
 
-                <div class="value">${kpis.total_receipts || 0}</div>
+                <div class="value">${kpis.total_receipts || kpis.receipts || 0}</div>
 
               </div>
 
-              <div class="summary-card">
-
-                <div class="label">Pending Payments</div>
-
-                <div class="value warning">${kpis.pending_count || 0}</div>
-
-              </div>
-
-              <div class="summary-card">
-
-                <div class="label">Cash Drawer Total</div>
-
-                <div class="value">LKR ${Number(kpis.cash_collected || 0).toLocaleString()}</div>
-
-              </div>
+              {/* Pending Payments removed from Full Day HTML report */}
 
             </div>
 
@@ -2023,9 +2054,9 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                 <div class="label">Total Transactions</div>
 
-                <div class="value">${kpis.total_receipts || 0}</div>
+                <div class="value">${aggregatedTotals.totalUniqueTransactions > 0 ? aggregatedTotals.totalUniqueTransactions : (kpis.total_receipts || 0)}</div>
 
-                <div class="amount">Total Collected: LKR ${Number(kpis.total_collected || 0).toLocaleString()}</div>
+                <div class="amount">Total Collected: LKR ${Number(totalCollected).toLocaleString()}</div>
 
               </div>
 
@@ -2147,13 +2178,15 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
               <div class="summary-grid">
 
-                <div class="card"><div><strong>Today's Collections</strong></div><div>LKR ${Number(kpis.totalToday || 0).toLocaleString()}</div></div>
+                <div class="card"><div><strong>Opening Balance</strong></div><div>LKR ${openingBalance.toLocaleString()}</div></div>
+
+                <div class="card"><div><strong>Today's Collections (Net)</strong></div><div>LKR ${totalCollected.toLocaleString()}</div></div>
+
+                <div class="card"><div><strong>Expected Closing Balance</strong></div><div>LKR ${expectedClosing.toLocaleString()}</div></div>
+
+                <div class="card"><div><strong>Cash Drawer Balance</strong></div><div>LKR ${drawerBalance.toLocaleString()}</div></div>
 
                 <div class="card"><div><strong>Receipts Issued</strong></div><div>${kpis.receipts || 0}</div></div>
-
-                <div class="card"><div><strong>Pending Payments</strong></div><div>${kpis.pending || 0}</div></div>
-
-                <div class="card"><div><strong>Cash Drawer</strong></div><div>LKR ${Number(kpis.drawer || 0).toLocaleString()}</div></div>
 
               </div>
 
@@ -2583,9 +2616,37 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                       <div className="summary-card">
 
-                        <div className="label">Today's Collections</div>
+                        <div className="label">Opening Balance</div>
+
+                        <div className="value">LKR {Number(cashDrawerSession?.startingFloat || 0).toLocaleString()}</div>
+
+                      </div>
+
+                      <div className="summary-card">
+
+                        <div className="label">Today's Collections (Net)</div>
 
                         <div className="value success">LKR {Number(kpis.totalToday || 0).toLocaleString()}</div>
+
+                      </div>
+
+                      <div className="summary-card">
+
+                        <div className="label">Expected Closing Balance</div>
+
+                        <div className="value">LKR {Number((cashDrawerSession?.startingFloat || 0) + (kpis.totalToday || 0)).toLocaleString()}</div>
+
+                        <div className="text-xs text-slate-500 mt-1">Opening + Collections</div>
+
+                      </div>
+
+                      <div className="summary-card">
+
+                        <div className="label">Cash Drawer Balance</div>
+
+                        <div className="value">LKR {Number(kpis.drawer || 0).toLocaleString()}</div>
+
+                        <div className="text-xs text-slate-500 mt-1">Current Total</div>
 
                       </div>
 
@@ -2597,21 +2658,7 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                       </div>
 
-                      <div className="summary-card">
-
-                        <div className="label">Pending Payments</div>
-
-                        <div className="value warning">{kpis.pending || 0}</div>
-
-                      </div>
-
-                      <div className="summary-card">
-
-                        <div className="label">Cash Drawer Total</div>
-
-                        <div className="value">LKR {Number(kpis.drawer || 0).toLocaleString()}</div>
-
-                      </div>
+                    {/* Pending Payments removed from this section */}
 
                     </div>
 
@@ -2661,9 +2708,9 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                         <div className="label">Total Transactions</div>
 
-                        <div className="value">{kpis.total_receipts || 0}</div>
+                        <div className="value">{aggregatedTotals.totalUniqueTransactions > 0 ? aggregatedTotals.totalUniqueTransactions : (kpis.total_receipts || 0)}</div>
 
-                        <div className="text-sm text-slate-500">Total Collected: LKR {Number(kpis.total_collected || 0).toLocaleString()}</div>
+                        <div className="text-sm text-slate-500">Total Collected: LKR {Number(aggregatedByClass.reduce((s, x) => s + (Number(x.totalAmount) || 0), 0) || kpis.total_collected || kpis.totalToday || 0).toLocaleString()}</div>
 
                       </div>
 
@@ -2760,9 +2807,37 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                     <div className="summary-card">
 
-                      <div className="label">Today's Collections</div>
+                      <div className="label">Opening Balance</div>
 
-                      <div className="value success">LKR {Number(kpis.total_collected || 0).toLocaleString()}</div>
+                      <div className="value">LKR {Number(cashDrawerSession?.startingFloat || 0).toLocaleString()}</div>
+
+                    </div>
+
+                    <div className="summary-card">
+
+                      <div className="label">Today's Collections (Net)</div>
+
+                      <div className="value success">LKR {Number(kpis.total_collected || kpis.totalToday || 0).toLocaleString()}</div>
+
+                    </div>
+
+                    <div className="summary-card">
+
+                      <div className="label">Expected Closing Balance</div>
+
+                      <div className="value">LKR {Number((cashDrawerSession?.startingFloat || 0) + (kpis.total_collected || kpis.totalToday || 0)).toLocaleString()}</div>
+
+                      <div className="text-xs text-slate-500 mt-1">Opening + Collections</div>
+
+                    </div>
+
+                    <div className="summary-card">
+
+                      <div className="label">Cash Drawer Balance</div>
+
+                      <div className="value">LKR {Number(kpis.cash_collected || kpis.drawer || 0).toLocaleString()}</div>
+
+                      <div className="text-xs text-slate-500 mt-1">Current Total</div>
 
                     </div>
 
@@ -2770,25 +2845,11 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                       <div className="label">Receipts Issued</div>
 
-                      <div className="value">{kpis.total_receipts || 0}</div>
+                      <div className="value">{kpis.total_receipts || kpis.receipts || 0}</div>
 
                     </div>
 
-                    <div className="summary-card">
-
-                      <div className="label">Pending Payments</div>
-
-                      <div className="value warning">{kpis.pending_count || 0}</div>
-
-                    </div>
-
-                    <div className="summary-card">
-
-                      <div className="label">Cash Drawer Total</div>
-
-                      <div className="value">LKR {Number(kpis.cash_collected || 0).toLocaleString()}</div>
-
-                    </div>
+                    {/* Pending Payments removed from summary view */}
 
                   </div>
 
@@ -2836,7 +2897,7 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                         <div className="label">Total Transactions</div>
 
-                        <div className="value">{kpis.total_receipts || 0}</div>
+                        <div className="value">{aggregatedTotals.totalUniqueTransactions > 0 ? aggregatedTotals.totalUniqueTransactions : (kpis.total_receipts || 0)}</div>
 
                         <div className="text-sm text-slate-500">Total Collected: LKR {Number(kpis.total_collected || 0).toLocaleString()}</div>
 
@@ -2882,7 +2943,7 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
                       <td><strong>Total Transactions:</strong></td>
 
-                      <td>{kpis.total_receipts || 0} receipts issued</td>
+                      <td>{aggregatedTotals.totalUniqueTransactions > 0 ? aggregatedTotals.totalUniqueTransactions : (kpis.total_receipts || 0)} receipts issued</td>
 
                     </tr>
 
@@ -3034,7 +3095,7 @@ const DayEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 
 
 // Month End Report Modal - Comprehensive monthly summary (supports 'summary' and 'full' modes)
 
-const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 'summary', transactions = [], perClass = [] }) => {
+const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode = 'summary', transactions = [], perClass = [], cashDrawerSession = null }) => {
 
   const [isGenerating, setIsGenerating] = React.useState(false);
 
@@ -3104,9 +3165,13 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
       halfAmount: 0,
       freeCount: 0,
       freeAmount: 0,
+      totalUniqueTransactions: 0, // Count unique transactions with class payments
     };
 
     if (!Array.isArray(transactions)) return totals;
+    
+    // Track unique transaction IDs for class payments
+    const uniqueTransactionIds = new Set();
     
     transactions.forEach(t => {
       const amt = Number(t.amount || 0);
@@ -3115,6 +3180,11 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
       const notes = (t.notes || t.description || t.note || '').toString();
 
       if (ptype === 'class_payment') {
+        // Track unique transactions for class payments
+        if (t.transaction_id) {
+          uniqueTransactionIds.add(t.transaction_id);
+        }
+
         if (cardType) {
           if (cardType === 'free') {
             totals.freeCount += 1;
@@ -3145,6 +3215,7 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
       }
     });
     
+    totals.totalUniqueTransactions = uniqueTransactionIds.size;
     return totals;
   }, [transactions]);
 
@@ -3278,10 +3349,7 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
                 <div class="label">Receipts Issued</div>
                 <div class="value">${kpis.total_receipts || 0}</div>
               </div>
-              <div class="summary-card">
-                <div class="label">Pending Payments</div>
-                <div class="value warning">${kpis.pending_count || 0}</div>
-              </div>
+              <!-- Pending Payments removed from Month End HTML report -->
               <div class="summary-card">
                 <div class="label">Cash Drawer Total</div>
                 <div class="value">LKR ${Number(kpis.cash_collected || 0).toLocaleString()}</div>
@@ -3732,13 +3800,7 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
 
                 </div>
 
-                <div class="summary-card">
-
-                  <div class="label">Pending Payments</div>
-
-                  <div class="value warning">${kpis.pending_count || 0}</div>
-
-                </div>
+                <!-- Pending Payments removed from Month End HTML -->
 
                 <div class="summary-card">
 
@@ -3839,7 +3901,7 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
 
                     <td><strong>Total Transactions:</strong></td>
 
-                    <td>${kpis.total_receipts || 0} receipts issued</td>
+                    <td>${aggregatedTotals.totalUniqueTransactions > 0 ? aggregatedTotals.totalUniqueTransactions : (kpis.total_receipts || 0)} receipts issued</td>
 
                   </tr>
 
@@ -4325,10 +4387,7 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
                         <div className="label">Receipts Issued</div>
                         <div className="value">{kpis.total_receipts || 0}</div>
                       </div>
-                      <div className="summary-card">
-                        <div className="label">Pending Payments</div>
-                        <div className="value warning">{kpis.pending_count || 0}</div>
-                      </div>
+                      {/* Pending Payments removed from monthly full view */}
                       <div className="summary-card">
                         <div className="label">Cash Drawer Total</div>
                         <div className="value">LKR {Number(kpis.cash_collected || 0).toLocaleString()}</div>
@@ -4416,10 +4475,7 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
                     <div className="label">Total Receipts Issued</div>
                     <div className="value">{kpis.total_receipts || 0}</div>
                   </div>
-                  <div className="summary-card">
-                    <div className="label">Pending Payments</div>
-                    <div className="value warning">{kpis.pending_count || 0}</div>
-                  </div>
+                  {/* Pending Payments removed from monthly summary view */}
                   <div className="summary-card">
                     <div className="label">Total Cash Collected</div>
                     <div className="value">LKR {Number(kpis.cash_collected || 0).toLocaleString()}</div>
@@ -4469,7 +4525,7 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
                     </tr>
                     <tr>
                       <td><strong>Total Transactions:</strong></td>
-                      <td>{kpis.total_receipts || 0} receipts issued</td>
+                      <td>{aggregatedTotals.totalUniqueTransactions > 0 ? aggregatedTotals.totalUniqueTransactions : (kpis.total_receipts || 0)} receipts issued</td>
                     </tr>
                     <tr>
                       <td><strong>Payment Methods:</strong></td>
@@ -4593,6 +4649,346 @@ const MonthEndReportModal = ({ onClose, kpis, recentStudents, openingTime, mode 
 
 // Unlock Modal - Password verification to unlock dashboard
 
+// Start Cash Drawer Modal
+const StartCashDrawerModal = ({ onClose, onStart, cashierName }) => {
+  const [startingFloat, setStartingFloat] = useState('');
+  const [error, setError] = useState('');
+  const [isStarting, setIsStarting] = useState(false);
+  const floatInputRef = useRef(null);
+
+  useEffect(() => {
+    // Auto-focus float input
+    setTimeout(() => floatInputRef.current?.focus(), 100);
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!startingFloat || isNaN(parseFloat(startingFloat)) || parseFloat(startingFloat) < 0) {
+      setError('Please enter a valid starting float amount');
+      return;
+    }
+
+    setIsStarting(true);
+    setError('');
+
+    try {
+      await onStart(parseFloat(startingFloat));
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Failed to start cash drawer session');
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSubmit(e);
+    } else if (e.key === 'Escape') {
+      onClose();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="bg-gradient-to-r from-teal-600 to-teal-700 text-white px-6 py-5 rounded-t-xl">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+              <FaMoneyBill className="text-2xl" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold">Start Cash Drawer</h2>
+              <div className="text-sm opacity-90 mt-1">Begin new cash handling session</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          <form onSubmit={handleSubmit}>
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Starting Float Amount (LKR)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">LKR</span>
+                <input
+                  ref={floatInputRef}
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={startingFloat}
+                  onChange={(e) => setStartingFloat(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-lg font-semibold"
+                  placeholder="0.00"
+                  disabled={isStarting}
+                />
+              </div>
+              <div className="text-xs text-gray-500 mt-2">
+                Enter the initial amount of cash in the drawer
+              </div>
+            </div>
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center gap-2 text-red-700 text-sm">
+                  <FaExclamationTriangle className="text-red-500" />
+                  {error}
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isStarting}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isStarting || !startingFloat}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-teal-600 to-teal-700 text-white rounded-lg font-semibold hover:from-teal-700 hover:to-teal-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isStarting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <FaMoneyBill className="text-sm" />
+                    Start Session
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Footer */}
+        <div className="bg-gray-50 px-6 py-4 rounded-b-xl">
+          <div className="text-xs text-center text-gray-500">
+            <p>💰 Starting a new cash drawer session will:</p>
+            <p className="mt-1">• Record the starting float amount</p>
+            <p>• Begin tracking cash transactions</p>
+            <p>• Log session start time and cashier</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Close Out Cash Modal
+const CloseOutCashModal = ({ onClose, onCloseOut, cashierName, sessionData, kpis }) => {
+  const [physicalCashCount, setPhysicalCashCount] = useState('');
+  const [error, setError] = useState('');
+  const [isClosing, setIsClosing] = useState(false);
+  const cashInputRef = useRef(null);
+
+  useEffect(() => {
+    // Auto-focus cash input
+    setTimeout(() => cashInputRef.current?.focus(), 100);
+  }, []);
+
+  // Calculate expected cash amount
+  const expectedCash = sessionData ? 
+    parseFloat(sessionData.startingFloat) + parseFloat(kpis.totalToday || 0) : 
+    parseFloat(kpis.drawer || 0);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!physicalCashCount || isNaN(parseFloat(physicalCashCount)) || parseFloat(physicalCashCount) < 0) {
+      setError('Please enter a valid physical cash count');
+      return;
+    }
+
+    setIsClosing(true);
+    setError('');
+
+    try {
+      await onCloseOut(parseFloat(physicalCashCount));
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Failed to close out cash drawer');
+    } finally {
+      setIsClosing(false);
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSubmit(e);
+    } else if (e.key === 'Escape') {
+      onClose();
+    }
+  };
+
+  const discrepancy = parseFloat(physicalCashCount) - expectedCash;
+  const isOver = discrepancy > 0;
+  const isShort = discrepancy < 0;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="bg-gradient-to-r from-rose-600 to-rose-700 text-white px-6 py-5 rounded-t-xl">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+              <FaLock className="text-2xl" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold">Close Out Cash</h2>
+              <div className="text-sm opacity-90 mt-1">End cash handling session</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Session Summary */}
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Session Summary</h3>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <div className="text-gray-600">Starting Float</div>
+              <div className="font-semibold text-gray-800">LKR {sessionData?.startingFloat?.toLocaleString() || '0'}</div>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <div className="text-gray-600">Cash Sales Today</div>
+              <div className="font-semibold text-gray-800">LKR {Number(kpis.totalToday || 0).toLocaleString()}</div>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <div className="text-gray-600">Expected Total</div>
+              <div className="font-semibold text-gray-800">LKR {expectedCash.toLocaleString()}</div>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <div className="text-gray-600">Receipts Issued</div>
+              <div className="font-semibold text-gray-800">{kpis.receipts || 0}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          <form onSubmit={handleSubmit}>
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Physical Cash Count (LKR)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">LKR</span>
+                <input
+                  ref={cashInputRef}
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={physicalCashCount}
+                  onChange={(e) => setPhysicalCashCount(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent text-lg font-semibold"
+                  placeholder="0.00"
+                  disabled={isClosing}
+                />
+              </div>
+              <div className="text-xs text-gray-500 mt-2">
+                Count all physical cash in the drawer
+              </div>
+            </div>
+
+            {/* Discrepancy Display */}
+            {physicalCashCount && !isNaN(parseFloat(physicalCashCount)) && (
+              <div className={`mb-4 p-4 rounded-lg border ${
+                discrepancy === 0 ? 'bg-green-50 border-green-200' :
+                isOver ? 'bg-blue-50 border-blue-200' :
+                'bg-red-50 border-red-200'
+              }`}>
+                <div className={`flex items-center gap-2 text-sm font-semibold ${
+                  discrepancy === 0 ? 'text-green-700' :
+                  isOver ? 'text-blue-700' :
+                  'text-red-700'
+                }`}>
+                  {discrepancy === 0 ? (
+                    <>
+                      <FaCheckCircle className="text-green-500" />
+                      Cash count matches expected amount
+                    </>
+                  ) : isOver ? (
+                    <>
+                      <FaExclamationTriangle className="text-blue-500" />
+                      Over by LKR {Math.abs(discrepancy).toLocaleString()}
+                    </>
+                  ) : (
+                    <>
+                      <FaExclamationTriangle className="text-red-500" />
+                      Short by LKR {Math.abs(discrepancy).toLocaleString()}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center gap-2 text-red-700 text-sm">
+                  <FaExclamationTriangle className="text-red-500" />
+                  {error}
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isClosing}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isClosing || !physicalCashCount}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-rose-600 to-rose-700 text-white rounded-lg font-semibold hover:from-rose-700 hover:to-rose-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isClosing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Closing...
+                  </>
+                ) : (
+                  <>
+                    <FaLock className="text-sm" />
+                    Close Session
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Footer */}
+        <div className="bg-gray-50 px-6 py-4 rounded-b-xl">
+          <div className="text-xs text-center text-gray-500">
+            <p>🔒 Closing the cash drawer will:</p>
+            <p className="mt-1">• Generate reconciliation report</p>
+            <p>• Record session end time and cashier</p>
+            <p>• Secure the cash drawer</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const UnlockModal = ({ onClose, onUnlock, cashierName }) => {
 
   const [password, setPassword] = useState('');
@@ -4641,34 +5037,49 @@ const UnlockModal = ({ onClose, onUnlock, cashierName }) => {
 
       const userData = getUserData();
 
+      console.log('User data for unlock:', userData);
+
+      if (!userData) {
+        setError('Session expired. Please login again.');
+        return;
+      }
+
       const credentials = {
 
-        userid: userData?.email || userData?.userid || userData?.id,
+        userid: userData?.userid || userData?.email || userData?.id,
 
         password: password
 
       };
 
+      console.log('Login credentials for unlock:', { userid: credentials.userid, password: '***' });
 
+      const result = await login(credentials);
 
-      await login(credentials);
+      console.log('Login result for unlock:', result);
 
       
 
-      // If login was successful (no error thrown), unlock the dashboard
-
-      onUnlock();
-
-      onClose();
-
-
+      // Check if login was successful
+      if (result && result.success) {
+        // If login was successful, unlock the dashboard
+        onUnlock();
+        onClose();
+      } else {
+        // Login failed but didn't throw an error (backend returned success: false)
+        setError('Please use correct password');
+        setPassword('');
+        passwordInputRef.current?.focus();
+      }
 
     } catch (err) {
 
-      setError('Incorrect password. Please try again.');
-
+      // Handle login errors (incorrect password, network errors, etc.)
+      console.log('Login error in unlock modal:', err);
+      
+      // For any login error, show the standard error message
+      setError('Please use correct password');
       setPassword('');
-
       passwordInputRef.current?.focus();
 
     } finally {
@@ -4757,6 +5168,16 @@ const UnlockModal = ({ onClose, onUnlock, cashierName }) => {
 
               }}
 
+              onKeyPress={(e) => {
+
+                if (e.key === 'Enter' && password.trim() && !isVerifying) {
+
+                  handleSubmit(e);
+
+                }
+
+              }}
+
               placeholder="Enter your password"
 
               className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition-all"
@@ -4767,11 +5188,11 @@ const UnlockModal = ({ onClose, onUnlock, cashierName }) => {
 
             {error && (
 
-              <div className="mt-2 text-sm text-red-600 flex items-center gap-2">
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
 
-                <FaExclamationTriangle />
+                <FaExclamationTriangle className="text-red-500 flex-shrink-0" />
 
-                {error}
+                <span className="font-medium">{error}</span>
 
               </div>
 
@@ -7593,7 +8014,13 @@ export default function CashierDashboard() {
 
   const [openingTime, setOpeningTime] = useState('');
 
-  
+  // Cash Drawer State Management
+  const [cashDrawerSession, setCashDrawerSession] = useState(null);
+  const [showStartDrawerModal, setShowStartDrawerModal] = useState(false);
+  const [showCloseDrawerModal, setShowCloseDrawerModal] = useState(false);
+  const [startingFloat, setStartingFloat] = useState('');
+  const [physicalCashCount, setPhysicalCashCount] = useState('');
+  const [cashDrawerLoading, setCashDrawerLoading] = useState(false);
 
   // Track cashier opening time (first login of the day)
 
@@ -7659,6 +8086,16 @@ export default function CashierDashboard() {
 
         
 
+        const cashCollected = Number(stats.cash_collected || 0);
+        const startingFloat = cashDrawerSession?.startingFloat || 0;
+        const totalDrawerBalance = cashCollected + startingFloat;
+
+        console.log('💰 Cash Drawer Calculation:');
+        console.log('  - Starting Float:', startingFloat);
+        console.log('  - Cash Collected Today:', cashCollected);
+        console.log('  - Total Drawer Balance:', totalDrawerBalance);
+        console.log('  - Cash Drawer Session:', cashDrawerSession);
+
         setKpis({
 
           totalToday: Number(stats.total_collected || 0),
@@ -7667,7 +8104,7 @@ export default function CashierDashboard() {
 
           pending: Number(stats.pending_count || 0),
 
-          drawer: Number(stats.cash_collected || 0),
+          drawer: totalDrawerBalance, // Include starting float
 
           fullCardsIssued: Number(stats.full_cards_issued || 0),
 
@@ -7687,7 +8124,7 @@ export default function CashierDashboard() {
 
     }
 
-  }, [user]);
+  }, [user, cashDrawerSession]);
 
   
 
@@ -8901,6 +9338,143 @@ export default function CashierDashboard() {
 
   };
 
+  // Cash Drawer API Functions
+  const startCashDrawerSession = async (startingFloat) => {
+    try {
+      console.log('Starting cash drawer session with user:', user);
+      console.log('User ID:', user?.userid);
+      console.log('User Name:', user?.name);
+      console.log('User Role:', user?.role);
+      
+      // For now, use the test cashier ID until we fix the user authentication
+      // TODO: Fix user authentication to properly identify cashier users
+      const requestBody = {
+        cashier_id: "C001", // Use the known cashier ID from auth database
+        cashier_name: user?.name || "Cashier",
+        opening_balance: startingFloat
+      };
+      
+      console.log('Request body:', requestBody);
+
+      const response = await fetch('http://localhost:8083/api/session/start', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`Failed to start cash drawer session: ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('Success result:', result);
+      
+      // Store session data locally
+      setCashDrawerSession({
+        id: result.data.session.session_id,
+        startingFloat: startingFloat,
+        startTime: new Date().toISOString(),
+        cashierId: user?.userid,
+        cashierName: user?.name
+      });
+
+      // Store in localStorage for persistence
+      localStorage.setItem('cashDrawerSession', JSON.stringify({
+        id: result.data.session.session_id,
+        startingFloat: startingFloat,
+        startTime: new Date().toISOString(),
+        cashierId: user?.userid,
+        cashierName: user?.name
+      }));
+
+      showToast('Cash drawer session started successfully', 'success');
+      loadCashierKPIs(); // Refresh KPIs
+      
+      return result;
+    } catch (error) {
+      console.error('Error starting cash drawer session:', error);
+      throw error;
+    }
+  };
+
+  const closeCashDrawerSession = async (physicalCashCount) => {
+    try {
+      if (!cashDrawerSession) {
+        throw new Error('No active cash drawer session found');
+      }
+
+      const expectedCash = cashDrawerSession.startingFloat + parseFloat(kpis.totalToday || 0);
+      const discrepancy = physicalCashCount - expectedCash;
+
+      const response = await fetch('http://localhost:8083/api/session/close-day', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          session_id: cashDrawerSession.id,
+          closing_balance: physicalCashCount,
+          notes: `Day ended - Expected: LKR ${expectedCash.toLocaleString()}, Actual: LKR ${physicalCashCount.toLocaleString()}, Discrepancy: LKR ${discrepancy.toLocaleString()}`
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to close cash drawer session');
+      }
+
+      const result = await response.json();
+      
+      // Clear session data
+      setCashDrawerSession(null);
+      localStorage.removeItem('cashDrawerSession');
+
+      // Show success message with discrepancy info
+      if (discrepancy === 0) {
+        showToast('Cash drawer closed successfully - No discrepancy', 'success');
+      } else if (discrepancy > 0) {
+        showToast(`Cash drawer closed - Over by LKR ${discrepancy.toLocaleString()}`, 'warning');
+      } else {
+        showToast(`Cash drawer closed - Short by LKR ${Math.abs(discrepancy).toLocaleString()}`, 'error');
+      }
+
+      loadCashierKPIs(); // Refresh KPIs
+      
+      return result;
+    } catch (error) {
+      console.error('Error closing cash drawer session:', error);
+      throw error;
+    }
+  };
+
+  // Load existing cash drawer session on component mount
+  useEffect(() => {
+    const savedSession = localStorage.getItem('cashDrawerSession');
+    if (savedSession) {
+      try {
+        const sessionData = JSON.parse(savedSession);
+        setCashDrawerSession(sessionData);
+      } catch (error) {
+        console.error('Error loading saved cash drawer session:', error);
+        localStorage.removeItem('cashDrawerSession');
+      }
+    }
+  }, []);
+
+  // Refresh KPIs when cash drawer session changes (e.g., when loaded from localStorage or after starting)
+  useEffect(() => {
+    if (cashDrawerSession) {
+      console.log('💼 Cash drawer session changed, refreshing KPIs...');
+      loadCashierKPIs();
+    }
+  }, [cashDrawerSession?.id, cashDrawerSession?.startingFloat, loadCashierKPIs]);
+
 
 
   useEffect(() => {
@@ -10069,8 +10643,20 @@ export default function CashierDashboard() {
 
                       
 
-                      // Get grace period days from class payment tracking (default 7 days)
+                      // If there is an outstanding amount for this month (not paid),
+                      // ensure the due date is shown as the 1st of the CURRENT month
+                      // (may be in the past). This corrects the cashier view which
+                      // previously advanced the due date to the 1st of the next month
+                      // when the month was unpaid.
+                      if (!hasPaymentThisMonth && outstanding > 0) {
+                        try {
+                          nextPaymentDate = new Date(currentYear, currentMonthIndex, 1);
+                        } catch (err) {
+                          console.error('Failed to adjust nextPaymentDate for unpaid month', err);
+                        }
+                      }
 
+                      // Get grace period days from class payment tracking (default 7 days)
                       const gracePeriodDays = enr.paymentTrackingFreeDays || 7;
 
                       
@@ -11268,140 +11854,56 @@ export default function CashierDashboard() {
 
 
   return (
-
-    <div className="min-h-screen bg-slate-100 relative">
-
-      {/* Header */}
-
-      <div className="bg-gradient-to-r from-slate-800 to-slate-700 text-white px-6 py-4 shadow-lg">
-
-        <div className="flex items-center justify-between">
-
-          <div className="flex items-center gap-6">
-
-            <div className="flex items-center gap-3">
-
-              <span className="text-3xl">🎓</span>
-
-              <div>
-
-                <h1 className="text-xl font-bold">TCMS</h1>
-
-                <div className="text-sm text-slate-300">Cashier Dashboard - {user?.name || 'Cashier'}</div>
-
-              </div>
-
+    <DashboardLayout
+      userRole="Cashier"
+      sidebarItems={cashierSidebarSections}
+      onLogout={handleLogout}
+      customTitle="TCMS"
+      customSubtitle={`Cashier Dashboard - ${user?.name || 'Cashier'}`}
+      defaultSidebarOpen={false}
+      isLocked={isLocked}
+      customHeaderElements={
+        <>
+          {/* Lock Status Indicator */}
+          {isLocked && (
+            <div className="bg-orange-600 text-white px-3 py-1 rounded-lg text-sm font-medium flex items-center gap-2 animate-pulse">
+              <FaLock className="text-xs" />
+              Session Locked
             </div>
-
-            {isLocked && (
-
-              <div className="bg-orange-600 text-white px-3 py-1 rounded-lg text-sm font-medium flex items-center gap-2 animate-pulse">
-
-                <FaLock className="text-xs" />
-
-                Session Locked
-
-              </div>
-
-            )}
-
-          </div>
-
+          )}
           
-
-          <div className="flex items-center gap-3">
-
-            <div className="hidden lg:flex items-center gap-4 text-xs text-slate-300">
-
-              <div className="flex items-center gap-1">
-
-                <kbd className="px-2 py-1 bg-slate-600 rounded text-xs">F1</kbd>
-
-                <span>Focus Scan</span>
-
-              </div>
-
-              <div className="flex items-center gap-1">
-
-                <kbd className="px-2 py-1 bg-slate-600 rounded text-xs">F2</kbd>
-
-                <span>Scanner</span>
-
-              </div>
-
-              <div className="flex items-center gap-1">
-
-                <kbd className="px-2 py-1 bg-slate-600 rounded text-xs">F9</kbd>
-
-                <span>Clear</span>
-
-              </div>
-
+          {/* Keyboard Shortcuts */}
+          <div className="hidden lg:flex items-center gap-4 text-xs text-gray-600">
+            <div className="flex items-center gap-1">
+              <kbd className="px-2 py-1 bg-gray-200 rounded text-xs">F1</kbd>
+              <span>Focus Scan</span>
             </div>
-
-            
-
-            <div className="flex items-center gap-2">
-
-              <button 
-
-                onClick={() => setActiveTab('dashboard')} 
-
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab==='dashboard'?'bg-slate-600':'bg-slate-500 hover:bg-slate-600'}`}
-
-              >
-
-                Dashboard
-
-              </button>
-
-              <button 
-
-                onClick={() => setActiveTab('register')} 
-
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab==='register'?'bg-slate-600':'bg-slate-500 hover:bg-slate-600'}`}
-
-              >
-
-                <FaUserPlus className="inline mr-2"/>
-
-                Register
-
-              </button>
-
-              <button 
-
-                onClick={handleLockToggle} 
-
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${isLocked ? 'bg-orange-600 hover:bg-orange-700' : 'bg-amber-600 hover:bg-amber-700'}`}
-
-              >
-
-                {isLocked ? <><FaLock className="inline mr-2"/>Unlock</> : <><FaLockOpen className="inline mr-2"/>Lock</>}
-
-              </button>
-
-              <button 
-
-                onClick={handleLogout} 
-
-                className="px-4 py-2 rounded-lg font-medium bg-rose-600 hover:bg-rose-700 transition-colors"
-
-              >
-
-                <FaSignOutAlt className="inline mr-2"/>
-
-                Logout
-
-              </button>
-
+            <div className="flex items-center gap-1">
+              <kbd className="px-2 py-1 bg-gray-200 rounded text-xs">F2</kbd>
+              <span>Scanner</span>
             </div>
-
+            <div className="flex items-center gap-1">
+              <kbd className="px-2 py-1 bg-gray-200 rounded text-xs">F9</kbd>
+              <span>Clear</span>
+            </div>
           </div>
-
-        </div>
-
-      </div>
+          
+          {/* Lock Button */}
+          <button 
+            onClick={handleLockToggle} 
+            className={`p-2 rounded-full transition-colors ${
+              isLocked 
+                ? 'bg-orange-600 hover:bg-orange-700 text-white' 
+                : 'bg-amber-600 hover:bg-amber-700 text-white'
+            }`}
+            title={isLocked ? "Session Unlock" : "Session Lock"}
+          >
+            {isLocked ? <FaLock className="h-4 w-4" /> : <FaLockOpen className="h-4 w-4" />}
+          </button>
+        </>
+      }
+    >
+      <div className="min-h-screen bg-slate-100 relative">
 
 
 
@@ -11412,6 +11914,19 @@ export default function CashierDashboard() {
         {activeTab === 'register' ? (
 
           <div className="p-4">
+
+            {/* Back Button */}
+            <div className="mb-4">
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors border border-slate-300"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Back to Dashboard
+              </button>
+            </div>
 
             <PhysicalStudentRegisterTab 
 
@@ -11431,87 +11946,100 @@ export default function CashierDashboard() {
 
           <div className="p-6">
 
-          {/* Glassy KPI Cards with Pastel Colors */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
-            
+          {/* Glassy KPI Cards with refreshed colors and consistent sizing */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+
             {/* Today's Collections */}
-            <div className="bg-gradient-to-br from-emerald-50/80 to-emerald-100/60 backdrop-blur-sm border border-emerald-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="bg-emerald-200/70 p-2.5 rounded-lg backdrop-blur-sm">
-                  <FaMoneyBill className="text-xl text-emerald-700" />
+            <div className="min-h-[96px] flex flex-col justify-between bg-gradient-to-br from-emerald-50/90 to-emerald-100/70 backdrop-blur-sm border border-emerald-200/60 rounded-2xl p-4 shadow-md hover:shadow-xl transition-all duration-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-emerald-200/80">
+                  <FaMoneyBill className="text-lg text-emerald-700" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-emerald-800">Today's Collections</div>
                 </div>
               </div>
-              <h3 className="text-xs font-semibold text-emerald-800 mb-2">Today's Collections</h3>
-              <p className="text-xl font-bold text-emerald-900">LKR {Number(kpis.totalToday).toLocaleString()}</p>
+              <div className="text-right">
+                <div className="text-lg font-bold text-emerald-900">LKR {Number(kpis.totalToday).toLocaleString()}</div>
               </div>
+            </div>
 
             {/* Cash Drawer */}
-            <div className="bg-gradient-to-br from-blue-50/80 to-blue-100/60 backdrop-blur-sm border border-blue-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="bg-blue-200/70 p-2.5 rounded-lg backdrop-blur-sm">
-                  <FaLock className="text-xl text-blue-700" />
+            <div className="min-h-[96px] flex flex-col justify-between bg-gradient-to-br from-sky-50/90 to-sky-100/70 backdrop-blur-sm border border-sky-200/60 rounded-2xl p-4 shadow-md hover:shadow-xl transition-all duration-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-sky-200/80">
+                  <FaLock className="text-lg text-sky-700" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-sky-800">Cash Drawer</div>
                 </div>
               </div>
-              <h3 className="text-xs font-semibold text-blue-800 mb-2">Cash Drawer</h3>
-              <p className="text-xl font-bold text-blue-900">LKR {Number(kpis.drawer).toLocaleString()}</p>
+              <div className="text-right">
+                <div className="text-lg font-bold text-sky-900">LKR {Number(kpis.drawer).toLocaleString()}</div>
+              </div>
             </div>
 
             {/* Receipts Issued */}
-            <div className="bg-gradient-to-br from-purple-50/80 to-purple-100/60 backdrop-blur-sm border border-purple-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="bg-purple-200/70 p-2.5 rounded-lg backdrop-blur-sm">
-                  <FaFileInvoice className="text-xl text-purple-700" />
+            <div className="min-h-[96px] flex flex-col justify-between bg-gradient-to-br from-fuchsia-50/90 to-fuchsia-100/70 backdrop-blur-sm border border-fuchsia-200/60 rounded-2xl p-4 shadow-md hover:shadow-xl transition-all duration-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-fuchsia-200/80">
+                  <FaFileInvoice className="text-lg text-fuchsia-700" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-fuchsia-800">Receipts Issued</div>
                 </div>
               </div>
-              <h3 className="text-xs font-semibold text-purple-800 mb-2">Receipts Issued</h3>
-              <p className="text-xl font-bold text-purple-900">{kpis.receipts}</p>
-                </div>
-
-            {/* Pending Payments */}
-            <div className="bg-gradient-to-br from-orange-50/80 to-orange-100/60 backdrop-blur-sm border border-orange-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="bg-orange-200/70 p-2.5 rounded-lg backdrop-blur-sm">
-                  <FaClock className="text-xl text-orange-700" />
-                </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-fuchsia-900">{kpis.receipts}</div>
               </div>
-              <h3 className="text-xs font-semibold text-orange-800 mb-2">Pending Payments</h3>
-              <p className="text-xl font-bold text-orange-900">{kpis.pending}</p>
-              </div>
+            </div>
 
             {/* Full Cards */}
-            <div className="bg-gradient-to-br from-violet-50/80 to-violet-100/60 backdrop-blur-sm border border-violet-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="bg-violet-200/70 p-2.5 rounded-lg backdrop-blur-sm">
-                  <FaTicketAlt className="text-xl text-violet-700" />
+            <div className="min-h-[96px] flex flex-col justify-between bg-gradient-to-br from-violet-50/90 to-violet-100/70 backdrop-blur-sm border border-violet-200/60 rounded-2xl p-4 shadow-md hover:shadow-xl transition-all duration-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-violet-200/80">
+                  <FaTicketAlt className="text-lg text-violet-700" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-violet-800">Full Cards</div>
                 </div>
               </div>
-              <h3 className="text-xs font-semibold text-violet-800 mb-2">Full Cards</h3>
-              <p className="text-xl font-bold text-violet-900">{kpis.fullCardsIssued || 0}</p>
+              <div className="text-right">
+                <div className="text-font-bold text-violet-900">{kpis.fullCardsIssued || 0}</div>
+              </div>
             </div>
 
             {/* Half Cards */}
-            <div className="bg-gradient-to-br from-indigo-50/80 to-indigo-100/60 backdrop-blur-sm border border-indigo-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="bg-indigo-200/70 p-2.5 rounded-lg backdrop-blur-sm">
-                  <FaTicketAlt className="text-xl text-indigo-700" />
+            <div className="min-h-[96px] flex flex-col justify-between bg-gradient-to-br from-amber-50/90 to-amber-100/70 backdrop-blur-sm border border-amber-200/60 rounded-2xl p-4 shadow-md hover:shadow-xl transition-all duration-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-amber-200/80">
+                  <FaTicketAlt className="text-lg text-amber-700" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-amber-800">Half Cards</div>
                 </div>
               </div>
-              <h3 className="text-xs font-semibold text-indigo-800 mb-2">Half Cards</h3>
-              <p className="text-xl font-bold text-indigo-900">{kpis.halfCardsIssued || 0}</p>
-                </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-amber-900">{kpis.halfCardsIssued || 0}</div>
+              </div>
+            </div>
 
             {/* Free Cards */}
-            <div className="bg-gradient-to-br from-teal-50/80 to-teal-100/60 backdrop-blur-sm border border-teal-200/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="bg-teal-200/70 p-2.5 rounded-lg backdrop-blur-sm">
-                  <FaTicketAlt className="text-xl text-teal-700" />
+            <div className="min-h-[96px] flex flex-col justify-between bg-gradient-to-br from-teal-50/90 to-teal-100/70 backdrop-blur-sm border border-teal-200/60 rounded-2xl p-4 shadow-md hover:shadow-xl transition-all duration-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-teal-200/80">
+                  <FaTicketAlt className="text-lg text-teal-700" />
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-teal-800">Free Cards</div>
                 </div>
               </div>
-              <h3 className="text-xs font-semibold text-teal-800 mb-2">Free Cards</h3>
-              <p className="text-xl font-bold text-teal-900">{kpis.freeCardsIssued || 0}</p>
+              <div className="text-right">
+                <div className="text-lg font-bold text-teal-900">{kpis.freeCardsIssued || 0}</div>
               </div>
-
             </div>
+
+          </div>
 
 
 
@@ -11675,14 +12203,32 @@ export default function CashierDashboard() {
                 <div className="space-y-4">
                   {/* Cash Drawer Controls */}
                   <div className="grid grid-cols-2 gap-3">
-                    <button className="bg-gradient-to-br from-teal-500/90 to-teal-600/90 backdrop-blur-sm text-white py-3 px-4 rounded-xl text-sm font-semibold hover:from-teal-600 hover:to-teal-700 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105">
+                    <button 
+                      onClick={() => setShowStartDrawerModal(true)}
+                      disabled={cashDrawerSession}
+                      className={`backdrop-blur-sm text-white py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 ${
+                        cashDrawerSession 
+                          ? 'bg-gray-400 cursor-not-allowed opacity-60' 
+                          : 'bg-gradient-to-br from-teal-500/90 to-teal-600/90 hover:from-teal-600 hover:to-teal-700'
+                      }`}
+                      title={cashDrawerSession ? 'Cash drawer session already active' : 'Start new cash drawer session'}
+                    >
                       <FaMoneyBill className="text-lg" />
-                    Start Cash Drawer
-                  </button>
-                    <button className="bg-gradient-to-br from-rose-500/90 to-rose-600/90 backdrop-blur-sm text-white py-3 px-4 rounded-xl text-sm font-semibold hover:from-rose-600 hover:to-rose-700 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105">
+                      {cashDrawerSession ? 'Session Active' : 'Start Cash Drawer'}
+                    </button>
+                    <button 
+                      onClick={() => setShowCloseDrawerModal(true)}
+                      disabled={!cashDrawerSession}
+                      className={`backdrop-blur-sm text-white py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 ${
+                        !cashDrawerSession 
+                          ? 'bg-gray-400 cursor-not-allowed opacity-60' 
+                          : 'bg-gradient-to-br from-rose-500/90 to-rose-600/90 hover:from-rose-600 hover:to-rose-700'
+                      }`}
+                      title={!cashDrawerSession ? 'No active cash drawer session' : 'Close current cash drawer session'}
+                    >
                       <FaLock className="text-lg" />
-                    Close Out Cash
-                  </button>
+                      Close Out Cash
+                    </button>
                   </div>
 
                   {/* Day End Reports - Single Row */}
@@ -12332,6 +12878,8 @@ export default function CashierDashboard() {
 
           perClass={dayEndPerClass}
 
+          cashDrawerSession={cashDrawerSession}
+
           onClose={() => {
 
             setShowDayEndReport(false);
@@ -12364,6 +12912,8 @@ export default function CashierDashboard() {
 
           perClass={monthEndPerClass}
 
+          cashDrawerSession={cashDrawerSession}
+
           onClose={() => {
 
             setShowMonthEndReport(false);
@@ -12394,7 +12944,25 @@ export default function CashierDashboard() {
 
       )}
 
-      
+      {/* Start Cash Drawer Modal */}
+      {showStartDrawerModal && (
+        <StartCashDrawerModal
+          cashierName={user?.name}
+          onClose={() => setShowStartDrawerModal(false)}
+          onStart={startCashDrawerSession}
+        />
+      )}
+
+      {/* Close Out Cash Modal */}
+      {showCloseDrawerModal && (
+        <CloseOutCashModal
+          cashierName={user?.name}
+          sessionData={cashDrawerSession}
+          kpis={kpis}
+          onClose={() => setShowCloseDrawerModal(false)}
+          onCloseOut={closeCashDrawerSession}
+        />
+      )}
 
       {/* Toast Notification */}
 
@@ -12448,8 +13016,8 @@ export default function CashierDashboard() {
 
       )}
 
-    </div>
-
+      </div>
+    </DashboardLayout>
   );
 
 }

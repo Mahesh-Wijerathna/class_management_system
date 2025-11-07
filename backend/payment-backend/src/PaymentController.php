@@ -783,9 +783,11 @@ class PaymentController {
             }
 
             // Query to get cashier statistics
+            // COUNT(DISTINCT transaction_id) counts unique transactions/receipts (not rows)
+            // This ensures one receipt with multiple payment types counts as 1 receipt
             $sql = "
                 SELECT 
-                    COUNT(*) as total_receipts,
+                    COUNT(DISTINCT fr.transaction_id) as total_receipts,
                     SUM(CASE WHEN fr.status = 'paid' THEN fr.amount ELSE 0 END) as total_collected,
                     SUM(CASE WHEN fr.status = 'pending' THEN 1 ELSE 0 END) as pending_count,
                     SUM(CASE WHEN fr.status = 'paid' AND fr.payment_method = 'cash' THEN fr.amount ELSE 0 END) as cash_collected,

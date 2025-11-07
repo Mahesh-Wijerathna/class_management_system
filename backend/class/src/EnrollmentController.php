@@ -570,6 +570,33 @@ class EnrollmentController {
                     'message' => 'Attendance already marked for today'
                 ];
             }
+
+            // Server-side enforcement: ensure student is allowed to attend
+            // Payment rules:
+            // - If payment_status is 'paid' => allow
+            // - If payment_status is 'late_payment' => allow ONLY if late_payment_request_date is today (server date)
+            // - Otherwise deny attendance (payment required)
+            $paymentStatus = $enrollment['payment_status'] ?? null;
+            if (strtolower($paymentStatus) !== 'paid') {
+                if (strtolower($paymentStatus) === 'late_payment') {
+                    $reqDateRaw = $enrollment['late_payment_request_date'] ?? null;
+                    if (!$reqDateRaw) {
+                        return [ 'success' => false, 'message' => 'Late payment approval pending' ];
+                    }
+                    $reqDate = date('Y-m-d', strtotime($reqDateRaw));
+                    if ($reqDate !== $today) {
+                        return [ 'success' => false, 'message' => 'Late payment approval expired. Please make payment.' ];
+                    }
+                    // If dates match, allow attendance for today
+                } else {
+                    // Respect forget-card requests if present
+                    if (!empty($enrollment['forget_card_requested']) && $enrollment['forget_card_requested'] == '1') {
+                        // allow attendance
+                    } else {
+                        return [ 'success' => false, 'message' => 'Payment required - access restricted' ];
+                    }
+                }
+            }
             
             // Add new attendance record
             $currentAttendance[] = $attendanceData;
