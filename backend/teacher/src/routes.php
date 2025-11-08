@@ -13,12 +13,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once 'TeacherController.php';
+require_once __DIR__ . '/controllers/StudyPackController.php';
 
 // Set content type to JSON
 header('Content-Type: application/json');
 
 try {
     $controller = new TeacherController();
+    $studyPackController = new StudyPackController();
     
     // Get request method and path
     $method = $_SERVER['REQUEST_METHOD'];
@@ -30,18 +32,26 @@ try {
         case 'GET':
             if ($path === '/get_all_teachers' || $path === '/') {
                 $response = $controller->getAllTeachers();
+            } elseif ($path === '/study_packs') {
+                $response = $controller->getAllStudyPacks();
+            } elseif (preg_match('/^\/study_packs_by_teacher/', $path)) {
+                $teacherId = $_GET['teacherId'] ?? null;
+                $response = $controller->getStudyPacksByTeacher($teacherId);
+            } elseif (preg_match('/^\/study_pack$/', $path)) {
+                $id = $_GET['id'] ?? null;
+                $response = $controller->getStudyPackById($id);
             } elseif ($path === '/get_active_teachers') {
                 $response = $controller->getActiveTeachers();
             } elseif ($path === '/get_next_teacher_id') {
                 $response = $controller->getNextTeacherId();
-            } elseif (preg_match('/^\/get_teacher_by_id\?teacherId=(.+)$/', $path, $matches)) {
-                $teacherId = $matches[1];
+            } elseif ($path === '/get_teacher_by_id') {
+                $teacherId = $_GET['teacherId'] ?? null;
                 $response = $controller->getTeacherById($teacherId);
-            } elseif (preg_match('/^\/get_teacher_for_edit\?teacherId=(.+)$/', $path, $matches)) {
-                $teacherId = $matches[1];
+            } elseif ($path === '/get_teacher_for_edit') {
+                $teacherId = $_GET['teacherId'] ?? null;
                 $response = $controller->getTeacherByIdForEdit($teacherId);
-            } elseif (preg_match('/^\/get_teachers_by_stream\?stream=(.+)$/', $path, $matches)) {
-                $stream = $matches[1];
+            } elseif ($path === '/get_teachers_by_stream') {
+                $stream = $_GET['stream'] ?? null;
                 $response = $controller->getTeachersByStream($stream);
             } elseif (preg_match('/^\/check_phone_exists/', $path)) {
                 $phone = $_GET['phone'] ?? '';
@@ -56,10 +66,22 @@ try {
             break;
             
         case 'POST':
-            $input = json_decode(file_get_contents('php://input'), true);
+            // For file uploads, don't parse JSON body
+            $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+            $isMultipart = stripos($contentType, 'multipart/form-data') !== false;
+            $input = $isMultipart ? [] : json_decode(file_get_contents('php://input'), true);
             
             if ($path === '/create_teacher' || $path === '/') {
                 $response = $controller->createTeacher($input);
+            } elseif ($path === '/create_study_pack') {
+                $response = $controller->createStudyPack($input);
+            } elseif ($path === '/study_pack_add_link') {
+                $studyPackId = $input['study_pack_id'] ?? null;
+                $response = $controller->addStudyPackLink($studyPackId, $input);
+            } elseif ($path === '/study_pack_upload_video') {
+                $response = $studyPackController->uploadVideo($_POST, $_FILES);
+            } elseif ($path === '/study_pack_upload_document') {
+                $response = $studyPackController->uploadDocument($_POST, $_FILES);
             } elseif ($path === '/login') {
                 $email = $input['email'] ?? '';
                 $password = $input['password'] ?? '';
@@ -84,10 +106,22 @@ try {
             
         case 'PUT':
             $input = json_decode(file_get_contents('php://input'), true);
-            
+
             if (preg_match('/^\/update_teacher\/(.+)$/', $path, $matches)) {
                 $teacherId = $matches[1];
                 $response = $controller->updateTeacher($teacherId, $input);
+            } elseif (preg_match('/^\/update_study_pack\/(\d+)$/', $path, $matches)) {
+                $packId = (int)$matches[1];
+                $response = $controller->updateStudyPack($packId, $input);
+            } elseif (preg_match('/^\/study_pack_video\/(\d+)$/', $path, $matches)) {
+                $videoId = (int)$matches[1];
+                $response = $studyPackController->updateVideo($videoId, $input);
+            } elseif (preg_match('/^\/study_pack_document\/(\d+)$/', $path, $matches)) {
+                $docId = (int)$matches[1];
+                $response = $studyPackController->updateDocument($docId, $input);
+            } elseif (preg_match('/^\/study_pack_link\/(\d+)$/', $path, $matches)) {
+                $linkId = (int)$matches[1];
+                $response = $studyPackController->updateLink($linkId, $input);
             } else {
                 $response = [
                     'success' => false,
@@ -101,6 +135,15 @@ try {
             if (preg_match('/^\/delete_teacher\/(.+)$/', $path, $matches)) {
                 $teacherId = $matches[1];
                 $response = $controller->deleteTeacher($teacherId);
+            } elseif (preg_match('/^\/study_pack_video\/(\d+)$/', $path, $matches)) {
+                $videoId = (int)$matches[1];
+                $response = $studyPackController->deleteVideo($videoId);
+            } elseif (preg_match('/^\/study_pack_document\/(\d+)$/', $path, $matches)) {
+                $docId = (int)$matches[1];
+                $response = $studyPackController->deleteDocument($docId);
+            } elseif (preg_match('/^\/study_pack_link\/(\d+)$/', $path, $matches)) {
+                $linkId = (int)$matches[1];
+                $response = $studyPackController->deleteLink($linkId);
             } else {
                 $response = [
                     'success' => false,

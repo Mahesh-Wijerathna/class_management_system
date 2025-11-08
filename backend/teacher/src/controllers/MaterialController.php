@@ -4,9 +4,9 @@
  * Business logic for materials management
  */
 
-require_once __DIR__ . '/MaterialModel.php';
-require_once __DIR__ . '/utils/PDFWatermark.php';
-require_once __DIR__ . '/utils/PDFPasswordProtector.php';
+require_once __DIR__ . '/../models/MaterialModel.php';
+require_once __DIR__ . '/../utils/PDFWatermark.php';
+require_once __DIR__ . '/../utils/PDFPasswordProtector.php';
 
 class MaterialController {
     private $model;

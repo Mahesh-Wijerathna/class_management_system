@@ -58,6 +58,13 @@ switch ($method) {
         if ($path === '/create_payhere_payment') {
             $result = $payHereController->createPayHerePayment($input);
             echo json_encode($result);
+        } elseif ($path === '/create_student_purchase') {
+            $studentId = $input['student_id'] ?? null;
+            $studyPackId = $input['study_pack_id'] ?? null;
+            $transactionId = $input['transaction_id'] ?? null;
+            $status = $input['status'] ?? 'completed';
+            $result = $paymentController->createStudentPurchase($studentId, $studyPackId, $transactionId, $status);
+            echo json_encode($result);
         } elseif ($path === '/payhere_notify') {
             $result = $payHereController->handlePayHereNotification($_POST);
             if ($result['status'] === 'success') {
@@ -138,6 +145,11 @@ switch ($method) {
             echo json_encode($result);
         } elseif ($path === '/get_all_payments') {
             $result = $paymentController->getAllPayments();
+            echo json_encode($result);
+        } elseif ($path === '/get_student_purchases' && isset($_GET['studentId'])) {
+            // Accept alphanumeric student IDs (e.g., S09231)
+            $studentId = $_GET['studentId'];
+            $result = $paymentController->getStudentPurchasedStudyPacks($studentId);
             echo json_encode($result);
         } elseif ($path === '/get_payment_stats') {
             $result = $paymentController->getPaymentStats();

@@ -45,9 +45,11 @@ const teacherSidebarSections = [
   {
     section: 'Class Materials',
     items: [
+      { name: 'Study Pack', path: '/teacher/study-pack', icon: <FaFolder className="h-5 w-5" /> },
       { name: 'Create Folders & Links', path: '/teacher/materials/folders', icon: <FaFolder className="h-5 w-5" /> },
       { name: 'Manage Materials', path: '/teacher/materials/manage', icon: <FaFileAlt className="h-5 w-5" /> },
       { name: 'Upload Assignments', path: '/teacher/assignments/upload', icon: <FaFileAlt className="h-5 w-5" /> },
+      
     ]
   },
   {

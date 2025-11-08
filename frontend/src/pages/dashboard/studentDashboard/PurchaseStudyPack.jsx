@@ -29,8 +29,8 @@ const PurchaseStudyPack = () => {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6 gap-y-8">
           {filteredPacks.map((pack, idx) => {
-            // Find the index in the original studyPacks for navigation
-            const packIdx = studyPacks.findIndex(p => p.title === pack.title && p.teacher === pack.teacher);
+            // Use pack.id if available; fallback to index
+            const targetId = pack.id ?? idx;
             return (
               <BasicCard
                 key={idx}
@@ -38,7 +38,7 @@ const PurchaseStudyPack = () => {
                 price={<span className="text-xs">{pack.price}</span>}
                 image={pack.image}
                 buttonText="Buy Now"
-                onButtonClick={() => navigate(`/student/checkout/${packIdx}`, { state: { type: 'studyPack' } })}
+                onButtonClick={() => navigate(`/student/checkout/${targetId}`, { state: { type: 'studyPack', pack } })}
               />
             );
           })}

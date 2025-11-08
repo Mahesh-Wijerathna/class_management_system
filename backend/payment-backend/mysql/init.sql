@@ -80,3 +80,22 @@ CREATE TABLE IF NOT EXISTS class_earnings_config (
     UNIQUE KEY unique_class (class_id),
     INDEX idx_class_id (class_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Stores per-class earnings configuration including teacher dashboard access and revenue split settings';
+
+-- Student purchases for study packs
+CREATE TABLE IF NOT EXISTS student_purchases (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id varchar(20) NOT NULL,
+    study_pack_id INT NOT NULL,
+    purchase_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    payment_status ENUM('pending','completed','failed') DEFAULT 'pending',
+    transaction_id VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_student_id (student_id),
+    INDEX idx_study_pack_id (study_pack_id),
+    INDEX idx_transaction_id (transaction_id)
+);
+
+-- Recommended constraints (apply manually if not already present):
+-- ALTER TABLE student_purchases ADD UNIQUE KEY uniq_transaction_id (transaction_id);
+-- ALTER TABLE student_purchases ADD UNIQUE KEY uniq_student_pack_completed (student_id, study_pack_id, payment_status);
+-- Note: The code now enforces idempotency checks; adding these constraints will give hard guarantees.

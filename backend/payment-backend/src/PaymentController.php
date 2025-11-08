@@ -17,8 +17,24 @@ class PaymentController {
             // Generate unique transaction ID
             $transactionId = 'TXN' . date('Ymd') . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
             
-            // Get student information
-            $studentId = $data['studentId'] ?? '';
+            // Get student information (support multiple key names)
+            $rawStudentIdOriginal = $data['studentId'] ?? $data['student_id'] ?? $data['userId'] ?? $data['userid'] ?? $data['user_id'] ?? '';
+            if (is_string($rawStudentIdOriginal)) { $rawStudentIdOriginal = trim($rawStudentIdOriginal); }
+            if ($rawStudentIdOriginal === '' && isset($data['person_id'])) { $rawStudentIdOriginal = $data['person_id']; }
+
+            // Extract numeric portion for internal service calls (enrollment), keep original for storage/display
+            $digitsOnly = preg_replace('/\D+/', '', (string)$rawStudentIdOriginal);
+            if ($digitsOnly === '') {
+                error_log('CREATE_PAYMENT_INVALID_STUDENT_ID_NO_DIGITS payload=' . json_encode(['received' => $rawStudentIdOriginal, 'keys' => array_keys($data)]));
+                return ['success' => false, 'message' => 'Invalid or missing studentId'];
+            }
+            $numericStudentId = intval($digitsOnly);
+            if ($numericStudentId <= 0) {
+                error_log('CREATE_PAYMENT_INVALID_STUDENT_ID_ZERO payload=' . json_encode(['received' => $rawStudentIdOriginal, 'digits' => $digitsOnly]));
+                return ['success' => false, 'message' => 'Invalid or missing studentId'];
+            }
+            // Store original code (e.g. S09231) in financial_records.user_id
+            $studentId = $rawStudentIdOriginal;
             // Use actual student details if provided
             $firstName = $data['firstName'] ?? '';
             $lastName = $data['lastName'] ?? '';
@@ -29,11 +45,16 @@ class PaymentController {
             
             $studentName = trim($firstName . ' ' . $lastName) ?: ($data['studentName'] ?? 'Student');
 
-            // Get class information from class backend
+            // Detect study pack flow
+            $isStudyPack = isset($data['isStudyPack']) && $data['isStudyPack'] === true;
             $classId = $data['classId'] ?? '';
-            $class = $this->getClassFromClassBackend($classId);
-            if (!$class) {
-                return ['success' => false, 'message' => 'Class not found'];
+            $class = null;
+            if (!$isStudyPack) {
+                // Get class information from class backend
+                $class = $this->getClassFromClassBackend($classId);
+                if (!$class) {
+                    return ['success' => false, 'message' => 'Class not found'];
+                }
             }
 
             // Check if this is a renewal payment (indicated by payment method or notes)
@@ -45,7 +66,7 @@ class PaymentController {
             );
             
             // Only check enrollment for NEW enrollments, not renewals
-            if (!$isRenewal && !$isRenewalFromNotes) {
+            if (!$isStudyPack && !$isRenewal && !$isRenewalFromNotes) {
                 $isEnrolled = $this->checkStudentEnrollmentFromClassBackend($studentId, $classId);
                 if ($isEnrolled) {
                     return [
@@ -53,7 +74,7 @@ class PaymentController {
                         'message' => 'You are already enrolled in this class. Use "Pay Early" or "Renew Payment" for monthly payments.'
                     ];
                 }
-            } else {
+            } elseif (!$isStudyPack) {
                 // For renewals, verify the student IS enrolled
                 $isEnrolled = $this->checkStudentEnrollmentFromClassBackend($studentId, $classId);
                 if (!$isEnrolled) {
@@ -65,7 +86,7 @@ class PaymentController {
             }
 
             // Use the final amount calculated by frontend (includes all discounts and fees)
-            $finalAmount = $data['amount'] ?? $class['fee'] ?? 0;
+            $finalAmount = $data['amount'] ?? ($class['fee'] ?? 0);
 
             // Create financial record
             $stmt = $this->db->prepare("
@@ -77,12 +98,12 @@ class PaymentController {
 
             $date = date('Y-m-d');
             $type = 'income';
-            $category = 'class_enrollment';
+            $category = $isStudyPack ? 'study_pack' : 'class_enrollment';
             $personName = $studentName;
-            $userId = $studentId; // Use studentId as user_id
+            $userId = $studentId; // Original alphanumeric ID for display/storage
             $personRole = 'student';
-            $className = $class['className'] ?? '';
-            $classId = $classId; // Include class_id
+            $className = $isStudyPack ? ($data['className'] ?? 'Study Pack') : ($class['className'] ?? '');
+            $classId = $classId; // For study pack, store pack id here
             // For cash payments, status should be 'paid' immediately
             $status = ($data['paymentMethod'] === 'cash' || $data['status'] === 'paid') ? 'paid' : 'pending';
             $paymentMethod = $data['paymentMethod'] ?? 'online';
@@ -156,6 +177,21 @@ class PaymentController {
             ");
             
             if ($updateStmt->execute([$transactionId])) {
+                // Study pack flow: record purchase and return
+                if (isset($payment['category']) && $payment['category'] === 'study_pack') {
+                    // Pass original alphanumeric user_id
+                    $this->createStudentPurchase($payment['user_id'], (int)$payment['class_id'], $transactionId, 'completed');
+                    return [
+                        'success' => true,
+                        'message' => 'Study pack payment processed successfully',
+                        'data' => [
+                            'transactionId' => $transactionId,
+                            'amount' => $payment['amount'],
+                            'status' => 'paid'
+                        ]
+                    ];
+                }
+
                 // Step 3: Get class payment tracking configuration from class backend
                 $classDetails = $this->getClassFromClassBackend($payment['class_id']);
                 
@@ -525,8 +561,8 @@ class PaymentController {
 
             $payment = $result->fetch_assoc();
             
-            // Get class details from class backend
-            if (isset($payment['class_id'])) {
+            // Get class details from class backend only for class payments
+            if (isset($payment['class_id']) && isset($payment['category']) && $payment['category'] === 'class_enrollment') {
                 $classDetails = $this->getClassFromClassBackend($payment['class_id']);
                 if ($classDetails) {
                     $payment['class_name'] = $classDetails['className'] ?? '';
@@ -540,6 +576,52 @@ class PaymentController {
 
         } catch (Exception $e) {
             return ['success' => false, 'message' => 'Error retrieving payment: ' . $e->getMessage()];
+        }
+    }
+
+    // Create a student purchase record (for study packs)
+    public function createStudentPurchase($studentId, $studyPackId, $transactionId = null, $status = 'completed') {
+        try {
+            // Accept alphanumeric student id (e.g. S09231). Extract digits for duplicate logic.
+            $studentIdOriginal = trim((string)$studentId);
+            if ($studentIdOriginal === '') {
+                return ['success' => false, 'message' => 'Invalid student id for purchase'];
+            }
+            $studentDigits = preg_replace('/\D+/', '', $studentIdOriginal);
+            // IDEMPOTENCY 1: transaction id uniqueness
+            if ($transactionId) {
+                $checkTxn = $this->db->prepare("SELECT id, student_id FROM student_purchases WHERE transaction_id = ? LIMIT 1");
+                $checkTxn->bind_param("s", $transactionId);
+                $checkTxn->execute();
+                $txnRes = $checkTxn->get_result();
+                if ($txnRes->num_rows > 0) {
+                    $existing = $txnRes->fetch_assoc();
+                    return ['success' => true, 'message' => 'Purchase already recorded (transaction match)', 'purchase_id' => $existing['id']];
+                }
+            }
+            // IDEMPOTENCY 2: Prevent duplicate completed purchases per (student_id, study_pack_id)
+            $checkDup = $this->db->prepare("SELECT id, transaction_id FROM student_purchases WHERE student_id = ? AND study_pack_id = ? AND payment_status = 'completed' LIMIT 1");
+            $checkDup->bind_param("si", $studentIdOriginal, $studyPackId);
+            $checkDup->execute();
+            $dupRes = $checkDup->get_result();
+            if ($dupRes->num_rows > 0) {
+                $existing = $dupRes->fetch_assoc();
+                return ['success' => true, 'message' => 'Purchase already recorded (student/studyPack match)', 'purchase_id' => $existing['id'], 'transaction_id' => $existing['transaction_id']];
+            }
+            // Insert new purchase (store original id)
+            $stmt = $this->db->prepare("INSERT INTO student_purchases (student_id, study_pack_id, payment_status, transaction_id) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param("siss", $studentIdOriginal, $studyPackId, $status, $transactionId);
+            if ($stmt->execute()) {
+                return ['success' => true, 'message' => 'Purchase recorded', 'purchase_id' => $stmt->insert_id];
+            } else {
+                // Handle potential duplicate key (after adding constraints) gracefully
+                if (strpos($stmt->error, 'Duplicate') !== false) {
+                    return ['success' => true, 'message' => 'Purchase already exists (constraint)', 'purchase_id' => null];
+                }
+                return ['success' => false, 'message' => 'Failed to record purchase: ' . $stmt->error];
+            }
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error recording purchase: ' . $e->getMessage()];
         }
     }
 
@@ -621,6 +703,23 @@ class PaymentController {
 
         } catch (Exception $e) {
             return ['success' => false, 'message' => 'Error retrieving payments: ' . $e->getMessage()];
+        }
+    }
+
+    // Get purchased study packs for a student
+    public function getStudentPurchasedStudyPacks($studentId) {
+        try {
+            $stmt = $this->db->prepare("SELECT study_pack_id, payment_status, transaction_id, purchase_date FROM student_purchases WHERE student_id = ? AND payment_status = 'completed' ORDER BY purchase_date DESC");
+            $stmt->bind_param("s", $studentId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $items = [];
+            while ($row = $res->fetch_assoc()) {
+                $items[] = $row;
+            }
+            return ['success' => true, 'data' => $items];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error retrieving purchases: ' . $e->getMessage()];
         }
     }
 

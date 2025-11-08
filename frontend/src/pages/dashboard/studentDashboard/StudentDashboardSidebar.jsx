@@ -23,8 +23,8 @@ const studentSidebarSections = [
 			{ name: 'Live Classes', path: '/student/liveclasses', icon: <FaCalendar className="h-5 w-5" /> },
 			{ name: 'My Payments', path: '/student/my-payments', icon: <FaCreditCard className="h-5 w-5" /> },
 			{ name: 'My Classes', path: '/student/my-classes', icon: <FaBook className="h-5 w-5" /> },
+			{ name: 'My Study Packs', path: '/student/studypacks', icon: <FaGraduationCap className="h-5 w-5" /> },
 			{ name: 'Past Lessons', path: '/student/pastlessons', icon: <FaFolder className="h-5 w-5" /> },
-			{ name: 'Study Packs', path: '/student/studypacks', icon: <FaGraduationCap className="h-5 w-5" /> },
 			{ name: 'Tute Tracking', path: '/student/tutetracking', icon: <FaSync className="h-5 w-5" /> },
 		],
 	},
@@ -48,6 +48,7 @@ const studentSidebarSections = [
 		items: [
 			{ name: 'Purchase Classes', path: '/student/purchase-classes', icon: <FaShoppingBag className="h-5 w-5" /> },
 			{ name: 'Purchase Study Pack', path: '/student/purchasestudypack', icon: <FaBookOpen className="h-5 w-5" /> },
+			{ name: 'Purchase Study Pack 01', path: '/student/purchasestudypack01', icon: <FaBookOpen className="h-5 w-5" /> },
 			{ name: 'Purchase Past Lessons', path: '/student/purchasepastlessons', icon: <FaFolderOpen className="h-5 w-5" /> },
 		],
 	},

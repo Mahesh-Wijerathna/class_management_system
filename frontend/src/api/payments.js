@@ -79,7 +79,7 @@ export const createPayment = async (paymentData) => {
     }
     
     console.log('🔧 Final response data:', responseData);
-    return responseData;
+  return responseData;
   } catch (error) {
     console.error('🔧 Payment creation error:', error);
     throw handleApiError(error);
@@ -130,6 +130,31 @@ export const generateInvoice = async (transactionId) => {
 export const getPaymentStats = async (studentId) => {
   try {
     const response = await paymentApi.get(`/routes.php/get_payment_stats?studentId=${studentId}`);
+    return response.data;
+  } catch (error) {
+    throw handleApiError(error);
+  }
+};
+
+// Get purchased study packs for a student
+export const getStudentPurchasedStudyPacks = async (studentId) => {
+  try {
+    const response = await paymentApi.get(`/routes.php/get_student_purchases?studentId=${studentId}`);
+    return response.data;
+  } catch (error) {
+    throw handleApiError(error);
+  }
+};
+
+// Create a student purchase (study pack)
+export const createStudentPurchase = async ({ studentId, studyPackId, transactionId, status = 'completed' }) => {
+  try {
+    const response = await paymentApi.post('/routes.php/create_student_purchase', {
+      student_id: studentId,
+      study_pack_id: studyPackId,
+      transaction_id: transactionId,
+      status
+    });
     return response.data;
   } catch (error) {
     throw handleApiError(error);

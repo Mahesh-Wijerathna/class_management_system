@@ -7,6 +7,10 @@ import TeacherAttendanceManagement from '../../pages/dashboard/teacherDashboard/
 import TeacherClassAttendanceDetail from '../../pages/dashboard/teacherDashboard/TeacherClassAttendanceDetail';
 import TeacherEnrollments from '../../pages/dashboard/teacherDashboard/TeacherEnrollments';
 import TeacherClassPayments from '../../pages/dashboard/teacherDashboard/TeacherClassPayments';
+import CreateStudyPack from '../../pages/dashboard/teacherDashboard/StudyPack/createstudypack';
+import TeacherStudyPacks from '../../pages/dashboard/teacherDashboard/StudyPack/TeacherStudyPacks';
+import TeacherStudyPackDetail from '../../pages/dashboard/teacherDashboard/StudyPack/TeacherStudyPackDetail';
+import TeacherStudyPackEdit from '../../pages/dashboard/teacherDashboard/StudyPack/TeacherStudyPackEdit';
 
 import ExamDesigner from '../../pages/dashboard/teacherDashboard/Exam/ExamDesigner';
 import MarkingView from '../../pages/dashboard/teacherDashboard/Exam/MarkingView';
@@ -23,6 +27,10 @@ export const teacherRoutes = [
   { path: "/teacher/attendance/:classId", element: <TeacherClassAttendanceDetail/> },
   { path: "/teacher/enrollments", element: <TeacherEnrollments/> },
   { path: "/teacher/payments", element: <TeacherClassPayments/> },
+  { path: "/teacher/study-pack", element: <TeacherStudyPacks/> },
+  { path: "/teacher/study-pack/create", element: <CreateStudyPack/> },
+  { path: "/teacher/study-pack/:id", element: <TeacherStudyPackDetail/> },
+  { path: "/teacher/study-pack/:id/edit", element: <TeacherStudyPackEdit/> },
 
   { path: "/teacher/exams/create", element: <ExamDesigner/> },
   { path: "/teacher/exams/manage", element: <MarkingView/> },

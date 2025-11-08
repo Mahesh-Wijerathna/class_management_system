@@ -15,6 +15,15 @@ class PayHereController {
             $orderId = $data['order_id'] ?? 'ORDER_' . time();
             $amount = $data['amount'] ?? 0;
             $currency = $data['currency'] ?? 'LKR';
+            // Determine payment type: study pack vs others
+            $isStudyPack = false;
+            if (isset($data['is_study_pack'])) {
+                $isStudyPack = (bool)$data['is_study_pack'];
+            } elseif (isset($data['category'])) {
+                $isStudyPack = strtolower((string)$data['category']) === 'study_pack';
+            } elseif (isset($data['items'])) {
+                $isStudyPack = stripos((string)$data['items'], 'study pack') !== false;
+            }
             
             // Generate PayHere hash using the working method from your other project
                 $hash = strtoupper(
@@ -27,12 +36,21 @@ class PayHereController {
                 )
             );
 
+
+            // Choose appropriate return/cancel URLs
+            $returnUrl = $isStudyPack
+                ? 'http://localhost:3000/student/studypack-payment-success'
+                : 'http://localhost:3000/student/payment-success';
+            $cancelUrl = $isStudyPack
+                ? 'http://localhost:3000/student/studypack-payment-cancel'
+                : 'http://localhost:3000/student/payment-cancel';
+
             return [
                 'success' => true,
                 'data' => [
                     'merchant_id' => $this->merchantId,
-                    'return_url' => 'http://localhost:3000/student/payment-success',
-                    'cancel_url' => 'http://localhost:3000/student/payment-cancel',
+                    'return_url' => $returnUrl,
+                    'cancel_url' => $cancelUrl,
                     'notify_url' => 'http://localhost:8090/routes.php/payhere_notify',
                     'order_id' => $orderId,
                     'items' => $data['items'] ?? 'Class Payment',

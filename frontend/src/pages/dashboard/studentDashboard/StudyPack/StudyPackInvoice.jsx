@@ -1,20 +1,150 @@
+// import React, { useState } from 'react';
+// import { useLocation, useNavigate } from 'react-router-dom';
+// import DashboardLayout from '../../../components/layout/DashboardLayout';
+// import studentSidebarSections from './StudentDashboardSidebar';
+// import CustomButton2 from '../../../components/CustomButton2';
+
+// const StudyPackInvoice = () => {
+// 	const navigate = useNavigate();
+// 	const location = useLocation();
+// 	const order = location.state;
+
+// 	// Local state for confirmation and button behavior
+// 	const [agreed, setAgreed] = useState(false);
+// 	const [paid, setPaid] = useState(false);
+// 	const [loading, setLoading] = useState(false);
+
+// 	// Forward to the existing Invoice page which handles PayHere
+// 	const handlePayHere = () => {
+// 		if (!agreed) {
+// 			alert('Please agree to the privacy policy and terms first.');
+// 			return;
+// 		}
+// 		setLoading(true);
+// 		navigate('/student/invoice', { state: order });
+// 	};
+
+// 	if (!order || !order.isStudyPack) {
+// 		return (
+// 			<DashboardLayout userRole="Student" sidebarItems={studentSidebarSections}>
+// 				<div className="p-6 max-w-3xl mx-auto text-center text-gray-600">
+// 					No invoice data found. Please start from the study pack checkout.
+// 					<div className="mt-4">
+// 						<button onClick={() => navigate('/student/purchasestudypack01')} className="px-4 py-2 bg-blue-600 text-white rounded">Browse Study Packs</button>
+// 					</div>
+// 				</div>
+// 			</DashboardLayout>
+// 		);
+// 	}
+
+// 	const {
+// 		className,
+// 		subject,
+// 		image,
+// 		amount,
+// 		basePrice,
+// 		discount,
+// 		firstName,
+// 		lastName,
+// 		studentId,
+// 		email,
+// 		mobile,
+// 		date,
+// 		classId,
+// 	} = order;
+
+// 	return (
+// 		<DashboardLayout userRole="Student" sidebarItems={studentSidebarSections}>
+// 			<div className="p-6 max-w-5xl mx-auto">
+// 				<div className="bg-white rounded-xl shadow p-6 border">
+// 					<div className="flex items-center gap-4 mb-6">
+// 						<img src={image || '/assets/nfts/Nft3.png'} alt={className} className="w-20 h-20 rounded object-cover border" />
+// 						<div>
+// 							<div className="text-xl font-semibold">{className}</div>
+// 							<div className="text-sm text-gray-500">{subject || 'Study Pack'}</div>
+// 						</div>
+// 						<div className="ml-auto text-right">
+// 							<div className="text-2xl font-bold">LKR {Number(amount || basePrice || 0).toLocaleString()}</div>
+// 							<div className="text-xs text-gray-500">{date || new Date().toLocaleDateString()}</div>
+// 						</div>
+// 					</div>
+
+// 					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+// 						<div className="bg-gray-50 rounded p-4">
+// 							<div className="font-semibold mb-2">Student</div>
+// 							<div className="text-sm space-y-1">
+// 								<div><span className="text-gray-500">Name:</span> {firstName} {lastName}</div>
+// 								<div><span className="text-gray-500">Student ID:</span> {studentId}</div>
+// 								<div><span className="text-gray-500">Email:</span> {email}</div>
+// 								<div><span className="text-gray-500">Mobile:</span> {mobile}</div>
+// 							</div>
+// 						</div>
+// 						<div className="bg-gray-50 rounded p-4">
+// 							<div className="font-semibold mb-2">Amount</div>
+// 							<div className="text-sm space-y-1">
+// 								<div className="flex justify-between"><span>Base Price</span><span>LKR {Number(basePrice || amount || 0).toLocaleString()}</span></div>
+// 								{Number(discount || 0) > 0 && (
+// 									<div className="flex justify-between text-green-700"><span>Discount</span><span>- LKR {Number(discount).toLocaleString()}</span></div>
+// 								)}
+// 								<div className="border-t pt-2 flex justify-between font-semibold"><span>Total</span><span>LKR {Number(amount || basePrice || 0).toLocaleString()}</span></div>
+// 							</div>
+// 						</div>
+// 					</div>
+
+// 					<div className="mt-6 flex flex-col sm:flex-row gap-3 justify-end">
+// 						{/* Agreement checkbox to enable payment */}
+// 						<div className="flex items-center gap-2 mr-auto sm:mr-0">
+// 							<input type="checkbox" id="agreePolicy" className="accent-pink-600" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+// 							<label htmlFor="agreePolicy" className="text-xs text-gray-700">I agree to <span className="text-pink-600 underline">privacy policy & terms</span></label>
+// 						</div>
+// 						<button
+// 							onClick={() => navigate(`/student/studypack/checkout/${classId}`, { state: { pack: { id: classId, title: className, image, subject }, from: 'invoice' } })}
+// 							className="px-5 py-2 bg-white border rounded hover:bg-gray-50"
+// 						>
+// 							Back to Checkout
+// 						</button>
+// 						<CustomButton2
+// 								type="button"
+// 								color={paid ? 'danger' : 'mint'}
+// 								className={`w-full mb-2 ${paid ? 'bg-gray-400 hover:bg-gray-500 text-white' : ''}`}
+// 								onClick={handlePayHere}
+// 								disabled={!agreed || paid || loading}
+// 							>
+// 								{loading ? 'Processing Payment...' : paid ? 'Payment Successful!' : 'Confirm and Pay Now'}
+// 							</CustomButton2>
+// 						<button
+// 							onClick={() => navigate('/student/invoice', { state: order })}
+// 							className="px-5 py-2 bg-[#1a365d] text-white rounded hover:bg-[#13294b]"
+// 						>
+// 							Pay Now
+// 						</button>
+// 					</div>
+// 				</div>
+// 			</div>
+// 		</DashboardLayout>
+// 	);
+// };
+
+// export default StudyPackInvoice;
+
+
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import DashboardLayout from '../../../components/layout/DashboardLayout';
-import studentSidebarSections from './StudentDashboardSidebar';
-import CustomButton2 from '../../../components/CustomButton2';
+import DashboardLayout from '../../../../components/layout/DashboardLayout';
+import studentSidebarSections from '../StudentDashboardSidebar';
+import CustomButton2 from '../../../../components/CustomButton2';
 import { FaCcVisa, FaCcMastercard, FaDownload } from 'react-icons/fa';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { createPayment, processPayment } from '../../../api/payments';
-import { createPayHerePayment } from '../../../api/payhere';
-import { getUserData } from '../../../api/apiUtils';
-import api from '../../../api/axiosConfig';
+import { createPayment, processPayment } from '../../../../api/payments';
+import { createPayHerePayment } from '../../../../api/payhere';
+import { getUserData } from '../../../../api/apiUtils';
+import api from '../../../../api/axiosConfig';
 
 // REMINDER: Add this to your public/index.html
 // <script type="text/javascript" src="https://www.payhere.lk/lib/payhere.js"></script>
 
-const Invoice = () => {
+const StudyPackInvoice = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const data = location.state;
@@ -362,4 +492,4 @@ const Invoice = () => {
   );
 };
 
-export default Invoice; 
+export default StudyPackInvoice;

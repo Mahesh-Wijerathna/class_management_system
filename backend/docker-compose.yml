@@ -343,6 +343,21 @@ services:
       - payment-network
       - class-network
 
+  payment-phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: payment-phpmyadmin
+    environment:
+      PMA_HOST: payment-mysql
+      PMA_PORT: 3306
+      PMA_USER: paymentuser
+      PMA_PASSWORD: paymentpass
+    ports:
+      - "8091:80"
+    depends_on:
+      - payment-mysql
+    networks:
+      - payment-network
+
 
 volumes:
   auth_mysql_data:

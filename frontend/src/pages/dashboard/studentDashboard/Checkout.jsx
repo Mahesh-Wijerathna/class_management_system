@@ -49,6 +49,7 @@ const getStudentData = async (cls) => {
     
     if (studentProfile) {
     return {
+    studentId: studentProfile.user_id || userData.userid || '',
         firstName: studentProfile.first_name || userData.firstName || '',
         lastName: studentProfile.last_name || userData.lastName || '',
         mobile: studentProfile.mobile_number || userData.mobile || '',
@@ -64,6 +65,7 @@ const getStudentData = async (cls) => {
   
   // Fallback if no user data or profile fetch failed
   return {
+  studentId: userData?.userid || '',
     firstName: userData?.firstName || '',
     lastName: userData?.lastName || '',
     mobile: userData?.mobile || '',
@@ -541,7 +543,7 @@ const Checkout = () => {
               console.log('📤 Payment data being passed:', paymentData);
               navigate('/student/invoice', { state: orderData });
             } else {
-              // For study packs, use the old flow for now
+              // For study packs, pass through flags so invoice/payment can create study-pack payment
               const invoiceId = `INV${Date.now()}`;
               const fullName = `${values.firstName} ${values.lastName}`;
               const orderData = {
@@ -558,6 +560,7 @@ const Checkout = () => {
                 date: new Date().toLocaleDateString(),
                 isStudyPack: true,
                 classId: cls.id,
+                studyPackId: cls.id,
                 image: cls.image,
                 description: cls.description,
               };
@@ -675,6 +678,18 @@ const Checkout = () => {
 
                     {/* Student Information Form */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <CustomTextField
+                        id="studentId"
+                        name="studentId"
+                        type="text"
+                        label="Student ID"
+                        value={values.studentId}
+                        onChange={() => {}}
+                        error={undefined}
+                        touched={false}
+                        icon={FaUser}
+                        readOnly
+                      />
                       <CustomTextField
                         id="firstName"
                         name="firstName"

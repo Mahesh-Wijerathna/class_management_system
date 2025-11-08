@@ -510,6 +510,87 @@ class TeacherController {
             ];
         }
     }
+
+    // Create study pack
+    public function createStudyPack($data) {
+        try {
+            if (empty($data['teacher_id']) || empty($data['title'])) {
+                return ['success' => false, 'message' => 'teacher_id and title are required'];
+            }
+            $result = $this->model->createStudyPack($data);
+            return $result;
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error creating study pack: ' . $e->getMessage()];
+        }
+    }
+
+    // Add link to study pack
+    public function addStudyPackLink($studyPackId, $data) {
+        try {
+            if (empty($studyPackId) || empty($data['link_url'])) {
+                return ['success' => false, 'message' => 'studyPackId and link_url are required'];
+            }
+            $linkTitle = $data['link_title'] ?? '';
+            $result = $this->model->addStudyPackLink($studyPackId, $data['link_url'], $linkTitle);
+            return $result;
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error adding link: ' . $e->getMessage()];
+        }
+    }
+
+    // List study packs for a teacher
+    public function getStudyPacksByTeacher($teacherId) {
+        try {
+            if (empty($teacherId)) return ['success' => false, 'message' => 'teacher id required'];
+            $packs = $this->model->getStudyPacksByTeacher($teacherId);
+            return ['success' => true, 'data' => $packs];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error fetching packs: ' . $e->getMessage()];
+        }
+    }
+
+    // Get study pack details
+    public function getStudyPackById($id) {
+        try {
+            if (empty($id)) return ['success' => false, 'message' => 'id required'];
+            $pack = $this->model->getStudyPackById($id);
+            if (!$pack) return ['success' => false, 'message' => 'Not found'];
+            return ['success' => true, 'data' => $pack];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error fetching pack: ' . $e->getMessage()];
+        }
+    }
+
+    // Get all study packs (student view)
+    public function getAllStudyPacks() {
+        try {
+            $packs = $this->model->getAllStudyPacks();
+            return ['success' => true, 'data' => $packs];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error fetching packs: ' . $e->getMessage()];
+        }
+    }
+
+    // Update study pack (title, description, price)
+    public function updateStudyPack($id, $data) {
+        try {
+            if (empty($id)) return ['success' => false, 'message' => 'id required'];
+            $allowed = ['title', 'description', 'price'];
+            $update = [];
+            foreach ($allowed as $k) {
+                if (array_key_exists($k, $data)) {
+                    $update[$k] = $data[$k];
+                }
+            }
+            if (empty($update)) {
+                return ['success' => false, 'message' => 'No fields to update'];
+            }
+            $result = $this->model->updateStudyPack($id, $update);
+            return $result;
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error updating study pack: ' . $e->getMessage()];
+        }
+    }
     
     // Get teachers by stream
     public function getTeachersByStream($stream) {
