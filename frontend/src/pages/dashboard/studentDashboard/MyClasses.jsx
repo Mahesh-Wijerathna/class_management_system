@@ -633,7 +633,23 @@ useEffect(() => {
 
   // Payment Tracking Utility Functions
   const getPaymentTrackingStatus = (cls) => {
-    // CRITICAL: Check payment status for special card types
+    // CRITICAL: Check payment status for special statuses FIRST
+    // Late Pay = Permission granted for TODAY only - allow access
+    if (cls.paymentStatus === 'late_pay') {
+      console.log('⏰ LATE PAY PERMISSION detected - Access granted for today');
+      return {
+        canAccess: true,
+        status: 'late-pay',
+        message: 'Late pay permission - Access granted for today only',
+        daysRemaining: 0,
+        nextPaymentDate: null,
+        gracePeriodEndDate: null,
+        freeDays: 0,
+        paymentTrackingEnabled: false,
+        isLatePay: true
+      };
+    }
+    
     // Free Card (overdue) = No payment needed - always has access
     // Half Card (partial) = Only half payment needed - check if half is paid
     if (cls.paymentStatus === 'overdue') {
@@ -2523,7 +2539,9 @@ useEffect(() => {
                               : 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 hover:shadow-lg hover:scale-105 active:scale-100'
                           }`}
                           title={
-                            !paymentTrackingInfo.canAccess 
+                            paymentTrackingInfo.isLatePay
+                              ? 'Late pay permission granted for today - Make payment for continued access'
+                              : !paymentTrackingInfo.canAccess 
                               ? 'Make payment to restore access' 
                               : paymentTrackingInfo.daysRemaining <= 3
                               ? 'Make payment to extend grace period'
@@ -2531,7 +2549,9 @@ useEffect(() => {
                           }
                         >
                           <FaMoneyBill className="text-xs" /> 
-                          {!paymentTrackingInfo.canAccess 
+                          {paymentTrackingInfo.isLatePay
+                            ? 'Late Pay - Payment Due'
+                            : !paymentTrackingInfo.canAccess 
                             ? 'Make Payment' 
                             : paymentTrackingInfo.daysRemaining <= 3 
                             ? 'Pay Early' 

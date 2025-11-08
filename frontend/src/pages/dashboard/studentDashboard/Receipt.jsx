@@ -190,36 +190,6 @@ const MyClasses = ({ onLogout }) => {
     }
 
     const today = testDate || new Date(); // Use test date if available
-
-    // Special case: Late payment approved — allow access for the approved date only
-    // latePaymentRequestDate is set when student submits a late payment request
-    if (cls.paymentStatus === 'late_payment') {
-      try {
-        const reqDate = cls.latePaymentRequestDate ? new Date(cls.latePaymentRequestDate) : null;
-        if (reqDate) {
-          const reqDateStr = reqDate.toISOString().split('T')[0];
-          const todayStr = (today instanceof Date ? today : new Date(today)).toISOString().split('T')[0];
-          if (reqDateStr === todayStr) {
-            return {
-              canAccess: true,
-              status: 'late_payment',
-              message: 'Late payment approved for today'
-            };
-          }
-          // If the late payment approval is for a previous date, do not grant access
-          return {
-            canAccess: false,
-            status: 'late_payment',
-            message: 'Late payment approval expired. Please make payment.'
-          };
-        }
-        // If no request date available, fall back to restricted access
-        return { canAccess: false, status: 'late_payment', message: 'Late payment approval pending' };
-      } catch (e) {
-        console.error('Error parsing latePaymentRequestDate', e);
-        // Fall through to normal checks on error
-      }
-    }
     
     // Check if there's a payment history
     if (!cls.paymentHistory || cls.paymentHistory.length === 0) {
@@ -753,35 +723,7 @@ const MyClasses = ({ onLogout }) => {
       localStorage.setItem('myClasses', JSON.stringify(updatedClasses));
       setShowLatePaymentModal(false);
       setSelectedClassForLatePayment(null);
-      // Show a small non-blocking toast to confirm same-day approval
-      createToast('Late pay approved — valid today');
-    }
-  };
-
-  // Lightweight toast helper (non-blocking)
-  const createToast = (message, duration = 3500) => {
-    try {
-      const toast = document.createElement('div');
-      toast.className = 'fixed left-1/2 top-6 transform -translate-x-1/2 z-[9999] bg-emerald-600 text-white px-4 py-2 rounded shadow-lg animate-slide-in-top';
-      toast.style.boxShadow = '0 6px 18px rgba(15, 23, 42, 0.15)';
-      toast.style.fontSize = '13px';
-      toast.style.pointerEvents = 'auto';
-      toast.innerText = message;
-
-      document.body.appendChild(toast);
-
-      // Auto-hide after duration: fade out then remove
-      setTimeout(() => {
-        toast.style.transition = 'opacity 300ms ease, transform 300ms ease';
-        toast.style.opacity = '0';
-        toast.style.transform = 'translate(-50%, -20px)';
-        setTimeout(() => {
-          if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
-        }, 350);
-      }, duration);
-    } catch (e) {
-      // Fallback to alert on environments where DOM isn't available
-      try { alert(message); } catch (err) { console.log(message); }
+      alert('Late payment request submitted successfully! You can attend today\'s class.');
     }
   };
 
@@ -1369,18 +1311,15 @@ const MyClasses = ({ onLogout }) => {
               <p className="text-gray-600 mb-4">
                 You are requesting late payment for: <strong>{selectedClassForLatePayment?.className}</strong>
               </p>
-              <p className="text-sm text-gray-500 mb-2">
+              <p className="text-sm text-gray-500 mb-4">
                 This will allow you to attend today's class without immediate payment.
-              </p>
-              <p className="text-xs text-orange-700 mb-4">
-                Note: Late payment approval is valid only for today. You will need to make payment or request another approval for future classes.
               </p>
               <div className="flex gap-2">
                 <button
                   onClick={submitLatePaymentRequest}
                   className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700"
                 >
-                  Submit Request (Valid Today)
+                  Submit Request
                 </button>
                 <button
                   onClick={() => setShowLatePaymentModal(false)}

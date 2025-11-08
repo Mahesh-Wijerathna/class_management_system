@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once 'ClassController.php';
 require_once 'EnrollmentController.php';
+require_once 'LatePayController.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -37,6 +38,7 @@ if ($mysqli->connect_errno) {
 
 $controller = new ClassController($mysqli);
 $enrollmentController = new EnrollmentController($mysqli);
+$latePayController = new LatePayController($mysqli);
 
 // Test endpoint
 if ($method === 'GET' && $path === '/test') {
@@ -98,6 +100,14 @@ switch ($method) {
             // Update enrollment payment with new array-based signature
             $result = $enrollmentController->updateEnrollmentPayment($input);
             echo json_encode($result);
+        } elseif ($path === '/late_pay/issue') {
+            // Issue late pay permission
+            $result = $latePayController->issuePermission($input);
+            echo json_encode($result);
+        } elseif ($path === '/late_pay/cleanup') {
+            // Clean up old late pay permissions
+            $result = $latePayController->cleanupOldPermissions();
+            echo json_encode($result);
         } else {
             http_response_code(404);
             echo json_encode(['error' => 'Endpoint not found']);
@@ -145,6 +155,24 @@ switch ($method) {
             $id = $_GET['id'];
             $result = $enrollmentController->getEnrollmentById($id);
             echo json_encode(['success' => true, 'data' => $result]);
+        } elseif ($path === '/late_pay/check' && isset($_GET['student_id']) && isset($_GET['class_id'])) {
+            // Check late pay permission
+            $studentId = $_GET['student_id'];
+            $classId = $_GET['class_id'];
+            $date = $_GET['date'] ?? null;
+            $result = $latePayController->checkPermission($studentId, $classId, $date);
+            echo json_encode($result);
+        } elseif (preg_match('/^\/late_pay\/student\/(.+)$/', $path, $matches)) {
+            // Get student permissions
+            $studentId = $matches[1];
+            $result = $latePayController->getStudentPermissions($studentId);
+            echo json_encode($result);
+        } elseif (preg_match('/^\/late_pay\/cashier\/(.+)$/', $path, $matches)) {
+            // Get cashier permissions for today
+            $cashierId = $matches[1];
+            $date = $_GET['date'] ?? null;
+            $result = $latePayController->getCashierPermissions($cashierId, $date);
+            echo json_encode($result);
         } else {
             http_response_code(404);
             echo json_encode(['error' => 'Endpoint not found']);

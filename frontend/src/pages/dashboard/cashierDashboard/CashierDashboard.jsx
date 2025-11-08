@@ -1,5 +1,4 @@
 ﻿import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-// Cashier dashboard: payment date logic fix applied below
 
 import { FaLock, FaLockOpen, FaSignOutAlt, FaBarcode, FaUserPlus, FaMoneyBill, FaHistory, FaFileInvoice, FaStickyNote, FaSearch, FaCamera, FaUser, FaPhone, FaGraduationCap, FaClock, FaExclamationTriangle, FaCheckCircle, FaEdit, FaPlus, FaTicketAlt } from 'react-icons/fa';
 
@@ -10623,40 +10622,18 @@ export default function CashierDashboard() {
 
                       } else {
 
-                        // Not paid yet - payment due this month
+                        // Not paid yet - payment due this month (1st of current month)
 
-                        if (today.getDate() > 1) {
+                        // Show current month's 1st as the due date, regardless of today's date
 
-                          // Past the 1st but not paid - next payment is 1st of next month
-
-                          nextPaymentDate = new Date(currentYear, currentMonthIndex + 1, 1);
-
-                        } else {
-
-                          // It's the 1st today - payment due today
-
-                          nextPaymentDate = new Date(currentYear, currentMonthIndex, 1);
-
-                        }
+                        nextPaymentDate = new Date(currentYear, currentMonthIndex, 1);
 
                       }
 
                       
 
-                      // If there is an outstanding amount for this month (not paid),
-                      // ensure the due date is shown as the 1st of the CURRENT month
-                      // (may be in the past). This corrects the cashier view which
-                      // previously advanced the due date to the 1st of the next month
-                      // when the month was unpaid.
-                      if (!hasPaymentThisMonth && outstanding > 0) {
-                        try {
-                          nextPaymentDate = new Date(currentYear, currentMonthIndex, 1);
-                        } catch (err) {
-                          console.error('Failed to adjust nextPaymentDate for unpaid month', err);
-                        }
-                      }
-
                       // Get grace period days from class payment tracking (default 7 days)
+
                       const gracePeriodDays = enr.paymentTrackingFreeDays || 7;
 
                       
@@ -11437,17 +11414,21 @@ export default function CashierDashboard() {
 
                           })()}
 
-                          {/* Late Note button - Disabled when already paid with tooltip */}
+                          {/* Late Note button - Disabled when already paid or late_pay status with tooltip */}
 
                           <div className="relative group">
 
                             <button
 
-                              disabled={hasPaymentThisMonth || (cardType === 'full' && enr.card_valid_from && enr.card_valid_to && new Date(enr.card_valid_from) <= new Date() && new Date(enr.card_valid_to) >= new Date())}
+                              disabled={
+                                hasPaymentThisMonth || 
+                                enr.payment_status === 'late_pay' ||
+                                (cardType === 'full' && enr.card_valid_from && enr.card_valid_to && new Date(enr.card_valid_from) <= new Date() && new Date(enr.card_valid_to) >= new Date())
+                              }
 
                               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
 
-                                hasPaymentThisMonth || (cardType === 'full' && enr.card_valid_from && enr.card_valid_to && new Date(enr.card_valid_from) <= new Date() && new Date(enr.card_valid_to) >= new Date())
+                                hasPaymentThisMonth || enr.payment_status === 'late_pay' || (cardType === 'full' && enr.card_valid_from && enr.card_valid_to && new Date(enr.card_valid_from) <= new Date() && new Date(enr.card_valid_to) >= new Date())
 
                                   ? 'bg-orange-300 text-orange-100 cursor-not-allowed opacity-50'
 
@@ -11455,37 +11436,105 @@ export default function CashierDashboard() {
 
                               }`}
 
-                              onClick={() => {
+                              onClick={async () => {
 
-                                if (hasPaymentThisMonth || (cardType === 'full' && enr.card_valid_from && enr.card_valid_to && new Date(enr.card_valid_from) <= new Date() && new Date(enr.card_valid_to) >= new Date())) return;
+                                if (hasPaymentThisMonth || enr.payment_status === 'late_pay' || (cardType === 'full' && enr.card_valid_from && enr.card_valid_to && new Date(enr.card_valid_from) <= new Date() && new Date(enr.card_valid_to) >= new Date())) return;
 
                                 try {
 
-                                  printNote({ title: 'Late Payment Permission', student, classRow: enr, reason: 'Allowed late payment for today only' });
+                                  // Issue late pay permission via API
 
-                                  // Refresh KPIs from backend
+                                  const response = await fetch('http://localhost:8087/routes.php/late_pay/issue', {
 
-                                  loadCashierKPIs();
+                                    method: 'POST',
 
-                                  // Scroll back to student panel after generating note
+                                    headers: { 'Content-Type': 'application/json' },
 
-                                  setTimeout(() => {
+                                    body: JSON.stringify({
 
-                                    studentPanelRef.current?.scrollIntoView({ 
+                                      student_id: student.studentId || student.id,
 
-                                      behavior: 'smooth', 
+                                      class_id: enr.classId || enr.id,
 
-                                      block: 'start' 
+                                      enrollment_id: enr.enrollmentId || enr.id,
+
+                                      cashier_id: getUserData()?.userid,
+
+                                      reason: 'Allowed late payment for today only'
+
+                                    })
+
+                                  });
+
+
+
+                                  const result = await response.json();
+
+
+
+                                  if (result.success) {
+
+                                    // Show success toast FIRST
+
+                                    showToast('✅ Late pay permission issued - Student can attend today!', 'success');
+
+
+
+                                    // Print the late pay note
+
+                                    printNote({ 
+
+                                      title: 'Late Payment Permission', 
+
+                                      student, 
+
+                                      classRow: enr, 
+
+                                      reason: 'Allowed late payment for today only' 
 
                                     });
 
-                                  }, 300);
+
+
+                                    // Update local enrollment status
+
+                                    enr.payment_status = 'late_pay';
+
+
+
+                                    // Refresh data - reload student data to get updated enrollment status
+
+                                    loadStudentData(student.studentId || student.id);
+
+                                    loadCashierKPIs();
+
+
+
+                                    // Scroll back to student panel
+
+                                    setTimeout(() => {
+
+                                      studentPanelRef.current?.scrollIntoView({ 
+
+                                        behavior: 'smooth', 
+
+                                        block: 'start' 
+
+                                      });
+
+                                    }, 300);
+
+                                  } else {
+
+                                    showToast(`❌ Failed: ${result.message}`, 'error');
+
+                                  }
 
                                 } catch (e) { 
 
-                                  console.error('Error printing late note:', e);
+                                  console.error('Error issuing late pay permission:', e);
 
-                                  alert('Failed to generate late note'); 
+                                  showToast('❌ Failed to issue late pay permission', 'error');
 
                                 }
 
@@ -11493,7 +11542,7 @@ export default function CashierDashboard() {
 
                             >
 
-                              Late Pay
+                              {enr.payment_status === 'late_pay' ? 'Late Pay Issued' : 'Late Pay'}
 
                             </button>
 
@@ -11504,6 +11553,18 @@ export default function CashierDashboard() {
                               <div className="invisible group-hover:visible absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg whitespace-nowrap z-50 shadow-lg">
 
                                 ℹ️ Late Pay not needed - Payment already done this month
+
+                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
+
+                              </div>
+
+                            )}
+
+                            {enr.payment_status === 'late_pay' && (
+
+                              <div className="invisible group-hover:visible absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg whitespace-nowrap z-50 shadow-lg">
+
+                                ✅ Late pay already issued for today
 
                                 <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
 
