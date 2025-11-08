@@ -1069,7 +1069,7 @@ useEffect(() => {
           bgColor: 'bg-red-50',
           borderColor: 'border-red-200'
         };
-      case 'late_payment':
+      case 'late_pay':
         return { 
           color: 'text-orange-600', 
           icon: <FaUserClock />, 
