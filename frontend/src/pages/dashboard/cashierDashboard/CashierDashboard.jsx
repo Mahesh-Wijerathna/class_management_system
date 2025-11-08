@@ -3,6 +3,7 @@ import DashboardLayout from '../../../components/layout/DashboardLayout';
 import cashierSidebarSections from './CashierDashboardSidebar';
 import BasicCard from '../../../components/BasicCard';
 import { useNavigate } from 'react-router-dom';
+import { getCurrentUserPermissions, filterSidebarByPermissions, clearPermissionsCache } from '../../../utils/permissionChecker';
 import { 
   LuDollarSign, 
   LuUsers, 
@@ -27,6 +28,8 @@ const getStorage = () => {
 const CashierDashboard = ({ onLogout }) => {
   const [currentCashier, setCurrentCashier] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
   const [stats, setStats] = useState({
     todayPayments: 0,
     totalStudents: 0,
@@ -38,6 +41,57 @@ const CashierDashboard = ({ onLogout }) => {
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [todaySchedule, setTodaySchedule] = useState([]);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const loadUserPermissions = async () => {
+      try {
+        setError(null);
+
+        // Get current user ID from stored user data
+        const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+        let userId = 'CASH001'; // Default cashier user from database
+
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            userId = user.userid || userId;
+          } catch (error) {
+            console.error('Error parsing user data:', error);
+          }
+        }
+
+        console.log('Fetching permissions for cashier user:', userId);
+
+        // Get user permissions
+        const userPermissions = await getCurrentUserPermissions(userId);
+
+        console.log('Cashier user permissions:', userPermissions);
+
+        // Filter sidebar sections based on permissions
+        const filteredSections = filterSidebarByPermissions(cashierSidebarSections, userPermissions);
+
+        console.log('Filtered cashier sidebar sections:', filteredSections);
+
+        setFilteredSidebarSections(filteredSections);
+      } catch (error) {
+        console.error('Failed to load cashier user permissions:', error);
+        setError(error.message);
+
+        // Fallback: show all sections if permission loading fails
+        console.log('Using fallback: showing all cashier sidebar sections');
+        setFilteredSidebarSections(cashierSidebarSections);
+      }
+    };
+
+    loadUserPermissions();
+  }, []);
+
+  // Clear cache on component unmount
+  useEffect(() => {
+    return () => {
+      clearPermissionsCache();
+    };
+  }, []);
 
   useEffect(() => {
     // Load authenticated user data from appropriate storage
@@ -155,11 +209,15 @@ const CashierDashboard = ({ onLogout }) => {
     ]);
   };
 
-  // Show loading while checking authentication
+  // Show loading while checking authentication and permissions
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading cashier dashboard...</p>
+          <p className="mt-2 text-sm text-gray-500">Fetching user permissions</p>
+        </div>
       </div>
     );
   }
@@ -215,8 +273,12 @@ const CashierDashboard = ({ onLogout }) => {
   };
 
   return (
-    <DashboardLayout userRole="Cashier" sidebarItems={cashierSidebarSections}>
-      <div className="p-6 bg-white rounded-lg shadow">
+    <DashboardLayout userRole="Cashier" sidebarItems={filteredSidebarSections}>
+      {error && (
+        <div className="mb-4 p-4 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded">
+          <strong>Warning:</strong> Permission loading failed ({error}). Showing all menu items as fallback.
+        </div>
+      )}
       <div className="space-y-6">
         {/* Welcome Section */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-lg p-6 text-white">
@@ -472,7 +534,6 @@ const CashierDashboard = ({ onLogout }) => {
             </div>
           </BasicCard>
         </div>
-      </div>
       </div>
     </DashboardLayout>
   );

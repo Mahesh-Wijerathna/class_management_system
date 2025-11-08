@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import BasicTable from '../../../components/BasicTable';
 import adminSidebarSections from './AdminDashboardSidebar';
-import { FaTruck, FaSearch, FaFilter, FaCheckCircle, FaTimesCircle, FaClock, FaMapMarkerAlt, FaUser, FaPhone, FaEnvelope, FaBook, FaCalendar, FaDownload, FaPrint, FaExclamationTriangle, FaSync } from 'react-icons/fa';
+import { FaTruck, FaSearch, FaFilter, FaCheckCircle, FaClock, FaMapMarkerAlt, FaUser, FaPhone, FaEnvelope, FaBook, FaCalendar, FaDownload, FaPrint, FaExclamationTriangle, FaSync } from 'react-icons/fa';
 import axios from 'axios';
 
 const SpeedPostDeliveries = ({ onLogout }) => {

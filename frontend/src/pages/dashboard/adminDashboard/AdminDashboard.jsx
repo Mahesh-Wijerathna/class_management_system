@@ -1,13 +1,88 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import adminSidebarSections from '././AdminDashboardSidebar';
+import { getCurrentUserPermissions, filterSidebarByPermissions, clearPermissionsCache } from '../../../utils/permissionChecker';
 
 const AdminDashboard = () => {
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const loadUserPermissions = async () => {
+      try {
+        setError(null);
+
+        // Get current user ID from stored user data
+        const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+        let userId = 'A002'; // Default admin user from database
+
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            userId = user.userid || userId;
+          } catch (error) {
+            console.error('Error parsing user data:', error);
+          }
+        }
+
+        console.log('Fetching permissions for user:', userId);
+
+        // Get user permissions
+        const userPermissions = await getCurrentUserPermissions(userId);
+
+        console.log('User permissions:', userPermissions);
+
+        // Filter sidebar sections based on permissions
+        const filteredSections = filterSidebarByPermissions(adminSidebarSections, userPermissions);
+
+        console.log('Filtered sidebar sections:', filteredSections);
+
+        setFilteredSidebarSections(filteredSections);
+      } catch (error) {
+        console.error('Failed to load user permissions:', error);
+        setError(error.message);
+
+        // Fallback: show all sections if permission loading fails
+        console.log('Using fallback: showing all sidebar sections');
+        setFilteredSidebarSections(adminSidebarSections);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserPermissions();
+  }, []);
+
+  // Clear cache on component unmount
+  useEffect(() => {
+    return () => {
+      clearPermissionsCache();
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+          <p className="mt-2 text-sm text-gray-500">Fetching user permissions</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <DashboardLayout
       userRole="Administrator"
-      sidebarItems={adminSidebarSections}
+      sidebarItems={filteredSidebarSections}
     >
+      {error && (
+        <div className="mb-4 p-4 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded">
+          <strong>Warning:</strong> Permission loading failed ({error}). Showing all menu items as fallback.
+        </div>
+      )}
       <div className="space-y-6">
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
