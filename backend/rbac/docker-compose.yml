@@ -13,7 +13,7 @@ services:
       - mysql_data:/var/lib/mysql
       - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - app-network
+      - rbac-network
 
   # phpmyadmin:
   #   image: phpmyadmin/phpmyadmin
@@ -26,7 +26,7 @@ services:
   #   depends_on:
   #     - mysql
   #   networks:
-  #     - app-network
+  #     - rbac-network
 
   rbac-backend:
     build:
@@ -47,11 +47,11 @@ services:
       - DB_USER=devuser
       - DB_PASSWORD=devpass
     networks:
-      - app-network
+      - rbac-network
 
 volumes:
   mysql_data:
 
 networks:
-  app-network:
-    driver: bridge
+  rbac-network:
+    external: true
