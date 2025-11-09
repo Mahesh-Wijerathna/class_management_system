@@ -227,7 +227,10 @@ const StudyPackInvoice = () => {
         address: studentDetails?.address || userData.address || 'Student Address',
         city: studentDetails?.district || userData.city || 'Colombo',
         country: 'Sri Lanka',
-        items: `${data.className} - ${data.isStudyPack ? 'Study Pack' : (data.subject || 'Course')}`,
+  items: `${data.className} - ${data.isStudyPack ? 'Study Pack' : (data.subject || 'Course')}`,
+  // Explicitly mark this as a study pack payment so backend sets the correct cancel URL
+  is_study_pack: true,
+  category: 'study_pack',
         // Custom fields for tracking (student_id should be numeric when possible)
         student_id: data.paymentData?.studentId || String(userData.userid),
         class_id: data.paymentData?.classId || data.classId
