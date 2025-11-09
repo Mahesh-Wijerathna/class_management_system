@@ -208,6 +208,41 @@ class StudyPackController {
         }
     }
 
+    // Serve a study pack document for secure download (placeholder: raw file with CORS headers).
+    // You can extend this to apply server-side watermarking/password using external tools (e.g. qpdf, pdftk).
+    public function downloadDocument($docId, $studentId, $studentName) {
+        try {
+            $stmt = $this->conn->prepare('SELECT file_path, title FROM study_pack_documents WHERE id = ?');
+            if (!$stmt) throw new Exception('DB prepare failed: ' . $this->conn->error);
+            $stmt->bind_param('i', $docId);
+            if (!$stmt->execute()) throw new Exception('DB execute failed: ' . $stmt->error);
+            $res = $stmt->get_result();
+            $row = $res->fetch_assoc();
+            if (!$row) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'Document not found']);
+                return;
+            }
+            $abs = realpath(__DIR__ . '/..' . $row['file_path']);
+            if (!$abs || !is_file($abs)) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'message' => 'File missing']);
+                return;
+            }
+            // Set headers for file download
+            header('Access-Control-Allow-Origin: *');
+            header('Content-Type: application/pdf');
+            $baseName = ($row['title'] ?: 'document') . '_SID_' . preg_replace('/[^A-Za-z0-9_-]/', '_', $studentId) . '.pdf';
+            header('Content-Disposition: attachment; filename="' . $baseName . '"');
+            header('Content-Length: ' . filesize($abs));
+            // Simple watermark injection could be implemented here; currently serving original.
+            readfile($abs);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Download error: ' . $e->getMessage()]);
+        }
+    }
+
     // Update a study pack link (title and/or url)
     public function updateLink($linkId, $input) {
         try {

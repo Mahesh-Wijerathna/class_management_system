@@ -47,8 +47,8 @@ const studentSidebarSections = [
 		section: 'Purchase',
 		items: [
 			{ name: 'Purchase Classes', path: '/student/purchase-classes', icon: <FaShoppingBag className="h-5 w-5" /> },
-			{ name: 'Purchase Study Pack', path: '/student/purchasestudypack', icon: <FaBookOpen className="h-5 w-5" /> },
-			{ name: 'Purchase Study Pack 01', path: '/student/purchasestudypack01', icon: <FaBookOpen className="h-5 w-5" /> },
+			// { name: 'Purchase Study Pack', path: '/student/purchasestudypack', icon: <FaBookOpen className="h-5 w-5" /> },
+			{ name: 'Purchase Study Pack', path: '/student/purchasestudypack01', icon: <FaBookOpen className="h-5 w-5" /> },
 			{ name: 'Purchase Past Lessons', path: '/student/purchasepastlessons', icon: <FaFolderOpen className="h-5 w-5" /> },
 		],
 	},

@@ -243,8 +243,9 @@ const TeacherStudyPackEdit = () => {
         {loading ? (
           <div className="text-gray-500">Loading...</div>
         ) : (
-          <form onSubmit={onSubmit} className="space-y-6">
-            <div className="bg-white rounded-md shadow border border-gray-100 p-8 min-h-100 space-y-4">
+          <div className="space-y-6">
+            {/* Study pack core details form */}
+            <form onSubmit={onSubmit} className="bg-white rounded-md shadow border border-gray-100 p-8 min-h-100 space-y-4">
             {status ? <div className="text-red-600 text-sm">{status}</div> : null}
 
             <div>
@@ -284,14 +285,15 @@ const TeacherStudyPackEdit = () => {
               />
             </div>
 
-            <div className="flex justify-end gap-3">
-              {/* <button type="button" className="px-4 py-2 rounded border text-sm" onClick={() => navigate(-1)}>Cancel</button>
-              <button type="submit" disabled={saving} className="px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white text-sm">
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button> */}
-            </div>
-            </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" className="px-4 py-2 bg-white rounded border text-sm" onClick={() => navigate(-1)}>Cancel</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white text-sm">
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
 
+            {/* Media/link management panels (each may contain its own form) */}
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="bg-white rounded-md shadow border border-gray-100 p-5">
                 <h3 className="font-medium text-gray-800 mb-3">Links</h3>
@@ -406,12 +408,7 @@ const TeacherStudyPackEdit = () => {
                 
               </div>
             </div>
-              <button type="button" className="px-4 py-2 bg-white hover:bg-white-700 rounded border text-sm " onClick={() => navigate(-1)}>Cancel</button>
-
-            <button type="submit" disabled={saving} className="px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white text-sm mx-2">
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button>
-          </form>
+          </div>
           
         )}
       </div>

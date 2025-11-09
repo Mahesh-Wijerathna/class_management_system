@@ -15,7 +15,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once 'TeacherController.php';
 require_once __DIR__ . '/controllers/StudyPackController.php';
 
-// Set content type to JSON
+// Detect raw file download endpoint BEFORE forcing JSON header
+$requestUriPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$rawPath = str_replace('/routes.php', '', $requestUriPath);
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && $rawPath === '/study_pack_download_document') {
+    try {
+        $studyPackController = new StudyPackController();
+        $docId = isset($_GET['document_id']) ? intval($_GET['document_id']) : 0;
+        $studentId = $_GET['student_id'] ?? 'UNKNOWN';
+        $studentName = $_GET['student_name'] ?? '';
+        if ($docId <= 0) {
+            header('Content-Type: application/json');
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Invalid document_id']);
+            exit;
+        }
+        // The controller itself outputs the file (or JSON error)
+        $studyPackController->downloadDocument($docId, $studentId, $studentName);
+    } catch (Exception $e) {
+        header('Content-Type: application/json');
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Download handler error: ' . $e->getMessage()]);
+    }
+    exit;
+}
+
+// Set content type to JSON for standard API responses
 header('Content-Type: application/json');
 
 try {
@@ -24,8 +50,7 @@ try {
     
     // Get request method and path
     $method = $_SERVER['REQUEST_METHOD'];
-    $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-    $path = str_replace('/routes.php', '', $path);
+    $path = $rawPath;
     
     // Route handling
     switch ($method) {

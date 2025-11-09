@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import DashboardLayout from '../../../../components/layout/DashboardLayout';
 import studentSidebarSections from '../StudentDashboardSidebar';
 import { getUserData } from '../../../../api/apiUtils';
+import { downloadStudyPackDocument } from '../../../../api/studyPacks';
 
 const TEACHER_API = process.env.REACT_APP_TEACHER_API_BASE_URL || 'http://localhost:8088';
 
@@ -18,9 +19,11 @@ const StudyPackDetail = () => {
     const [t, setT] = useState(0); // 0..1 progress along perimeter
     const vidRef = useRef(null);
     const intervalRef = useRef(null);
+    const containerRef = useRef(null);
+    const [isFs, setIsFs] = useState(false);
 
     const start = () => {
-      if (intervalRef.current) return; // already running
+      if (intervalRef.current) return; // already running 
       intervalRef.current = setInterval(() => {
         setT((prev) => (prev + 0.02) % 1); // full loop ~10s (0.02 step at 200ms)
       }, 200);
@@ -41,47 +44,85 @@ const StudyPackDetail = () => {
       v.addEventListener('play', handlePlay);
       v.addEventListener('pause', handlePause);
       v.addEventListener('ended', handleEnded);
+      const onFsChange = () => {
+        setIsFs(document.fullscreenElement === containerRef.current);
+      };
+      document.addEventListener('fullscreenchange', onFsChange);
       return () => {
         stop();
         v.removeEventListener('play', handlePlay);
         v.removeEventListener('pause', handlePause);
         v.removeEventListener('ended', handleEnded);
+        document.removeEventListener('fullscreenchange', onFsChange);
       };
     }, []);
 
-    // Compute position along border with padding
+    // Compute position along border with asymmetric padding (extra right side space)
     const computePos = (tt) => {
-      const pad = 6; // percent inset from edges
-      const span = 100 - 2 * pad;
+      const padTop = 6;
+      const padBottom = 6;
+      const padLeft = 6;
+      const padRight = 20; // extra padding on right edge
+      const spanTop = 100 - padLeft - padRight; // horizontal travel length along top/bottom
+      const spanSide = 100 - padTop - padBottom; // vertical travel length along sides
       const u = ((tt % 1) + 1) % 1;
-      const seg = Math.floor(u * 4); // 0: top L->R, 1: right T->B, 2: bottom R->L, 3: left B->T
+      const seg = Math.floor(u * 4); // 0 top,1 right,2 bottom,3 left
       const segT = (u * 4) - seg;
       let top, left;
       switch (seg) {
-        case 0:
-          top = pad;
-          left = pad + segT * span;
+        case 0: // top L->R
+          top = padTop;
+          left = padLeft + segT * spanTop;
           break;
-        case 1:
-          top = pad + segT * span;
-          left = 100 - pad;
+        case 1: // right T->B
+          top = padTop + segT * spanSide;
+          left = 100 - padRight;
           break;
-        case 2:
-          top = 100 - pad;
-          left = 100 - pad - segT * span;
+        case 2: // bottom R->L
+          top = 100 - padBottom;
+          left = 100 - padRight - segT * spanTop;
           break;
-        default:
-          top = 100 - pad - segT * span;
-          left = pad;
+        default: // left B->T
+          top = 100 - padBottom - segT * spanSide;
+          left = padLeft;
       }
       return { top: `${top}%`, left: `${left}%` };
     };
 
     const pos = computePos(t);
 
+    const toggleFullscreen = async () => {
+      try {
+        if (!document.fullscreenElement && containerRef.current?.requestFullscreen) {
+          await containerRef.current.requestFullscreen();
+        } else if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+      } catch (_) {}
+    };
+
     return (
-      <div className="relative group">
-        <video ref={vidRef} controls className="w-full rounded border" src={src} />
+      <div
+        ref={containerRef}
+        className={isFs ? 'relative group bg-black flex items-center justify-center' : 'relative group'}
+      >
+        <video
+          ref={vidRef}
+          controls
+          className={isFs ? 'w-full h-screen max-h-screen object-contain' : 'w-full rounded border'}
+          src={src}
+          controlsList="nodownload noplaybackrate noremoteplayback nofullscreen"
+          disablePictureInPicture
+          onContextMenu={(e) => e.preventDefault()}
+        />
+        {/* Custom Fullscreen Toggle */}
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className="absolute top-2 right-2 z-20 px-2 py-1 text-[11px] bg-black/50 text-white rounded hover:bg-black/70"
+        >
+          {isFs ? 'Exit Fullscreen' : 'Fullscreen'}
+        </button>
         <div
           className="pointer-events-none select-none absolute text-xs sm:text-sm md:text-base font-semibold text-white/70 drop-shadow-md tracking-wider"
           style={{
@@ -101,6 +142,8 @@ const StudyPackDetail = () => {
       </div>
     );
   };
+
+  // removed external fullscreen overlay (we fullscreen the container instead)
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -188,6 +231,38 @@ const StudyPackDetail = () => {
     }
   };
 
+  // Study pack PDF download (server-side security may be applied; client no longer injects watermark)
+  const handleSecurePdfDownload = async (doc) => {
+    const user = getUserData();
+    if (!user || !user.userid) {
+      alert('Please log in to download documents');
+      return;
+    }
+    try {
+      // Backend should embed watermark and set open password = studentId
+      const studentName = user.fullname || user.fullName || user.name || user.firstName || user.username || 'Student';
+      const blob = await downloadStudyPackDocument(doc.id, user.userid, studentName);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (doc.title || 'document') + '.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Failed to download secured PDF:', e);
+      // Fallback: download the original PDF without watermark/password
+      try {
+        if (!doc.file_path) throw new Error('Missing file path for document');
+        await handleDownload(doc.file_path, doc.title || 'document');
+      } catch (fallbackErr) {
+        console.error('Fallback download failed:', fallbackErr);
+        alert('Download failed. Please try again later.');
+      }
+    }
+  };
+
   return (
     <DashboardLayout userRole="Student" sidebarItems={studentSidebarSections}>
       <div className="p-2 sm:p-4 md:p-6 max-w-6xl mx-auto">
@@ -237,13 +312,13 @@ const StudyPackDetail = () => {
                       <div className="font-medium mb-2 text-sm">{v.title || 'Video'}</div>
                       <WatermarkedVideo src={fileUrl(v.file_path)} studentId={studentIdForWatermark} />
                       <div className="mt-2 flex justify-end">
-                        <button
+                        {/* <button
                           type="button"
                           onClick={() => handleDownload(v.file_path, v.title || 'video')}
                           className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                         >
                           Download
-                        </button>
+                        </button> */}
                       </div>
                     </div>
                   ))}
@@ -265,13 +340,24 @@ const StudyPackDetail = () => {
                       <div className="pointer-events-none select-none absolute inset-0 flex items-center justify-center opacity-5">
                         <span className="text-4xl font-bold text-gray-700" style={{transform:'rotate(-30deg)'}}>{studentIdForWatermark}</span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDownload(d.file_path, d.title || 'document')}
-                        className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 z-10"
-                      >
-                        Download
-                      </button>
+                      <div className="z-10 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleSecurePdfDownload(d)}
+                          className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                          title="Download PDF"
+                        >
+                          Download
+                        </button>
+                        {/* <button
+                          type="button"
+                          onClick={() => handleDownload(d.file_path, d.title || 'document')}
+                          className="px-3 py-1 text-xs bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+                          title="Open original file (no password)"
+                        >
+                          Open Original
+                        </button> */}
+                      </div>
                     </div>
                   ))}
                 </div>
