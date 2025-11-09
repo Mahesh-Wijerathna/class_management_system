@@ -11,6 +11,8 @@ const MarkingView = () => {
   const [questions, setQuestions] = useState([]);
   const [students, setStudents] = useState(['']); 
   const [marks, setMarks] = useState({});
+  const [invalidInputs, setInvalidInputs] = useState({}); // key -> current invalid string value
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     fetchQuestions();
@@ -79,7 +81,24 @@ const MarkingView = () => {
 
   const handleMarkChange = (studentIndex, questionId, value) => {
     const key = `${studentIndex}-${questionId}`;
-    setMarks(prev => ({ ...prev, [key]: parseFloat(value) || 0 }));
+    // Allow empty -> clear
+    if (value === '') {
+      setMarks(prev => { const cp = { ...prev }; delete cp[key]; return cp; });
+      setInvalidInputs(prev => { const cp = { ...prev }; delete cp[key]; return cp; });
+      return;
+    }
+    const num = parseFloat(value);
+    // Find max for this question
+    const q = questions.find(q => q.part_id === questionId);
+    const max = q ? Number(q.max_marks) : Infinity;
+    if (isNaN(num) || num < 0 || num > max) {
+      // Mark invalid, do NOT store in marks (so it won't count in totals)
+      setInvalidInputs(prev => ({ ...prev, [key]: value }));
+      return;
+    }
+    // Valid value: store and clear invalid state
+    setMarks(prev => ({ ...prev, [key]: num }));
+    setInvalidInputs(prev => { const cp = { ...prev }; delete cp[key]; return cp; });
   };
 
   const addStudentRow = () => {
@@ -107,9 +126,9 @@ const MarkingView = () => {
             type="number"
             min="0"
             max={node.max_marks}
-            value={marks[`${studentIndex}-${node.part_id}`] ?? ''}
+            value={invalidInputs[`${studentIndex}-${node.part_id}`] ?? (marks[`${studentIndex}-${node.part_id}`] ?? '')}
             onChange={(e) => handleMarkChange(studentIndex, node.part_id, e.target.value)}
-            style={{ width: '60px' }}
+            style={{ width: '70px', border: invalidInputs[`${studentIndex}-${node.part_id}`] ? '2px solid #dc2626' : '1px solid #ccc', background: invalidInputs[`${studentIndex}-${node.part_id}`] ? '#fff5f5' : 'white' }}
           />
         </div>
         {node.children && node.children.length > 0 && renderQuestionHierarchy(node.children, studentIndex, level + 1)}
@@ -118,6 +137,12 @@ const MarkingView = () => {
   };
 
   const handleSaveMarks = async () => {
+    // Block save if any invalid inputs remain
+    if (Object.keys(invalidInputs).length > 0) {
+      setSaveError('Please correct highlighted marks (exceeding max or invalid) before saving.');
+      return;
+    }
+    setSaveError('');
     const marksData = [];
     students.forEach((student, studentIndex) => {
       if (student && student.trim()) {
@@ -150,6 +175,24 @@ const MarkingView = () => {
   return (
     <DashboardLayout sidebarSections={Array.isArray(teacherSidebarSections) ? teacherSidebarSections : []}>
       <div style={{ padding: '20px' }}>
+        {saveError && (
+          <div style={{
+            background:'#fee2e2',
+            border:'1px solid #fca5a5',
+            color:'#b91c1c',
+            padding:'10px 14px',
+            borderRadius:'6px',
+            marginBottom:'16px',
+            fontSize:'14px',
+            display:'flex',
+            alignItems:'center',
+            gap:'8px'
+          }}>
+            <span style={{fontWeight:'600'}}>Cannot save.</span>
+            <span>{saveError}</span>
+            <button onClick={()=>setSaveError('')} style={{marginLeft:'auto',background:'transparent',border:'none',color:'#b91c1c',cursor:'pointer',fontWeight:'600'}}>×</button>
+          </div>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button

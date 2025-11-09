@@ -223,10 +223,12 @@ CREATE TABLE IF NOT EXISTS recording_progress (
 
 -- Exams table
 CREATE TABLE exams (
-    exam_id INT AUTO_INCREMENT PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    date DATE NOT NULL,
-    creator_user_id INT NOT NULL
+  exam_id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  date DATE NOT NULL,
+  creator_user_id INT NOT NULL,
+  teacher_id VARCHAR(10) NULL,
+  INDEX idx_teacher_id (teacher_id)
 );
 
 -- QuestionParts table

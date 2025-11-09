@@ -1,10 +1,7 @@
-
-
-
-
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { examAPI } from '../../../../api/Examapi';
+import api, { examAPI } from '../../../../api/Examapi';
+import { getUserData } from '../../../../api/apiUtils';
 import teacherSidebarSections from '../TeacherDashboardSidebar';
 import DashboardLayout from '../../../../components/layout/DashboardLayout';
 
@@ -20,7 +17,13 @@ const Dashboard = () => {
   const fetchExams = async () => {
     setLoading(true);
     try {
-      const response = await examAPI.getAll();
+      // Read logged-in teacher identity and fetch only relevant exams
+      const user = getUserData();
+      const teacherCode = user?.teacherId || (typeof user?.userid === 'string' ? user.userid : null);
+      const teacherFilter = teacherCode || (user?.id ?? null);
+      const response = teacherFilter
+        ? await api.get('/exams', { params: { teacher_id: teacherFilter } })
+        : await examAPI.getAll();
       // support both axios response shape and raw data
       const data = response?.data ?? response ?? [];
       setExams(Array.isArray(data) ? data : []);
@@ -36,9 +39,17 @@ const Dashboard = () => {
     const title = prompt('Enter exam title:');
     const date = prompt('Enter exam date (YYYY-MM-DD):');
     if (!title || !date) return;
-
+  const user = getUserData();
+  // Prefer numeric id for creator_user_id; fallback to userid if needed
+  const creatorUserId = user?.id || user?.userid || 0;
+  // teacher_id should be the teacher code (e.g., T001) if available
+  const teacherId = user?.teacherId || (typeof user?.userid === 'string' ? user.userid : null) || null;
+    if (!creatorUserId) {
+      alert('Unable to determine logged-in teacher. Please log in again.');
+      return;
+    }
     try {
-      await examAPI.create({ title, date, creator_user_id: 1 }); // adjust user id if required
+      await examAPI.create({ title, date, creator_user_id: creatorUserId, teacher_id: teacherId });
       fetchExams();
     } catch (error) {
       console.error('Error creating exam:', error);
