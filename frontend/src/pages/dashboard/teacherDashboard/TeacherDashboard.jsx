@@ -36,6 +36,8 @@ const TeacherDashboard = ({ onLogout }) => {
   const [teacherSharePercentage, setTeacherSharePercentage] = useState(100);
   const [teacherName, setTeacherName] = useState('Teacher');
   const [teacherId, setTeacherId] = useState('');
+  const [permissions, setPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
 
   // Get teacher name and ID from sessionStorage on mount
   useEffect(() => {
@@ -67,6 +69,60 @@ const TeacherDashboard = ({ onLogout }) => {
       console.error('❌ Error getting teacher info:', error);
     }
   }, []);
+
+  // Fetch teacher permissions from RBAC API
+  const fetchPermissions = async (teacherId) => {
+    if (!teacherId) return;
+    
+    try {
+      setPermissionsLoading(true);
+      const response = await fetch(`http://localhost:8094/users/${teacherId}/permissions`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Teacher permissions:', data);
+        setPermissions(data.permissions || []);
+      } else {
+        console.error('❌ Failed to fetch permissions:', response.status);
+        setPermissions([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching permissions:', error);
+      setPermissions([]);
+    } finally {
+      setPermissionsLoading(false);
+    }
+  };
+
+  // Filter sidebar items based on permissions
+  const getFilteredSidebarItems = () => {
+    if (permissionsLoading || permissions.length === 0) {
+      return teacherSidebarSections; // Show all items while loading or if no permissions
+    }
+
+    return teacherSidebarSections.map(section => ({
+      ...section,
+      items: section.items.filter(item => {
+        // If item has requiredPermissions, check if user has any of them
+        if (item.requiredPermissions && item.requiredPermissions.length > 0) {
+          return item.requiredPermissions.some(perm => permissions.some(p => p.name === perm));
+        }
+        // If no requiredPermissions, show the item (like Dashboard)
+        return true;
+      })
+    })).filter(section => section.items.length > 0); // Remove empty sections
+  };
+
+  useEffect(() => {
+    if (teacherId) {
+      fetchPermissions(teacherId);
+    }
+  }, [teacherId]);
 
   useEffect(() => {
     loadDashboardData();
@@ -109,7 +165,7 @@ const TeacherDashboard = ({ onLogout }) => {
     return (
       <DashboardLayout
         userRole="Teacher"
-        sidebarItems={teacherSidebarSections}
+        sidebarItems={getFilteredSidebarItems()}
         onLogout={onLogout}
       >
         <div className="flex items-center justify-center h-screen">
@@ -126,7 +182,7 @@ const TeacherDashboard = ({ onLogout }) => {
     return (
       <DashboardLayout
         userRole="Teacher"
-        sidebarItems={teacherSidebarSections}
+        sidebarItems={getFilteredSidebarItems()}
         onLogout={onLogout}
       >
         <div className="p-6">
@@ -201,7 +257,7 @@ const TeacherDashboard = ({ onLogout }) => {
   return (
     <DashboardLayout
       userRole="Teacher"
-      sidebarItems={teacherSidebarSections}
+      sidebarItems={getFilteredSidebarItems()}
       onLogout={onLogout}
     >
       <div className="space-y-6 p-4 sm:p-6 bg-gray-50 min-h-screen">

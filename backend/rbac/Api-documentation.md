@@ -3,43 +3,43 @@
 
 # Create Permission
 
-    Description: 
+    Description:
         Creates a new permission with the specified name, target user role, and description. This endpoint is restricted to admin users only.
 
-    Endpoint: 
-        `POST http://localhost:8082/permissions`            
+    Endpoint:
+        `POST http://localhost:8094/permissions`
 
     Request Headers:
         - `Content-Type: application/json`
         - `Authorization: Bearer <admin_token>` (TODO: Authentication to be added later)
 
-    Request Body:                
+    Request Body:
         {
             "name": "string",
-            "target_user_role": "string",
+            "target_userrole": "string",
             "description": "string"
         }
-        
+
     Example Request:
-        Post - `http://localhost:8082/permissions`
+        Post - `http://localhost:8094/permissions`
         headers:
             - `Content-Type: application/json`
         body:
         {
             "name": "manage_users",
-            "target_user_role": "admin",
+            "target_userrole": "admin",
             "description": "Permission to manage user accounts"
         }
     Response:
         - Status Code: 201 Created
-        - Response Body:                
+        - Response Body:
             {
                 "id": 1,
                 "name": "manage_users",
-                "target_user_role": "admin",
+                "target_userrole": "admin",
                 "description": "Permission to manage user accounts",
                 "created_at": "2025-11-07T10:00:00Z"
-            }   
+            }
 
     Error Responses:
     - 400 Bad Request: Invalid request body or missing required fields.
@@ -52,7 +52,7 @@
         Updates an existing permission with the specified ID. This endpoint is restricted to admin users only.
 
     Endpoint:
-        `PUT http://localhost:8082/permissions/{id}`
+        `PUT http://localhost:8094/permissions/{id}`
 
     Request Headers:
         - `Content-Type: application/json`
@@ -61,18 +61,18 @@
     Request Body:
         {
             "name": "string",
-            "target_user_role": "string",
+            "target_userrole": "string",
             "description": "string"
         }
 
     Example Request:
-        PUT - `http://localhost:8082/permissions/1`
+        PUT - `http://localhost:8094/permissions/1`
         headers:
             - `Content-Type: application/json`
         body:
         {
             "name": "manage_users_updated",
-            "target_user_role": "admin",
+            "target_userrole": "admin",
             "description": "Updated permission to manage user accounts"
         }
     Response:
@@ -84,7 +84,7 @@
                 "permission": {
                     "id": 1,
                     "name": "manage_users_updated",
-                    "target_user_role": "admin",
+                    "target_userrole": "admin",
                     "description": "Updated permission to manage user accounts",
                     "created_at": "2025-11-07T10:00:00Z"
                 }
@@ -102,13 +102,13 @@
         Deletes an existing permission with the specified ID. This endpoint is restricted to admin users only.
 
     Endpoint:
-        `DELETE http://localhost:8082/permissions/{id}`
+        `DELETE http://localhost:8094/permissions/{id}`
 
     Request Headers:
         - `Authorization: Bearer <admin_token>` (TODO: Authentication to be added later)
 
     Example Request:
-        DELETE - `http://localhost:8082/permissions/1`
+        DELETE - `http://localhost:8094/permissions/1`
         headers:
             - `Authorization: Bearer <admin_token>`
 
@@ -132,7 +132,7 @@
         Creates a new role with the specified name, description, and assigned permissions. This endpoint is restricted to admin users only.
 
     Endpoint:
-        `POST http://localhost:8082/roles`
+        `POST http://localhost:8094/roles`
 
     Request Headers:
         - `Content-Type: application/json`
@@ -146,7 +146,7 @@
         }
 
     Example Request:
-        POST - `http://localhost:8082/roles`
+        POST - `http://localhost:8094/roles`
         headers:
             - `Content-Type: application/json`
         body:
@@ -170,7 +170,7 @@
                         {
                             "id": 1,
                             "name": "manage_users",
-                            "target_user_role": "admin",
+                            "target_userrole": "admin",
                             "description": "Permission to manage user accounts"
                         }
                     ]
@@ -188,13 +188,13 @@
         Retrieves all roles from the system with their assigned permissions. This endpoint is restricted to admin users only.
 
     Endpoint:
-        `GET http://localhost:8082/roles`
+        `GET http://localhost:8094/roles`
 
     Request Headers:
         - `Authorization: Bearer <admin_token>` (TODO: Authentication to be added later)
 
     Example Request:
-        GET - `http://localhost:8082/roles`
+        GET - `http://localhost:8094/roles`
         headers:
             - `Authorization: Bearer <admin_token>`
 
@@ -213,7 +213,7 @@
                             {
                                 "id": 1,
                                 "name": "manage_users",
-                                "target_user_role": "admin",
+                                "target_userrole": "admin",
                                 "description": "Permission to manage user accounts"
                             }
                         ]
@@ -230,13 +230,13 @@
         Retrieves a specific role by its ID with all assigned permissions. This endpoint is restricted to admin users only.
 
     Endpoint:
-        `GET http://localhost:8082/roles/{id}`
+        `GET http://localhost:8094/roles/{id}`
 
     Request Headers:
         - `Authorization: Bearer <admin_token>` (TODO: Authentication to be added later)
 
     Example Request:
-        GET - `http://localhost:8082/roles/1`
+        GET - `http://localhost:8094/roles/1`
         headers:
             - `Authorization: Bearer <admin_token>`
 
@@ -254,7 +254,7 @@
                         {
                             "id": 1,
                             "name": "manage_users",
-                            "target_user_role": "admin",
+                            "target_userrole": "admin",
                             "description": "Permission to manage user accounts"
                         }
                     ]
@@ -271,7 +271,7 @@
         Updates an existing role with the specified ID, including its name, description, and permission assignments. This endpoint is restricted to admin users only.
 
     Endpoint:
-        `PUT http://localhost:8082/roles/{id}`
+        `PUT http://localhost:8094/roles/{id}`
 
     Request Headers:
         - `Content-Type: application/json`
@@ -285,7 +285,7 @@
         }
 
     Example Request:
-        PUT - `http://localhost:8082/roles/1`
+        PUT - `http://localhost:8094/roles/1`
         headers:
             - `Content-Type: application/json`
         body:
@@ -309,13 +309,13 @@
                         {
                             "id": 1,
                             "name": "manage_users",
-                            "target_user_role": "admin",
+                            "target_userrole": "admin",
                             "description": "Permission to manage user accounts"
                         },
                         {
                             "id": 2,
                             "name": "manage_content",
-                            "target_user_role": "admin",
+                            "target_userrole": "admin",
                             "description": "Permission to manage content"
                         }
                     ]
@@ -334,13 +334,13 @@
         Deletes an existing role with the specified ID and removes all its permission assignments. This endpoint is restricted to admin users only.
 
     Endpoint:
-        `DELETE http://localhost:8082/roles/{id}`
+        `DELETE http://localhost:8094/roles/{id}`
 
     Request Headers:
         - `Authorization: Bearer <admin_token>` (TODO: Authentication to be added later)
 
     Example Request:
-        DELETE - `http://localhost:8082/roles/1`
+        DELETE - `http://localhost:8094/roles/1`
         headers:
             - `Authorization: Bearer <admin_token>`
 
@@ -362,13 +362,13 @@
         Assigns a specific permission to a role. This endpoint is restricted to admin users only.
 
     Endpoint:
-        `POST http://localhost:8082/roles/{role_id}/permissions/{permission_id}`
+        `POST http://localhost:8094/roles/{role_id}/permissions/{permission_id}`
 
     Request Headers:
         - `Authorization: Bearer <admin_token>` (TODO: Authentication to be added later)
 
     Example Request:
-        POST - `http://localhost:8082/roles/1/permissions/2`
+        POST - `http://localhost:8094/roles/1/permissions/2`
         headers:
             - `Authorization: Bearer <admin_token>`
 
@@ -391,13 +391,13 @@
         Revokes a specific permission from a role. This endpoint is restricted to admin users only.
 
     Endpoint:
-        `DELETE http://localhost:8082/roles/{role_id}/permissions/{permission_id}`
+        `DELETE http://localhost:8094/roles/{role_id}/permissions/{permission_id}`
 
     Request Headers:
         - `Authorization: Bearer <admin_token>` (TODO: Authentication to be added later)
 
     Example Request:
-        DELETE - `http://localhost:8082/roles/1/permissions/2`
+        DELETE - `http://localhost:8094/roles/1/permissions/2`
         headers:
             - `Authorization: Bearer <admin_token>`
 
@@ -419,13 +419,13 @@
         Retrieves all permissions assigned to a specific role. This endpoint is restricted to admin users only.
 
     Endpoint:
-        `GET http://localhost:8082/roles/{id}/permissions`
+        `GET http://localhost:8094/roles/{id}/permissions`
 
     Request Headers:
         - `Authorization: Bearer <admin_token>` (TODO: Authentication to be added later)
 
     Example Request:
-        GET - `http://localhost:8082/roles/1/permissions`
+        GET - `http://localhost:8094/roles/1/permissions`
         headers:
             - `Authorization: Bearer <admin_token>`
 
@@ -438,14 +438,14 @@
                     {
                         "id": 1,
                         "name": "manage_users",
-                        "target_user_role": "admin",
+                        "target_userrole": "admin",
                         "description": "Permission to manage user accounts",
                         "assigned_at": "2025-11-07T10:00:00Z"
                     },
                     {
                         "id": 2,
                         "name": "manage_content",
-                        "target_user_role": "admin",
+                        "target_userrole": "admin",
                         "description": "Permission to manage content",
                         "assigned_at": "2025-11-07T10:15:00Z"
                     }
@@ -464,7 +464,7 @@
         Creates a new user in the RBAC system and automatically assigns the appropriate role based on user type. This endpoint is called by the auth backend when users are created to keep RBAC user database synchronized.
 
     Endpoint:
-        `POST http://localhost:8082/users`
+        `POST http://localhost:8094/users`
 
     Request Headers:
         - `Content-Type: application/json`
@@ -479,7 +479,7 @@
         }
 
     Example Request:
-        POST - `http://localhost:8082/users`
+        POST - `http://localhost:8094/users`
         headers:
             - `Content-Type: application/json`
         body:
@@ -503,7 +503,7 @@
                     "lastName": "Doe",
                     "email": "john.doe@cashier.com",
                     "role": "cashier",
-                    "assigned_role": "cashier_basic"
+                    "assigned_role": "cashier"
                 }
             }
 
@@ -520,7 +520,7 @@
         Retrieves all users from the system (used for selection in the admin UI). Each user entry includes basic profile details and currently active roles.
 
     Endpoint:
-        `GET http://localhost:8082/users`
+        `GET http://localhost:8094/users`
 
     Request Headers:
         - `Authorization: Bearer <admin_token>` (TODO: Authentication to be added later)
@@ -551,7 +551,7 @@
         Retrieves detailed information for a specific user including currently active roles.
 
     Endpoint:
-        `GET http://localhost:8082/users/{userId}`
+        `GET http://localhost:8094/users/{userId}`
 
     Request Headers:
         - `Authorization: Bearer <admin_token>` (TODO: Authentication to be added later)
@@ -581,7 +581,7 @@
         Retrieves active roles assigned to a specific user.
 
     Endpoint:
-        `GET http://localhost:8082/users/{userId}/roles`
+        `GET http://localhost:8094/users/{userId}/roles`
 
     Request Headers:
         - `Authorization: Bearer <admin_token>` (TODO: Authentication to be added later)
@@ -611,13 +611,13 @@
         Assigns a role to a user. Creates an active user-role assignment recorded in the audit table.
 
     Endpoint:
-        `POST http://localhost:8082/users/{userId}/roles/{roleId}`
+        `POST http://localhost:8094/users/{userId}/roles/{roleId}`
 
     Request Headers:
         - `Authorization: Bearer <admin_token>` (TODO: Authentication to be added later)
 
     Example Request:
-        POST - `http://localhost:8082/users/USER001/roles/2`
+        POST - `http://localhost:8094/users/USER001/roles/2`
 
     Response:
         - Status Code: 201 Created
@@ -639,13 +639,13 @@
         Revokes (deactivates) a role assignment from a user. The record is kept for history.
 
     Endpoint:
-        `DELETE http://localhost:8082/users/{userId}/roles/{roleId}`
+        `DELETE http://localhost:8094/users/{userId}/roles/{roleId}`
 
     Request Headers:
         - `Authorization: Bearer <admin_token>` (TODO: Authentication to be added later)
 
     Example Request:
-        DELETE - `http://localhost:8082/users/USER001/roles/2`
+        DELETE - `http://localhost:8094/users/USER001/roles/2`
 
     Response:
         - Status Code: 200 OK
@@ -665,7 +665,7 @@
         Retrieves the role assignment history for a specific user, including who assigned/revoked and timestamps.
 
     Endpoint:
-        `GET http://localhost:8082/users/{userId}/roles/history`
+        `GET http://localhost:8094/users/{userId}/roles/history`
 
     Request Headers:
         - `Authorization: Bearer <admin_token>` (TODO: Authentication to be added later)
@@ -699,13 +699,13 @@
         Retrieves all permissions for a specific user, combining both inherent user role permissions (from the users table) and permissions from assigned RBAC roles. This endpoint is used by the frontend to implement permission-based UI access control.
 
     Endpoint:
-        `GET http://localhost:8082/users/{userId}/permissions`
+        `GET http://localhost:8094/users/{userId}/permissions`
 
     Request Headers:
         - `Authorization: Bearer <admin_token>` (TODO: Authentication to be added later)
 
     Example Request:
-        GET - `http://localhost:8082/users/ADMIN001/permissions`
+        GET - `http://localhost:8094/users/ADMIN001/permissions`
         headers:
             - `Authorization: Bearer <admin_token>`
 
@@ -740,13 +740,13 @@
         Retrieves all permissions for a specific user, combining both inherent user role permissions (from the users table) and permissions from assigned RBAC roles. This provides a complete view of what a user can do in the system.
 
     Endpoint:
-        `GET http://localhost:8082/users/{userId}/permissions`
+        `GET http://localhost:8094/users/{userId}/permissions`
 
     Request Headers:
         - `Authorization: Bearer <admin_token>` (TODO: Authentication to be added later)
 
     Example Request:
-        GET - `http://localhost:8082/users/STUD001/permissions`
+        GET - `http://localhost:8094/users/STUD001/permissions`
         headers:
             - `Authorization: Bearer <admin_token>`
 

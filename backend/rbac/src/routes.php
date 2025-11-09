@@ -8,19 +8,24 @@ require_once __DIR__ . '/RoleController.php';
 
 require_once __DIR__ . '/UserRoleController.php';
 
+require_once __DIR__ . '/UserController.php';
+
 $method = $_SERVER['REQUEST_METHOD'];
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
-$mysqli = new mysqli(
-    getenv('DB_HOST') ?: 'mysql',
-    getenv('DB_USER') ?: 'devuser',
-    getenv('DB_PASSWORD') ?: 'devpass',
-    getenv('DB_NAME') ?: 'rbac-db'
-);
-
-if ($mysqli->connect_errno) {
+// Database connection with error handling
+try {
+    $mysqli = new mysqli('rbac-mysql', 'devuser', 'devpass', 'rbac-db');
+    if ($mysqli->connect_error) {
+        throw new Exception('Database connection failed: ' . $mysqli->connect_error);
+    }
+} catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database connection failed']);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Database connection failed',
+        'error' => $e->getMessage()
+    ]);
     exit;
 }
 
@@ -29,6 +34,8 @@ $controller = new PermissionController($mysqli);
 $roleController = new RoleController($mysqli);
 
 $userRoleController = new UserRoleController($mysqli);
+
+$userController = new UserController($mysqli);
 
 // Root path test
 if ($method === 'GET' && ($path === '/' || $path === '/index.php')) {
@@ -131,6 +138,13 @@ if ($method === 'DELETE' && preg_match('#^/roles/(\d+)/permissions/(\d+)$#', $pa
 if ($method === 'GET' && preg_match('#^/roles/(\d+)/permissions$#', $path, $matches)) {
     $roleId = $matches[1];
     echo $roleController->getRolePermissions($roleId);
+    exit;
+}
+
+// CREATE user (for auth backend sync)
+if ($method === 'POST' && $path === '/users') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    echo $userController->createUser($data);
     exit;
 }
 

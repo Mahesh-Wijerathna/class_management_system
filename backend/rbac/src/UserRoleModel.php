@@ -49,37 +49,11 @@ class UserRoleModel {
     }
 
     public function getUserRoles($userId) {
-        // First get the user's inherent role from the users table
-        $stmt = $this->conn->prepare("SELECT role FROM users WHERE userid = ?");
-        $stmt->bind_param("s", $userId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $user = $result->fetch_assoc();
-
-        $roles = [];
-
-        // Add inherent user role as a system role
-        if ($user && $user['role']) {
-            $roles[] = [
-                'id' => null, // No ID for inherent roles
-                'user_id' => $userId,
-                'role_id' => null, // No role_id for inherent roles
-                'assigned_by' => 'system',
-                'assigned_at' => null, // No assignment date for inherent roles
-                'role_name' => $user['role'],
-                'role_description' => ucfirst($user['role']) . ' system role',
-                'assigned_by_first_name' => 'System',
-                'assigned_by_last_name' => 'Administrator',
-                'is_inherent' => true
-            ];
-        }
-
-        // Then get explicitly assigned RBAC roles
+        // Only get explicitly assigned RBAC roles (no inherent roles)
         $stmt = $this->conn->prepare("
             SELECT ur.id, ur.user_id, ur.role_id, ur.assigned_by, ur.assigned_at,
                    r.name as role_name, r.description as role_description,
-                   u1.firstName as assigned_by_first_name, u1.lastName as assigned_by_last_name,
-                   FALSE as is_inherent
+                   u1.firstName as assigned_by_first_name, u1.lastName as assigned_by_last_name
             FROM user_roles ur
             INNER JOIN roles r ON ur.role_id = r.id
             LEFT JOIN users u1 ON ur.assigned_by = u1.userid
@@ -89,10 +63,7 @@ class UserRoleModel {
         $stmt->bind_param("s", $userId);
         $stmt->execute();
         $result = $stmt->get_result();
-        $rbacRoles = $result->fetch_all(MYSQLI_ASSOC);
-
-        // Combine inherent role with RBAC roles
-        $roles = array_merge($roles, $rbacRoles);
+        $roles = $result->fetch_all(MYSQLI_ASSOC);
 
         return $roles;
     }
@@ -104,24 +75,21 @@ class UserRoleModel {
     }
 
     public function getAllUsers() {
-        // Get all users with their inherent roles and assigned RBAC roles
+        // Get all users with their assigned RBAC roles only (no inherent roles)
         $result = $this->conn->query("
-            SELECT u.userid, u.firstName, u.lastName, u.email, u.role as inherent_role,
+            SELECT u.userid, u.firstName, u.lastName, u.email,
                    GROUP_CONCAT(DISTINCT r.name) as assigned_rbac_roles
             FROM users u
             LEFT JOIN user_roles ur ON u.userid = ur.user_id AND ur.is_active = TRUE
             LEFT JOIN roles r ON ur.role_id = r.id
-            GROUP BY u.userid, u.firstName, u.lastName, u.email, u.role
+            GROUP BY u.userid, u.firstName, u.lastName, u.email
             ORDER BY u.firstName, u.lastName
         ");
 
         $users = [];
         while ($row = $result->fetch_assoc()) {
-            // Combine inherent role with assigned RBAC roles
+            // Only include manually assigned RBAC roles
             $allRoles = [];
-            if ($row['inherent_role']) {
-                $allRoles[] = $row['inherent_role'];
-            }
             if ($row['assigned_rbac_roles']) {
                 $rbacRoles = explode(',', $row['assigned_rbac_roles']);
                 $allRoles = array_merge($allRoles, $rbacRoles);
@@ -142,13 +110,13 @@ class UserRoleModel {
 
     public function getUserById($userId) {
         $stmt = $this->conn->prepare("
-            SELECT u.userid, u.firstName, u.lastName, u.email, u.role as inherent_role,
+            SELECT u.userid, u.firstName, u.lastName, u.email,
                    GROUP_CONCAT(DISTINCT r.name) as assigned_rbac_roles
             FROM users u
             LEFT JOIN user_roles ur ON u.userid = ur.user_id AND ur.is_active = TRUE
             LEFT JOIN roles r ON ur.role_id = r.id
             WHERE u.userid = ?
-            GROUP BY u.userid, u.firstName, u.lastName, u.email, u.role
+            GROUP BY u.userid, u.firstName, u.lastName, u.email
         ");
         $stmt->bind_param("s", $userId);
         $stmt->execute();
@@ -159,11 +127,8 @@ class UserRoleModel {
             return null;
         }
 
-        // Combine inherent role with assigned RBAC roles
+        // Only include manually assigned RBAC roles
         $allRoles = [];
-        if ($row['inherent_role']) {
-            $allRoles[] = $row['inherent_role'];
-        }
         if ($row['assigned_rbac_roles']) {
             $rbacRoles = explode(',', $row['assigned_rbac_roles']);
             $allRoles = array_merge($allRoles, $rbacRoles);
@@ -206,30 +171,7 @@ class UserRoleModel {
     }
 
     public function getUserPermissions($userId) {
-        // First get the user's inherent role from the users table
-        $stmt = $this->conn->prepare("SELECT role FROM users WHERE userid = ?");
-        $stmt->bind_param("s", $userId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $user = $result->fetch_assoc();
-
-        $permissions = [];
-
-        // Get permissions for inherent role
-        if ($user && $user['role']) {
-            $stmt = $this->conn->prepare("
-                SELECT p.id, p.name, p.target_userrole, p.description
-                FROM permissions p
-                WHERE p.target_userrole = ?
-            ");
-            $stmt->bind_param("s", $user['role']);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $inherentPermissions = $result->fetch_all(MYSQLI_ASSOC);
-            $permissions = array_merge($permissions, $inherentPermissions);
-        }
-
-        // Get permissions for assigned RBAC roles
+        // Only get permissions for assigned RBAC roles (no inherent permissions)
         $stmt = $this->conn->prepare("
             SELECT DISTINCT p.id, p.name, p.target_userrole, p.description
             FROM user_roles ur
@@ -241,19 +183,8 @@ class UserRoleModel {
         $stmt->bind_param("s", $userId);
         $stmt->execute();
         $result = $stmt->get_result();
-        $rbacPermissions = $result->fetch_all(MYSQLI_ASSOC);
-        $permissions = array_merge($permissions, $rbacPermissions);
+        $permissions = $result->fetch_all(MYSQLI_ASSOC);
 
-        // Remove duplicates based on permission name
-        $uniquePermissions = [];
-        $seenNames = [];
-        foreach ($permissions as $permission) {
-            if (!in_array($permission['name'], $seenNames)) {
-                $uniquePermissions[] = $permission;
-                $seenNames[] = $permission['name'];
-            }
-        }
-
-        return $uniquePermissions;
+        return $permissions;
     }
 }

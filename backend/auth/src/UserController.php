@@ -24,6 +24,30 @@ class UserController {
         if ($user->createUser($role, $password)) {
             $userid = $user->userid;
             
+            // Sync user to RBAC system (non-blocking)
+            $rbacSyncData = [
+                'userid' => $userid,
+                'role' => $role,
+                'firstName' => $role === 'admin' ? 'Admin User ' . $userid : $userid, // Use more descriptive name for admin users
+                'lastName' => '', // Empty lastName for admin users
+                'email' => '' // Admin users may not have email in basic registration
+            ];
+            
+            // Call RBAC backend to create user (don't block on failure)
+            $rbacResponse = @file_get_contents('http://rbac-backend:80/users', false, stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => 'Content-Type: application/json',
+                    'content' => json_encode($rbacSyncData)
+                ]
+            ]));
+            
+            $rbacSyncSuccess = false;
+            if ($rbacResponse !== false) {
+                $rbacResult = json_decode($rbacResponse, true);
+                $rbacSyncSuccess = isset($rbacResult['success']) && $rbacResult['success'];
+            }
+            
             // Enhanced response for better user experience
             $response = [
                 'success' => true,
@@ -1196,6 +1220,30 @@ public function resetPassword($userid, $otp, $newPassword) {
         $stmt->bind_param("sssss", $cashierId, $hashedPassword, $name, $email, $phone);
         
         if ($stmt->execute()) {
+            // Sync user to RBAC system (non-blocking)
+            $rbacSyncData = [
+                'userid' => $cashierId,
+                'role' => 'cashier',
+                'firstName' => $name,
+                'lastName' => '', // Empty lastName for cashiers
+                'email' => $email
+            ];
+            
+            // Call RBAC backend to create user (don't block on failure)
+            $rbacResponse = @file_get_contents('http://rbac-backend:80/users', false, stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => 'Content-Type: application/json',
+                    'content' => json_encode($rbacSyncData)
+                ]
+            ]));
+            
+            $rbacSyncSuccess = false;
+            if ($rbacResponse !== false) {
+                $rbacResult = json_decode($rbacResponse, true);
+                $rbacSyncSuccess = isset($rbacResult['success']) && $rbacResult['success'];
+            }
+            
             // Format phone number for external service
             $formatted_phone = $phone;
             if (strlen($phone) === 10 && substr($phone, 0, 1) === '0') {

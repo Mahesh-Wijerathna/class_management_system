@@ -68,11 +68,7 @@ CREATE TABLE IF NOT EXISTS user_roles (
 
 -- Insert sample users
 INSERT INTO users (userid, firstName, lastName, email, role) VALUES
-('A002', 'System', 'Administrator', 'admin@system.com', 'admin'),
-('S001', 'John', 'Doe', 'john.doe@student.com', NULL),
-('S002', 'Jane', 'Smith', 'jane.smith@student.com', NULL),
-('T001', 'Dr.', 'Johnson', 'dr.johnson@teacher.com', NULL),
-('C001', 'Mike', 'Wilson', 'mike.wilson@cashier.com', NULL)
+('A002', 'System', 'Administrator', 'admin@system.com', 'admin')
 ON DUPLICATE KEY UPDATE
     firstName = VALUES(firstName),
     lastName = VALUES(lastName),
@@ -80,7 +76,7 @@ ON DUPLICATE KEY UPDATE
     role = VALUES(role);
 
 -- Insert sample permissions
-INSERT INTO permissions (name, target_userrole, description) VALUES
+INSERT IGNORE INTO permissions (name, target_userrole, description) VALUES
 ('dashboard_overview.dashboard_overview', 'admin', 'Can view dashboard overview'),
 ('core_admin_management.create_core_admin', 'admin', 'Can create core admin users'),
 ('core_admin_management.core_admin_info', 'admin', 'Can view core admin information'),
@@ -128,20 +124,37 @@ INSERT INTO permissions (name, target_userrole, description) VALUES
 ('settings_and_profile.settings', 'cashier', 'Can manage own settings'),
 ('settings_and_profile.notifications', 'cashier', 'Can manage notifications'),
 ('student.enrollment', 'student', 'Can enroll in classes'),
-('teacher.class_management', 'teacher', 'Can manage classes'),
-('cashier.payment_processing', 'cashier', 'Can process payments')
-ON DUPLICATE KEY UPDATE
-    target_userrole = VALUES(target_userrole),
-    description = VALUES(description);
+
+
+('dashboard_overview.dashboard_overview', 'teacher', 'Can view dashboard overview'),
+('class_schedules.my_classes', 'teacher', 'Can view and manage own classes'),
+('class_schedules.class_session_schedules', 'teacher', 'Can view class session schedules'),
+('class_schedules.hall_availability', 'teacher', 'Can view hall availability'),
+('class_schedules.class_enrollments', 'teacher', 'Can manage class enrollments'),
+('class_schedules.class_payments', 'teacher', 'Can manage class payments'),
+('attendance.attendance_management', 'teacher', 'Can manage attendance'),
+('attendance.student_attendance_overview', 'teacher', 'Can view student attendance overview'),
+('student_performance.view_performance', 'teacher', 'Can view student performance'),
+('student_performance.relevant_student_data', 'teacher', 'Can view relevant student data'),
+('student_performance.fees_report', 'teacher', 'Can view fees report'),
+('financial_records.payment_days', 'teacher', 'Can view payment days'),
+('financial_records.monthly_daily_records', 'teacher', 'Can view monthly and daily financial records'),
+('class_materials.create_folders_and_links', 'teacher', 'Can create folders and links for class materials'),
+('class_materials.manage_materials', 'teacher', 'Can manage class materials'),
+('class_materials.upload_assignments', 'teacher', 'Can upload assignments'),
+('exams.exam_dashboard', 'teacher', 'Can access exam dashboard'),
+('communication.announcements', 'teacher', 'Can manage announcements'),
+('communication.message_students', 'teacher', 'Can message students'),
+('reports.generate_reports', 'teacher', 'Can generate reports'),
+('teacher_staff.create_and_manage_staff', 'teacher', 'Can create and manage teacher staff');
 
 -- Insert sample roles
-INSERT INTO roles (name, description) VALUES
+INSERT IGNORE INTO roles (name, description) VALUES
 ('admin', 'System administrator with full access'),
 ('content_manager', 'Can manage website content'),
 ('student', 'Basic student permissions'),
 ('teacher', 'Basic teacher permissions'),
-('cashier', 'Basic cashier permissions for payment processing')
-ON DUPLICATE KEY UPDATE description = VALUES(description);
+('cashier', 'Basic cashier permissions for payment processing');
 
 -- Insert sample role permissions
 INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES
@@ -154,13 +167,15 @@ INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES
 (2, 22), -- permission_management
 -- Student gets enrollment (role_id = 3)
 (3, 47), -- student.enrollment
--- Teacher gets class management (role_id = 4)
-(4, 48), -- teacher.class_management
+-- Teacher gets class management (role_id = 4) targeted for teacher role
+(4, 48), (4, 50), (4, 51), (4, 52), (4, 53), (4, 54), (4, 55), (4, 56), (4, 57), (4, 58), (4, 59), (4, 60), (4, 61), (4, 62), (4, 63),
 -- Cashier gets all cashier permissions (role_id = 5)
 (5, 32), (5, 33), (5, 34), (5, 35), (5, 36), (5, 37), (5, 38), (5, 39), (5, 40),
 (5, 41), (5, 42), (5, 43), (5, 44), (5, 45), (5, 46), (5, 49);
 
 -- Assign roles to users
-INSERT IGNORE INTO user_roles (user_id, role_id, assigned_by) VALUES
-('A002', 1, NULL), -- Admin role (system assigned)
-('C001', 5, 'A002'); -- Cashier role (assigned by admin)
+-- NOTE: Roles are now assigned automatically when users are created via the auth system sync
+-- This ensures proper RBAC integration without hardcoded assignments
+
+
+
