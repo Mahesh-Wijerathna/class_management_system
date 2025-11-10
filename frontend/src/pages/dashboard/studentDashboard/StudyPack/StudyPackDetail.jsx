@@ -336,10 +336,10 @@ const StudyPackDetail = () => {
                   {documents.map((d) => (
                     <div key={d.id} className="flex items-center justify-between p-3 border-b last:border-b-0 relative">
                       <div className="text-sm z-10">{d.title || 'Document'}</div>
-                      {/* Watermark background */}
+                      {/* Watermark background
                       <div className="pointer-events-none select-none absolute inset-0 flex items-center justify-center opacity-5">
                         <span className="text-4xl font-bold text-gray-700" style={{transform:'rotate(-30deg)'}}>{studentIdForWatermark}</span>
-                      </div>
+                      </div> */}
                       <div className="z-10 flex items-center gap-2">
                         <button
                           type="button"

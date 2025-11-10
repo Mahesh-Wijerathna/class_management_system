@@ -208,36 +208,128 @@ class StudyPackController {
         }
     }
 
-    // Serve a study pack document for secure download (placeholder: raw file with CORS headers).
-    // You can extend this to apply server-side watermarking/password using external tools (e.g. qpdf, pdftk).
+    /**
+     * Serve a study pack document with watermark and password protection
+     * Applies same security as MyClasses materials
+     */
     public function downloadDocument($docId, $studentId, $studentName) {
         try {
+            // Load required utilities
+            require_once __DIR__ . '/../utils/PDFWatermark.php';
+            require_once __DIR__ . '/../utils/PDFPasswordProtector.php';
+            require_once __DIR__ . '/../models/StudyPackDocumentModel.php';
+            
+            // Initialize model
+            $model = new StudyPackDocumentModel($this->conn);
+            
+            // Get document details
             $stmt = $this->conn->prepare('SELECT file_path, title FROM study_pack_documents WHERE id = ?');
             if (!$stmt) throw new Exception('DB prepare failed: ' . $this->conn->error);
             $stmt->bind_param('i', $docId);
             if (!$stmt->execute()) throw new Exception('DB execute failed: ' . $stmt->error);
             $res = $stmt->get_result();
             $row = $res->fetch_assoc();
+            
             if (!$row) {
                 http_response_code(404);
                 echo json_encode(['success' => false, 'message' => 'Document not found']);
                 return;
             }
-            $abs = realpath(__DIR__ . '/..' . $row['file_path']);
-            if (!$abs || !is_file($abs)) {
+            
+            // Get original file path
+            $originalFile = realpath(__DIR__ . '/..' . $row['file_path']);
+            if (!$originalFile || !is_file($originalFile)) {
                 http_response_code(404);
-                echo json_encode(['success' => false, 'message' => 'File missing']);
+                echo json_encode(['success' => false, 'message' => 'File missing on server']);
                 return;
             }
-            // Set headers for file download
+            
+            // Setup temp directory
+            $documentRoot = $_SERVER['DOCUMENT_ROOT'] ?? __DIR__ . '/..';
+            $tempDir = $documentRoot . '/uploads/temp/';
+            if (!file_exists($tempDir)) {
+                mkdir($tempDir, 0777, true);
+            }
+            
+            // Generate unique temp file names
+            $tempId = uniqid();
+            $watermarkedFile = $tempDir . "watermarked_{$studentId}_{$docId}_{$tempId}.pdf";
+            $protectedFile = $tempDir . "protected_{$studentId}_{$docId}_{$tempId}.pdf";
+            
+            // Apply watermark
+            $watermarkSuccess = PDFWatermark::create(
+                $originalFile,
+                $watermarkedFile,
+                $studentId,
+                $studentName,
+                'Study Pack',
+                ''
+            );
+            
+            $finalFile = $originalFile; // fallback to original
+            $passwordProtected = false;
+            $watermarked = false;
+            
+            if (!$watermarkSuccess) {
+                // Watermarking failed (e.g., encrypted PDF)
+                error_log("Warning: Watermarking failed for study pack document {$docId}. Providing original file.");
+            } else {
+                $watermarked = true;
+                $finalFile = $watermarkedFile;
+                
+                // Apply password protection if PDFtk is available
+                if (PDFPasswordProtector::isAvailable()) {
+                    $protectSuccess = PDFPasswordProtector::protect(
+                        $watermarkedFile,
+                        $protectedFile,
+                        $studentId // password = student ID
+                    );
+                    
+                    if ($protectSuccess) {
+                        $finalFile = $protectedFile;
+                        $passwordProtected = true;
+                        // Clean up watermarked file (we don't need it anymore)
+                        if (file_exists($watermarkedFile)) unlink($watermarkedFile);
+                    } else {
+                        error_log("Warning: Password protection failed for study pack document {$docId}, providing watermarked PDF without password");
+                    }
+                } else {
+                    error_log("Warning: PDFtk not installed. PDF will be watermarked but not password protected.");
+                }
+            }
+            
+            // Log access
+            $model->logAccess([
+                'document_id' => $docId,
+                'student_id' => $studentId,
+                'student_name' => $studentName,
+                'access_type' => 'download',
+                'ip_address' => $_SERVER['REMOTE_ADDR'] ?? '',
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+                'watermark_applied' => $watermarked ? 1 : 0
+            ]);
+            
+            // Increment download count
+            $model->incrementDownloadCount($docId);
+            
+            // Stream file to browser
             header('Access-Control-Allow-Origin: *');
             header('Content-Type: application/pdf');
-            $baseName = ($row['title'] ?: 'document') . '_SID_' . preg_replace('/[^A-Za-z0-9_-]/', '_', $studentId) . '.pdf';
+            $baseName = ($row['title'] ?: 'document') . '.pdf';
             header('Content-Disposition: attachment; filename="' . $baseName . '"');
-            header('Content-Length: ' . filesize($abs));
-            // Simple watermark injection could be implemented here; currently serving original.
-            readfile($abs);
+            header('Content-Length: ' . filesize($finalFile));
+            header('Cache-Control: no-cache, must-revalidate');
+            header('Pragma: no-cache');
+            
+            readfile($finalFile);
+            
+            // Clean up temp files after download
+            if ($finalFile !== $originalFile && file_exists($finalFile)) {
+                unlink($finalFile);
+            }
+            
         } catch (Exception $e) {
+            error_log("Study pack download error: " . $e->getMessage());
             http_response_code(500);
             echo json_encode(['success' => false, 'message' => 'Download error: ' . $e->getMessage()]);
         }
