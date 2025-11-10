@@ -1,6 +1,11 @@
 import axios from './axiosConfig';
 import { apiGet, apiPost, apiPut } from './apiUtils';
 
+// Base URL for cashier session API
+// Port 8083 (when using main docker-compose.yml)
+// Port 8093 (when using backend/cashier/docker-compose.yml standalone)
+const CASHIER_SESSION_API_BASE = 'http://localhost:8083/api/session';
+
 // Cashier management functions
 export const getNextCashierId = async () => {
   return await apiGet('/routes.php/next-cashier-id');
@@ -288,6 +293,114 @@ export const dashboardAPI = {
   },
 };
 
+// Cashier Session Management API functions (NEW - for persistent session data)
+export const sessionAPI = {
+  // Start or resume a cashier session
+  startSession: async (cashierId, openingBalance = 0) => {
+    try {
+      const response = await axios.post(`${CASHIER_SESSION_API_BASE}/start`, {
+        cashier_id: cashierId,
+        opening_balance: openingBalance,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error starting session:', error);
+      throw error;
+    }
+  },
+
+  // Get current active session
+  getCurrentSession: async (cashierId) => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const response = await axios.get(`${CASHIER_SESSION_API_BASE}/current`, {
+        params: { 
+          cashier_id: cashierId,
+          date: today 
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error getting current session:', error);
+      throw error;
+    }
+  },
+
+  // Update session KPIs (call after payments, late notes, etc.)
+  updateKPIs: async (sessionId, kpiData) => {
+    try {
+      const response = await axios.post(`${CASHIER_SESSION_API_BASE}/update-kpis`, {
+        session_id: sessionId,
+        total_collections: kpiData.totalCollections,
+        receipts_generated: kpiData.receiptsGenerated,
+        pending_payments: kpiData.pendingPayments,
+        cash_drawer_balance: kpiData.cashDrawerBalance,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error updating KPIs:', error);
+      throw error;
+    }
+  },
+
+  // Log an activity (for audit trail)
+  logActivity: async (sessionId, activityType, description, metadata = {}) => {
+    try {
+      const response = await axios.post(`${CASHIER_SESSION_API_BASE}/activity`, {
+        session_id: sessionId,
+        activity_type: activityType,
+        description: description,
+        metadata: JSON.stringify(metadata),
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error logging activity:', error);
+      throw error;
+    }
+  },
+
+  // Close day and generate report
+  closeDay: async (sessionId, closingBalance, notes = '') => {
+    try {
+      const response = await axios.post(`${CASHIER_SESSION_API_BASE}/close-day`, {
+        session_id: sessionId,
+        closing_balance: closingBalance,
+        notes: notes,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error closing day:', error);
+      throw error;
+    }
+  },
+
+  // Lock session (when navigating away temporarily)
+  lockSession: async (sessionId) => {
+    try {
+      const response = await axios.post(`${CASHIER_SESSION_API_BASE}/lock`, {
+        session_id: sessionId,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error locking session:', error);
+      throw error;
+    }
+  },
+
+  // Unlock session (when returning)
+  unlockSession: async (sessionId) => {
+    try {
+      const response = await axios.post(`${CASHIER_SESSION_API_BASE}/unlock`, {
+        session_id: sessionId,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error unlocking session:', error);
+      throw error;
+    }
+  },
+};
+
 // Utility functions for cashier operations
 export const cashierUtils = {
   // Format currency
@@ -380,5 +493,6 @@ export default {
   reportsAPI,
   receiptAPI,
   dashboardAPI,
+  sessionAPI,
   cashierUtils,
 }; 

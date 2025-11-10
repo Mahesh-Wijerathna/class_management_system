@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaUsers, FaGraduationCap, FaBook, FaChartBar, FaCog, FaCalendar, FaUserPlus, FaFileAlt, FaUsersCog, FaUserShield, FaDatabase, FaBell, FaSync, FaPlusSquare, FaClipboardList, FaTicketAlt, FaShieldAlt, FaMoneyBill, FaVideo, FaQrcode, FaTruck } from 'react-icons/fa';
+import { FaUsers, FaUserSlash, FaGraduationCap, FaBook, FaChartBar, FaCog, FaCalendar, FaUserPlus, FaFileAlt, FaUsersCog, FaUserShield, FaDatabase, FaBell, FaSync, FaPlusSquare, FaClipboardList, FaTicketAlt, FaShieldAlt, FaMoneyBill, FaVideo, FaQrcode, FaTruck } from 'react-icons/fa';
 
 // Sidebar sections for the admin dashboard
 const adminSidebarSections = [
@@ -21,6 +21,7 @@ const adminSidebarSections = [
     items: [
       { name: 'Create Cashier', path: '/admin/cashiers/create', icon: <FaUserPlus className="h-5 w-5" /> },
       { name: 'Cashier Info', path: '/admin/cashiers/info', icon: <FaUsers className="h-5 w-5" /> },
+      { name: 'Cashier Dashboard', path: '/admin/cashiers/cashierdashboard', icon: <FaUserSlash className="h-5 w-5" /> },
     ]
   },
   {
@@ -39,28 +40,22 @@ const adminSidebarSections = [
       { name: 'Purchased Classes', path: '/admin/students/purchased-classes', icon: <FaBook className="h-5 w-5" /> },
     ]
   },
-  {
-    section: 'Class & Schedule',
-    items: [
-      { name: 'Create Class', path: '/admin/classes/create', icon: <FaPlusSquare className="h-5 w-5" /> },
-      { name: 'All Classes', path: '/admin/classes/all', icon: <FaClipboardList className="h-5 w-5" /> },
-      { name: 'Class Payments', path: '/admin/classes/payments', icon: <FaMoneyBill className="h-5 w-5" /> },
-      { name: 'Class Enrollments', path: '/admin/classes/enrollments', icon: <FaUsers className="h-5 w-5" /> },
-      { name: 'Class Halls', path: '/admin/class-halls', icon: <FaBook className="h-5 w-5" /> },
-    ]
-  },
+          {
+          section: 'Class & Schedule',
+          items: [
+            { name: 'Create Class', path: '/admin/classes/create', icon: <FaPlusSquare className="h-5 w-5" /> },
+            { name: 'All Classes', path: '/admin/classes/all', icon: <FaClipboardList className="h-5 w-5" /> },
+            { name: 'Class Payments', path: '/admin/classes/payments', icon: <FaMoneyBill className="h-5 w-5" /> },
+            { name: 'Class Enrollments', path: '/admin/classes/enrollments', icon: <FaUsers className="h-5 w-5" /> },
+            { name: 'Class Halls', path: '/admin/class-halls', icon: <FaBook className="h-5 w-5" /> },
+          ]
+        },
   {
     section: 'Finance & Reports',
     items: [
       { name: 'Financial Records', path: '/admin/financial', icon: <FaChartBar className="h-5 w-5" /> },
       { name: 'Generate Reports', path: '/admin/reports', icon: <FaFileAlt className="h-5 w-5" /> },
       { name: 'Student All Payments', path: '/admin/students-payments', icon: <FaUserShield className="h-5 w-5" /> },
-    ]
-  },
-  {
-    section: 'Delivery Management',
-    items: [
-      { name: 'Speed Post Deliveries', path: '/admin/speed-post-deliveries', icon: <FaTruck className="h-5 w-5" /> },
     ]
   },
   {

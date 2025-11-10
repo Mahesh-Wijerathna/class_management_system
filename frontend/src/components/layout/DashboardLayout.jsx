@@ -49,9 +49,9 @@
 import React from 'react';
 import NavbarWithAlert from './Navbar';
 import Sidebar from './Sidebar';
-import { useSidebar } from './SidebarContext';
+import { useSidebar, SidebarProvider } from './SidebarContext';
 
-const DashboardLayout = ({ 
+const DashboardContent = ({ 
   children, 
   userRole, 
   sidebarItems,
@@ -71,21 +71,27 @@ const DashboardLayout = ({
     <div className="min-h-screen bg-gray-100">
       <NavbarWithAlert 
         userRole={userRole} 
-        isSidebarOpen={isSidebarOpen}
+        isSidebarOpen={effectiveSidebarOpen}
         onToggleSidebar={toggleSidebar}
         onLogout={onLogout}
+        customHeaderElements={customHeaderElements}
+        customTitle={customTitle}
+        customSubtitle={customSubtitle}
+        isMobile={isMobile}
+        isLocked={isLocked}
       />
       <Sidebar 
         items={sections} 
         onToggle={setSidebarOpen}
         isMobile={isMobile}
-        isOpen={isSidebarOpen}
+        isOpen={effectiveSidebarOpen}
+        isLocked={isLocked}
       />
       
       <main className={`pt-16 transition-all duration-300 ${
         isMobile 
           ? 'pl-0' // No left padding on mobile
-          : isSidebarOpen 
+          : effectiveSidebarOpen 
             ? 'pl-64' 
             : 'pl-16'
       }`}>

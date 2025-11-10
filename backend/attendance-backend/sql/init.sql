@@ -2,6 +2,7 @@
 -- This script creates all necessary tables for the attendance management system
 -- This will run automatically when the MySQL container starts for the first time
 
+-- Use the attendance database (created by docker-compose)
 -- Create database if it doesn't exist
 CREATE DATABASE IF NOT EXISTS attendance;
 USE attendance;
