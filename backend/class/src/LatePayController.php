@@ -299,6 +299,78 @@ class LatePayController {
             ];
         }
     }
+
+    /**
+     * Expire late pay permissions for yesterday
+     * This resets payment_status from 'late_pay' back to 'overdue'
+     * Should be called automatically or via cron at end of day
+     * 
+     * POST /late_pay/expire
+     */
+    public function expireYesterdayPermissions() {
+        try {
+            $today = date('Y-m-d');
+            
+            // Find all enrollments with late_pay status from yesterday or older
+            $stmt = $this->db->prepare("
+                SELECT DISTINCT e.id, e.student_id, e.class_id, e.payment_status, lpp.permission_date
+                FROM enrollments e
+                JOIN late_pay_permissions lpp ON e.id = lpp.enrollment_id
+                WHERE e.payment_status = 'late_pay' 
+                AND lpp.permission_date < ?
+            ");
+            $stmt->bind_param("s", $today);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            $expiredCount = 0;
+            $enrollmentsToUpdate = [];
+
+            while ($row = $result->fetch_assoc()) {
+                $enrollmentsToUpdate[] = $row['id'];
+                $expiredCount++;
+            }
+
+            // Reset payment_status back to 'overdue' for expired permissions
+            // Using 'overdue' since the payment is still pending and now past the grace period
+            if (count($enrollmentsToUpdate) > 0) {
+                $placeholders = implode(',', array_fill(0, count($enrollmentsToUpdate), '?'));
+                $updateStmt = $this->db->prepare("
+                    UPDATE enrollments 
+                    SET payment_status = 'overdue'
+                    WHERE id IN ($placeholders) AND payment_status = 'late_pay'
+                ");
+                
+                // Bind all enrollment IDs
+                $types = str_repeat('i', count($enrollmentsToUpdate));
+                $updateStmt->bind_param($types, ...$enrollmentsToUpdate);
+                $updateStmt->execute();
+                
+                $actualUpdated = $updateStmt->affected_rows;
+
+                return [
+                    'success' => true,
+                    'message' => "Expired $actualUpdated late pay permissions - status changed to overdue",
+                    'expired_count' => $actualUpdated,
+                    'checked_enrollments' => $expiredCount
+                ];
+            }
+
+            return [
+                'success' => true,
+                'message' => 'No late pay permissions to expire',
+                'expired_count' => 0
+            ];
+
+        } catch (Exception $e) {
+            error_log("Expire Permissions Error: " . $e->getMessage());
+            http_response_code(500);
+            return [
+                'success' => false,
+                'message' => 'Server error: ' . $e->getMessage()
+            ];
+        }
+    }
 }
 
 // Note: Routing is handled in routes.php

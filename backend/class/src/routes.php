@@ -108,6 +108,10 @@ switch ($method) {
             // Clean up old late pay permissions
             $result = $latePayController->cleanupOldPermissions();
             echo json_encode($result);
+        } elseif ($path === '/late_pay/expire') {
+            // Expire yesterday's late pay permissions
+            $result = $latePayController->expireYesterdayPermissions();
+            echo json_encode($result);
         } else {
             http_response_code(404);
             echo json_encode(['error' => 'Endpoint not found']);

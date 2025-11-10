@@ -11414,7 +11414,7 @@ export default function CashierDashboard() {
 
                           })()}
 
-                          {/* Late Note button - Disabled when already paid or late_pay status with tooltip */}
+                          {/* Late Note button - Can reprint if already issued */}
 
                           <div className="relative group">
 
@@ -11422,15 +11422,18 @@ export default function CashierDashboard() {
 
                               disabled={
                                 hasPaymentThisMonth || 
-                                enr.payment_status === 'late_pay' ||
                                 (cardType === 'full' && enr.card_valid_from && enr.card_valid_to && new Date(enr.card_valid_from) <= new Date() && new Date(enr.card_valid_to) >= new Date())
                               }
 
                               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
 
-                                hasPaymentThisMonth || enr.payment_status === 'late_pay' || (cardType === 'full' && enr.card_valid_from && enr.card_valid_to && new Date(enr.card_valid_from) <= new Date() && new Date(enr.card_valid_to) >= new Date())
+                                hasPaymentThisMonth || (cardType === 'full' && enr.card_valid_from && enr.card_valid_to && new Date(enr.card_valid_from) <= new Date() && new Date(enr.card_valid_to) >= new Date())
 
                                   ? 'bg-orange-300 text-orange-100 cursor-not-allowed opacity-50'
+
+                                  : enr.payment_status === 'late_pay'
+
+                                  ? 'bg-amber-600 text-white hover:bg-amber-700 border-2 border-amber-400'
 
                                   : 'bg-orange-600 text-white hover:bg-orange-700'
 
@@ -11438,11 +11441,35 @@ export default function CashierDashboard() {
 
                               onClick={async () => {
 
-                                if (hasPaymentThisMonth || enr.payment_status === 'late_pay' || (cardType === 'full' && enr.card_valid_from && enr.card_valid_to && new Date(enr.card_valid_from) <= new Date() && new Date(enr.card_valid_to) >= new Date())) return;
+                                if (hasPaymentThisMonth || (cardType === 'full' && enr.card_valid_from && enr.card_valid_to && new Date(enr.card_valid_from) <= new Date() && new Date(enr.card_valid_to) >= new Date())) return;
 
                                 try {
 
-                                  // Issue late pay permission via API
+                                  // If already issued, just reprint the note
+
+                                  if (enr.payment_status === 'late_pay') {
+
+                                    printNote({ 
+
+                                      title: 'Late Payment Permission', 
+
+                                      student, 
+
+                                      classRow: enr, 
+
+                                      reason: 'Allowed late payment for today only' 
+
+                                    });
+
+                                    showToast('🖨️ Late pay note reprinted!', 'success');
+
+                                    return;
+
+                                  }
+
+
+
+                                  // First time issuing - Call API
 
                                   const response = await fetch('http://localhost:8087/routes.php/late_pay/issue', {
 
@@ -11542,7 +11569,7 @@ export default function CashierDashboard() {
 
                             >
 
-                              {enr.payment_status === 'late_pay' ? 'Late Pay Issued' : 'Late Pay'}
+                              {enr.payment_status === 'late_pay' ? '🖨️ Reprint Late Pay' : 'Late Pay'}
 
                             </button>
 
@@ -11564,7 +11591,7 @@ export default function CashierDashboard() {
 
                               <div className="invisible group-hover:visible absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg whitespace-nowrap z-50 shadow-lg">
 
-                                ✅ Late pay already issued for today
+                                🖨️ Click to reprint late pay note
 
                                 <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
 
