@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS teachers (
     status ENUM('active', 'inactive') DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Teacher schedules table
 CREATE TABLE IF NOT EXISTS teacher_schedules (
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS teacher_schedules (
     status ENUM('active', 'inactive') DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (teacherId) REFERENCES teachers(teacherId) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Teacher hall assignments table
 CREATE TABLE IF NOT EXISTS teacher_halls (
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS teacher_halls (
     status ENUM('assigned', 'available', 'maintenance') DEFAULT 'assigned',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (teacherId) REFERENCES teachers(teacherId) ON DELETE CASCADE
-); 
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci; 
 
 
 CREATE TABLE IF NOT EXISTS hall_bookings (
@@ -52,13 +52,14 @@ CREATE TABLE IF NOT EXISTS hall_bookings (
   hall_name VARCHAR(100) NOT NULL,
   subject VARCHAR(100),
   class_id INT,
-  teacherId VARCHAR(10) DEFAULT NULL,
+  teacherId VARCHAR(10),
   date DATE NOT NULL,
   start_time TIME NOT NULL,
   end_time TIME NOT NULL,
   status ENUM('booked', 'cancelled') DEFAULT 'booked',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_hall_date_time (hall_name, date, start_time, end_time),
+  INDEX idx_teacherId (teacherId),
   FOREIGN KEY (teacherId) REFERENCES teachers(teacherId) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -217,6 +218,41 @@ CREATE TABLE IF NOT EXISTS recording_progress (
   INDEX idx_student (student_id),
   INDEX idx_completion (completion_percentage)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+
+-- Exams table
+CREATE TABLE exams (
+    exam_id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    date DATE NOT NULL,
+    creator_user_id INT NOT NULL
+);
+
+-- QuestionParts table
+CREATE TABLE question_parts (
+    part_id INT AUTO_INCREMENT PRIMARY KEY,
+    exam_id INT NOT NULL,
+    parent_part_id INT NULL,
+    label VARCHAR(50) NOT NULL,
+    max_marks INT NOT NULL,
+    display_order INT NOT NULL,
+    FOREIGN KEY (exam_id) REFERENCES exams(exam_id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_part_id) REFERENCES question_parts(part_id) ON DELETE CASCADE
+);
+
+-- Marks table
+CREATE TABLE marks (
+    mark_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_identifier VARCHAR(50) NOT NULL,
+    question_part_id INT NOT NULL,
+    score_awarded DECIMAL(5,2) NOT NULL,
+    FOREIGN KEY (question_part_id) REFERENCES question_parts(part_id) ON DELETE CASCADE,
+    UNIQUE KEY unique_mark (student_identifier, question_part_id)
+);
+
+
+
 
 -- Initialization complete message
 SELECT 'Teacher Database Initialization Complete! All tables created successfully.' AS status;

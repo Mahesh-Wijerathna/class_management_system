@@ -32,6 +32,8 @@ const studentSidebarSections = [
 		section: 'Performance',
 		items: [
 			{ name: 'My Performance', path: '/student/performance', icon: <FaChartBar className="h-5 w-5" /> },
+			{ name: 'Exam Results', path: '/student/exam/results', icon: <FaFileAlt className="h-5 w-5" /> },
+
 		],
 	},
 	{

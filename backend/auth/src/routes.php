@@ -1,4 +1,7 @@
 <?php
+// Set JSON content type for all responses
+header('Content-Type: application/json');
+
 require_once __DIR__ . '/UserController.php';
 require_once __DIR__ . '/UserModel.php';
 
@@ -62,7 +65,8 @@ if ($method === 'POST' && $path === '/routes.php/user') {
             'dateOfBirth' => $data['dateOfBirth'] ?? '',
             'school' => $data['school'] ?? '',
             'address' => $data['address'] ?? '',
-            'district' => $data['district'] ?? ''
+            'district' => $data['district'] ?? '',
+            'registration_method' => $data['registration_method'] ?? 'Online' // Default to Online for web registration
         ];
         
         // First create the user in auth database
@@ -151,8 +155,8 @@ if ($method === 'POST' && $path === '/routes.php/registration-otp-request') {
         exit;
     }
     echo $controller->registrationOtpRequest($data['mobile']);
-        exit;
-    }
+    exit;
+}
     
 // VERIFY REGISTRATION OTP
 if ($method === 'POST' && $path === '/routes.php/verify-registration-otp') {

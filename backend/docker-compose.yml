@@ -12,7 +12,7 @@ services:
       MYSQL_PASSWORD: devpass
       TZ: Asia/Colombo
     ports:
-      - "9323:3306"
+      - "8323:3306"
     volumes:
       - auth_mysql_data:/var/lib/mysql
       - ./auth/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -65,7 +65,7 @@ services:
       MYSQL_PASSWORD: cashierpass
       TZ: Asia/Colombo
     ports:
-      - "9334:3306"
+      - "8334:3306"
     volumes:
       - cashier_mysql_data:/var/lib/mysql
       - ./cashier/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -125,7 +125,7 @@ services:
       MYSQL_PASSWORD: classpass
       TZ: Asia/Colombo
     ports:
-      - "9335:3306"
+      - "8335:3306"
     volumes:
       - class_mysql_data:/var/lib/mysql
       - ./class/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -177,7 +177,7 @@ services:
       MYSQL_PASSWORD: studentpass
       TZ: Asia/Colombo
     ports:
-      - "9332:3306"
+      - "8332:3306"
     volumes:
       - student_mysql_data:/var/lib/mysql
       - ./student/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -228,7 +228,7 @@ services:
       MYSQL_DATABASE: teacher_db
       TZ: Asia/Colombo
     ports:
-      - "9338:3306"
+      - "8338:3306"
     volumes:
       - ./teacher/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
       - teacher_mysql_data:/var/lib/mysql
@@ -300,7 +300,7 @@ services:
     image: mysql:8.0
     container_name: attendance-db
     ports:
-      - "3307:3306"  # Different port than default MySQL to avoid conflicts
+      - "8307:3306"  # Different port than default MySQL to avoid conflicts
     environment:
       - MYSQL_ROOT_PASSWORD=secret
       - MYSQL_DATABASE=attendance
@@ -322,7 +322,7 @@ services:
       MYSQL_PASSWORD: paymentpass
       TZ: Asia/Colombo
     ports:
-      - "9333:3306"
+      - "8333:3306"
     volumes:
       - ./payment-backend/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
       - payment_mysql_data:/var/lib/mysql

@@ -85,16 +85,19 @@ class StudentModel {
         // Auto-generate barcode data using student ID
         $barcodeData = $userid;
         $barcodeGeneratedAt = date('Y-m-d H:i:s');
+        
+        // Set registration method (default to 'Physical' for backward compatibility)
+        $registrationMethod = $studentData['registration_method'] ?? 'Physical';
 
         $stmt = $this->conn->prepare("
             INSERT INTO students (
                 user_id, first_name, last_name, nic, gender, age, email, mobile_number, 
                 parent_name, parent_mobile_number, stream, date_of_birth, school, address, district,
-                barcode_data, barcode_generated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                barcode_data, barcode_generated_at, registration_method
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         
-        $stmt->bind_param("sssssssssssssssss", 
+        $stmt->bind_param("ssssssssssssssssss", 
             $userid,
             $firstName,
             $lastName,
@@ -111,11 +114,74 @@ class StudentModel {
             $address,
             $district,
             $barcodeData,
-            $barcodeGeneratedAt
+            $barcodeGeneratedAt,
+            $registrationMethod
         );
 
         $result = $stmt->execute();
-        return $result ? ['success' => true] : ['success' => false, 'errors' => ['Database error occurred']];
+        
+        // If student creation successful, sync barcode to auth database
+        if ($result) {
+            $this->syncBarcodeToAuthDB($userid, $barcodeData, "$firstName $lastName");
+            return ['success' => true];
+        } else {
+            return ['success' => false, 'errors' => ['Database error occurred']];
+        }
+    }
+    
+    /**
+     * Sync barcode data to auth database for attendance system
+     */
+    private function syncBarcodeToAuthDB($userid, $barcodeData, $studentName) {
+        try {
+            // Connect to auth database
+            $authConn = new mysqli(
+                'auth-mysql-server',  // Use docker service name
+                'root',
+                'root',
+                'auth-db'
+            );
+            
+            if ($authConn->connect_error) {
+                error_log("Failed to connect to auth database for barcode sync: " . $authConn->connect_error);
+                return false;
+            }
+            
+            // Check if barcode already exists
+            $checkStmt = $authConn->prepare("SELECT userid FROM barcodes WHERE userid = ?");
+            $checkStmt->bind_param("s", $userid);
+            $checkStmt->execute();
+            $checkResult = $checkStmt->get_result();
+            
+            if ($checkResult->num_rows > 0) {
+                // Update existing barcode
+                $updateStmt = $authConn->prepare("
+                    UPDATE barcodes 
+                    SET barcode_data = ?, student_name = ?, updated_at = NOW() 
+                    WHERE userid = ?
+                ");
+                $updateStmt->bind_param("sss", $barcodeData, $studentName, $userid);
+                $updateStmt->execute();
+                $updateStmt->close();
+            } else {
+                // Insert new barcode
+                $insertStmt = $authConn->prepare("
+                    INSERT INTO barcodes (userid, barcode_data, student_name, created_at, updated_at) 
+                    VALUES (?, ?, ?, NOW(), NOW())
+                ");
+                $insertStmt->bind_param("sss", $userid, $barcodeData, $studentName);
+                $insertStmt->execute();
+                $insertStmt->close();
+            }
+            
+            $checkStmt->close();
+            $authConn->close();
+            return true;
+            
+        } catch (Exception $e) {
+            error_log("Error syncing barcode to auth database: " . $e->getMessage());
+            return false;
+        }
     }
 
     public function getStudentByUserId($userid) {
@@ -190,7 +256,14 @@ class StudentModel {
             $userid
         );
 
-        return $stmt->execute();
+        $result = $stmt->execute();
+        
+        // If update successful and barcode data changed, sync to auth database
+        if ($result && isset($studentData['barcodeData'])) {
+            $this->syncBarcodeToAuthDB($userid, $barcodeData, "$firstName $lastName");
+        }
+        
+        return $result;
     }
 
     public function generateBarcodeForStudent($userid) {
@@ -211,7 +284,15 @@ class StudentModel {
         ");
         
         $stmt->bind_param("sss", $barcodeData, $barcodeGeneratedAt, $userid);
-        return $stmt->execute();
+        $result = $stmt->execute();
+        
+        // If barcode generation successful, sync to auth database
+        if ($result) {
+            $studentName = $existingStudent['first_name'] . ' ' . $existingStudent['last_name'];
+            $this->syncBarcodeToAuthDB($userid, $barcodeData, $studentName);
+        }
+        
+        return $result;
     }
 
     public function generateBarcodesForAllStudents() {

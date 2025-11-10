@@ -3,6 +3,8 @@
 -- This will run automatically when the MySQL container starts for the first time
 
 -- Use the attendance database (created by docker-compose)
+-- Create database if it doesn't exist
+CREATE DATABASE IF NOT EXISTS attendance;
 USE attendance;
 
 -- Drop existing tables if they exist (for clean initialization)

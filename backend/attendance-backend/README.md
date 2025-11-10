@@ -82,7 +82,7 @@ The attendance system now has a **permanent, automatic database initialization s
 1. **Container Startup**: When `attendance-db` container starts for the first time
 2. **Volume Mount**: `./attendance-backend/sql:/docker-entrypoint-initdb.d` mounts the init script
 3. **Script Execution**: MySQL automatically runs `init.sql` during initialization
-4. **Database Creation**: Creates `attendance_system` database if it doesn't exist
+4. **Database Creation**: Creates `` database if it doesn't exist
 5. **Table Creation**: Creates all tables with proper indexes and constraints
 6. **Sample Data**: Inserts sample data for immediate testing
 7. **Views Creation**: Creates reporting views for easy data access

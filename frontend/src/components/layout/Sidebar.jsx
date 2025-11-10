@@ -99,6 +99,16 @@ const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen, isLocked =
 
   const filteredItems = filterMenuItems(items, searchTerm);
 
+  // Resolve dynamic route params like ":examId" from storage (or prompt)
+  const resolvePath = (rawPath) => {
+    if (!rawPath || typeof rawPath !== 'string') return rawPath;
+    if (!rawPath.includes(':examId')) return rawPath;
+
+    const stored = sessionStorage.getItem('currentExamId') || localStorage.getItem('currentExamId');
+    if (stored) return rawPath.replace(':examId', String(stored));
+    return null; // signal that we don't have an exam id yet
+  };
+
   // Get recent items (mock data - in real app, this would come from localStorage/API)
   const recentItems = [
     { id: 1, name: 'My Classes', path: '/student/my-classes', icon: <FaClock className="h-4 w-4" /> },
@@ -281,7 +291,19 @@ const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen, isLocked =
                       <button
                         key={itemIdx}
                         onClick={() => {
-                          navigate(item.path);
+                          let path = resolvePath(item.path);
+                          if (!path && item.path && item.path.includes(':examId')) {
+                            // Ask once if no stored exam id
+                            try {
+                              const entered = prompt('Enter Exam ID to view results');
+                              if (entered && String(entered).trim()) {
+                                const val = String(entered).trim();
+                                sessionStorage.setItem('currentExamId', val);
+                                path = item.path.replace(':examId', val);
+                              }
+                            } catch {}
+                          }
+                          if (path) navigate(path);
                         }}
                         onMouseEnter={(e) => handleMouseEnter(e, item.name)}
                         onMouseLeave={handleMouseLeave}

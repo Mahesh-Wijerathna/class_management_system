@@ -448,6 +448,38 @@ CREATE TABLE IF NOT EXISTS hall_requests (
     FOREIGN KEY (teacher_id) REFERENCES teachers(teacherId) ON DELETE CASCADE
 );
 
+
+
+-- Exams table
+CREATE TABLE exams (
+    exam_id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    date DATE NOT NULL,
+    creator_user_id INT NOT NULL
+);
+
+-- QuestionParts table
+CREATE TABLE question_parts (
+    part_id INT AUTO_INCREMENT PRIMARY KEY,
+    exam_id INT NOT NULL,
+    parent_part_id INT NULL,
+    label VARCHAR(50) NOT NULL,
+    max_marks INT NOT NULL,
+    display_order INT NOT NULL,
+    FOREIGN KEY (exam_id) REFERENCES exams(exam_id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_part_id) REFERENCES question_parts(part_id) ON DELETE CASCADE
+);
+
+-- Marks table
+CREATE TABLE marks (
+    mark_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_identifier VARCHAR(50) NOT NULL,
+    question_part_id INT NOT NULL,
+    score_awarded DECIMAL(5,2) NOT NULL,
+    FOREIGN KEY (question_part_id) REFERENCES question_parts(part_id) ON DELETE CASCADE,
+    UNIQUE KEY unique_mark (student_identifier, question_part_id)
+);
+
 -- =====================================================
 -- INSERT DEFAULT DATA
 -- =====================================================

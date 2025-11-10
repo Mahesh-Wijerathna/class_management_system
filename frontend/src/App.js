@@ -10,6 +10,12 @@ import LogoutSync from './components/LogoutSync';
 import LogoutHandler from './components/LogoutHandler';
 import { SidebarProvider } from './components/layout/SidebarContext';
 
+
+import ExamDesigner from './pages/dashboard/teacherDashboard/Exam/ExamDesigner';
+import MarkingView from './pages/dashboard/teacherDashboard/Exam/MarkingView';
+import ResultsView from './pages/dashboard/teacherDashboard/Exam/ResultsView';
+// import ExamResult from './pages/dashboard/studentDashboard/ExamResult';
+
 function App() {
   return (
     <BrowserRouter>
@@ -88,6 +94,58 @@ function App() {
             } 
           />
         ))}
+
+         {/* Teacher exam routes (explicit) */}
+        <Route
+          path="/exam/:id/design"
+          element={
+            <AuthGuard requiredRole="teacher">
+              <SidebarProvider>
+                <LogoutHandler>
+                  <ExamDesigner />
+                </LogoutHandler>
+              </SidebarProvider>
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/exam/:id/mark"
+          element={
+            <AuthGuard requiredRole="teacher">
+              <SidebarProvider>
+                <LogoutHandler>
+                  <MarkingView />
+                </LogoutHandler>
+              </SidebarProvider>
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/exam/:id/results"
+          element={
+            <AuthGuard requiredRole="teacher">
+              <SidebarProvider>
+                <LogoutHandler>
+                  <ResultsView />
+                </LogoutHandler>
+              </SidebarProvider>
+            </AuthGuard>
+          }
+        />
+
+        {/* Student exam results route
+        <Route
+          path="/student/exam/:id/results"
+          element={
+            <AuthGuard requiredRole="student">
+              <SidebarProvider>
+                <LogoutHandler>
+                  <ExamResult />
+                </LogoutHandler>
+              </SidebarProvider>
+            </AuthGuard>
+          }
+        /> */}
 
         {/* Student Routes - Protected with SidebarProvider */}
         {studentRoutes.map((route, index) => (

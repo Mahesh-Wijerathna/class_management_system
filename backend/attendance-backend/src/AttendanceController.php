@@ -852,26 +852,17 @@ class AttendanceController {
             $checkStmt->execute();
             $existingRecord = $checkStmt->get_result()->fetch_assoc();
             
-            if ($existingRecord) {
-                // Update existing record instead of creating duplicate
-                $updateQuery = "UPDATE attendance_records 
-                               SET student_name = ?, source = ?, attendance_status = ?, 
-                                   join_time = ?, leave_time = ?, duration_minutes = ?, updated_at = CURRENT_TIMESTAMP
-                               WHERE id = ?";
-                
-                $updateStmt = $this->mysqli->prepare($updateQuery);
-                $updateStmt->bind_param("sssssii", $studentName, $source, $status, $joinTime, $leaveTime, $duration, $existingRecord['id']);
-                $updateStmt->execute();
-                
-                return [
-                    'success' => true,
-                    'message' => 'Attendance updated successfully (one attendance per day limit)',
-                    'action' => 'updated',
-                    'id' => $existingRecord['id'],
-                    'previous_status' => $existingRecord['attendance_status'],
-                    'new_status' => $status
-                ];
-            } else {
+                if ($existingRecord) {
+                    // Reject duplicate attendance for this student/class/date
+                    return [
+                        'success' => false,
+                        'message' => 'Attendance already marked for this student in this class today. Only one attendance allowed per day.',
+                        'action' => 'duplicate',
+                        'id' => $existingRecord['id'],
+                        'existing_status' => $existingRecord['attendance_status'],
+                        'existing_join_time' => $existingRecord['join_time']
+                    ];
+                } else {
                 // Insert new record
                 $query = "INSERT INTO attendance_records 
                          (class_id, student_id, student_name, source, attendance_status, join_time, leave_time, duration_minutes) 
