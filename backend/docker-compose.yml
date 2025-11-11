@@ -350,6 +350,7 @@ services:
     networks:
       - payment-network
       - class-network
+      - student-network
 
 
 volumes:

@@ -20,7 +20,9 @@ import {
   FaBell,
   FaQrcode,
   FaCamera,
-  FaStickyNote
+  FaStickyNote,
+  FaExclamationTriangle,
+  FaIdCard
 } from 'react-icons/fa';
 
 // Sidebar sections for the cashier dashboard
@@ -29,6 +31,13 @@ const cashierSidebarSections = [
     section: 'Dashboard Overview',
     items: [
       { name: 'Cashier Dashboard', path: '/cashierdashboard', icon: <FaChartBar className="h-5 w-5" /> },
+    ]
+  },
+  {
+    section: 'Student Tracking',
+    items: [
+      { name: 'Late Payments', path: '/cashier/late-payments', icon: <FaExclamationTriangle className="h-5 w-5" /> },
+      { name: 'Forget ID Card Students', path: '/cashier/forget-id-card', icon: <FaIdCard className="h-5 w-5" /> },
     ]
   // },
   // {

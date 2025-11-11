@@ -47,6 +47,7 @@ services:
       - DB_PASSWORD=studentpass
     networks:
       - student-network
+      - auth-network
 
 volumes:
   mysql_data:
@@ -54,3 +55,6 @@ volumes:
 networks:
   student-network:
     driver: bridge
+  auth-network:
+    external: true
+    name: backend_auth-network
