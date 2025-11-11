@@ -15,6 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once 'ClassController.php';
 require_once 'EnrollmentController.php';
 require_once 'LatePayController.php';
+require_once 'EntryPermitController.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -39,6 +40,7 @@ if ($mysqli->connect_errno) {
 $controller = new ClassController($mysqli);
 $enrollmentController = new EnrollmentController($mysqli);
 $latePayController = new LatePayController($mysqli);
+$entryPermitController = new EntryPermitController($mysqli);
 
 // Test endpoint
 if ($method === 'GET' && $path === '/test') {
@@ -112,6 +114,9 @@ switch ($method) {
             // Expire yesterday's late pay permissions
             $result = $latePayController->expireYesterdayPermissions();
             echo json_encode($result);
+        } elseif ($path === '/entry_permit/issue') {
+            // Issue entry permit for student who forgot ID card
+            $entryPermitController->issuePermit();
         } else {
             http_response_code(404);
             echo json_encode(['error' => 'Endpoint not found']);
@@ -177,6 +182,31 @@ switch ($method) {
             $date = $_GET['date'] ?? null;
             $result = $latePayController->getCashierPermissions($cashierId, $date);
             echo json_encode($result);
+        } elseif ($path === '/late_pay/all_active') {
+            // Get all active late pay permissions for today
+            $date = $_GET['date'] ?? null;
+            $result = $latePayController->getAllActivePermissions($date);
+            echo json_encode($result);
+        } elseif ($path === '/late_pay/all_history') {
+            // Get all late pay permissions history
+            $limit = $_GET['limit'] ?? 100;
+            $result = $latePayController->getAllPermissionsHistory($limit);
+            echo json_encode($result);
+        } elseif ($path === '/entry_permit/check' && isset($_GET['student_id']) && isset($_GET['class_id'])) {
+            // Check entry permit
+            $entryPermitController->checkPermit();
+        } elseif ($path === '/entry_permit/today') {
+            // Get all entry permits for today
+            $entryPermitController->getTodayPermits();
+        } elseif ($path === '/entry_permit/history') {
+            // Get all entry permit history
+            $entryPermitController->getPermitHistory();
+        } elseif ($path === '/entry_permit/student_count' && isset($_GET['student_id'])) {
+            // Get entry permit count for student
+            $entryPermitController->getStudentPermitCount();
+        } elseif ($path === '/entry_permit/by_date') {
+            // Get entry permits by date range
+            $entryPermitController->getPermitsByDateRange();
         } else {
             http_response_code(404);
             echo json_encode(['error' => 'Endpoint not found']);

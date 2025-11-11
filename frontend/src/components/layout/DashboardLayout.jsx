@@ -55,8 +55,12 @@ const DashboardContent = ({
   children, 
   userRole, 
   sidebarItems,
-  sidebarSections, // added to accept alternate prop name
-  onLogout
+  sidebarSections,
+  onLogout,
+  customHeaderElements,
+  customTitle,
+  customSubtitle,
+  isLocked
 }) => {
   const { isSidebarOpen, isMobile, toggleSidebar, setSidebarOpen } = useSidebar();
 
@@ -66,6 +70,9 @@ const DashboardContent = ({
     : Array.isArray(sidebarSections)
       ? sidebarSections
       : [];
+
+  // Use isSidebarOpen unless locked
+  const effectiveSidebarOpen = isLocked !== undefined ? isLocked : isSidebarOpen;
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -100,6 +107,14 @@ const DashboardContent = ({
         </div>
       </main>
     </div>
+  );
+};
+
+const DashboardLayout = (props) => {
+  return (
+    <SidebarProvider>
+      <DashboardContent {...props} />
+    </SidebarProvider>
   );
 };
 

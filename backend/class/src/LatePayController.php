@@ -266,6 +266,99 @@ class LatePayController {
     }
 
     /**
+     * Get all active late pay permissions for today
+     * Used for Student Tracking page
+     * 
+     * GET /late_pay/all_active?date=2025-11-10
+     */
+    public function getAllActivePermissions($date = null) {
+        try {
+            $checkDate = $date ?? date('Y-m-d');
+
+            $stmt = $this->db->prepare("
+                SELECT 
+                    lpp.*,
+                    c.class_name,
+                    c.subject,
+                    e.payment_status
+                FROM late_pay_permissions lpp
+                JOIN classes c ON lpp.class_id = c.id
+                JOIN enrollments e ON lpp.enrollment_id = e.id
+                WHERE lpp.permission_date = ?
+                ORDER BY lpp.issued_at DESC
+            ");
+            $stmt->bind_param("s", $checkDate);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            $permissions = [];
+            while ($row = $result->fetch_assoc()) {
+                $permissions[] = $row;
+            }
+
+            return [
+                'success' => true,
+                'permissions' => $permissions,
+                'count' => count($permissions),
+                'date' => $checkDate
+            ];
+
+        } catch (Exception $e) {
+            error_log("Get All Active Permissions Error: " . $e->getMessage());
+            http_response_code(500);
+            return [
+                'success' => false,
+                'message' => 'Server error: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Get all late pay permissions history (not just today)
+     * Used for Student Tracking page to show full history
+     * 
+     * GET /late_pay/all_history?limit=100
+     */
+    public function getAllPermissionsHistory($limit = 100) {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT 
+                    lpp.*,
+                    c.class_name,
+                    c.subject,
+                    e.payment_status
+                FROM late_pay_permissions lpp
+                JOIN classes c ON lpp.class_id = c.id
+                JOIN enrollments e ON lpp.enrollment_id = e.id
+                ORDER BY lpp.permission_date DESC, lpp.issued_at DESC
+                LIMIT ?
+            ");
+            $stmt->bind_param("i", $limit);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            $permissions = [];
+            while ($row = $result->fetch_assoc()) {
+                $permissions[] = $row;
+            }
+
+            return [
+                'success' => true,
+                'permissions' => $permissions,
+                'count' => count($permissions)
+            ];
+
+        } catch (Exception $e) {
+            error_log("Get All Permissions History Error: " . $e->getMessage());
+            http_response_code(500);
+            return [
+                'success' => false,
+                'message' => 'Server error: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
      * Clean up old late pay permissions (older than 30 days)
      * This should be run as a cron job or manually
      * 

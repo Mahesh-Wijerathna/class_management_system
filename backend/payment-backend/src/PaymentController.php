@@ -3,12 +3,15 @@
 date_default_timezone_set('Asia/Colombo');
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/WhatsAppNotificationHelper.php';
 
 class PaymentController {
     private $db;
+    private $whatsAppHelper;
 
     public function __construct($db) {
         $this->db = $db;
+        $this->whatsAppHelper = new WhatsAppNotificationHelper();
     }
 
     // Create a new payment record
@@ -165,6 +168,33 @@ class PaymentController {
             }
 
             $financialRecordId = $stmt->insert_id;
+
+            // Prepare payment data for WhatsApp notification
+            $paymentForNotification = [
+                'transaction_id' => $transactionId,
+                'user_id' => $studentId,
+                'amount' => $finalAmount,
+                'payment_method' => $paymentMethod,
+                'discount' => $data['discount'] ?? 0
+            ];
+
+            // Determine payment type for WhatsApp message
+            $whatsAppPaymentType = 'monthly_fee';
+            if ($paymentType === 'admission_fee') {
+                $whatsAppPaymentType = 'admission_fee';
+            } elseif (strpos($notes, 'Enrollment') !== false || strpos($notes, 'First month') !== false) {
+                $whatsAppPaymentType = 'enrollment';
+                $paymentForNotification['admission_fee_paid'] = ($paymentType === 'admission_fee' || strpos($notes, 'admission') !== false);
+            }
+
+            // Send WhatsApp notification (non-blocking - don't fail payment if WhatsApp fails)
+            if ($class && is_array($class)) {
+                error_log("📱 Attempting WhatsApp notification for transaction: " . $transactionId . " | Type: " . $whatsAppPaymentType);
+                $whatsAppResult = $this->sendPaymentWhatsAppNotification($paymentForNotification, $class, $whatsAppPaymentType);
+                error_log("📱 WhatsApp notification result: " . ($whatsAppResult ? 'SUCCESS' : 'FAILED'));
+            } else {
+                error_log("⚠️ WhatsApp notification skipped - No class data available");
+            }
 
             return [
                 'success' => true,
@@ -1087,6 +1117,155 @@ class PaymentController {
             return false;
         } catch (Exception $e) {
             error_log("Error checking enrollment from class backend: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    // Helper method to get student details from student backend
+    private function getStudentFromStudentBackend($studentId) {
+        try {
+            $url = "http://student-backend/routes.php/get_with_id/" . urlencode($studentId);
+            $response = @file_get_contents($url);
+            
+            if ($response === FALSE) {
+                error_log("Failed to fetch student from student backend: " . $studentId);
+                return null;
+            }
+            
+            $studentData = json_decode($response, true);
+            
+            // Student backend returns data directly, not wrapped
+            if ($studentData && isset($studentData['user_id'])) {
+                return $studentData;
+            }
+            
+            // Legacy format check (if backend is updated to wrap in success/data)
+            if ($studentData && isset($studentData['success']) && $studentData['success'] && isset($studentData['data'])) {
+                return $studentData['data'];
+            }
+            
+            return null;
+        } catch (Exception $e) {
+            error_log("Error fetching student from student backend: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    // Get student's admission fee from database
+    private function getStudentAdmissionFee($studentId) {
+        try {
+            // Query to get the most recent admission fee payment for this student
+            $stmt = $this->db->prepare("
+                SELECT amount 
+                FROM financial_records 
+                WHERE user_id = ? 
+                AND payment_type = 'admission_fee'
+                AND status = 'paid'
+                ORDER BY date DESC
+                LIMIT 1
+            ");
+            
+            $stmt->bind_param("s", $studentId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            if ($result->num_rows > 0) {
+                $row = $result->fetch_assoc();
+                return floatval($row['amount']);
+            }
+            
+            return null; // No admission fee found
+            
+        } catch (Exception $e) {
+            error_log("Error fetching admission fee: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    // Send WhatsApp notification for payment (non-blocking)
+    private function sendPaymentWhatsAppNotification($payment, $classData, $paymentType = 'monthly_fee') {
+        try {
+            // Get student details
+            $studentData = $this->getStudentFromStudentBackend($payment['user_id']);
+            
+            if (!$studentData) {
+                error_log("WhatsApp notification skipped - Student not found: " . $payment['user_id']);
+                return false;
+            }
+
+            // Log student data for debugging
+            error_log("Student data retrieved: " . json_encode($studentData));
+            
+            // Check for mobile number in various possible field names
+            $mobileNumber = $studentData['mobile'] ?? $studentData['mobile_number'] ?? $studentData['phone'] ?? $studentData['contactNumber'] ?? null;
+            
+            if (empty($mobileNumber)) {
+                error_log("WhatsApp notification skipped - No mobile number found for: " . $payment['user_id'] . " | Available fields: " . implode(', ', array_keys($studentData)));
+                return false;
+            }
+
+            // Add mobile to studentData for helper methods
+            $studentData['mobile'] = $mobileNumber;
+
+            // Normalize student data fields for WhatsApp helper
+            $studentData['firstName'] = $studentData['firstName'] ?? $studentData['first_name'] ?? $studentData['firstname'] ?? 'Student';
+            $studentData['lastName'] = $studentData['lastName'] ?? $studentData['last_name'] ?? $studentData['lastname'] ?? '';
+            $studentData['studentId'] = $studentData['studentId'] ?? $studentData['student_id'] ?? $studentData['user_id'] ?? $studentData['id'] ?? 'N/A';
+
+            // Prepare payment data
+            $paymentData = [
+                'transactionId' => $payment['transaction_id'],
+                'amount' => $payment['amount'],
+                'paymentMethod' => $payment['payment_method'] ?? 'cash',
+                'discount' => $payment['discount'] ?? 0
+            ];
+
+            // Normalize class data fields
+            if (isset($classData['className'])) {
+                $classData['class_name'] = $classData['className'];
+            }
+            if (!isset($classData['subject']) && isset($classData['subject_name'])) {
+                $classData['subject'] = $classData['subject_name'];
+            }
+
+            // Send appropriate WhatsApp notification based on payment type
+            $result = false;
+            switch ($paymentType) {
+                case 'monthly_fee':
+                    $result = $this->whatsAppHelper->sendMonthlyFeeConfirmation($studentData, $paymentData, $classData);
+                    break;
+                    
+                case 'admission_fee':
+                    $result = $this->whatsAppHelper->sendAdmissionFeeConfirmation($studentData, $paymentData);
+                    break;
+                    
+                case 'enrollment':
+                    $admissionFeePaid = isset($payment['admission_fee_paid']) && $payment['admission_fee_paid'];
+                    if ($admissionFeePaid) {
+                        $paymentData['monthlyFee'] = $classData['fee'] ?? 0;
+                        
+                        // Fetch real admission fee from database
+                        $realAdmissionFee = $this->getStudentAdmissionFee($payment['user_id']);
+                        $paymentData['admissionFee'] = $realAdmissionFee ?? 1000; // Fallback to 1000 if not found
+                    }
+                    $result = $this->whatsAppHelper->sendEnrollmentPaymentConfirmation($studentData, $paymentData, $classData, $admissionFeePaid);
+                    break;
+                    
+                default:
+                    $result = $this->whatsAppHelper->sendPaymentReceipt($studentData, $paymentData);
+                    break;
+            }
+
+            if ($result) {
+                error_log("✅ WhatsApp notification sent successfully to " . $studentData['mobile'] . " for transaction " . $payment['transaction_id']);
+            } else {
+                error_log("❌ WhatsApp notification failed for transaction " . $payment['transaction_id']);
+            }
+
+            return $result;
+
+        } catch (Exception $e) {
+            error_log("WhatsApp notification exception: " . $e->getMessage());
             return false;
         }
     }

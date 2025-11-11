@@ -11431,7 +11431,7 @@ export default function CashierDashboard() {
 
                                   ? 'bg-orange-300 text-orange-100 cursor-not-allowed opacity-50'
 
-                                  : enr.payment_status === 'late_pay'
+                                  : enr.payment_status === 'late_pay' && enr.latePayIsToday
 
                                   ? 'bg-amber-600 text-white hover:bg-amber-700 border-2 border-amber-400'
 
@@ -11445,31 +11445,57 @@ export default function CashierDashboard() {
 
                                 try {
 
-                                  // If already issued, just reprint the note
+                                  // Check if late pay permission was issued TODAY
 
                                   if (enr.payment_status === 'late_pay') {
 
-                                    printNote({ 
+                                    // Check if permission is for today
 
-                                      title: 'Late Payment Permission', 
+                                    const checkResponse = await fetch(
 
-                                      student, 
+                                      `http://localhost:8087/routes.php/late_pay/check?student_id=${student.studentId || student.id}&class_id=${enr.classId || enr.id}`
 
-                                      classRow: enr, 
+                                    );
 
-                                      reason: 'Allowed late payment for today only' 
+                                    const checkData = await checkResponse.json();
 
-                                    });
+                                    
 
-                                    showToast('🖨️ Late pay note reprinted!', 'success');
+                                    if (checkData.success && checkData.has_permission) {
 
-                                    return;
+                                      // Permission exists for today - allow reprint
+
+                                      enr.latePayIsToday = true;
+
+                                      printNote({ 
+
+                                        title: 'Late Payment Permission', 
+
+                                        student, 
+
+                                        classRow: enr, 
+
+                                        reason: 'Allowed late payment for today only' 
+
+                                      });
+
+                                      showToast('🖨️ Late pay note reprinted!', 'success');
+
+                                      return;
+
+                                    } else {
+
+                                      // Permission expired - reset flag and fall through to issue new one
+
+                                      enr.latePayIsToday = false;
+
+                                    }
 
                                   }
 
 
 
-                                  // First time issuing - Call API
+                                  // First time issuing OR permission expired - Call API
 
                                   const response = await fetch('http://localhost:8087/routes.php/late_pay/issue', {
 
@@ -11527,6 +11553,8 @@ export default function CashierDashboard() {
 
                                     enr.payment_status = 'late_pay';
 
+                                    enr.latePayIsToday = true;  // Mark as today's permission
+
 
 
                                     // Refresh data - reload student data to get updated enrollment status
@@ -11569,7 +11597,7 @@ export default function CashierDashboard() {
 
                             >
 
-                              {enr.payment_status === 'late_pay' ? '🖨️ Reprint Late Pay' : 'Late Pay'}
+                              {enr.payment_status === 'late_pay' && enr.latePayIsToday ? '🖨️ Reprint Late Pay' : 'Late Pay'}
 
                             </button>
 
@@ -11587,7 +11615,7 @@ export default function CashierDashboard() {
 
                             )}
 
-                            {enr.payment_status === 'late_pay' && (
+                            {enr.payment_status === 'late_pay' && enr.latePayIsToday && (
 
                               <div className="invisible group-hover:visible absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg whitespace-nowrap z-50 shadow-lg">
 
@@ -11601,45 +11629,185 @@ export default function CashierDashboard() {
 
                           </div>
 
-                          <button
+                          <div className="relative group">
 
-                            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                            <button
 
-                            onClick={() => {
+                              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
 
-                              try {
+                                enr.hasEntryPermitToday 
 
-                                printNote({ title: 'Entry Permit - Forgot Card', student, classRow: enr, reason: 'Permit to enter without ID for this session - Valid for all classes today' });
+                                  ? 'bg-blue-500 text-white hover:bg-blue-600' 
 
-                                // Scroll back to student panel after generating note
+                                  : 'bg-blue-600 text-white hover:bg-blue-700'
 
-                                setTimeout(() => {
+                              }`}
 
-                                  studentPanelRef.current?.scrollIntoView({ 
+                              onClick={async () => {
 
-                                    behavior: 'smooth', 
+                                try {
 
-                                    block: 'start' 
+                                  // Check if entry permit already issued today
 
-                                  });
+                                  const checkResponse = await fetch(
 
-                                }, 300);
+                                    `http://localhost:8087/routes.php/entry_permit/check?student_id=${student.studentId || student.id}&class_id=${enr.classId || enr.class_id}`
 
-                              } catch (e) { 
+                                  );
 
-                                console.error('Error printing entry permit:', e);
+                                  const checkData = await checkResponse.json();
 
-                                alert('Failed to generate entry permit'); 
 
-                              }
 
-                            }}
+                                  if (checkData.success && checkData.has_permit) {
 
-                          >
+                                    // Already has permit for today - just reprint
 
-                            Entry Permit
+                                    enr.hasEntryPermitToday = true;
 
-                          </button>
+                                    
+
+                                    showToast('🖨️ Reprinting entry permit - Student already has permit for today', 'info');
+
+                                    
+
+                                    printNote({ 
+
+                                      title: 'Entry Permit - Forgot Card', 
+
+                                      student, 
+
+                                      classRow: enr, 
+
+                                      reason: 'Permit to enter without ID for this session - Valid for all classes today' 
+
+                                    });
+
+                                  } else {
+
+                                    // No permit yet - issue new one
+
+                                    enr.hasEntryPermitToday = false;
+
+                                    
+
+                                    // Issue entry permit via API
+
+                                    const issueResponse = await fetch('http://localhost:8087/routes.php/entry_permit/issue', {
+
+                                      method: 'POST',
+
+                                      headers: { 'Content-Type': 'application/json' },
+
+                                      body: JSON.stringify({
+
+                                        student_id: student.studentId || student.id,
+
+                                        class_id: enr.classId || enr.class_id,
+
+                                        cashier_id: getUserData()?.userid || 'CASHIER',
+
+                                        reason: 'Student forgot ID card - Entry permit issued',
+
+                                        notes: `Issued for ${enr.class_name || enr.subject}`
+
+                                      })
+
+                                    });
+
+
+
+                                    const result = await issueResponse.json();
+
+
+
+                                    if (result.success) {
+
+                                      // Show success toast
+
+                                      showToast('✅ Entry permit issued - Student can attend all classes today!', 'success');
+
+
+
+                                      // Print the entry permit note
+
+                                      printNote({ 
+
+                                        title: 'Entry Permit - Forgot Card', 
+
+                                        student, 
+
+                                        classRow: enr, 
+
+                                        reason: 'Permit to enter without ID for this session - Valid for all classes today' 
+
+                                      });
+
+
+
+                                      // Mark as having permit for today
+
+                                      enr.hasEntryPermitToday = true;
+
+
+
+                                      // Refresh data
+
+                                      loadStudentData(student.studentId || student.id);
+
+                                    } else {
+
+                                      showToast('❌ Failed to issue entry permit: ' + (result.message || 'Unknown error'), 'error');
+
+                                    }
+
+                                  }
+
+
+
+                                  // Scroll back to student panel
+
+                                  setTimeout(() => {
+
+                                    studentPanelRef.current?.scrollIntoView({ 
+
+                                      behavior: 'smooth', 
+
+                                      block: 'start' 
+
+                                    });
+
+                                  }, 300);
+
+                                } catch (e) { 
+
+                                  console.error('Error with entry permit:', e);
+
+                                  showToast('❌ Failed to process entry permit', 'error');
+
+                                }
+
+                              }}
+
+                            >
+
+                              {enr.hasEntryPermitToday ? '🖨️ Reprint Entry Permit' : 'Entry Permit'}
+
+                            </button>
+
+                            {enr.hasEntryPermitToday && (
+
+                              <div className="invisible group-hover:visible absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg whitespace-nowrap z-50 shadow-lg">
+
+                                🖨️ Click to reprint entry permit note
+
+                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
+
+                              </div>
+
+                            )}
+
+                          </div>
 
                         </div>
 
@@ -12450,12 +12618,12 @@ export default function CashierDashboard() {
                   {/* Student Management */}
                   <div className="grid grid-cols-2 gap-3">
                     <button 
-                    onClick={() => setActiveTab('register')}
+                      onClick={() => setActiveTab('register')}
                       className="bg-gradient-to-br from-amber-500/90 to-amber-600/90 backdrop-blur-sm text-white py-3 px-4 rounded-xl text-sm font-semibold hover:from-amber-600 hover:to-amber-700 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105"
-                  >
+                    >
                       <FaUserPlus className="text-lg" />
-                    Register Student
-                  </button>
+                      Register Student
+                    </button>
                   <button 
                     onClick={() => {
                       if (student) {
