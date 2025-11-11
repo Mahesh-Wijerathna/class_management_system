@@ -9881,6 +9881,36 @@ export default function CashierDashboard() {
           }));
 
           
+          // Check entry permit status for each enrollment
+          await Promise.all(transformedEnrollments.map(async (enr) => {
+            try {
+              const permitCheckRes = await fetch(
+                `http://localhost:8087/routes.php/entry_permit/check?student_id=${studentId}&class_id=${enr.classId}`
+              );
+              const permitData = await permitCheckRes.json();
+              
+              console.log('🔍 Entry permit check for class', enr.classId, ':', permitData);
+              
+              if (permitData.success && permitData.has_permit && permitData.issued_date) {
+                // Check if permit is for today
+                const permitDate = new Date(permitData.issued_date);
+                const today = new Date();
+                const isToday = (
+                  permitDate.getDate() === today.getDate() &&
+                  permitDate.getMonth() === today.getMonth() &&
+                  permitDate.getFullYear() === today.getFullYear()
+                );
+                enr.hasEntryPermitToday = isToday;
+                console.log('📅 Permit date:', permitDate.toDateString(), 'Today:', today.toDateString(), 'Is today?', isToday);
+              } else {
+                enr.hasEntryPermitToday = false;
+                console.log('❌ No permit found for class', enr.classId);
+              }
+            } catch (e) {
+              console.error('Failed to check entry permit for class', enr.classId, e);
+              enr.hasEntryPermitToday = false;
+            }
+          }));
 
           setEnrollments(transformedEnrollments);
 
@@ -9896,9 +9926,7 @@ export default function CashierDashboard() {
 
         setEnrollments([]);
 
-      }
-
-      
+      }      
 
       const payRes = await getStudentPayments(studentId);
 
@@ -11665,6 +11693,10 @@ export default function CashierDashboard() {
 
                                     enr.hasEntryPermitToday = true;
 
+                                    // Force React re-render by creating new enrollments array
+
+                                    setEnrollments([...enrollments]);
+
                                     
 
                                     showToast('🖨️ Reprinting entry permit - Student already has permit for today', 'info');
@@ -11748,6 +11780,10 @@ export default function CashierDashboard() {
                                       // Mark as having permit for today
 
                                       enr.hasEntryPermitToday = true;
+
+                                      // Force React re-render by creating new enrollments array
+
+                                      setEnrollments([...enrollments]);
 
 
 
