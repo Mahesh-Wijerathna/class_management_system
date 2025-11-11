@@ -3,7 +3,8 @@ import { useParams , useNavigate } from 'react-router-dom';
 import { questionAPI } from '../../../../api/Examapi';
 import teacherSidebarSections from '../TeacherDashboardSidebar';
 import DashboardLayout from '../../../../components/layout/DashboardLayout';
-import { FaBars, FaTimes, FaGraduationCap, FaSearch, FaStar, FaSync } from 'react-icons/fa';
+import CustomTextField from '../../../../components/CustomTextField';
+import { FaBars, FaTimes, FaGraduationCap, FaSearch, FaStar, FaSync, FaQuestionCircle, FaHashtag } from 'react-icons/fa';
 
 
 const ExamDesigner = () => {
@@ -12,6 +13,12 @@ const ExamDesigner = () => {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedQuestion, setSelectedQuestion] = useState(null);
+  
+  // Modal states
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [modalParentId, setModalParentId] = useState(null);
+  const [formData, setFormData] = useState({ label: '', max_marks: '' });
 
   
 
@@ -89,38 +96,88 @@ const ExamDesigner = () => {
   };
 
   const handleAddQuestion = async (parentId = null) => {
-    const label = prompt('Enter label:');
-    const maxMarks = parseInt(prompt('Enter max marks:'), 10);
-    if (label && Number.isFinite(maxMarks)) {
-      try {
-        const displayOrder = questions.length + 1;
-        await questionAPI.create(id, {
-          parent_part_id: parentId,
-          label,
-          max_marks: maxMarks,
-          display_order: displayOrder
-        });
-        fetchQuestions();
-      } catch (error) {
-        console.error('Error adding question:', error);
-        alert('Failed to add question');
-      }
-    }
+    setModalParentId(parentId);
+    setFormData({ label: '', max_marks: '' });
+    setShowAddModal(true);
   };
 
   const handleUpdateQuestion = async () => {
     if (selectedQuestion) {
-      const label = prompt('Enter new label:', selectedQuestion.label);
-      const maxMarks = parseInt(prompt('Enter new max marks:', selectedQuestion.max_marks), 10);
-      if (label && Number.isFinite(maxMarks)) {
-        try {
-          await questionAPI.update(id, selectedQuestion.part_id, { label, max_marks: maxMarks });
-          fetchQuestions();
-        } catch (error) {
-          console.error('Error updating question:', error);
-          alert('Failed to update question');
-        }
-      }
+      setFormData({
+        label: selectedQuestion.label || '',
+        max_marks: selectedQuestion.max_marks || ''
+      });
+      setShowUpdateModal(true);
+    }
+  };
+
+  const handleCloseModals = () => {
+    setShowAddModal(false);
+    setShowUpdateModal(false);
+    setFormData({ label: '', max_marks: '' });
+    setModalParentId(null);
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmitAdd = async (e) => {
+    e.preventDefault();
+    const { label, max_marks } = formData;
+    
+    if (!label || !max_marks) {
+      alert('Please fill in all fields');
+      return;
+    }
+
+    const maxMarks = parseInt(max_marks, 10);
+    if (!Number.isFinite(maxMarks) || maxMarks <= 0) {
+      alert('Please enter a valid positive number for max marks');
+      return;
+    }
+
+    try {
+      const displayOrder = questions.length + 1;
+      await questionAPI.create(id, {
+        parent_part_id: modalParentId,
+        label,
+        max_marks: maxMarks,
+        display_order: displayOrder
+      });
+      fetchQuestions();
+      handleCloseModals();
+    } catch (error) {
+      console.error('Error adding question:', error);
+      alert('Failed to add question');
+    }
+  };
+
+  const handleSubmitUpdate = async (e) => {
+    e.preventDefault();
+    if (!selectedQuestion) return;
+
+    const { label, max_marks } = formData;
+    
+    if (!label || !max_marks) {
+      alert('Please fill in all fields');
+      return;
+    }
+
+    const maxMarks = parseInt(max_marks, 10);
+    if (!Number.isFinite(maxMarks) || maxMarks <= 0) {
+      alert('Please enter a valid positive number for max marks');
+      return;
+    }
+
+    try {
+      await questionAPI.update(id, selectedQuestion.part_id, { label, max_marks: maxMarks });
+      fetchQuestions();
+      handleCloseModals();
+    } catch (error) {
+      console.error('Error updating question:', error);
+      alert('Failed to update question');
     }
   };
 
@@ -265,6 +322,114 @@ const ExamDesigner = () => {
           </div>
         </div>
       </div>
+
+      {/* Add Question Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-800">
+                {modalParentId ? 'Add Sub-Part' : 'Add Top-Level Question'}
+              </h2>
+            </div>
+            
+            <form onSubmit={handleSubmitAdd} className="p-6">
+              <div className="space-y-4">
+                <CustomTextField
+                  id="question-label"
+                  name="label"
+                  type="text"
+                  value={formData.label}
+                  onChange={handleInputChange}
+                  label="Question Label"
+                  icon={FaQuestionCircle}
+                  required
+                />
+
+                <CustomTextField
+                  id="question-marks"
+                  name="max_marks"
+                  type="number"
+                  value={formData.max_marks}
+                  onChange={handleInputChange}
+                  label="Maximum Marks"
+                  icon={FaHashtag}
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={handleCloseModals}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-[#1a365d] text-white rounded-lg hover:bg-[#13294b] transition-colors"
+                >
+                  Add Question
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Update Question Modal */}
+      {showUpdateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-800">Update Question</h2>
+            </div>
+            
+            <form onSubmit={handleSubmitUpdate} className="p-6">
+              <div className="space-y-4">
+                <CustomTextField
+                  id="update-label"
+                  name="label"
+                  type="text"
+                  value={formData.label}
+                  onChange={handleInputChange}
+                  label="Question Label"
+                  icon={FaQuestionCircle}
+                  required
+                />
+
+                <CustomTextField
+                  id="update-marks"
+                  name="max_marks"
+                  type="number"
+                  value={formData.max_marks}
+                  onChange={handleInputChange}
+                  label="Maximum Marks"
+                  icon={FaHashtag}
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={handleCloseModals}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-[#1a365d] text-white rounded-lg hover:bg-[#13294b] transition-colors"
+                >
+                  Update Question
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 };

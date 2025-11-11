@@ -4,10 +4,14 @@ import api, { examAPI } from '../../../../api/Examapi';
 import { getUserData } from '../../../../api/apiUtils';
 import teacherSidebarSections from '../TeacherDashboardSidebar';
 import DashboardLayout from '../../../../components/layout/DashboardLayout';
+import CustomTextField from '../../../../components/CustomTextField';
+import { FaFileAlt, FaCalendarAlt } from 'react-icons/fa';
 
 const Dashboard = () => {
   const [exams, setExams] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newExam, setNewExam] = useState({ title: '', date: '' });
 
   useEffect(() => {
     fetchExams();
@@ -35,26 +39,69 @@ const Dashboard = () => {
     }
   };
 
-  const handleCreateExam = async () => {
-    const title = prompt('Enter exam title:');
-    const date = prompt('Enter exam date (YYYY-MM-DD):');
-    if (!title || !date) return;
-  const user = getUserData();
-  // Prefer numeric id for creator_user_id; fallback to userid if needed
-  const creatorUserId = user?.id || user?.userid || 0;
-  // teacher_id should be the teacher code (e.g., T001) if available
-  const teacherId = user?.teacherId || (typeof user?.userid === 'string' ? user.userid : null) || null;
-    if (!creatorUserId) {
-      alert('Unable to determine logged-in teacher. Please log in again.');
+  const handleCreateExam = () => {
+    setShowCreateModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowCreateModal(false);
+    setNewExam({ title: '', date: '' });
+  };
+
+  const handleSubmitExam = async (e) => {
+    e.preventDefault();
+    const { title, date } = newExam;
+    
+    if (!title || !date) {
+      alert('Please fill in all fields');
       return;
     }
+
+    const user = getUserData();
+    console.log('User data:', user); // Debug log
+    
+    // Extract teacher information
+    // For teachers, userid is usually the teacher code (T001)
+    const teacherId = user?.teacherId || user?.userid || null;
+    
+    // Use a numeric ID - since teachers table might be empty, use a simple approach
+    // Extract number from teacher code (T001 -> 1) or use 1 as default
+    let creatorUserId = 1; // Default
+    
+    if (teacherId && typeof teacherId === 'string' && teacherId.match(/T(\d+)/)) {
+      const match = teacherId.match(/T(\d+)/);
+      creatorUserId = parseInt(match[1], 10);
+    } else if (user?.id && typeof user.id === 'number') {
+      creatorUserId = user.id;
+    }
+    
+    console.log('Creator User ID:', creatorUserId); // Debug log
+    console.log('Teacher ID:', teacherId); // Debug log
+
+    const payload = { 
+      title, 
+      date, 
+      creator_user_id: creatorUserId, 
+      teacher_id: teacherId 
+    };
+    
+    console.log('Sending payload:', payload); // Debug log
+
     try {
-      await examAPI.create({ title, date, creator_user_id: creatorUserId, teacher_id: teacherId });
+      const response = await examAPI.create(payload);
+      console.log('Response:', response); // Debug log
       fetchExams();
+      handleCloseModal();
     } catch (error) {
       console.error('Error creating exam:', error);
-      alert('Failed to create exam');
+      console.error('Error response:', error.response?.data); // Debug log
+      alert(`Failed to create exam: ${error.response?.data?.error || error.message}`);
     }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewExam(prev => ({ ...prev, [name]: value }));
   };
 
   const handleDeleteExam = async (id) => {
@@ -100,7 +147,7 @@ const Dashboard = () => {
               onClick={handleCreateExam}
               style={{ marginTop: 12, padding: '8px 12px', borderRadius: 6, cursor: 'pointer' }}
             >
-              Create first exam
+              Create first exam , Click the "Create New Exam" Button
             </button>
           </div>
         ) : (
@@ -131,6 +178,57 @@ const Dashboard = () => {
           </div>
         )}
       </div>
+
+      {/* Create Exam Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+            <h2 className="text-xl font-bold mb-6 text-gray-800">Create New Exam</h2>
+            
+            <form onSubmit={handleSubmitExam}>
+              <div className="space-y-4">
+                <CustomTextField
+                  id="exam-title"
+                  name="title"
+                  type="text"
+                  value={newExam.title}
+                  onChange={handleInputChange}
+                  label="Exam Title"
+                  icon={FaFileAlt}
+                  required
+                />
+
+                <CustomTextField
+                  id="exam-date"
+                  name="date"
+                  type="date"
+                  value={newExam.date}
+                  onChange={handleInputChange}
+                  label="Exam Date"
+                  icon={FaCalendarAlt}
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-[#1a365d] text-white rounded-lg hover:bg-[#13294b] transition-colors"
+                >
+                  Create Exam
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       
       <style>{`

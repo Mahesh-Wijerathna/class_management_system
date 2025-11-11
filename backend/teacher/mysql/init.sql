@@ -280,7 +280,27 @@ CREATE TABLE IF NOT EXISTS study_pack_documents (
   study_pack_id INT NOT NULL,
   file_path VARCHAR(255),
   title VARCHAR(255),
-  FOREIGN KEY (study_pack_id) REFERENCES study_packs(id) ON DELETE CASCADE
+  download_count INT DEFAULT 0,
+  is_password_protected BOOLEAN DEFAULT TRUE,
+  FOREIGN KEY (study_pack_id) REFERENCES study_packs(id) ON DELETE CASCADE,
+  INDEX idx_study_pack (study_pack_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Study pack document access log (track all student downloads)
+CREATE TABLE IF NOT EXISTS study_pack_document_access_log (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  document_id INT NOT NULL,
+  student_id VARCHAR(10) NOT NULL,
+  student_name VARCHAR(200),
+  access_type ENUM('download') DEFAULT 'download',
+  access_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  ip_address VARCHAR(45),
+  user_agent TEXT,
+  watermark_applied BOOLEAN DEFAULT TRUE,
+  FOREIGN KEY (document_id) REFERENCES study_pack_documents(id) ON DELETE CASCADE,
+  INDEX idx_document (document_id),
+  INDEX idx_student (student_id),
+  INDEX idx_timestamp (access_timestamp)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS study_pack_links (

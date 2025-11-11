@@ -77,5 +77,20 @@ class Mark {
         $stmt->execute([$student_identifier]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    public function deleteByStudentAndExam($exam_id, $student_identifier) {
+        try {
+            $stmt = $this->db->prepare("
+                DELETE m FROM marks m
+                JOIN question_parts qp ON m.question_part_id = qp.part_id
+                WHERE qp.exam_id = ? AND m.student_identifier = ?
+            ");
+            $stmt->execute([$exam_id, $student_identifier]);
+            return true;
+        } catch (Exception $e) {
+            error_log("Error deleting marks: " . $e->getMessage());
+            return false;
+        }
+    }
 }
 ?>
