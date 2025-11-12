@@ -50,7 +50,7 @@ import { getStudentAttendance } from "../../../api/attendance";
 
 import PhysicalStudentRegisterTab from "../adminDashboard/PhysicalStudentRegisterTab";
 
-import BarcodeScanner from "../../../components/BarcodeScanner";
+import Html5BarcodeScanner from "../../../components/Html5BarcodeScanner";
 
 import DashboardLayout from "../../../components/layout/DashboardLayout";
 
@@ -11409,7 +11409,7 @@ export default function CashierDashboard() {
               </div>
 
               <div className="p-4 flex items-center justify-center">
-                <BarcodeScanner
+                <Html5BarcodeScanner
                   onScan={(code) => {
                     setShowScanner(false);
 
