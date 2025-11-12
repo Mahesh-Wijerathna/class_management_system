@@ -155,6 +155,8 @@ class LatePayController {
                     'success' => true,
                     'has_permission' => true,
                     'permission' => $permission,
+                    'permission_date' => $permission['permission_date'],
+                    'issued_at' => $permission['issued_at'],
                     'message' => 'Student has late pay permission for today'
                 ];
             }
@@ -326,7 +328,9 @@ class LatePayController {
                     lpp.*,
                     c.class_name,
                     c.subject,
-                    e.payment_status
+                    e.payment_status,
+                    lpp.cashier_id as cashier_id,
+                    lpp.issued_at as issued_time
                 FROM late_pay_permissions lpp
                 JOIN classes c ON lpp.class_id = c.id
                 JOIN enrollments e ON lpp.enrollment_id = e.id

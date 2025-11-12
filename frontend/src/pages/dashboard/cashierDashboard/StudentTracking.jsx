@@ -27,6 +27,43 @@ const StudentTracking = () => {
   // Get user data from localStorage
   const user = useMemo(() => getUserData(), []);
 
+  // Cache for cashier data to avoid repeated API calls
+  const cashierCache = React.useRef({});
+
+  // Function to fetch all cashiers and cache them
+  const loadCashiers = async () => {
+    if (Object.keys(cashierCache.current).length > 0) {
+      return; // Already loaded
+    }
+    
+    try {
+      const response = await fetch('http://localhost:8081/routes.php/cashiers');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.cashiers) {
+          // Build a map of cashier ID to cashier data
+          data.cashiers.forEach(cashier => {
+            cashierCache.current[cashier.userid] = cashier;
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load cashiers:', e);
+    }
+  };
+
+  // Function to fetch cashier name by ID (uses cache)
+  const getCashierName = async (cashierId) => {
+    if (!cashierId) return null;
+    
+    // Load cashiers if not already loaded
+    await loadCashiers();
+    
+    // Get from cache
+    const cashier = cashierCache.current[cashierId];
+    return cashier ? cashier.name : null;
+  };
+
   // Update tab when URL changes
   useEffect(() => {
     setActiveTab(getInitialTab());
@@ -58,22 +95,31 @@ const StudentTracking = () => {
           reason: permission.reason,
           phone: permission.student_phone || null,
           student_name: null,
+          cashier_id: permission.cashier_id,
+          issued_time: permission.issued_time || permission.issued_at,
         }));
 
-        // Enrich with student details from student backend (if available)
+        // Enrich with student details and cashier names
         const enriched = await Promise.all(baseData.map(async (row) => {
           try {
+            // Fetch student details
             const student = await getStudentById(row.student_id);
+            
+            // Fetch cashier name
+            const cashierName = await getCashierName(row.cashier_id);
+            
             return {
               ...row,
               student_name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || row.student_id,
-              phone: row.phone || student.phone || student.mobile || ''
+              phone: row.phone || student.phone || student.mobile || '',
+              cashier_name: cashierName
             };
           } catch (e) {
             // If enrichment fails, fallback to student_id as name
             return {
               ...row,
               student_name: row.student_id,
+              cashier_name: null
             };
           }
         }));
@@ -109,22 +155,31 @@ const StudentTracking = () => {
           notes: permit.notes || '',
           phone: permit.student_phone || null,
           student_name: null,
+          cashier_id: permit.cashier_id,
+          issued_time: permit.issued_time || permit.issued_at,
         }));
 
-        // Enrich with student details from student backend (if available)
+        // Enrich with student details and cashier names
         const enriched = await Promise.all(baseData.map(async (row) => {
           try {
+            // Fetch student details
             const student = await getStudentById(row.student_id);
+            
+            // Fetch cashier name
+            const cashierName = await getCashierName(row.cashier_id);
+            
             return {
               ...row,
               student_name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || row.student_id,
-              phone: row.phone || student.phone || student.mobile || ''
+              phone: row.phone || student.phone || student.mobile || '',
+              cashier_name: cashierName
             };
           } catch (e) {
             // If enrichment fails, fallback to student_id as name
             return {
               ...row,
               student_name: row.student_id,
+              cashier_name: null
             };
           }
         }));
@@ -178,12 +233,13 @@ const StudentTracking = () => {
         </div>
 
         {/* Summary Cards at Top */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg shadow-md p-4 text-white">
-            <div className="flex items-center justify-between">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+          <div className="relative overflow-hidden bg-gradient-to-br from-amber-500/90 via-orange-500/90 to-red-500/90 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4 text-white hover:shadow-2xl transition-all duration-300">
+            <div className="absolute inset-0 bg-white/5"></div>
+            <div className="relative flex items-center justify-between">
               <div>
-                <p className="text-orange-100 text-xs font-medium">Late Payment Permissions</p>
-                <p className="text-3xl font-bold mt-1">
+                <p className="text-white/90 text-[10px] font-semibold uppercase tracking-wider mb-1">Late Payment Permissions</p>
+                <p className="text-3xl font-bold mt-0.5 drop-shadow-lg">
                   {latePayments.filter(item => {
                     const permissionDate = new Date(item.permission_date);
                     const today = new Date();
@@ -192,20 +248,21 @@ const StudentTracking = () => {
                     return permissionDate.getTime() === today.getTime();
                   }).length}
                 </p>
-                <p className="text-orange-100 text-[10px] mt-0.5">Active today</p>
-                <p className="text-orange-200 text-[10px] mt-1">
+                <p className="text-white/80 text-[10px] mt-0.5 font-medium">Active today</p>
+                <p className="text-white/70 text-[9px] mt-1">
                   {latePayments.length} total in history
                 </p>
               </div>
-              <FaExclamationTriangle className="h-12 w-12 text-orange-200 opacity-50" />
+              <FaExclamationTriangle className="h-12 w-12 text-white/30 drop-shadow-2xl" />
             </div>
           </div>
 
-          <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-md p-4 text-white">
-            <div className="flex items-center justify-between">
+          <div className="relative overflow-hidden bg-gradient-to-br from-blue-500/90 via-indigo-500/90 to-purple-600/90 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4 text-white hover:shadow-2xl transition-all duration-300">
+            <div className="absolute inset-0 bg-white/5"></div>
+            <div className="relative flex items-center justify-between">
               <div>
-                <p className="text-blue-100 text-xs font-medium">Entry Permits (Forget ID Card)</p>
-                <p className="text-3xl font-bold mt-1">
+                <p className="text-white/90 text-[10px] font-semibold uppercase tracking-wider mb-1">Entry Permits (Forget ID Card)</p>
+                <p className="text-3xl font-bold mt-0.5 drop-shadow-lg">
                   {forgetIdCards.filter(item => {
                     const permitDate = new Date(item.request_date);
                     const today = new Date();
@@ -214,12 +271,12 @@ const StudentTracking = () => {
                     return permitDate.getTime() === today.getTime();
                   }).length}
                 </p>
-                <p className="text-blue-100 text-[10px] mt-0.5">Active today</p>
-                <p className="text-blue-200 text-[10px] mt-1">
+                <p className="text-white/80 text-[10px] mt-0.5 font-medium">Active today</p>
+                <p className="text-white/70 text-[9px] mt-1">
                   {forgetIdCards.length} total in history
                 </p>
               </div>
-              <FaIdCard className="h-12 w-12 text-blue-200 opacity-50" />
+              <FaIdCard className="h-12 w-12 text-white/30 drop-shadow-2xl" />
             </div>
           </div>
         </div>
@@ -406,6 +463,31 @@ const StudentTracking = () => {
                                     <span>{item.phone}</span>
                                   </div>
 
+                                  <div className="flex items-center gap-2 text-gray-700">
+                                    <FaUser className={isToday ? 'text-orange-500' : isExpired ? 'text-gray-400' : 'text-blue-500'} />
+                                    <span className="font-medium">Issued by Cashier:</span>
+                                    <span className="font-semibold text-orange-700">
+                                      {item.cashier_name 
+                                        ? `${item.cashier_name} (${item.cashier_id})`
+                                        : item.cashier_id || 'N/A'}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 text-gray-700">
+                                    <FaClock className={isToday ? 'text-orange-500' : isExpired ? 'text-gray-400' : 'text-blue-500'} />
+                                    <span className="font-medium">Issued Time:</span>
+                                    <span className="text-sm">
+                                      {item.issued_time ? new Date(item.issued_time).toLocaleString('en-US', {
+                                        year: 'numeric',
+                                        month: 'short',
+                                        day: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                        hour12: true
+                                      }) : 'N/A'}
+                                    </span>
+                                  </div>
+
                                   <div className="flex items-start gap-2 text-gray-700">
                                     <FaClock className={`${isToday ? 'text-orange-500' : isExpired ? 'text-gray-400' : 'text-blue-500'} mt-1`} />
                                     <div>
@@ -561,6 +643,31 @@ const StudentTracking = () => {
                                     <FaPhone className={isToday ? 'text-blue-500' : isExpired ? 'text-gray-400' : 'text-purple-500'} />
                                     <span className="font-medium">Contact:</span>
                                     <span>{item.phone}</span>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 text-gray-700">
+                                    <FaUser className={isToday ? 'text-blue-500' : isExpired ? 'text-gray-400' : 'text-purple-500'} />
+                                    <span className="font-medium">Issued by Cashier:</span>
+                                    <span className="font-semibold text-blue-700">
+                                      {item.cashier_name 
+                                        ? `${item.cashier_name} (${item.cashier_id})`
+                                        : item.cashier_id || 'N/A'}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 text-gray-700">
+                                    <FaClock className={isToday ? 'text-blue-500' : isExpired ? 'text-gray-400' : 'text-purple-500'} />
+                                    <span className="font-medium">Issued Time:</span>
+                                    <span className="text-sm">
+                                      {item.issued_time ? new Date(item.issued_time).toLocaleString('en-US', {
+                                        year: 'numeric',
+                                        month: 'short',
+                                        day: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                        hour12: true
+                                      }) : 'N/A'}
+                                    </span>
                                   </div>
 
                                   <div className="flex items-start gap-2 text-gray-700">
