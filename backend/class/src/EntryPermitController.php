@@ -113,7 +113,9 @@ class EntryPermitController {
                 echo json_encode([
                     'success' => true,
                     'has_permit' => true,
-                    'permit' => $permit
+                    'permit' => $permit,
+                    'permit_date' => $permit['permit_date'],
+                    'issued_at' => $permit['issued_at']
                 ]);
             } else {
                 echo json_encode([
@@ -165,7 +167,12 @@ class EntryPermitController {
             $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 100;
             
             $stmt = $this->db->prepare(
-                "SELECT eph.*, c.class_name, c.subject 
+                "SELECT 
+                    eph.*, 
+                    c.class_name, 
+                    c.subject,
+                    eph.cashier_id as cashier_id,
+                    eph.issued_at as issued_time
                  FROM entry_permit_history eph
                  JOIN classes c ON eph.class_id = c.id
                  ORDER BY eph.permit_date DESC, eph.issued_at DESC

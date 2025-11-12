@@ -8827,37 +8827,106 @@ export default function CashierDashboard() {
             card_notes: enr.card_notes,
           }));
 
-          
           // Check entry permit status for each enrollment
-          await Promise.all(transformedEnrollments.map(async (enr) => {
-            try {
-              const permitCheckRes = await fetch(
-                `http://localhost:8087/routes.php/entry_permit/check?student_id=${studentId}&class_id=${enr.classId}`
-              );
-              const permitData = await permitCheckRes.json();
-              
-              console.log('🔍 Entry permit check for class', enr.classId, ':', permitData);
-              
-              if (permitData.success && permitData.has_permit && permitData.issued_date) {
-                // Check if permit is for today
-                const permitDate = new Date(permitData.issued_date);
-                const today = new Date();
-                const isToday = (
-                  permitDate.getDate() === today.getDate() &&
-                  permitDate.getMonth() === today.getMonth() &&
-                  permitDate.getFullYear() === today.getFullYear()
+          await Promise.all(
+            transformedEnrollments.map(async (enr) => {
+              try {
+                const permitCheckRes = await fetch(
+                  `http://localhost:8087/routes.php/entry_permit/check?student_id=${studentId}&class_id=${enr.classId}`
                 );
-                enr.hasEntryPermitToday = isToday;
-                console.log('📅 Permit date:', permitDate.toDateString(), 'Today:', today.toDateString(), 'Is today?', isToday);
-              } else {
+                const permitData = await permitCheckRes.json();
+
+                console.log(
+                  "🔍 Entry permit check for class",
+                  enr.classId,
+                  ":",
+                  permitData
+                );
+
+                if (permitData.success && permitData.has_permit) {
+                  // Get permit date from the response (backend now returns permit_date directly)
+                  const permitDateStr = permitData.permit_date || permitData.permit?.permit_date;
+                  
+                  if (permitDateStr) {
+                    // Check if permit is for today (compare date strings without time)
+                    const today = new Date();
+                    const todayStr = today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+                    const permitDateOnly = permitDateStr.split(' ')[0]; // Remove time if present
+                    
+                    const isToday = (permitDateOnly === todayStr);
+                    enr.hasEntryPermitToday = isToday;
+                    console.log('📅 Permit date:', permitDateOnly, 'Today:', todayStr, 'Is today?', isToday);
+                  } else {
+                    enr.hasEntryPermitToday = false;
+                    console.log('⚠️ Permit found but no date available');
+                  }
+                } else {
+                  enr.hasEntryPermitToday = false;
+                  console.log("❌ No permit found for class", enr.classId);
+                }
+              } catch (e) {
+                console.error(
+                  "Failed to check entry permit for class",
+                  enr.classId,
+                  e
+                );
                 enr.hasEntryPermitToday = false;
-                console.log('❌ No permit found for class', enr.classId);
               }
-            } catch (e) {
-              console.error('Failed to check entry permit for class', enr.classId, e);
-              enr.hasEntryPermitToday = false;
-            }
-          }));
+            })
+          );
+
+          // Check late pay status for each enrollment
+          await Promise.all(
+            transformedEnrollments.map(async (enr) => {
+              try {
+                // Only check if payment_status is 'late_pay'
+                if (enr.payment_status === 'late_pay' || enr.paymentStatus === 'late_pay') {
+                  const latePayCheckRes = await fetch(
+                    `http://localhost:8087/routes.php/late_pay/check?student_id=${studentId}&class_id=${enr.classId}`
+                  );
+                  const latePayData = await latePayCheckRes.json();
+
+                  console.log(
+                    "🔍 Late pay check for class",
+                    enr.classId,
+                    ":",
+                    latePayData
+                  );
+
+                  if (latePayData.success && latePayData.has_permission) {
+                    // Get permission date from the response
+                    const permissionDateStr = latePayData.permission_date || latePayData.permission?.permission_date;
+                    
+                    if (permissionDateStr) {
+                      // Check if permission is for today (compare date strings without time)
+                      const today = new Date();
+                      const todayStr = today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+                      const permissionDateOnly = permissionDateStr.split(' ')[0]; // Remove time if present
+                      
+                      const isToday = (permissionDateOnly === todayStr);
+                      enr.latePayIsToday = isToday;
+                      console.log('📅 Late pay date:', permissionDateOnly, 'Today:', todayStr, 'Is today?', isToday);
+                    } else {
+                      enr.latePayIsToday = false;
+                      console.log('⚠️ Late pay permission found but no date available');
+                    }
+                  } else {
+                    enr.latePayIsToday = false;
+                    console.log('❌ No late pay permission found for class', enr.classId);
+                  }
+                } else {
+                  enr.latePayIsToday = false;
+                }
+              } catch (e) {
+                console.error(
+                  "Failed to check late pay for class",
+                  enr.classId,
+                  e
+                );
+                enr.latePayIsToday = false;
+              }
+            })
+          );
 
           setEnrollments(transformedEnrollments);
         } else {
@@ -8867,8 +8936,7 @@ export default function CashierDashboard() {
         console.error("Failed to fetch enrollments:", e);
 
         setEnrollments([]);
-
-      }      
+      }
 
       const payRes = await getStudentPayments(studentId);
 
@@ -10137,10 +10205,19 @@ export default function CashierDashboard() {
                                       const checkData =
                                         await checkResponse.json();
 
-                                      if (
-                                        checkData.success &&
-                                        checkData.has_permission
-                                      ) {
+                                      // Check if permission exists AND is for today
+                                      let hasPermissionToday = false;
+                                      if (checkData.success && checkData.has_permission) {
+                                        const permissionDateStr = checkData.permission_date || checkData.permission?.permission_date;
+                                        if (permissionDateStr) {
+                                          const today = new Date();
+                                          const todayStr = today.toISOString().split('T')[0];
+                                          const permissionDateOnly = permissionDateStr.split(' ')[0];
+                                          hasPermissionToday = (permissionDateOnly === todayStr);
+                                        }
+                                      }
+
+                                      if (hasPermissionToday) {
                                         // Permission exists for today - allow reprint
 
                                         enr.latePayIsToday = true;
@@ -10163,7 +10240,7 @@ export default function CashierDashboard() {
 
                                         return;
                                       } else {
-                                        // Permission expired - reset flag and fall through to issue new one
+                                        // Permission expired or not for today - reset flag and fall through to issue new one
 
                                         enr.latePayIsToday = false;
                                       }
@@ -10309,13 +10386,26 @@ export default function CashierDashboard() {
                                     const checkData =
                                       await checkResponse.json();
 
-                                    if (
-                                      checkData.success &&
-                                      checkData.has_permit
-                                    ) {
+                                    // Check if permit exists AND is for today
+                                    let hasPermitToday = false;
+                                    if (checkData.success && checkData.has_permit) {
+                                      const permitDateStr = checkData.permit_date || checkData.permit?.permit_date;
+                                      if (permitDateStr) {
+                                        const today = new Date();
+                                        const todayStr = today.toISOString().split('T')[0];
+                                        const permitDateOnly = permitDateStr.split(' ')[0];
+                                        hasPermitToday = (permitDateOnly === todayStr);
+                                      }
+                                    }
+
+                                    if (hasPermitToday) {
                                       // Already has permit for today - just reprint
 
                                       enr.hasEntryPermitToday = true;
+
+                                      // Force React re-render by creating new enrollments array
+
+                                      setEnrollments([...enrollments]);
 
                                       showToast(
                                         "🖨️ Reprinting entry permit - Student already has permit for today",
@@ -10333,7 +10423,7 @@ export default function CashierDashboard() {
                                           "Permit to enter without ID for this session - Valid for all classes today",
                                       });
                                     } else {
-                                      // No permit yet - issue new one
+                                      // No permit for today - issue new one
 
                                       enr.hasEntryPermitToday = false;
 
@@ -10396,6 +10486,10 @@ export default function CashierDashboard() {
 
                                         enr.hasEntryPermitToday = true;
 
+                                        // Force React re-render by creating new enrollments array
+
+                                        setEnrollments([...enrollments]);
+
                                         // Refresh data
 
                                         loadStudentData(
@@ -10445,195 +10539,6 @@ export default function CashierDashboard() {
                               )}
                             </div>
                           </div>
-
-                          <div className="relative group">
-
-                            <button
-
-                              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-
-                                enr.hasEntryPermitToday 
-
-                                  ? 'bg-blue-500 text-white hover:bg-blue-600' 
-
-                                  : 'bg-blue-600 text-white hover:bg-blue-700'
-
-                              }`}
-
-                              onClick={async () => {
-
-                                try {
-
-                                  // Check if entry permit already issued today
-
-                                  const checkResponse = await fetch(
-
-                                    `http://localhost:8087/routes.php/entry_permit/check?student_id=${student.studentId || student.id}&class_id=${enr.classId || enr.class_id}`
-
-                                  );
-
-                                  const checkData = await checkResponse.json();
-
-
-
-                                  if (checkData.success && checkData.has_permit) {
-
-                                    // Already has permit for today - just reprint
-
-                                    enr.hasEntryPermitToday = true;
-
-                                    // Force React re-render by creating new enrollments array
-
-                                    setEnrollments([...enrollments]);
-
-                                    
-
-                                    showToast('🖨️ Reprinting entry permit - Student already has permit for today', 'info');
-
-                                    
-
-                                    printNote({ 
-
-                                      title: 'Entry Permit - Forgot Card', 
-
-                                      student, 
-
-                                      classRow: enr, 
-
-                                      reason: 'Permit to enter without ID for this session - Valid for all classes today' 
-
-                                    });
-
-                                  } else {
-
-                                    // No permit yet - issue new one
-
-                                    enr.hasEntryPermitToday = false;
-
-                                    
-
-                                    // Issue entry permit via API
-
-                                    const issueResponse = await fetch('http://localhost:8087/routes.php/entry_permit/issue', {
-
-                                      method: 'POST',
-
-                                      headers: { 'Content-Type': 'application/json' },
-
-                                      body: JSON.stringify({
-
-                                        student_id: student.studentId || student.id,
-
-                                        class_id: enr.classId || enr.class_id,
-
-                                        cashier_id: getUserData()?.userid || 'CASHIER',
-
-                                        reason: 'Student forgot ID card - Entry permit issued',
-
-                                        notes: `Issued for ${enr.class_name || enr.subject}`
-
-                                      })
-
-                                    });
-
-
-
-                                    const result = await issueResponse.json();
-
-
-
-                                    if (result.success) {
-
-                                      // Show success toast
-
-                                      showToast('✅ Entry permit issued - Student can attend all classes today!', 'success');
-
-
-
-                                      // Print the entry permit note
-
-                                      printNote({ 
-
-                                        title: 'Entry Permit - Forgot Card', 
-
-                                        student, 
-
-                                        classRow: enr, 
-
-                                        reason: 'Permit to enter without ID for this session - Valid for all classes today' 
-
-                                      });
-
-
-
-                                      // Mark as having permit for today
-
-                                      enr.hasEntryPermitToday = true;
-
-                                      // Force React re-render by creating new enrollments array
-
-                                      setEnrollments([...enrollments]);
-
-
-
-                                      // Refresh data
-
-                                      loadStudentData(student.studentId || student.id);
-
-                                    } else {
-
-                                      showToast('❌ Failed to issue entry permit: ' + (result.message || 'Unknown error'), 'error');
-
-                                    }
-
-                                  }
-
-
-
-                                  // Scroll back to student panel
-
-                                  setTimeout(() => {
-
-                                    studentPanelRef.current?.scrollIntoView({ 
-
-                                      behavior: 'smooth', 
-
-                                      block: 'start' 
-
-                                    });
-
-                                  }, 300);
-
-                                } catch (e) { 
-
-                                  console.error('Error with entry permit:', e);
-
-                                  showToast('❌ Failed to process entry permit', 'error');
-
-                                }
-
-                              }}
-
-                            >
-
-                              {enr.hasEntryPermitToday ? '🖨️ Reprint Entry Permit' : 'Entry Permit'}
-
-                            </button>
-
-                            {enr.hasEntryPermitToday && (
-
-                              <div className="invisible group-hover:visible absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg whitespace-nowrap z-50 shadow-lg">
-
-                                🖨️ Click to reprint entry permit note
-
-                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
-
-                              </div>
-
-                            )}
-
-                          </div>
-
                         </div>
                       );
                     })
