@@ -3,12 +3,15 @@
 date_default_timezone_set('Asia/Colombo');
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/WhatsAppNotificationHelper.php';
 
 class PaymentController {
     private $db;
+    private $whatsAppHelper;
 
     public function __construct($db) {
         $this->db = $db;
+        $this->whatsAppHelper = new WhatsAppNotificationHelper();
     }
 
     // Create a new payment record
@@ -31,9 +34,21 @@ class PaymentController {
 
             // Get class information from class backend
             $classId = $data['classId'] ?? '';
-            $class = $this->getClassFromClassBackend($classId);
-            if (!$class) {
-                return ['success' => false, 'message' => 'Class not found'];
+            $paymentType = $data['paymentType'] ?? 'class_payment';
+            
+            // For admission_fee, classId is optional (can be collected before class enrollment)
+            if ($paymentType === 'admission_fee' && empty($classId)) {
+                // Admission fee without class - use default values
+                $class = [
+                    'className' => 'Admission Fee',
+                    'fee' => 0
+                ];
+            } else {
+                // For class payments, classId is required
+                $class = $this->getClassFromClassBackend($classId);
+                if (!$class) {
+                    return ['success' => false, 'message' => 'Class not found'];
+                }
             }
 
             // Check if this is a renewal payment (indicated by payment method or notes)
@@ -44,8 +59,13 @@ class PaymentController {
                 strpos($data['notes'], 'Next Month Renewal') !== false
             );
             
-            // Only check enrollment for NEW enrollments, not renewals
-            if (!$isRenewal && !$isRenewalFromNotes) {
+            // Check if student is already enrolled ONLY for online/new enrollments
+            // Skip this check for physical/cashier payments (they're for existing enrollments)
+            // Also skip for admission_fee payments without a classId
+            // Also skip for renewal payments
+            $channel = $data['channel'] ?? 'online';
+            if ($channel !== 'physical' && !empty($classId) && !$isRenewal && !$isRenewalFromNotes) {
+                // Check if student is already enrolled in this class (only check paid enrollments)
                 $isEnrolled = $this->checkStudentEnrollmentFromClassBackend($studentId, $classId);
                 if ($isEnrolled) {
                     return [
@@ -53,13 +73,44 @@ class PaymentController {
                         'message' => 'You are already enrolled in this class. Use "Pay Early" or "Renew Payment" for monthly payments.'
                     ];
                 }
-            } else {
+            } else if (($isRenewal || $isRenewalFromNotes) && !empty($classId)) {
                 // For renewals, verify the student IS enrolled
                 $isEnrolled = $this->checkStudentEnrollmentFromClassBackend($studentId, $classId);
                 if (!$isEnrolled) {
                     return [
                         'success' => false, 
                         'message' => 'Cannot process renewal payment - you are not enrolled in this class yet.'
+                    ];
+                }
+            }
+
+            // CRITICAL: Prevent duplicate payment for the same class in the same month
+            // BUT: Only check for class_payment duplicates, NOT admission_fee (admission fee is one-time)
+            // IMPORTANT: Only apply duplicate check for class_payment type, not admission_fee
+            // $paymentType already defined above
+            
+            if ($paymentType === 'class_payment') {
+                $currentMonth = date('Y-m');
+                $dupCheckStmt = $this->db->prepare("
+                    SELECT COUNT(*) as payment_count, MAX(date) as last_payment 
+                    FROM financial_records 
+                    WHERE user_id = ? 
+                    AND class_id = ? 
+                    AND DATE_FORMAT(date, '%Y-%m') = ?
+                    AND status = 'paid'
+                    AND type = 'income'
+                    AND payment_type = 'class_payment'
+                ");
+                $dupCheckStmt->bind_param("sis", $studentId, $classId, $currentMonth);
+                $dupCheckStmt->execute();
+                $dupResult = $dupCheckStmt->get_result()->fetch_assoc();
+                
+                if ($dupResult && $dupResult['payment_count'] > 0) {
+                    error_log("DUPLICATE_PAYMENT_BLOCKED: Student $studentId attempted duplicate payment for class $classId in month $currentMonth");
+                    return [
+                        'success' => false,
+                        'message' => 'Payment for this class has already been made this month (Last payment: ' . $dupResult['last_payment'] . '). Please wait until next month.',
+                        'error_code' => 'DUPLICATE_PAYMENT_BLOCKED'
                     ];
                 }
             }
@@ -71,25 +122,25 @@ class PaymentController {
             $stmt = $this->db->prepare("
                 INSERT INTO financial_records (
                     transaction_id, date, type, category, person_name, user_id, person_role,
-                    class_name, class_id, amount, status, payment_method, reference_number, notes, created_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    class_name, class_id, amount, status, payment_method, reference_number, notes, created_by, payment_type
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
             $date = date('Y-m-d');
             $type = 'income';
-            $category = 'class_enrollment';
+            $category = ($paymentType === 'admission_fee') ? 'admission_fee' : 'class_enrollment';
             $personName = $studentName;
             $userId = $studentId; // Use studentId as user_id
             $personRole = 'student';
             $className = $class['className'] ?? '';
-            $classId = $classId; // Include class_id
+            // For admission fee without class, classId will be empty
+            $classIdValue = !empty($classId) ? $classId : null;
             // For cash payments, status should be 'paid' immediately
             $status = ($data['paymentMethod'] === 'cash' || $data['status'] === 'paid') ? 'paid' : 'pending';
             $paymentMethod = $data['paymentMethod'] ?? 'online';
             $referenceNumber = $transactionId;
             
             // Create comprehensive notes with student details
-            $tuteMedium = $data['medium'] ?? $data['tuteMedium'] ?? '';
             $studentDetails = [];
             if ($firstName) $studentDetails[] = "First Name: $firstName";
             if ($lastName) $studentDetails[] = "Last Name: $lastName";
@@ -97,17 +148,19 @@ class PaymentController {
             if ($mobile) $studentDetails[] = "Mobile: $mobile";
             if ($address) $studentDetails[] = "Address: $address";
             if ($district) $studentDetails[] = "District: $district";
-            if ($tuteMedium) $studentDetails[] = "Tute Medium: $tuteMedium";
             
             $baseNotes = $data['notes'] ?? '';
             $notes = $baseNotes;
             if (!empty($studentDetails)) {
                 $notes = $baseNotes . (empty($baseNotes) ? '' : ' | ') . implode(', ', $studentDetails);
             }
+            
+            // Get cashier ID from request data (who is creating this payment)
+            $createdBy = $data['cashierId'] ?? $data['createdBy'] ?? $studentId; // Fallback to studentId for backward compatibility
 
-            $stmt->bind_param("ssssssssidsssss", 
+            $stmt->bind_param("ssssssssidssssss", 
                 $transactionId, $date, $type, $category, $personName, $userId, $personRole,
-                $className, $classId, $finalAmount, $status, $paymentMethod, $referenceNumber, $notes, $studentId
+                $className, $classIdValue, $finalAmount, $status, $paymentMethod, $referenceNumber, $notes, $createdBy, $paymentType
             );
 
             if (!$stmt->execute()) {
@@ -115,6 +168,33 @@ class PaymentController {
             }
 
             $financialRecordId = $stmt->insert_id;
+
+            // Prepare payment data for WhatsApp notification
+            $paymentForNotification = [
+                'transaction_id' => $transactionId,
+                'user_id' => $studentId,
+                'amount' => $finalAmount,
+                'payment_method' => $paymentMethod,
+                'discount' => $data['discount'] ?? 0
+            ];
+
+            // Determine payment type for WhatsApp message
+            $whatsAppPaymentType = 'monthly_fee';
+            if ($paymentType === 'admission_fee') {
+                $whatsAppPaymentType = 'admission_fee';
+            } elseif (strpos($notes, 'Enrollment') !== false || strpos($notes, 'First month') !== false) {
+                $whatsAppPaymentType = 'enrollment';
+                $paymentForNotification['admission_fee_paid'] = ($paymentType === 'admission_fee' || strpos($notes, 'admission') !== false);
+            }
+
+            // Send WhatsApp notification (non-blocking - don't fail payment if WhatsApp fails)
+            if ($class && is_array($class)) {
+                error_log("📱 Attempting WhatsApp notification for transaction: " . $transactionId . " | Type: " . $whatsAppPaymentType);
+                $whatsAppResult = $this->sendPaymentWhatsAppNotification($paymentForNotification, $class, $whatsAppPaymentType);
+                error_log("📱 WhatsApp notification result: " . ($whatsAppResult ? 'SUCCESS' : 'FAILED'));
+            } else {
+                error_log("⚠️ WhatsApp notification skipped - No class data available");
+            }
 
             return [
                 'success' => true,
@@ -163,18 +243,13 @@ class PaymentController {
                 $paymentTrackingEnabled = $classDetails ? ($classDetails['payment_tracking'] ?? false) : false;
                 $freeDays = $classDetails ? ($classDetails['payment_tracking_free_days'] ?? 7) : 7;
                 
-                // INDUSTRY STANDARD: Next payment is always 1st of next month, regardless of purchase date
+                // INDUSTRY STANDARD: Next payment due date = 1st of next month + free days
                 // This ensures consistent billing cycles and proper grace period calculation
-                $nextPaymentDate = date('Y-m-01', strtotime('+1 month'));
+                $firstOfNextMonth = date('Y-m-01', strtotime('+1 month'));
+                $nextPaymentDate = date('Y-m-d', strtotime($firstOfNextMonth . ' +' . $freeDays . ' days'));
                 
-                // Calculate grace period end date
-                if ($paymentTrackingEnabled) {
-                    // Grace period = Next payment date + free days
-                    $gracePeriodEndDate = date('Y-m-d', strtotime($nextPaymentDate . ' +' . $freeDays . ' days'));
-                } else {
-                    // No grace period - payment due immediately on next payment date
-                    $gracePeriodEndDate = $nextPaymentDate;
-                }
+                // Calculate grace period end date (same as next payment date)
+                $gracePeriodEndDate = $nextPaymentDate;
                 
                 // Log the payment tracking calculation for debugging
                 error_log("PAYMENT_TRACKING_CALC: Transaction $transactionId - Next Payment: $nextPaymentDate, Grace Period End: $gracePeriodEndDate, Free Days: $freeDays, Tracking Enabled: " . ($paymentTrackingEnabled ? 'Yes' : 'No'));
@@ -253,74 +328,14 @@ class PaymentController {
                 // Check if enrollment already exists (idempotency)
                 $existingEnrollment = $this->checkExistingEnrollment($payment['user_id'], $payment['class_id']);
                 if ($existingEnrollment) {
-                    // CRITICAL FIX: For renewal payments, update the existing enrollment
-                    error_log("RENEWAL_PAYMENT: Transaction $transactionId - Updating existing enrollment");
-                    
-                    try {
-                        $userId = $payment['user_id'];
-                        $classId = $payment['class_id'];
-                        $amount = $payment['amount'];
-                        $enrollmentId = $existingEnrollment['id'];
-                        
-                        // Update enrollment payment status and next payment date
-                        $updateEnrollmentData = [
-                            'enrollment_id' => $enrollmentId,
-                            'student_id' => $userId,
-                            'class_id' => $classId,
-                            'payment_status' => 'paid',
-                            'paid_amount' => $amount,
-                            'next_payment_date' => $nextPaymentDate,
-                            'status' => 'active'
-                        ];
-                        
-                        $url = "http://class-backend/routes.php/update_enrollment_payment";
-                        $context = stream_context_create([
-                            'http' => [
-                                'method' => 'POST',
-                                'header' => 'Content-Type: application/json',
-                                'content' => json_encode($updateEnrollmentData)
-                            ]
-                        ]);
-                        
-                        $response = file_get_contents($url, false, $context);
-                        
-                        if ($response !== FALSE) {
-                            $updateResult = json_decode($response, true);
-                            error_log("ENROLLMENT_UPDATE_SUCCESS: Transaction $transactionId - Enrollment updated for renewal");
-                        } else {
-                            error_log("ENROLLMENT_UPDATE_WARNING: Transaction $transactionId - Failed to update enrollment, but payment recorded");
-                        }
-                        
-                        // Create payment history record for renewal
-                        $paymentHistoryStmt = $this->db->prepare("
-                            INSERT INTO payment_history (
-                                enrollment_id, amount, payment_method, reference_number, status, notes
-                            ) VALUES (?, ?, ?, ?, ?, ?)
-                        ");
-                        
-                        $paymentMethod = $payment['payment_method'] ?? 'online';
-                        $referenceNumber = $payment['reference_number'] ?? $transactionId;
-                        $notes = "Renewal payment - Transaction: $transactionId";
-                        $status = 'completed';
-                        
-                        $paymentHistoryStmt->bind_param("idssss", 
-                            $enrollmentId, $amount, $paymentMethod, $referenceNumber, $status, $notes
-                        );
-                        
-                        $paymentHistoryStmt->execute();
-                        
-                    } catch (Exception $updateError) {
-                        error_log("ENROLLMENT_UPDATE_ERROR: Transaction $transactionId - " . $updateError->getMessage());
-                    }
-                    
                     return [
                         'success' => true,
                         'enrollmentId' => $existingEnrollment['id'],
-                        'message' => 'Enrollment renewed successfully'
+                        'message' => 'Enrollment already exists'
                     ];
                 }
                 
-                // Create enrollment in class backend (for new enrollments)
+                // Create enrollment in class backend
                 try {
                     $userId = $payment['user_id'];
                     $classId = $payment['class_id'];
@@ -471,8 +486,13 @@ class PaymentController {
             $paymentStatus = $payment['status'] === 'paid' ? 'paid' : 'pending';
             $paidAmount = $payment['status'] === 'paid' ? $payment['amount'] : 0;
             
-            // INDUSTRY STANDARD: Next payment is always 1st of next month, regardless of purchase date
-            $nextPaymentDate = date('Y-m-01', strtotime('+1 month'));
+            // Get class details to calculate next payment date with free days
+            $classDetails = $this->getClassFromClassBackend($payment['class_id']);
+            $freeDays = $classDetails ? ($classDetails['payment_tracking_free_days'] ?? 7) : 7;
+            
+            // INDUSTRY STANDARD: Next payment due date = 1st of next month + free days
+            $firstOfNextMonth = date('Y-m-01', strtotime('+1 month'));
+            $nextPaymentDate = date('Y-m-d', strtotime($firstOfNextMonth . ' +' . $freeDays . ' days'));
             
             $classId = $payment['class_id'];
             $userId = $payment['user_id'];
@@ -546,7 +566,7 @@ class PaymentController {
     // Get student's payment history
     public function getStudentPayments($studentId) {
         try {
-            // Get payments from financial_records table
+            // Get payments from financial_records table (INCLUDING admission_fee payments)
             $stmt = $this->db->prepare("
                 SELECT 
                     fr.transaction_id,
@@ -557,7 +577,10 @@ class PaymentController {
                     fr.status,
                     fr.reference_number,
                     fr.user_id,
-                    fr.class_id
+                    fr.class_id,
+                    fr.payment_type,
+                    fr.category,
+                    fr.type
                 FROM financial_records fr
                 WHERE fr.user_id = ?
                 ORDER BY fr.date DESC
@@ -569,16 +592,22 @@ class PaymentController {
 
             $payments = [];
             while ($row = $result->fetch_assoc()) {
-                // Get class details from class backend
-                if (isset($row['class_id'])) {
+                // Get class details from class backend (if class_id exists)
+                if (isset($row['class_id']) && $row['class_id']) {
                     $classDetails = $this->getClassFromClassBackend($row['class_id']);
                     if ($classDetails) {
                         $row['subject'] = $classDetails['subject'] ?? '';
                         $row['teacher'] = $classDetails['teacher'] ?? '';
+                        
+                        // If class_name is empty but we have class details, set it
+                        if (empty($row['class_name']) && isset($classDetails['className'])) {
+                            $row['class_name'] = $classDetails['className'];
+                        }
                     }
                 }
                 $payments[] = $row;
             }
+
 
             // Also get payments from payments table (PayHere payments)
             $stmt2 = $this->db->prepare("
@@ -695,6 +724,7 @@ class PaymentController {
                     fr.amount,
                     fr.status,
                     fr.payment_method,
+                    fr.category as payment_type,
                     fr.reference_number,
                     fr.notes,
                     fr.delivery_status,
@@ -719,10 +749,11 @@ class PaymentController {
                     'amount' => $row['amount'],
                     'status' => $row['status'],
                     'payment_method' => $row['payment_method'],
+                    'payment_type' => $row['payment_type'],
                     'reference_number' => $row['reference_number'],
                     'notes' => $row['notes'],
-                    'delivery_status' => $row['delivery_status'],
-                    'created_at' => $row['created_at']
+                    'delivery_status' => $row['delivery_status'] ?? null,
+                    'created_at' => $row['created_at'] ?? null
                 ];
             }
 
@@ -761,6 +792,279 @@ class PaymentController {
 
         } catch (Exception $e) {
             return ['success' => false, 'message' => 'Error retrieving payment stats: ' . $e->getMessage()];
+        }
+    }
+
+    // Get cashier statistics (daily or monthly)
+    public function getCashierStats($cashierId, $period = 'today') {
+        try {
+            // Determine date range based on period
+            // Note: Using CURDATE() ensures data persists for entire day (not reset on logout/login)
+            // Data automatically resets at midnight when new day starts
+            if ($period === 'today') {
+                $dateCondition = "DATE(fr.created_at) = CURDATE()";
+            } elseif ($period === 'month') {
+                $dateCondition = "YEAR(fr.created_at) = YEAR(CURDATE()) AND MONTH(fr.created_at) = MONTH(CURDATE())";
+            } elseif ($period === 'all') {
+                $dateCondition = "1=1"; // No date filter
+            } else {
+                // Custom date range: period should be in format 'YYYY-MM-DD'
+                $dateCondition = "DATE(fr.created_at) = ?";
+            }
+
+            // Query to get cashier statistics
+            // COUNT(DISTINCT transaction_id) counts unique transactions/receipts (not rows)
+            // This ensures one receipt with multiple payment types counts as 1 receipt
+            $sql = "
+                SELECT 
+                    COUNT(DISTINCT fr.transaction_id) as total_receipts,
+                    SUM(CASE WHEN fr.status = 'paid' THEN fr.amount ELSE 0 END) as total_collected,
+                    SUM(CASE WHEN fr.status = 'pending' THEN 1 ELSE 0 END) as pending_count,
+                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_method = 'cash' THEN fr.amount ELSE 0 END) as cash_collected,
+                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_method = 'card' THEN fr.amount ELSE 0 END) as card_collected,
+                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_type = 'admission_fee' THEN fr.amount ELSE 0 END) as admission_fees,
+                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_type = 'class_payment' THEN fr.amount ELSE 0 END) as class_payments,
+                    MIN(fr.created_at) as first_transaction,
+                    MAX(fr.created_at) as last_transaction
+                FROM financial_records fr
+                WHERE fr.created_by = ? 
+                AND fr.type = 'income'
+                AND $dateCondition
+            ";
+
+            $stmt = $this->db->prepare($sql);
+            
+            if ($period !== 'today' && $period !== 'month' && $period !== 'all') {
+                $stmt->bind_param("ss", $cashierId, $period);
+            } else {
+                $stmt->bind_param("s", $cashierId);
+            }
+
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $stats = $result->fetch_assoc();
+
+            // Get recent transactions for this cashier
+            $recentSql = "
+                SELECT 
+                    fr.transaction_id,
+                    fr.date,
+                    fr.created_at,
+                    fr.person_name,
+                    fr.user_id,
+                    fr.class_name,
+                    fr.class_id,
+                    fr.amount,
+                    fr.status,
+                    fr.payment_method,
+                    fr.payment_type,
+                    fr.notes
+                FROM financial_records fr
+                WHERE fr.created_by = ?
+                AND $dateCondition
+                AND fr.type = 'income'
+                ORDER BY fr.created_at DESC
+                LIMIT 50
+            ";
+
+            $recentStmt = $this->db->prepare($recentSql);
+            
+            if ($period !== 'today' && $period !== 'month' && $period !== 'all') {
+                $recentStmt->bind_param("ss", $cashierId, $period);
+            } else {
+                $recentStmt->bind_param("s", $cashierId);
+            }
+
+            $recentStmt->execute();
+            $recentResult = $recentStmt->get_result();
+            
+            $transactions = [];
+            $classCache = []; // Cache class data to avoid repeated API calls
+            
+            while ($row = $recentResult->fetch_assoc()) {
+                // Fetch teacher information from class backend if class_id exists
+                if (!empty($row['class_id'])) {
+                    $classId = $row['class_id'];
+                    
+                    // Check cache first
+                    if (!isset($classCache[$classId])) {
+                        $classDetails = $this->getClassFromClassBackend($classId);
+                        $classCache[$classId] = $classDetails;
+                    }
+                    
+                    if ($classCache[$classId]) {
+                        $row['teacher'] = $classCache[$classId]['teacher'] ?? '';
+                        $row['teacher_name'] = $classCache[$classId]['teacher'] ?? '';
+                    }
+                }
+                
+                $transactions[] = $row;
+            }
+            
+            // Aggregate per-class data
+            $perClass = [];
+            $classMap = [];
+            
+            foreach ($transactions as $tx) {
+                $className = $tx['class_name'] ?? 'Unspecified';
+                $classId = $tx['class_id'] ?? null;
+                
+                if (!isset($classMap[$className])) {
+                    $classMap[$className] = [
+                        'class_name' => $className,
+                        'teacher' => $tx['teacher'] ?? $tx['teacher_name'] ?? '-',
+                        'full_count' => 0,
+                        'half_count' => 0,
+                        'free_count' => 0,
+                        'total_amount' => 0,
+                        'tx_count' => 0
+                    ];
+                }
+                
+                // Count both class_payment and admission_fee transactions
+                $paymentType = $tx['payment_type'] ?? '';
+                if ($paymentType === 'class_payment' || $paymentType === 'admission_fee') {
+                    $classMap[$className]['tx_count']++;
+                    $classMap[$className]['total_amount'] += floatval($tx['amount'] ?? 0);
+                    
+                    // Only analyze card type for class_payment (admission fees don't use cards)
+                    if ($paymentType === 'class_payment') {
+                        // Determine card type with flexible pattern matching
+                        $notes = strtolower($tx['notes'] ?? '');
+                        $amount = floatval($tx['amount'] ?? 0);
+                        
+                        $isFreeCard = false;
+                        $isHalfCard = false;
+                        
+                        // Check for FREE CARD patterns
+                        if (strpos($notes, 'full free card') !== false) {
+                            $isFreeCard = true;
+                        } elseif (strpos($notes, '100%') !== false || strpos($notes, '100 %') !== false) {
+                            $isFreeCard = true;
+                        } elseif ($amount == 0 && (
+                            strpos($notes, 'free card') !== false ||
+                            strpos($notes, 'complimentary') !== false ||
+                            strpos($notes, 'free') !== false
+                        )) {
+                            $isFreeCard = true;
+                        }
+                        
+                        // Check for HALF CARD patterns
+                        if (!$isFreeCard) {
+                            if (strpos($notes, 'half free card') !== false) {
+                                $isHalfCard = true;
+                            } elseif (strpos($notes, '50%') !== false || strpos($notes, '50 %') !== false) {
+                                $isHalfCard = true;
+                            } elseif (strpos($notes, 'half') !== false && strpos($notes, 'discount') !== false) {
+                                $isHalfCard = true;
+                            }
+                        }
+                        
+                        // Count the card type
+                        if ($isFreeCard) {
+                            $classMap[$className]['free_count']++;
+                        } elseif ($isHalfCard) {
+                            $classMap[$className]['half_count']++;
+                        } else {
+                            $classMap[$className]['full_count']++;
+                        }
+                    }
+                }
+            }
+            
+            // Convert to array and sort by total amount
+            $perClass = array_values($classMap);
+            usort($perClass, function($a, $b) {
+                return $b['total_amount'] - $a['total_amount'];
+            });
+            
+            // Calculate overall card counts from transactions
+            $fullCardsIssued = 0;
+            $halfCardsIssued = 0;
+            $freeCardsIssued = 0;
+            
+            error_log("====== Starting Card Count Calculation ======");
+            error_log("Total transactions to process: " . count($transactions));
+            
+            foreach ($transactions as $tx) {
+                error_log("TX ID: " . ($tx['transaction_id'] ?? 'unknown') . " | Type: " . ($tx['payment_type'] ?? 'unknown') . " | Status: " . ($tx['status'] ?? 'unknown'));
+                
+                // Only count paid class payments
+                if (($tx['payment_type'] ?? '') === 'class_payment' && ($tx['status'] ?? '') === 'paid') {
+                    $notes = strtolower($tx['notes'] ?? '');
+                    $amount = floatval($tx['amount'] ?? 0);
+                    
+                    // Log for debugging
+                    error_log("Processing TX: " . ($tx['transaction_id'] ?? 'unknown'));
+                    error_log("  Notes: " . $notes);
+                    error_log("  Amount: " . $amount);
+                    
+                    // Determine card type with flexible pattern matching
+                    $isFreeCard = false;
+                    $isHalfCard = false;
+                    
+                    // Check for FREE CARD patterns (check multiple variations)
+                    if (strpos($notes, 'full free card') !== false) {
+                        $isFreeCard = true;
+                    } elseif (strpos($notes, '100%') !== false || strpos($notes, '100 %') !== false) {
+                        $isFreeCard = true;
+                    } elseif ($amount == 0 && (
+                        strpos($notes, 'free card') !== false ||
+                        strpos($notes, 'complimentary') !== false ||
+                        strpos($notes, 'free') !== false
+                    )) {
+                        $isFreeCard = true;
+                    }
+                    
+                    // Check for HALF CARD patterns (only if not already identified as free)
+                    if (!$isFreeCard) {
+                        if (strpos($notes, 'half free card') !== false) {
+                            $isHalfCard = true;
+                        } elseif (strpos($notes, '50%') !== false || strpos($notes, '50 %') !== false) {
+                            $isHalfCard = true;
+                        } elseif (strpos($notes, 'half') !== false && strpos($notes, 'discount') !== false) {
+                            $isHalfCard = true;
+                        }
+                    }
+                    
+                    // Count the card type
+                    if ($isFreeCard) {
+                        $freeCardsIssued++;
+                        error_log("  -> Counted as FREE card");
+                    } elseif ($isHalfCard) {
+                        $halfCardsIssued++;
+                        error_log("  -> Counted as HALF card");
+                    } else {
+                        $fullCardsIssued++;
+                        error_log("  -> Counted as FULL card");
+                    }
+                }
+            }
+            
+            // Add card counts to stats
+            $stats['full_cards_issued'] = $fullCardsIssued;
+            $stats['half_cards_issued'] = $halfCardsIssued;
+            $stats['free_cards_issued'] = $freeCardsIssued;
+            
+            error_log("====== Final Card Counts ======");
+            error_log("Full Cards: $fullCardsIssued");
+            error_log("Half Cards: $halfCardsIssued");
+            error_log("Free Cards: $freeCardsIssued");
+            error_log("============================");
+
+            return [
+                'success' => true,
+                'data' => [
+                    'stats' => $stats,
+                    'transactions' => $transactions,
+                    'perClass' => $perClass,
+                    'period' => $period,
+                    'cashierId' => $cashierId
+                ]
+            ];
+
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error retrieving cashier stats: ' . $e->getMessage()];
         }
     }
 
@@ -817,57 +1121,152 @@ class PaymentController {
         }
     }
 
-    /**
-     * Update delivery status for a speed post transaction
-     */
-    public function updateDeliveryStatus($transactionId, $deliveryStatus) {
+    // Helper method to get student details from student backend
+    private function getStudentFromStudentBackend($studentId) {
         try {
-            // Validate delivery status
-            $validStatuses = ['pending', 'processing', 'delivered'];
-            if (!in_array($deliveryStatus, $validStatuses)) {
-                return [
-                    'success' => false,
-                    'message' => 'Invalid delivery status. Must be: pending, processing, or delivered'
-                ];
+            $url = "http://student-backend/routes.php/get_with_id/" . urlencode($studentId);
+            $response = @file_get_contents($url);
+            
+            if ($response === FALSE) {
+                error_log("Failed to fetch student from student backend: " . $studentId);
+                return null;
             }
+            
+            $studentData = json_decode($response, true);
+            
+            // Student backend returns data directly, not wrapped
+            if ($studentData && isset($studentData['user_id'])) {
+                return $studentData;
+            }
+            
+            // Legacy format check (if backend is updated to wrap in success/data)
+            if ($studentData && isset($studentData['success']) && $studentData['success'] && isset($studentData['data'])) {
+                return $studentData['data'];
+            }
+            
+            return null;
+        } catch (Exception $e) {
+            error_log("Error fetching student from student backend: " . $e->getMessage());
+            return null;
+        }
+    }
 
-            // Update the financial record with delivery status
+    // Get student's admission fee from database
+    private function getStudentAdmissionFee($studentId) {
+        try {
+            // Query to get the most recent admission fee payment for this student
             $stmt = $this->db->prepare("
-                UPDATE financial_records 
-                SET delivery_status = ?
-                WHERE transaction_id = ?
+                SELECT amount 
+                FROM financial_records 
+                WHERE user_id = ? 
+                AND payment_type = 'admission_fee'
+                AND status = 'paid'
+                ORDER BY date DESC
+                LIMIT 1
             ");
             
-            $stmt->bind_param("ss", $deliveryStatus, $transactionId);
+            $stmt->bind_param("s", $studentId);
+            $stmt->execute();
+            $result = $stmt->get_result();
             
-            if ($stmt->execute()) {
-                if ($stmt->affected_rows > 0) {
-                    return [
-                        'success' => true,
-                        'message' => 'Delivery status updated successfully',
-                        'data' => [
-                            'transaction_id' => $transactionId,
-                            'delivery_status' => $deliveryStatus
-                        ]
-                    ];
-                } else {
-                    return [
-                        'success' => false,
-                        'message' => 'Transaction not found or status unchanged'
-                    ];
-                }
-            } else {
-                return [
-                    'success' => false,
-                    'message' => 'Failed to update delivery status'
-                ];
+            if ($result->num_rows > 0) {
+                $row = $result->fetch_assoc();
+                return floatval($row['amount']);
             }
+            
+            return null; // No admission fee found
+            
         } catch (Exception $e) {
-            error_log("Error updating delivery status: " . $e->getMessage());
-            return [
-                'success' => false,
-                'message' => 'Error updating delivery status: ' . $e->getMessage()
+            error_log("Error fetching admission fee: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    // Send WhatsApp notification for payment (non-blocking)
+    private function sendPaymentWhatsAppNotification($payment, $classData, $paymentType = 'monthly_fee') {
+        try {
+            // Get student details
+            $studentData = $this->getStudentFromStudentBackend($payment['user_id']);
+            
+            if (!$studentData) {
+                error_log("WhatsApp notification skipped - Student not found: " . $payment['user_id']);
+                return false;
+            }
+
+            // Log student data for debugging
+            error_log("Student data retrieved: " . json_encode($studentData));
+            
+            // Check for mobile number in various possible field names
+            $mobileNumber = $studentData['mobile'] ?? $studentData['mobile_number'] ?? $studentData['phone'] ?? $studentData['contactNumber'] ?? null;
+            
+            if (empty($mobileNumber)) {
+                error_log("WhatsApp notification skipped - No mobile number found for: " . $payment['user_id'] . " | Available fields: " . implode(', ', array_keys($studentData)));
+                return false;
+            }
+
+            // Add mobile to studentData for helper methods
+            $studentData['mobile'] = $mobileNumber;
+
+            // Normalize student data fields for WhatsApp helper
+            $studentData['firstName'] = $studentData['firstName'] ?? $studentData['first_name'] ?? $studentData['firstname'] ?? 'Student';
+            $studentData['lastName'] = $studentData['lastName'] ?? $studentData['last_name'] ?? $studentData['lastname'] ?? '';
+            $studentData['studentId'] = $studentData['studentId'] ?? $studentData['student_id'] ?? $studentData['user_id'] ?? $studentData['id'] ?? 'N/A';
+
+            // Prepare payment data
+            $paymentData = [
+                'transactionId' => $payment['transaction_id'],
+                'amount' => $payment['amount'],
+                'paymentMethod' => $payment['payment_method'] ?? 'cash',
+                'discount' => $payment['discount'] ?? 0
             ];
+
+            // Normalize class data fields
+            if (isset($classData['className'])) {
+                $classData['class_name'] = $classData['className'];
+            }
+            if (!isset($classData['subject']) && isset($classData['subject_name'])) {
+                $classData['subject'] = $classData['subject_name'];
+            }
+
+            // Send appropriate WhatsApp notification based on payment type
+            $result = false;
+            switch ($paymentType) {
+                case 'monthly_fee':
+                    $result = $this->whatsAppHelper->sendMonthlyFeeConfirmation($studentData, $paymentData, $classData);
+                    break;
+                    
+                case 'admission_fee':
+                    $result = $this->whatsAppHelper->sendAdmissionFeeConfirmation($studentData, $paymentData);
+                    break;
+                    
+                case 'enrollment':
+                    $admissionFeePaid = isset($payment['admission_fee_paid']) && $payment['admission_fee_paid'];
+                    if ($admissionFeePaid) {
+                        $paymentData['monthlyFee'] = $classData['fee'] ?? 0;
+                        
+                        // Fetch real admission fee from database
+                        $realAdmissionFee = $this->getStudentAdmissionFee($payment['user_id']);
+                        $paymentData['admissionFee'] = $realAdmissionFee ?? 1000; // Fallback to 1000 if not found
+                    }
+                    $result = $this->whatsAppHelper->sendEnrollmentPaymentConfirmation($studentData, $paymentData, $classData, $admissionFeePaid);
+                    break;
+                    
+                default:
+                    $result = $this->whatsAppHelper->sendPaymentReceipt($studentData, $paymentData);
+                    break;
+            }
+
+            if ($result) {
+                error_log("✅ WhatsApp notification sent successfully to " . $studentData['mobile'] . " for transaction " . $payment['transaction_id']);
+            } else {
+                error_log("❌ WhatsApp notification failed for transaction " . $payment['transaction_id']);
+            }
+
+            return $result;
+
+        } catch (Exception $e) {
+            error_log("WhatsApp notification exception: " . $e->getMessage());
+            return false;
         }
     }
 }

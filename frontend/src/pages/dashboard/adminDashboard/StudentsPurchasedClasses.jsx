@@ -683,8 +683,6 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
 
   // New Enrollment Handlers
   const handleNewEnrollment = async (student) => {
-    console.log('Opening new enrollment for student:', student);
-    
     // Reload student data to get fresh enrollment information
     try {
       const [enrollmentsResponse, paymentsResponse] = await Promise.all([
@@ -707,7 +705,6 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
         lastPaymentDate: payments.length > 0 ? payments[0].date : null,
       };
 
-      console.log('Updated student with fresh enrollment data:', updatedStudent);
       setSelectedStudent(updatedStudent);
     setShowNewEnrollmentModal(true);
     
@@ -738,28 +735,21 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
   const loadAvailableClasses = async () => {
     try {
       setLoadingClasses(true);
-      console.log('Loading available classes for student:', selectedStudent);
-      console.log('Student stream:', selectedStudent.stream);
-      console.log('Student enrollments:', selectedStudent.enrollments);
       
       const response = await getAllClasses();
-      console.log('Classes response:', response);
       
       if (response.success && response.data) {
         // Get student's current enrollment class IDs to exclude already enrolled classes
         const enrolledClassIds = selectedStudent.enrollments?.map(enrollment => parseInt(enrollment.class_id)) || [];
-        console.log('Student enrolled class IDs:', enrolledClassIds);
         
         // Filter active classes that match student's stream and are NOT already enrolled
         const availableClasses = response.data.filter(cls => {
           // Class must be active
           if (cls.status !== 'active') {
-            console.log(`Skipping ${cls.class_name || cls.className} - not active`);
             return false;
           }
           
-          // Check if student is already enrolled in this class - EXCLUDE these
-          // Convert both to numbers for comparison since enrollment class_id is number, class id is string
+          // Check if student is already enrolled in this class
           const classId = parseInt(cls.id);
           const isAlreadyEnrolled = enrolledClassIds.includes(classId);
           
@@ -771,7 +761,6 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
           const isEnrolled = isAlreadyEnrolled || isAlreadyEnrolledString;
           
           if (isEnrolled) {
-            console.log(`Skipping ${cls.class_name || cls.className} (ID: ${classId}) - already enrolled`);
             return false;
           }
           
@@ -780,7 +769,7 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
           if (selectedStudent.stream) {
             // Exact match
             matchesStream = cls.stream === selectedStudent.stream;
-            // Also check for partial matches (e.g., "A/L-Maths" matches "A/L-Maths Advanced")
+            // Also check for partial matches
             if (!matchesStream) {
               matchesStream = cls.stream.includes(selectedStudent.stream) || 
                              selectedStudent.stream.includes(cls.stream);
@@ -790,32 +779,10 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
             matchesStream = true;
           }
           
-          console.log(`Class ${cls.class_name || cls.className} (ID: ${cls.id}) - Stream: ${cls.stream}, Student Stream: ${selectedStudent.stream}, Match: ${matchesStream}, Enrolled: ${isAlreadyEnrolled}`);
-          
           return matchesStream && !isAlreadyEnrolled;
         });
         
-        console.log('Available classes for student (not enrolled):', availableClasses);
-        console.log('Available classes count:', availableClasses.length);
-        console.log('Student enrollments:', selectedStudent.enrollments);
-        console.log('Enrolled class IDs:', enrolledClassIds);
-        
-        // Debug: Show all classes and their enrollment status
-        console.log('=== DEBUG: All Classes Enrollment Status ===');
-        response.data.forEach(cls => {
-          const classId = parseInt(cls.id);
-          const isEnrolled = enrolledClassIds.includes(classId);
-          console.log(`Class: ${cls.class_name || cls.className} (ID: ${classId}) - Enrolled: ${isEnrolled}`);
-        });
-        
         if (availableClasses.length === 0) {
-          console.log('No available classes found. Debugging info:');
-          console.log('- Student stream:', selectedStudent.stream);
-          console.log('- Total classes:', response.data.length);
-          console.log('- Active classes:', response.data.filter(cls => cls.status === 'active').length);
-          console.log('- Enrolled classes:', enrolledClassIds.length);
-          
-          // Show user-friendly message
           showMessage('info', 'Student is already enrolled in all available classes for their stream.');
         }
         
@@ -2355,7 +2322,21 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
                   },
                   {
                     key: 'class_name',
-                    label: 'Class'
+                    label: 'Class',
+                    render: (payment) => {
+                      // Show payment type for admission fees
+                      if (payment.payment_type === 'admission_fee') {
+                        return (
+                          <div className="flex flex-col space-y-1">
+                            <span className="font-medium">{payment.class_name}</span>
+                            <span className="px-2 py-1 rounded text-xs bg-orange-100 text-orange-700 w-fit">
+                              Admission Fee
+                            </span>
+                          </div>
+                        );
+                      }
+                      return payment.class_name;
+                    }
                   },
                   {
                     key: 'amount',

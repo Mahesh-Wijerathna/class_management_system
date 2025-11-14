@@ -97,14 +97,22 @@ services:
       - /var/www/html/vendor
     depends_on:
       - cashier-mysql
+      - auth-mysql
     environment:
+      # Cashier database
       - DB_HOST=cashier-mysql
       - DB_NAME=cashier_db
       - DB_USER=cashieruser
       - DB_PASSWORD=cashierpass
+      # Auth database (for user verification)
+      - AUTH_DB_HOST=auth-mysql
+      - AUTH_DB_NAME=auth-db
+      - AUTH_DB_USER=devuser
+      - AUTH_DB_PASSWORD=devpass
       - TZ=Asia/Colombo
     networks:
       - cashier-network
+      - auth-network
 
   # Class services
   class-mysql:
@@ -342,6 +350,7 @@ services:
     networks:
       - payment-network
       - class-network
+      - student-network
 
   # RBAC services
   rbac-mysql:

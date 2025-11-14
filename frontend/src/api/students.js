@@ -40,7 +40,7 @@ export const getAllStudents = async (filters = {}) => {
 export const getStudentById = async (studentId) => {
   try {
     const studentBackendUrl = 'http://localhost:8086';
-    const response = await fetch(`${studentBackendUrl}/routes.php/students/${studentId}`, {
+    const response = await fetch(`${studentBackendUrl}/routes.php/get_with_id/${studentId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -52,7 +52,33 @@ export const getStudentById = async (studentId) => {
     }
     
     const data = await response.json();
-    return data;
+    
+    // Transform snake_case to camelCase for consistency
+    const transformedData = {
+      id: data.user_id,
+      studentId: data.user_id,
+      firstName: data.first_name,
+      lastName: data.last_name,
+      nic: data.nic,
+      mobile: data.mobile_number,
+      phone: data.mobile_number,
+      dateOfBirth: data.date_of_birth,
+      age: data.age,
+      gender: data.gender,
+      email: data.email,
+      school: data.school,
+      stream: data.stream,
+      address: data.address,
+      district: data.district,
+      parentName: data.parent_name,
+      parentMobile: data.parent_mobile_number,
+      barcodeData: data.barcode_data,
+      barcodeGeneratedAt: data.barcode_generated_at,
+      createdAt: data.created_at,
+      enrolledClasses: data.enrolledClasses || []
+    };
+    
+    return transformedData;
   } catch (error) {
     throw new Error(handleApiError(error, 'Failed to fetch student details'));
   }

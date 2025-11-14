@@ -12,6 +12,36 @@ class AttendanceController {
     }
 
     /**
+     * Check if student has late pay permission for today
+     * @param string $studentId
+     * @param int $classId
+     * @param string $date (optional, defaults to today)
+     * @return bool
+     */
+    private function hasLatePayPermission($studentId, $classId, $date = null) {
+        if (!$this->classConn) {
+            return false;
+        }
+
+        $checkDate = $date ?? date('Y-m-d');
+
+        $query = "SELECT id FROM late_pay_permissions 
+                  WHERE student_id = ? AND class_id = ? AND permission_date = ?
+                  LIMIT 1";
+        
+        $stmt = $this->classConn->prepare($query);
+        if (!$stmt) {
+            return false;
+        }
+
+        $stmt->bind_param('sis', $studentId, $classId, $checkDate);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        return $result->num_rows > 0;
+    }
+
+    /**
      * Get attendance for a specific class
      */
     public function getClassAttendance($classId) {
@@ -183,6 +213,17 @@ class AttendanceController {
                     $paymentTracking = $result['payment_tracking'];
                     $freeDays = intval($result['payment_tracking_free_days'] ?? 7);
                     
+                    // SPECIAL CASE 0: Late Pay Permission - Allow attendance for TODAY only
+                    if ($paymentStatus === 'late_pay' || $this->hasLatePayPermission($resolvedUserId, $classId)) {
+                        return [
+                            'success' => true, 
+                            'enrolled' => true,
+                            'payment_status' => 'late_pay',
+                            'reason' => 'late_pay_permission',
+                            'message' => 'Late pay permission granted for today - Student can attend'
+                        ];
+                    }
+                    
                     // SPECIAL CASE 1: Free Card (overdue) - Always allow access
                     if ($paymentStatus === 'overdue') {
                         return [
@@ -243,7 +284,18 @@ class AttendanceController {
                                     'days_remaining' => $today->diff($gracePeriodEnd)->days
                                 ];
                             } else {
-                                // Grace period expired
+                                // Grace period expired - Check for late pay permission
+                                if ($this->hasLatePayPermission($resolvedUserId, $classId)) {
+                                    return [
+                                        'success' => true, 
+                                        'enrolled' => true,
+                                        'payment_status' => 'late_pay',
+                                        'reason' => 'late_pay_permission',
+                                        'message' => 'Late pay permission granted for today - Student can attend'
+                                    ];
+                                }
+                                
+                                // Grace period expired and no late pay permission
                                 return [
                                     'success' => true, 
                                     'enrolled' => false,
@@ -263,7 +315,18 @@ class AttendanceController {
                         ];
                     }
                     
-                    // PENDING/OTHER: Payment required
+                    // PENDING/OTHER: Check for late pay permission before blocking
+                    if ($this->hasLatePayPermission($resolvedUserId, $classId)) {
+                        return [
+                            'success' => true, 
+                            'enrolled' => true,
+                            'payment_status' => 'late_pay',
+                            'reason' => 'late_pay_permission',
+                            'message' => 'Late pay permission granted for today - Student can attend'
+                        ];
+                    }
+                    
+                    // No payment and no permission: Block access
                     return [
                         'success' => true, 
                         'enrolled' => false,

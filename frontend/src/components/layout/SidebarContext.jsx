@@ -10,8 +10,8 @@ export const useSidebar = () => {
   return context;
 };
 
-export const SidebarProvider = ({ children }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+export const SidebarProvider = ({ children, defaultOpen = true }) => {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(defaultOpen);
   const [isMobile, setIsMobile] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -26,7 +26,7 @@ export const SidebarProvider = ({ children }) => {
         if (mobile) {
           setIsSidebarOpen(false);
         } else {
-          setIsSidebarOpen(true);
+          setIsSidebarOpen(defaultOpen);
         }
         setIsInitialized(true);
       }
@@ -35,7 +35,7 @@ export const SidebarProvider = ({ children }) => {
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
-  }, [isInitialized]);
+  }, [isInitialized, defaultOpen]);
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);

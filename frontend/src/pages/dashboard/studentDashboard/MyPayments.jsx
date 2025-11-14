@@ -42,19 +42,35 @@ const MyPayments = ({ onLogout }) => {
       
       if (response.success && response.data) {
         // Map the data to ensure all fields are present
-        const mappedPayments = response.data.map((p, index) => ({
-          date: p.date ? new Date(p.date).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-          }) : '',
-          userId: p.user_id || p.userId || p.student_id || studentId || '', // Use user_id from backend
-          className: p.class_name || p.className || (p.subject ? `${p.class_name || p.className} - ${p.subject}` : ''),
-          amount: `LKR ${parseFloat(p.amount || 0).toLocaleString()}`,
-          method: (p.payment_method || p.method || 'Online').charAt(0).toUpperCase() + (p.payment_method || p.method || 'Online').slice(1),
-          status: (p.status || 'Paid').charAt(0).toUpperCase() + (p.status || 'Paid').slice(1),
-          invoiceId: p.transaction_id || p.invoiceId || p.id || '',
-        }));
+        const mappedPayments = response.data.map((p, index) => {
+          const paymentType = p.payment_type || p.paymentType || 'class_payment';
+          const isAdmissionFee = paymentType === 'admission_fee';
+          
+          // Build display label for class name
+          let displayClassName = '';
+          if (isAdmissionFee) {
+            // For admission fee, show "Admission Fee" or "Admission Fee - Class Name"
+            const baseName = p.class_name || p.className || '';
+            displayClassName = baseName ? `Admission Fee - ${baseName}` : 'Admission Fee';
+          } else {
+            // For regular class payment, show class name
+            displayClassName = p.class_name || p.className || (p.subject ? `${p.class_name || p.className} - ${p.subject}` : '');
+          }
+          
+          return {
+            date: p.date ? new Date(p.date).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric'
+            }) : '',
+            userId: p.user_id || p.userId || p.student_id || studentId || '', // Use user_id from backend
+            className: displayClassName,
+            amount: `LKR ${parseFloat(p.amount || 0).toLocaleString()}`,
+            method: (p.payment_method || p.method || 'Online').charAt(0).toUpperCase() + (p.payment_method || p.method || 'Online').slice(1),
+            status: (p.status || 'Paid').charAt(0).toUpperCase() + (p.status || 'Paid').slice(1),
+            invoiceId: p.transaction_id || p.invoiceId || p.id || '',
+          };
+        });
         
         setPayments(mappedPayments);
       } else {
