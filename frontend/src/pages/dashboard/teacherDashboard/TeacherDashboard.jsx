@@ -43,6 +43,9 @@ const TeacherDashboard = ({ onLogout }) => {
   const [teacherRevenue, setTeacherRevenue] = useState(null); // { thisMonth, lastMonth }
   const [teacherRevenueData, setTeacherRevenueData] = useState(null); // array for charts
   const [teacherRevenueVsClassesData, setTeacherRevenueVsClassesData] = useState(null);
+  // Permissions state (used to filter sidebar and guard UI)
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const [permissions, setPermissions] = useState([]);
 
   // Get teacher name and ID from sessionStorage on mount
   useEffect(() => {
