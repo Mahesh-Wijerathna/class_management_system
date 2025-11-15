@@ -1,4 +1,5 @@
 import TeacherDashboard from '../../pages/dashboard/teacherDashboard/TeacherDashboard';
+import StaffManagement from '../../pages/dashboard/teacherDashboard/StaffManagement';
 import ManageClassSchedules from '../../pages/dashboard/teacherDashboard/ManageClassSchedules';
 import HallAvailability from '../../pages/dashboard/teacherDashboard/HallAvailability';
 import TeacherAllClasses from '../../pages/dashboard/teacherDashboard/TeacherAllClasses';
@@ -28,6 +29,7 @@ export const teacherRoutes = [
   { path: "/teacher/exams/manage", element: <MarkingView/> },
   { path: "/teacher/exams/results", element: <ResultsView/> },
   { path: "/teacher/exams/dashboard", element: <Dashboard/> },
+  { path: "/teacher/staff", element: <StaffManagement/> },
 
 
 ];

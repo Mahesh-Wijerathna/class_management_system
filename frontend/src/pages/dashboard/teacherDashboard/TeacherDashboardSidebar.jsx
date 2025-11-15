@@ -7,76 +7,79 @@ const teacherSidebarSections = [
   {
     section: 'Dashboard Overview',
     items: [
-      { name: 'Dashboard Overview', path: '/teacherdashboard', icon: <FaChartBar className="h-5 w-5" />, requiredPermissions: ['dashboard_overview.dashboard_overview'] },
+      { name: 'Teacher Dasboard', path: '/teacherdashboard', icon: <FaChartBar className="h-5 w-5" />, requiredPermission: null },
     ]
   },
   {
-    section: 'Class Schedules',
+    section: 'Class Management',
     items: [
-      { name: 'My Classes', path: '/teacher/my-classes', icon: <FaBook className="h-5 w-5" /> , requiredPermissions: ['class_schedules.my_classes'] },
-      { name: 'Class Session Schedules', path: '/teacher/schedules', icon: <FaCalendar className="h-5 w-5" /> , requiredPermissions: ['class_schedules.class_session_schedules'] },
-      { name: 'Hall Availability', path: '/teacher/halls', icon: <FaDatabase className="h-5 w-5" /> , requiredPermissions: ['class_schedules.hall_availability'] },
-      { name: 'Class Enrollments', path: '/teacher/enrollments', icon: <FaUsers className="h-5 w-5" /> , requiredPermissions: ['class_schedules.class_enrollments'] },
-      { name: 'Class Payments', path: '/teacher/payments', icon: <FaMoneyBill className="h-5 w-5" /> , requiredPermissions: ['class_schedules.class_payments'] },
+      { name: 'My Classes', path: '/teacher/my-classes', icon: <FaBook className="h-5 w-5" />, requiredPermission: 'classes' },
+      // { name: 'Class Session Schedules', path: '/teacher/schedules', icon: <FaCalendar className="h-5 w-5" />, requiredPermission: 'schedules' },
+      
+      { name: 'Class Enrollments', path: '/teacher/enrollments', icon: <FaUsers className="h-5 w-5" />, requiredPermission: 'enrollments' },
+      
     ]
   },
   {
-    section: 'Attendance',
+    section: 'Payment Management',
     items: [
-      { name: 'Attendance Management', path: '/teacher/attendance-management', icon: <FaChartBar className="h-5 w-5" />, requiredPermissions: ['attendance.attendance_management'] },
-      { name: 'Student Attendance Overview', path: '/teacher/attendance', icon: <FaUsersCog className="h-5 w-5" />, requiredPermissions: ['attendance.student_attendance_overview'] },
+      { name: 'Class Payments', path: '/teacher/payments', icon: <FaMoneyBill className="h-5 w-5" />, requiredPermission: 'payments' },
+      // { name: 'Payment Days', path: '/teacher/finance/payment-days', icon: <FaBell className="h-5 w-5" /> },
+      // { name: 'Monthly/Daily Records', path: '/teacher/finance/records', icon: <FaChartBar className="h-5 w-5" /> },
     ]
   },
   {
-    section: 'Student Performance',
+    section: 'Attendance Management',
     items: [
-      { name: 'View Performance', path: '/teacher/students/performance', icon: <FaGraduationCap className="h-5 w-5" /> , requiredPermissions: ['student_performance.view_performance'] },
-      { name: 'Relevant Student Data', path: '/teacher/students/data', icon: <FaUserShield className="h-5 w-5" /> , requiredPermissions: ['student_performance.relevant_student_data'] },
-      { name: 'Fees Report', path: '/teacher/students/fees-report', icon: <FaChartBar className="h-5 w-5" /> , requiredPermissions: ['student_performance.fees_report'] },
+      { name: 'Class Attendance ', path: '/teacher/attendance-management', icon: <FaChartBar className="h-5 w-5" />, requiredPermission: 'attendance' },
+      // { name: 'Student Attendance Overview', path: '/teacher/attendance', icon: <FaUsersCog className="h-5 w-5" /> },
+    ]
+  },
+  // {
+  //   section: 'Student Performance',
+  //   items: [
+  //     { name: 'View Performance', path: '/teacher/students/performance', icon: <FaGraduationCap className="h-5 w-5" /> },
+  //     { name: 'Relevant Student Data', path: '/teacher/students/data', icon: <FaUserShield className="h-5 w-5" /> },
+  //     { name: 'Fees Report', path: '/teacher/students/fees-report', icon: <FaChartBar className="h-5 w-5" /> },
+  //   ]
+  // },
+  
+  {
+    section: 'Class Hall Management',
+    items: [
+      { name: 'Hall Availability', path: '/teacher/halls', icon: <FaDatabase className="h-5 w-5" />, requiredPermission: 'halls' },
+      // { name: 'Create Folders & Links', path: '/teacher/materials/folders', icon: <FaFolder className="h-5 w-5" /> },
+      // { name: 'Manage Materials', path: '/teacher/materials/manage', icon: <FaFileAlt className="h-5 w-5" /> },
+      // { name: 'Upload Assignments', path: '/teacher/assignments/upload', icon: <FaFileAlt className="h-5 w-5" /> },
     ]
   },
   {
-    section: 'Financial Records',
+    section: 'Exam Management',
     items: [
-      { name: 'Payment Days', path: '/teacher/finance/payment-days', icon: <FaBell className="h-5 w-5" /> , requiredPermissions: ['financial_records.payment_days'] },
-      { name: 'Monthly/Daily Records', path: '/teacher/finance/records', icon: <FaChartBar className="h-5 w-5" /> , requiredPermissions: ['financial_records.monthly_daily_records'] },
-    ]
-  },
-  {
-    section: 'Class Materials',
-    items: [
-      { name: 'Create Folders & Links', path: '/teacher/materials/folders', icon: <FaFolder className="h-5 w-5" /> , requiredPermissions: ['class_materials.create_folders_and_links'] },
-      { name: 'Manage Materials', path: '/teacher/materials/manage', icon: <FaFileAlt className="h-5 w-5" /> , requiredPermissions: ['class_materials.manage_materials'] },
-      { name: 'Upload Assignments', path: '/teacher/assignments/upload', icon: <FaFileAlt className="h-5 w-5" /> , requiredPermissions: ['class_materials.upload_assignments'] },
-    ]
-  },
-  {
-    section: 'Exams',
-    items: [
-      {name: 'Exam Dashboard', path: '/teacher/exams/dashboard', icon: <FaCog className="h-5 w-5" />, requiredPermissions: ['exams.exam_dashboard'] },
+      {name: 'Exam Dashboard', path: '/teacher/exams/dashboard', icon: <FaCog className="h-5 w-5" />, requiredPermission: 'exams' },
       // { name: 'Create Exam', path: '/teacher/exams/create', icon: <FaFolder className="h-5 w-5" /> },
       // { name: 'Manage Exams', path: '/teacher/exams/manage', icon: <FaFileAlt className="h-5 w-5" /> },
       // { name: 'View Exam Results', path: '/exam/${exam.exam_id}/results', icon: <FaFileAlt className="h-5 w-5" /> },
       // { name: 'View Exam Results', path: '/exam/:id/results', icon: <FaFileAlt className="h-5 w-5" /> },
     ]
   },
+  // {
+  //   section: 'Communication',
+  //   items: [
+  //     { name: 'Announcements', path: '/teacher/announcements', icon: <FaBell className="h-5 w-5" /> },
+  //     { name: 'Message Students', path: '/teacher/messages', icon: <FaUsers className="h-5 w-5" /> },
+  //   ]
+  // },
+  // {
+  //   section: 'Reports',
+  //   items: [
+  //     { name: 'Generate Reports', path: '/teacher/reports', icon: <FaChartBar className="h-5 w-5" /> },
+  //   ]
+  // },
   {
-    section: 'Communication',
+    section: 'Teacher Staff Management',
     items: [
-      { name: 'Announcements', path: '/teacher/announcements', icon: <FaBell className="h-5 w-5" /> , requiredPermissions: ['communication.announcements'] },
-      { name: 'Message Students', path: '/teacher/messages', icon: <FaUsers className="h-5 w-5" /> , requiredPermissions: ['communication.message_students'] },
-    ]
-  },
-  {
-    section: 'Reports',
-    items: [
-      { name: 'Generate Reports', path: '/teacher/reports', icon: <FaChartBar className="h-5 w-5" /> , requiredPermissions: ['reports.generate_reports'] },
-    ]
-  },
-  {
-    section: 'Teacher Staff',
-    items: [
-      { name: 'Create & Manage Staff', path: '/teacher/staff', icon: <FaUserPlus className="h-5 w-5" /> , requiredPermissions: ['teacher_staff.create_and_manage_staff'] },
+      { name: 'Create & Manage Staff', path: '/teacher/staff', icon: <FaUserPlus className="h-5 w-5" />, requiredPermission: 'staff_management' },
     ]
   },
 ];
