@@ -70,17 +70,14 @@ const CreateCashierLogin = () => {
       });
 
       if (response.success) {
-        let message = 'Cashier account created successfully!';
+        let message = `Cashier account created successfully! Cashier ID: ${response.userid}`;
         
-        // Add WhatsApp status to the message
-        if (response.whatsapp_sent !== undefined) {
-          if (response.whatsapp_sent) {
-            message += '\n\n📱 WhatsApp message sent successfully with login credentials.';
+        // Add RBAC sync status to the message
+        if (response.rbac_synced !== undefined) {
+          if (response.rbac_synced) {
+            message += '\n\n✅ RBAC role and permissions automatically assigned.';
           } else {
-            message += '\n\n⚠️ Cashier account created but WhatsApp message failed to send.';
-            if (response.whatsapp_message) {
-              message += `\nError: ${response.whatsapp_message}`;
-            }
+            message += '\n\n⚠️ Cashier account created but RBAC sync failed.';
           }
         }
         
@@ -92,7 +89,7 @@ const CreateCashierLogin = () => {
             navigate('/admin/cashiers/info');
           },
           confirmText: 'OK',
-          type: response.whatsapp_sent ? 'success' : 'warning'
+          type: response.rbac_synced ? 'success' : 'warning'
         });
       } else {
         setAlertBox({
@@ -128,7 +125,7 @@ const CreateCashierLogin = () => {
       />
       <h2 className="text-2xl font-bold mb-6 text-center">Create Cashier Login</h2>
       <p className="text-gray-600 text-center mb-6">
-        Create a new cashier account. Credentials will be sent via WhatsApp to the provided phone number.
+        Create a new cashier account. The cashier role and permissions will be automatically assigned in the RBAC system.
       </p>
       <BasicForm
         initialValues={initialValues}

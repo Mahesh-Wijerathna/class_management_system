@@ -352,6 +352,46 @@ services:
       - class-network
       - student-network
 
+  # RBAC services
+  rbac-mysql:
+    image: mysql:8.0
+    container_name: rbac-mysql-server
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: rbac-db
+      MYSQL_USER: devuser
+      MYSQL_PASSWORD: devpass
+      TZ: Asia/Colombo
+    ports:
+      - "3308:3306"
+    volumes:
+      - rbac_mysql_data:/var/lib/mysql
+      - ./rbac/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - rbac-network
+
+  rbac-backend:
+    build:
+      context: ./rbac
+      dockerfile: Dockerfile
+    container_name: rbac-backend
+    ports:
+      - "8094:80"
+    volumes:
+      - ./rbac/src:/var/www/html
+      - /var/www/html/vendor
+    depends_on:
+      - rbac-mysql
+    environment:
+      - DB_HOST=rbac-mysql
+      - DB_NAME=rbac-db
+      - DB_USER=devuser
+      - DB_PASSWORD=devpass
+      - TZ=Asia/Colombo
+    networks:
+      - rbac-network
+      - auth-network  # Connect to auth network for user data access
+
 
 volumes:
   auth_mysql_data:
@@ -361,6 +401,7 @@ volumes:
   teacher_mysql_data:
   attendance-db-data:
   payment_mysql_data:
+  rbac_mysql_data:
 
 networks:
   auth-network:
@@ -376,4 +417,6 @@ networks:
   attendance-network:
     driver: bridge
   payment-network:
+    driver: bridge
+  rbac-network:
     driver: bridge
