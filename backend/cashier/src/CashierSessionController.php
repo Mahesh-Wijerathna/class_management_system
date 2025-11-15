@@ -144,19 +144,22 @@ class CashierSessionController {
                 $stmt->execute([$session['session_id']]);
                 $activities = $stmt->fetchAll();
                 
-                // Check if cash-out already recorded for this session
+                // Check if cash-out already recorded for this session and get the amount
                 $stmt = $db->prepare("
-                    SELECT COUNT(*) as cash_out_count FROM cash_drawer_transactions 
+                    SELECT COUNT(*) as cash_out_count, MAX(amount) as cash_out_amount 
+                    FROM cash_drawer_transactions 
                     WHERE session_id = ? AND transaction_type = 'cash_out'
                 ");
                 $stmt->execute([$session['session_id']]);
                 $cashOutResult = $stmt->fetch();
                 $isCashedOut = ($cashOutResult['cash_out_count'] > 0);
+                $cashOutAmount = $isCashedOut ? floatval($cashOutResult['cash_out_amount']) : null;
                 
                 sendSuccess([
                     'session' => $session,
                     'recent_activities' => $activities,
-                    'is_cashed_out' => $isCashedOut
+                    'is_cashed_out' => $isCashedOut,
+                    'cash_out_amount' => $cashOutAmount
                 ], 'Session retrieved successfully');
             } else {
                 sendSuccess([

@@ -1342,8 +1342,15 @@ const DayEndReportModal = ({
   transactions = [],
   perClass = [],
   cashDrawerSession = null,
+  isSessionReport = false,
+  isCashedOut = false,
 }) => {
   const [isGenerating, setIsGenerating] = React.useState(false);
+  
+  const reportTitle = isSessionReport ? "Session End Report" : "Day End Report";
+  const reportSubtitle = isSessionReport 
+    ? (mode === "summary" ? "Session Summary" : "Session Full Report")
+    : (mode === "summary" ? "Summary" : "Full Report");
 
   // Aggregate transactions by class for full report
 
@@ -1578,6 +1585,23 @@ const DayEndReportModal = ({
     hour12: true,
   });
 
+  // Session-specific timing for Session End reports
+  const sessionOpeningTime = isSessionReport && cashDrawerSession?.startTime
+    ? new Date(cashDrawerSession.startTime).toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+    : null;
+
+  const sessionClosingTime = isSessionReport && cashDrawerSession
+    ? (isCashedOut ? timeStr : "-") // Show time only if cashed out, otherwise "-"
+    : null;
+
+  const sessionStatus = isSessionReport
+    ? (isCashedOut ? "Session Completed" : "Ongoing Session")
+    : "Day End Completed";
+
   const handlePrint = () => {
     setIsGenerating(true);
 
@@ -1763,7 +1787,7 @@ const DayEndReportModal = ({
 
 
 
-            <h2 style="margin-top:20px;font-size:18px;color:#1e293b;border-bottom:2px solid #e2e8f0;padding-bottom:8px">Card Issuance Breakdown (Today)</h2>
+            <h2 style="margin-top:20px;font-size:18px;color:#1e293b;border-bottom:2px solid #e2e8f0;padding-bottom:8px">Card Issuance Breakdown</h2>
 
             <div class="card-breakdown">
 
@@ -1823,7 +1847,7 @@ const DayEndReportModal = ({
 
 
 
-            <h2 style="margin-top:30px;font-size:18px;color:#1e293b;border-bottom:2px solid #e2e8f0;padding-bottom:8px">Full Day - Collections by Class</h2>
+            <h2 style="margin-top:30px;font-size:18px;color:#1e293b;border-bottom:2px solid #e2e8f0;padding-bottom:8px">Collections by Class</h2>
 
             <table>
 
@@ -1994,7 +2018,7 @@ const DayEndReportModal = ({
             <div>
               <h2 className="text-2xl font-bold flex items-center gap-3">
                 <FaFileInvoice className="text-3xl" />
-                Day End Report
+                {reportTitle}
               </h2>
 
               <div className="text-sm opacity-90 mt-1">
@@ -2299,7 +2323,7 @@ const DayEndReportModal = ({
                   <h1>TCMS</h1>
                 </div>
 
-                <div className="subtitle">Day End Report</div>
+                <div className="subtitle">{reportTitle}</div>
               </div>
 
               {/* Meta Information */}
@@ -2319,7 +2343,7 @@ const DayEndReportModal = ({
 
                 <div className="meta-item">
                   <strong>Report Type:</strong>{" "}
-                  {mode === "full" ? "Daily Full Report" : "Daily Summary"}
+                  {reportSubtitle}
                 </div>
               </div>
 
@@ -2380,6 +2404,20 @@ const DayEndReportModal = ({
                         </div>
                       </div>
 
+                      {isSessionReport && cashDrawerSession && (
+                        <div className="summary-card">
+                          <div className="label">Cash Out Balance</div>
+
+                          <div className="value" style={{ color: '#10b981' }}>
+                            LKR {Number(cashDrawerSession.cash_out_amount || 0).toLocaleString()}
+                          </div>
+
+                          <div className="text-xs text-slate-500 mt-1">
+                            Physical cash counted
+                          </div>
+                        </div>
+                      )}
+
                       <div className="summary-card">
                         <div className="label">Receipts Issued</div>
 
@@ -2394,7 +2432,7 @@ const DayEndReportModal = ({
 
                   <div className="section">
                     <div className="section-title">
-                      Card Issuance Breakdown (Today)
+                      Card Issuance Breakdown
                     </div>
 
                     <div className="summary-grid">
@@ -2472,7 +2510,7 @@ const DayEndReportModal = ({
 
                   <div className="section">
                     <div className="section-title">
-                      Full Day - Collections by Class
+                      Collections by Class
                     </div>
 
                     <div className="overflow-x-auto">
@@ -2620,6 +2658,23 @@ const DayEndReportModal = ({
                       </div>
                     </div>
 
+                    {isSessionReport && cashDrawerSession && (
+                      <div className="summary-card">
+                        <div className="label">Cash Out Balance</div>
+
+                        <div className="value" style={{ color: '#10b981' }}>
+                          LKR{" "}
+                          {Number(
+                            cashDrawerSession.cash_out_amount || 0
+                          ).toLocaleString()}
+                        </div>
+
+                        <div className="text-xs text-slate-500 mt-1">
+                          Physical cash counted
+                        </div>
+                      </div>
+                    )}
+
                     <div className="summary-card">
                       <div className="label">Receipts Issued</div>
 
@@ -2627,15 +2682,13 @@ const DayEndReportModal = ({
                         {kpis.total_receipts || kpis.receipts || 0}
                       </div>
                     </div>
-
-                    {/* Pending Payments removed from summary view */}
                   </div>
 
                   {/* Full/Half/Free breakdown */}
 
                   <div style={{ marginTop: 16 }}>
                     <div className="section-title">
-                      Card Issuance Breakdown (Today)
+                      Card Issuance Breakdown
                     </div>
 
                     <div className="summary-grid">
@@ -2715,7 +2768,7 @@ const DayEndReportModal = ({
                         <strong>Opening Time:</strong>
                       </td>
 
-                      <td>{openingTime || "-"}</td>
+                      <td>{isSessionReport ? (sessionOpeningTime || "-") : (openingTime || "-")}</td>
                     </tr>
 
                     <tr>
@@ -2723,7 +2776,7 @@ const DayEndReportModal = ({
                         <strong>Closing Time:</strong>
                       </td>
 
-                      <td>{timeStr}</td>
+                      <td>{isSessionReport ? (sessionClosingTime || "-") : timeStr}</td>
                     </tr>
 
                     <tr>
@@ -2752,8 +2805,11 @@ const DayEndReportModal = ({
                         <strong>Status:</strong>
                       </td>
 
-                      <td style={{ color: "#059669", fontWeight: "bold" }}>
-                        Day End Completed
+                      <td style={{ 
+                        color: isSessionReport && !isCashedOut ? "#f59e0b" : "#059669", 
+                        fontWeight: "bold" 
+                      }}>
+                        {sessionStatus}
                       </td>
                     </tr>
                   </tbody>
@@ -7651,6 +7707,18 @@ export default function CashierDashboard() {
 
   const [monthEndPerClass, setMonthEndPerClass] = useState([]);
 
+  // Session End Report modal state
+
+  const [showSessionEndReport, setShowSessionEndReport] = useState(false);
+
+  const [sessionEndMode, setSessionEndMode] = useState("summary"); // 'summary' | 'full'
+
+  const [sessionEndLoading, setSessionEndLoading] = useState(false);
+
+  const [sessionEndTransactions, setSessionEndTransactions] = useState([]);
+
+  const [sessionEndPerClass, setSessionEndPerClass] = useState([]);
+
   const [monthEndStats, setMonthEndStats] = useState({});
 
   // Quick payment modal state
@@ -8754,10 +8822,12 @@ export default function CashierDashboard() {
         freeCardsIssued: 0,
       });
 
-      showToast("Cash drawer session started successfully", "success");
+      showToast("Cash drawer session started successfully. Reloading...", "success");
       
-      // Also trigger async KPI load (will update with actual data from backend)
-      setTimeout(() => loadCashierKPIs(), 100);
+      // Reload page after brief delay to refresh all data
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
 
       return result;
     } catch (error) {
@@ -8970,33 +9040,19 @@ export default function CashierDashboard() {
         drawer: nextOpeningBalance, // Show remaining balance (shortage retained in drawer)
       }));
       
-      // CRITICAL: Wait for database to commit, then force reload KPIs to get updated cash_drawer_balance
-      console.log('⏳ Waiting for database update to commit...');
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Increased wait time
-      
-      // Force reload KPIs from backend to get the updated cash_drawer_balance
-      console.log('🔄 Forcing KPI reload to fetch updated cash_drawer_balance from database');
-      try {
-        await loadCashierKPIs();
-        console.log('✅ KPIs reloaded successfully after cash-out');
-      } catch (error) {
-        console.error('⚠️ Failed to reload KPIs after cash-out (non-critical):', error);
-        // Non-critical error - KPIs will refresh on next auto-refresh cycle
-      }
-
       // Close modals first
       setShowReconciliationModal(false);
       setReconciliationData(null);
       
-      // Show appropriate success message AFTER state updates
+      // Show success message
       if (remainingInDrawer > 0) {
         showToast(
-          `✅ Cash out recorded - LKR ${remainingInDrawer.toFixed(2)} remaining in drawer for next session (Deposited: LKR ${physicalCount.toFixed(2)}). You can now close the session.`,
+          `✅ Cash out recorded - LKR ${remainingInDrawer.toFixed(2)} remaining in drawer. Reloading...`,
           "success"
         );
       } else if (reconciliationData.variance.type === 'acceptable') {
         showToast(
-          `✅ Cash out recorded successfully - Balanced (All money deposited). You can now close the session.`,
+          `✅ Cash out recorded successfully - Balanced. Reloading...`,
           "success"
         );
       } else if (reconciliationData.variance.type === 'warning') {
@@ -9006,12 +9062,17 @@ export default function CashierDashboard() {
         );
       } else {
         showToast(
-          `⚠️ Cash out recorded with ${reconciliationData.variance.status.toLowerCase()}. You can now close the session.`,
+          `⚠️ Cash out recorded with ${reconciliationData.variance.status.toLowerCase()}. Reloading...`,
           "warning"
         );
       }
       
-      console.log('✅ Cash out complete - Session still active, Cash Out button disabled, Session Close enabled');
+      console.log('✅ Cash out complete - Reloading page to refresh data');
+      
+      // Reload page after brief delay to show toast message
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
 
       return result;
     } catch (error) {
@@ -9183,6 +9244,7 @@ export default function CashierDashboard() {
             cashierId: session.cashier_id,
             cashierName: session.cashier_name,
             sessionDate: session.session_date,
+            cash_out_amount: result.data.cash_out_amount, // Physical cash count from cash-out
           };
           
           console.log('✅ Session loaded successfully:', sessionData);
@@ -12097,6 +12159,100 @@ export default function CashierDashboard() {
                         </button>
                       </div>
 
+                      {/* Session End Reports - Single Row */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={async () => {
+                            try {
+                              setSessionEndMode("summary");
+                              setSessionEndLoading(true);
+                              const cashierId = user?.userid || "unknown";
+                              if (!cashDrawerSession) {
+                                alert('Please start a cash drawer session first to view session-end reports');
+                                return;
+                              }
+                              const res = await getCashierStats(
+                                cashierId,
+                                "session",
+                                cashDrawerSession.id
+                              );
+                              const transactions =
+                                res?.data?.transactions || [];
+                              const perClass = res?.data?.perClass || [];
+                              setSessionEndTransactions(transactions);
+                              setSessionEndPerClass(perClass);
+                              setShowSessionEndReport(true);
+                            } catch (e) {
+                              console.error(
+                                "Failed to load session-end transactions:",
+                                e
+                              );
+                              alert(
+                                "Failed to load summary session end report data"
+                              );
+                            } finally {
+                              setSessionEndLoading(false);
+                            }
+                          }}
+                          disabled={sessionEndLoading || !cashDrawerSession}
+                          className={`py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 ${
+                            sessionEndLoading || !cashDrawerSession
+                              ? "bg-slate-300/80 text-slate-600 cursor-not-allowed"
+                              : "bg-gradient-to-br from-emerald-500/90 to-emerald-600/90 backdrop-blur-sm text-white hover:from-emerald-600 hover:to-emerald-700"
+                          }`}
+                        >
+                          <FaFileInvoice className="text-lg" />
+                          {sessionEndLoading && sessionEndMode === "summary"
+                            ? "Loading..."
+                            : "Session End Summary"}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              setSessionEndMode("full");
+                              setSessionEndLoading(true);
+                              const cashierId = user?.userid || "unknown";
+                              if (!cashDrawerSession) {
+                                alert('Please start a cash drawer session first to view session-end reports');
+                                return;
+                              }
+                              const res = await getCashierStats(
+                                cashierId,
+                                "session",
+                                cashDrawerSession.id
+                              );
+                              const transactions =
+                                res?.data?.transactions || [];
+                              const perClass = res?.data?.perClass || [];
+                              setSessionEndTransactions(transactions);
+                              setSessionEndPerClass(perClass);
+                              setShowSessionEndReport(true);
+                            } catch (e) {
+                              console.error(
+                                "Failed to load session-end transactions:",
+                                e
+                              );
+                              alert(
+                                "Failed to load full session end report data"
+                              );
+                            } finally {
+                              setSessionEndLoading(false);
+                            }
+                          }}
+                          disabled={sessionEndLoading || !cashDrawerSession}
+                          className={`py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 ${
+                            sessionEndLoading || !cashDrawerSession
+                              ? "bg-slate-300/80 text-slate-600 cursor-not-allowed"
+                              : "bg-gradient-to-br from-teal-500/90 to-teal-600/90 backdrop-blur-sm text-white hover:from-teal-600 hover:to-teal-700"
+                          }`}
+                        >
+                          <FaFileInvoice className="text-lg" />
+                          {sessionEndLoading && sessionEndMode === "full"
+                            ? "Loading..."
+                            : "Session End Full"}
+                        </button>
+                      </div>
+
                       {/* Student Management */}
                       <div className="grid grid-cols-2 gap-3">
                         <button
@@ -12467,6 +12623,7 @@ export default function CashierDashboard() {
             transactions={dayEndTransactions}
             perClass={dayEndPerClass}
             cashDrawerSession={cashDrawerSession}
+            isCashedOut={isCashedOut}
             onClose={() => {
               setShowDayEndReport(false);
 
@@ -12486,8 +12643,30 @@ export default function CashierDashboard() {
             transactions={monthEndTransactions}
             perClass={monthEndPerClass}
             cashDrawerSession={cashDrawerSession}
+            isCashedOut={isCashedOut}
             onClose={() => {
               setShowMonthEndReport(false);
+
+              focusBackToScan();
+            }}
+          />
+        )}
+
+        {/* Session End Report Modal */}
+
+        {showSessionEndReport && (
+          <DayEndReportModal
+            kpis={kpis}
+            recentStudents={recentStudents}
+            openingTime={openingTime}
+            mode={sessionEndMode}
+            transactions={sessionEndTransactions}
+            perClass={sessionEndPerClass}
+            cashDrawerSession={cashDrawerSession}
+            isSessionReport={true}
+            isCashedOut={isCashedOut}
+            onClose={() => {
+              setShowSessionEndReport(false);
 
               focusBackToScan();
             }}
