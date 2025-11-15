@@ -230,6 +230,57 @@ export const changeTeacherPassword = async (teacherId, currentPassword, newPassw
   });
 };
 
+// Teacher staff endpoints (teacher backend)
+export const getStaffForTeacher = async (teacherId) => {
+  return await teacherApiGet(`/routes.php/teacher/${teacherId}/staff`);
+};
+
+export const createStaffForTeacher = async (teacherId, staffData) => {
+  return await teacherApiPost(`/routes.php/teacher/${teacherId}/staff`, staffData);
+};
+
+export const updateStaffForTeacher = async (staffId, staffData) => {
+  return await teacherApiPut(`/routes.php/teacher/staff/${staffId}`, staffData);
+};
+
+export const deleteStaffForTeacher = async (staffId) => {
+  return await teacherApiDelete(`/routes.php/teacher/staff/${staffId}`);
+};
+
+// Staff login via central auth
+export const staffLogin = async (staffId, password) => {
+  try {
+    const response = await authApi.post('/routes.php/login', { userid: staffId, password });
+    const data = response.data;
+
+    // If this is a teacher_staff user then fetch staff details (permissions) from teacher backend and merge
+    try {
+      if (data && data.success && data.user && data.user.role === 'teacher_staff') {
+        // call teacher backend to fetch staff by staffId using the helper that returns parsed response
+        const staffResp = await getStaffById(staffId);
+        if (staffResp && staffResp.success && staffResp.data) {
+          // merge permissions into auth user object (use nullish coalescing to allow empty objects)
+          data.user.permissions = staffResp.data.permissions ?? null;
+          // also include teacherId so frontend can reference
+          if (staffResp.data.teacherId) data.user.teacherId = staffResp.data.teacherId;
+        }
+      }
+    } catch (e) {
+      // Non-fatal: if teacher backend call fails, continue returning auth response
+      console.warn('Failed to fetch staff details to merge permissions:', e.message || e);
+    }
+
+    return data;
+  } catch (error) {
+    throw new Error(handleApiError(error, 'Staff login failed'));
+  }
+};
+
+// Fetch single staff by staffId (teacher backend)
+export const getStaffById = async (staffId) => {
+  return await teacherApiGet(`/routes.php/staff/${staffId}`);
+};
+
 // New centralized auth functions
 export const getAllTeachersFromAuth = async () => {
   return await authApiGet('/routes.php/teachers');

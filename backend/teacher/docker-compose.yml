@@ -37,6 +37,8 @@ services:
       - "8088:80"
     volumes:
       - ./src:/var/www/html
+    environment:
+      AUTH_SERVICE_URL: "http://auth-backend/routes.php/create_user"
     depends_on:
       - teacher-mysql
     networks:

@@ -21,6 +21,7 @@ const roleTypes = [
   { value: 'teacher', label: 'Teacher' },
   { value: 'student', label: 'Student' },
   { value: 'cashier', label: 'Cashier' },
+  { value: 'teacher_staff', label: 'Teacher Staff' },
 ];
 
 const LOCAL_STORAGE_KEY = 'all_roles_data';

@@ -32,6 +32,28 @@ class RateLimiter {
         
         $attemptType = $success ? 'SUCCESS' : 'FAILED_PASSWORD';
         
+        // Avoid inserting attempts for unknown users because login_attempts
+        // has a foreign key to users(userid) which will cause a fatal error
+        // if the userid does not exist. Check existence first and skip
+        // recording for unknown users.
+        $check = $this->db->prepare("SELECT 1 FROM users WHERE userid = ? LIMIT 1");
+        if ($check) {
+            $check->bind_param("s", $userid);
+            $check->execute();
+            $res = $check->get_result();
+            $exists = ($res && $res->num_rows > 0);
+            $check->close();
+        } else {
+            // If the check couldn't be prepared for some reason, fall back
+            // to skipping the insert to avoid crashing the whole request.
+            $exists = false;
+        }
+
+        if (!$exists) {
+            // Unknown user: do not record attempt to avoid FK constraint errors.
+            return;
+        }
+
         $stmt = $this->db->prepare("
             INSERT INTO login_attempts (userid, attempt_type, ip_address, attempt_time) 
             VALUES (?, ?, ?, NOW())
