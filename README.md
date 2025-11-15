@@ -23,15 +23,14 @@ cd backend/auth
 docker compose up -d
 ```
 
-3. **Configure environment variables**
-Create a `.env` file in the `backend/` directory:
-```env
-# Twilio Configuration
-# Get these from: https://console.twilio.com/
-TWILIO_ACCOUNT_SID=your_twilio_account_sid_here
-TWILIO_AUTH_TOKEN=your_twilio_auth_token_here
-TWILIO_WHATSAPP_FROM=whatsapp:+your_twilio_whatsapp_number_here
-```
+3. **WhatsApp Notifications**
+The system uses a custom WhatsApp API service for automated notifications:
+- Payment confirmations
+- Welcome messages after registration
+- OTP for password reset
+- Enrollment confirmations
+
+API Endpoint: `https://down-south-front-end.onrender.com/send_otp`
 
 ### Frontend Setup
 
@@ -67,12 +66,18 @@ npm start
 
 ## 🔧 Environment Variables
 
-### Backend (.env)
+### Backend
+
+**WhatsApp Notifications:**
+The system integrates with a custom WhatsApp API service. No additional configuration required - the API endpoint is hardcoded in the `WhatsAppNotificationHelper.php` class.
+
+**Other Configuration:**
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `TWILIO_ACCOUNT_SID` | Twilio Account SID | `your_twilio_account_sid_here` |
-| `TWILIO_AUTH_TOKEN` | Twilio Auth Token | `your_twilio_auth_token_here` |
-| `TWILIO_WHATSAPP_FROM` | Twilio WhatsApp number | `whatsapp:+your_twilio_whatsapp_number_here` |
+| `DB_HOST` | Database host | `localhost` or service name |
+| `DB_NAME` | Database name | Varies per microservice |
+| `DB_USER` | Database user | Configured in docker-compose |
+| `DB_PASS` | Database password | Configured in docker-compose |
 
 ### Frontend (.env)
 | Variable | Description | Example |
@@ -166,10 +171,9 @@ DB_PASS=your_production_db_password
 JWT_SECRET=your_production_jwt_secret
 JWT_EXPIRY=3600
 
-# Twilio (Production)
-TWILIO_ACCOUNT_SID=your_production_twilio_sid
-TWILIO_AUTH_TOKEN=your_production_twilio_token
-TWILIO_WHATSAPP_FROM=whatsapp:+your_production_whatsapp_number
+# WhatsApp API (Custom Service)
+# Endpoint configured in WhatsAppNotificationHelper.php
+# No additional environment variables required
 ```
 
 ## 🤝 Contributing
