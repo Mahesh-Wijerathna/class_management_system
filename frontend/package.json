@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@ericblade/quagga2": "^1.8.4",
     "@fingerprintjs/fingerprintjs": "^4.6.2",
     "@heroicons/react": "^2.2.0",
     "@testing-library/dom": "^10.4.0",
