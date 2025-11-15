@@ -83,6 +83,44 @@ class RoleModel {
         return $role;
     }
 
+    public function getRoleByName($name) {
+        $stmt = $this->conn->prepare("
+            SELECT r.id, r.name, r.description, r.created_at,
+                   GROUP_CONCAT(p.id) as permission_ids,
+                   GROUP_CONCAT(p.name) as permission_names
+            FROM roles r
+            LEFT JOIN role_permissions rp ON r.id = rp.role_id
+            LEFT JOIN permissions p ON rp.permission_id = p.id
+            WHERE r.name = ?
+            GROUP BY r.id
+        ");
+        $stmt->bind_param("s", $name);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $role = $result->fetch_assoc();
+
+        if ($role) {
+            // Format permissions array
+            $role['permissions'] = [];
+            if ($role['permission_ids']) {
+                $permissionIds = explode(',', $role['permission_ids']);
+                $permissionNames = explode(',', $role['permission_names']);
+
+                for ($i = 0; $i < count($permissionIds); $i++) {
+                    $role['permissions'][] = [
+                        'id' => (int)$permissionIds[$i],
+                        'name' => $permissionNames[$i]
+                    ];
+                }
+            }
+
+            // Remove temporary fields
+            unset($role['permission_ids'], $role['permission_names']);
+        }
+
+        return $role;
+    }
+
     public function getAllRoles() {
         $result = $this->conn->query("
             SELECT r.id, r.name, r.description, r.created_at,

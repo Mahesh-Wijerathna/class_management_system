@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import adminSidebarSections from '././AdminDashboardSidebar';
+import AdminDashboardSidebar from '././AdminDashboardSidebar';
 import { getCurrentUserPermissions, filterSidebarByPermissions, clearPermissionsCache } from '../../../utils/permissionChecker';
 import MetricCard from '../../../components/dashboard/MetricCard';
 import RevenueChart from '../../../components/dashboard/RevenueChart';
@@ -130,7 +130,7 @@ const AdminDashboard = () => {
         console.log('User permissions:', userPermissions);
 
         // Filter sidebar sections based on permissions
-        const filteredSections = filterSidebarByPermissions(adminSidebarSections, userPermissions);
+        const filteredSections = AdminDashboardSidebar(userPermissions);
 
         console.log('Filtered sidebar sections:', filteredSections);
 
@@ -141,7 +141,7 @@ const AdminDashboard = () => {
 
         // Fallback: show all sections if permission loading fails
         console.log('Using fallback: showing all sidebar sections');
-        setFilteredSidebarSections(adminSidebarSections);
+        setFilteredSidebarSections(AdminDashboardSidebar([]));
       }
     };
 

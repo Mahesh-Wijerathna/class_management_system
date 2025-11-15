@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import adminSidebarSections from './AdminDashboardSidebar';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
 import { FaPlus, FaEye, FaEdit, FaTrash } from 'react-icons/fa';
 import CustomButton from '../../../components/CustomButton';
@@ -12,6 +12,8 @@ import BasicButton from '../../../components/CustomButton';
 import BasicCheckbox from '../../../components/BasicCheckbox';
 import { roleApi } from '../../../utils/roles';
 import { permissionApi } from '../../../utils/permissions';
+import { getCurrentUserPermissions } from '../../../utils/permissionChecker';
+import { getUserData } from '../../../api/apiUtils';
 
 const columns = [
   { key: 'id', label: 'ID' },
@@ -35,12 +37,30 @@ const RoleManagement = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState(null);
   const [selectedPermissions, setSelectedPermissions] = useState([]);
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
 
-  // Fetch roles and permissions on component mount
+  // Fetch roles, permissions, and user permissions on component mount
   useEffect(() => {
     fetchRoles();
     fetchPermissions();
+    fetchUserPermissions();
   }, []);
+
+  const fetchUserPermissions = async () => {
+    try {
+      setPermissionsLoading(true);
+      const user = getUserData();
+      if (user?.userid) {
+        const perms = await getCurrentUserPermissions(user.userid);
+        setUserPermissions(perms);
+      }
+    } catch (error) {
+      console.error('Failed to fetch user permissions:', error);
+    } finally {
+      setPermissionsLoading(false);
+    }
+  };
 
   const fetchRoles = async () => {
     try {
@@ -202,7 +222,7 @@ const RoleManagement = () => {
   };
 
   return (
-    <DashboardLayout sidebarItems={adminSidebarSections}>
+    <DashboardLayout sidebarItems={AdminDashboardSidebar(userPermissions)}>
       <div className="w-full max-w-25xl bg-white rounded-lg shadow p-4 mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -330,7 +350,21 @@ const RoleManagement = () => {
                     <div className="border-t pt-4">
                       <h3 className="text-lg font-semibold mb-3 text-gray-800">Assign Permissions</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-                        {permissions.map(permission => (
+                        {permissions
+                          .filter(permission => {
+                            // Filter permissions based on target user role
+                            if (!isEditMode || !selectedRole) return true; // Show all for new roles
+                            
+                            const roleName = selectedRole.name.toLowerCase();
+                            const targetRole = permission.target_userrole || permission.target_user_role;
+                            
+                            // Admin can see all permissions
+                            if (roleName === 'admin') return true;
+                            
+                            // Otherwise, show only permissions for the matching target user role
+                            return targetRole && targetRole.toLowerCase() === roleName;
+                          })
+                          .map(permission => (
                           <div key={permission.id} className="flex items-start space-x-2">
                             <BasicCheckbox
                               id={`permission-${permission.id}`}
@@ -346,12 +380,19 @@ const RoleManagement = () => {
                                 {permission.name}
                               </label>
                               <p className="text-xs text-gray-500">{permission.description}</p>
+                              <p className="text-xs text-gray-400">Target: {permission.target_userrole || permission.target_user_role}</p>
                             </div>
                           </div>
                         ))}
                       </div>
-                      {permissions.length === 0 && (
-                        <p className="text-gray-500 text-sm">No permissions available. Create permissions first.</p>
+                      {permissions.filter(permission => {
+                        if (!isEditMode || !selectedRole) return true;
+                        const roleName = selectedRole.name.toLowerCase();
+                        const targetRole = permission.target_userrole || permission.target_user_role;
+                        if (roleName === 'admin') return true;
+                        return targetRole && targetRole.toLowerCase() === roleName;
+                      }).length === 0 && (
+                        <p className="text-gray-500 text-sm">No permissions available for this role type. Create permissions first.</p>
                       )}
                     </div>
 

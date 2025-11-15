@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import adminSidebarSections from './AdminDashboardSidebar';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
 import { FaPlus, FaEye, FaEdit, FaTrash } from 'react-icons/fa';
 import CustomButton from '../../../components/CustomButton';
@@ -10,6 +10,8 @@ import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import BasicButton from '../../../components/CustomButton';
 import { permissionApi } from '../../../utils/permissions';
+import { getCurrentUserPermissions } from '../../../utils/permissionChecker';
+import { getUserData } from '../../../api/apiUtils';
 
 const columns = [
   { key: 'id', label: 'ID' },
@@ -38,11 +40,29 @@ const PermissionManagement = () => {
   const [selectedPermission, setSelectedPermission] = useState(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [permissionToDelete, setPermissionToDelete] = useState(null);
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
 
   // Fetch permissions on component mount
   useEffect(() => {
     fetchPermissions();
+    fetchUserPermissions();
   }, []);
+
+  const fetchUserPermissions = async () => {
+    try {
+      setPermissionsLoading(true);
+      const user = getUserData();
+      if (user?.userid) {
+        const perms = await getCurrentUserPermissions(user.userid);
+        setUserPermissions(perms);
+      }
+    } catch (error) {
+      console.error('Failed to fetch user permissions:', error);
+    } finally {
+      setPermissionsLoading(false);
+    }
+  };
 
   const fetchPermissions = async () => {
     try {
@@ -153,7 +173,7 @@ const PermissionManagement = () => {
   };
 
   return (
-    <DashboardLayout sidebarItems={adminSidebarSections}>
+    <DashboardLayout sidebarItems={AdminDashboardSidebar(userPermissions)}>
       <div className="w-full max-w-25xl bg-white rounded-lg shadow p-4 mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div>

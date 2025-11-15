@@ -1,5 +1,6 @@
 import React from 'react';
-import { FaUsers, FaUserSlash, FaGraduationCap, FaBook, FaChartBar, FaCog, FaCalendar, FaUserPlus, FaFileAlt, FaUsersCog, FaUserShield, FaDatabase, FaBell, FaSync, FaPlusSquare, FaClipboardList, FaTicketAlt, FaShieldAlt, FaMoneyBill, FaVideo, FaQrcode, FaTruck } from 'react-icons/fa';
+import { FaUsers, FaUserSlash, FaGraduationCap, FaBook, FaChartBar, FaCog, FaCalendar, FaUserPlus, FaFileAlt, FaUsersCog, FaUserShield, FaDatabase, FaBell, FaSync, FaPlusSquare, FaClipboardList, FaTicketAlt, FaShieldAlt, FaMoneyBill, FaVideo, FaQrcode, FaTruck, FaKey, FaUserCheck, FaEye, FaLock } from 'react-icons/fa';
+import { filterSidebarByPermissions } from '../../../utils/permissionChecker';
 
 // Sidebar sections for the admin dashboard
 const adminSidebarSections = [
@@ -20,9 +21,9 @@ const adminSidebarSections = [
   {
     section: 'Cashier Management',
     items: [
-      { name: 'Create Cashier', path: '/admin/cashiers/create', icon: <FaUserPlus className="h-5 w-5" /> },
-      { name: 'Cashier Info', path: '/admin/cashiers/info', icon: <FaUsers className="h-5 w-5" /> },
-      { name: 'Cashier Dashboard', path: '/admin/cashiers/cashierdashboard', icon: <FaUserSlash className="h-5 w-5" /> },
+      { name: 'Create Cashier', path: '/admin/cashiers/create', icon: <FaUserPlus className="h-5 w-5" />, requiredPermissions: ['cashier_management.create_cashier'] },
+      { name: 'Cashier Info', path: '/admin/cashiers/info', icon: <FaUsers className="h-5 w-5" />, requiredPermissions: ['cashier_management.cashier_info'] },
+      { name: 'Cashier Dashboard', path: '/admin/cashiers/cashierdashboard', icon: <FaUserSlash className="h-5 w-5" />, requiredPermissions: ['cashier_management.cashier_dashboard'] },
     ]
   },
   {
@@ -35,22 +36,22 @@ const adminSidebarSections = [
   {
     section: 'Student Management',
     items: [
-      { name: 'Student Enrollment', path: '/admin/students/enrollment', icon: <FaGraduationCap className="h-5 w-5" />, requiredPermissions: [ 'student_management.student_enrollment'] },
+      { name: 'Student Enrollment', path: '/admin/students/enrollment', icon: <FaGraduationCap className="h-5 w-5" />, requiredPermissions: ['student_management.student_enrollment'] },
       { name: 'Student Cards', path: '/admin/students/cards', icon: <FaTicketAlt className="h-5 w-5" />, requiredPermissions: ['student_management.student_cards'] },
       { name: 'Attendance Management', path: '/admin/attendance-management', icon: <FaClipboardList className="h-5 w-5" />, requiredPermissions: ['student_management.attendance_management'] },
       { name: 'Purchased Classes', path: '/admin/students/purchased-classes', icon: <FaBook className="h-5 w-5" />, requiredPermissions: ['student_management.purchased_classes'] }
     ]
   },
-          {
-          section: 'Class & Schedule',
-          items: [
-            { name: 'Create Class', path: '/admin/classes/create', icon: <FaPlusSquare className="h-5 w-5" /> },
-            { name: 'All Classes', path: '/admin/classes/all', icon: <FaClipboardList className="h-5 w-5" /> },
-            { name: 'Class Payments', path: '/admin/classes/payments', icon: <FaMoneyBill className="h-5 w-5" /> },
-            { name: 'Class Enrollments', path: '/admin/classes/enrollments', icon: <FaUsers className="h-5 w-5" /> },
-            { name: 'Class Halls', path: '/admin/class-halls', icon: <FaBook className="h-5 w-5" /> },
-          ]
-        },
+  {
+    section: 'Class & Schedule',
+    items: [
+      { name: 'Create Class', path: '/admin/classes/create', icon: <FaPlusSquare className="h-5 w-5" />, requiredPermissions: ['class_and_schedule.create_class'] },
+      { name: 'All Classes', path: '/admin/classes/all', icon: <FaClipboardList className="h-5 w-5" />, requiredPermissions: ['class_and_schedule.all_classes'] },
+      { name: 'Class Payments', path: '/admin/classes/payments', icon: <FaMoneyBill className="h-5 w-5" />, requiredPermissions: ['class_and_schedule.class_payments'] },
+      { name: 'Class Enrollments', path: '/admin/classes/enrollments', icon: <FaUsers className="h-5 w-5" />, requiredPermissions: ['class_and_schedule.class_enrollments'] },
+      { name: 'Class Halls', path: '/admin/class-halls', icon: <FaBook className="h-5 w-5" />, requiredPermissions: ['class_and_schedule.class_halls'] },
+    ]
+  },
   {
     section: 'Finance & Reports',
     items: [
@@ -60,12 +61,12 @@ const adminSidebarSections = [
     ]
   },
   {
-    section: 'User Roles',
+    section: 'User Roles & Permissions',
     items: [
-      { name: 'All Roles', path: '/admin/roles', icon: <FaUsersCog className="h-5 w-5" />, requiredPermissions: ['user_roles.all_roles'] },
-      { name: 'Permission Management', path: '/admin/permissions', icon: <FaShieldAlt className="h-5 w-5" />, requiredPermissions: ['user_roles.permission_management'] },
-      { name: 'Manage Roles', path: '/admin/roles/manage', icon: <FaUserShield className="h-5 w-5" />, requiredPermissions: ['user_roles.manage_roles'] },
-      { name: 'Assign Roles', path: '/admin/roles/assign', icon: <FaUserPlus className="h-5 w-5" />, requiredPermissions: ['user_roles.assign_roles'] }
+      { name: 'All Roles', path: '/admin/roles', icon: <FaShieldAlt className="h-5 w-5" />, requiredPermissions: ['user_roles.all_roles'] },
+      { name: 'Permission Management', path: '/admin/permissions', icon: <FaKey className="h-5 w-5" />, requiredPermissions: ['user_roles.permission_management'] },
+      { name: 'Role Management', path: '/admin/roles/manage', icon: <FaUserShield className="h-5 w-5" />, requiredPermissions: ['user_roles.manage_roles'] },
+      { name: 'Assign Roles to Users', path: '/admin/roles/assign', icon: <FaUserCheck className="h-5 w-5" />, requiredPermissions: ['user_roles.assign_roles'] },
     ]
   },
   {
@@ -92,4 +93,10 @@ const adminSidebarSections = [
   }
 ];
 
-export default adminSidebarSections; 
+const AdminDashboardSidebar = (permissions = []) => {
+  // Filter sidebar sections based on user permissions
+  const filteredSections = filterSidebarByPermissions(adminSidebarSections, permissions);
+  return filteredSections;
+};
+
+export default AdminDashboardSidebar; 

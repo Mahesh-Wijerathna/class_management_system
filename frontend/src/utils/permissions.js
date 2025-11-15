@@ -18,6 +18,7 @@ export const permissionApi = {
     }
 
     const data = await response.json();
+    console.log('Fetched permissions:', data);
     return data.permissions || [];
   },
 

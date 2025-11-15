@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import adminSidebarSections from './AdminDashboardSidebar';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 import BasicButton from '../../../components/CustomButton';
 import BasicCheckbox from '../../../components/BasicCheckbox';
 import { userApi } from '../../../utils/users';
 import { roleApi } from '../../../utils/roles';
+import { getCurrentUserPermissions } from '../../../utils/permissionChecker';
+import { getUserData } from '../../../api/apiUtils';
 import { FaUserMinus } from 'react-icons/fa';
 
 const UserRoleAssignment = () => {
@@ -21,11 +23,29 @@ const UserRoleAssignment = () => {
   const [selectedRolesToAssign, setSelectedRolesToAssign] = useState([]);
   const [searchUserId, setSearchUserId] = useState('');
   const [searchingUser, setSearchingUser] = useState(false);
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
 
   // Fetch roles on component mount
   useEffect(() => {
     fetchRoles();
+    fetchUserPermissions();
   }, []);
+
+  const fetchUserPermissions = async () => {
+    try {
+      setPermissionsLoading(true);
+      const user = getUserData();
+      if (user?.userid) {
+        const perms = await getCurrentUserPermissions(user.userid);
+        setUserPermissions(perms);
+      }
+    } catch (error) {
+      console.error('Failed to fetch user permissions:', error);
+    } finally {
+      setPermissionsLoading(false);
+    }
+  };
 
   const fetchRoles = async () => {
     try {
@@ -160,7 +180,7 @@ const UserRoleAssignment = () => {
   };
 
   return (
-    <DashboardLayout sidebarItems={adminSidebarSections}>
+    <DashboardLayout sidebarItems={AdminDashboardSidebar(userPermissions)}>
       <div className="w-full max-w-4xl bg-white rounded-lg shadow p-6 mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-800">User Role Assignment</h1>

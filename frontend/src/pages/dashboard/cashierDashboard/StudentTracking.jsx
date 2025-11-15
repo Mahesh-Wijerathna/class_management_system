@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { FaExclamationTriangle, FaIdCard, FaUser, FaBook, FaCalendar, FaPhone, FaClock, FaSearch } from 'react-icons/fa';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import cashierSidebarSections from './CashierDashboardSidebar';
+import CashierDashboardSidebar from './CashierDashboardSidebar';
 import { getUserData } from '../../../api/apiUtils';
 import { getStudentById } from '../../../api/students';
+import { getCurrentUserPermissions } from '../../../utils/permissionChecker';
 
 const StudentTracking = () => {
   const location = useLocation();
@@ -23,9 +24,40 @@ const StudentTracking = () => {
   const [forgetIdCards, setForgetIdCards] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [permissions, setPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
 
   // Get user data from localStorage
   const user = useMemo(() => getUserData(), []);
+
+  // Permission checking functions
+  const hasPermission = (permissionName) => {
+    return permissions.some(permission => permission.name === permissionName);
+  };
+
+  const canViewLatePayments = hasPermission('cashier_dashboard.late_payment_tracking');
+  const canViewEntryPermits = hasPermission('cashier_dashboard.entry_permit_tracking');
+
+  // Fetch permissions on component mount
+  useEffect(() => {
+    const fetchPermissions = async () => {
+      try {
+        const perms = await getCurrentUserPermissions(user?.userid);
+        setPermissions(perms);
+      } catch (error) {
+        console.error('Failed to fetch permissions:', error);
+        setPermissions([]);
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    if (user?.userid) {
+      fetchPermissions();
+    } else {
+      setPermissionsLoading(false);
+    }
+  }, [user?.userid]);
 
   // Cache for cashier data to avoid repeated API calls
   const cashierCache = React.useRef({});
@@ -71,14 +103,16 @@ const StudentTracking = () => {
 
   // Load data based on active tab
   useEffect(() => {
-    if (activeTab === 'late-payments') {
+    if (activeTab === 'late-payments' && canViewLatePayments) {
       loadLatePayments();
-    } else {
+    } else if (activeTab === 'forget-id-card' && canViewEntryPermits) {
       loadForgetIdCards();
     }
-  }, [activeTab]);
+  }, [activeTab, canViewLatePayments, canViewEntryPermits]);
 
-  const loadLatePayments = async () => {
+  const loadLatePayments = useCallback(async () => {
+    if (!canViewLatePayments) return;
+    
     setLoading(true);
     try {
       // Fetch ALL late pay permissions (not just today)
@@ -135,9 +169,11 @@ const StudentTracking = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [canViewLatePayments]);
 
-  const loadForgetIdCards = async () => {
+  const loadForgetIdCards = useCallback(async () => {
+    if (!canViewEntryPermits) return;
+    
     setLoading(true);
     try {
       // Fetch ALL entry permit history (not just today)
@@ -195,7 +231,7 @@ const StudentTracking = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [canViewEntryPermits]);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -220,7 +256,7 @@ const StudentTracking = () => {
   return (
     <DashboardLayout 
       userRole="Cashier" 
-      sidebarItems={cashierSidebarSections}
+      sidebarItems={CashierDashboardSidebar(permissions)}
       onLogout={handleLogout}
       customTitle="TCMS"
       customSubtitle={`Cashier Dashboard - ${user?.name || 'Cashier'}`}
@@ -234,51 +270,55 @@ const StudentTracking = () => {
 
         {/* Summary Cards at Top */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-          <div className="relative overflow-hidden bg-gradient-to-br from-amber-500/90 via-orange-500/90 to-red-500/90 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4 text-white hover:shadow-2xl transition-all duration-300">
-            <div className="absolute inset-0 bg-white/5"></div>
-            <div className="relative flex items-center justify-between">
-              <div>
-                <p className="text-white/90 text-[10px] font-semibold uppercase tracking-wider mb-1">Late Payment Permissions</p>
-                <p className="text-3xl font-bold mt-0.5 drop-shadow-lg">
-                  {latePayments.filter(item => {
-                    const permissionDate = new Date(item.permission_date);
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    permissionDate.setHours(0, 0, 0, 0);
-                    return permissionDate.getTime() === today.getTime();
-                  }).length}
-                </p>
-                <p className="text-white/80 text-[10px] mt-0.5 font-medium">Active today</p>
-                <p className="text-white/70 text-[9px] mt-1">
-                  {latePayments.length} total in history
-                </p>
+          {canViewLatePayments && (
+            <div className="relative overflow-hidden bg-gradient-to-br from-amber-500/90 via-orange-500/90 to-red-500/90 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4 text-white hover:shadow-2xl transition-all duration-300">
+              <div className="absolute inset-0 bg-white/5"></div>
+              <div className="relative flex items-center justify-between">
+                <div>
+                  <p className="text-white/90 text-[10px] font-semibold uppercase tracking-wider mb-1">Late Payment Permissions</p>
+                  <p className="text-3xl font-bold mt-0.5 drop-shadow-lg">
+                    {latePayments.filter(item => {
+                      const permissionDate = new Date(item.permission_date);
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      permissionDate.setHours(0, 0, 0, 0);
+                      return permissionDate.getTime() === today.getTime();
+                    }).length}
+                  </p>
+                  <p className="text-white/80 text-[10px] mt-0.5 font-medium">Active today</p>
+                  <p className="text-white/70 text-[9px] mt-1">
+                    {latePayments.length} total in history
+                  </p>
+                </div>
+                <FaExclamationTriangle className="h-12 w-12 text-white/30 drop-shadow-2xl" />
               </div>
-              <FaExclamationTriangle className="h-12 w-12 text-white/30 drop-shadow-2xl" />
             </div>
-          </div>
+          )}
 
-          <div className="relative overflow-hidden bg-gradient-to-br from-blue-500/90 via-indigo-500/90 to-purple-600/90 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4 text-white hover:shadow-2xl transition-all duration-300">
-            <div className="absolute inset-0 bg-white/5"></div>
-            <div className="relative flex items-center justify-between">
-              <div>
-                <p className="text-white/90 text-[10px] font-semibold uppercase tracking-wider mb-1">Entry Permits (Forget ID Card)</p>
-                <p className="text-3xl font-bold mt-0.5 drop-shadow-lg">
-                  {forgetIdCards.filter(item => {
-                    const permitDate = new Date(item.request_date);
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    permitDate.setHours(0, 0, 0, 0);
-                    return permitDate.getTime() === today.getTime();
-                  }).length}
-                </p>
-                <p className="text-white/80 text-[10px] mt-0.5 font-medium">Active today</p>
-                <p className="text-white/70 text-[9px] mt-1">
-                  {forgetIdCards.length} total in history
-                </p>
+          {canViewEntryPermits && (
+            <div className="relative overflow-hidden bg-gradient-to-br from-blue-500/90 via-indigo-500/90 to-purple-600/90 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4 text-white hover:shadow-2xl transition-all duration-300">
+              <div className="absolute inset-0 bg-white/5"></div>
+              <div className="relative flex items-center justify-between">
+                <div>
+                  <p className="text-white/90 text-[10px] font-semibold uppercase tracking-wider mb-1">Entry Permits (Forget ID Card)</p>
+                  <p className="text-3xl font-bold mt-0.5 drop-shadow-lg">
+                    {forgetIdCards.filter(item => {
+                      const permitDate = new Date(item.request_date);
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      permitDate.setHours(0, 0, 0, 0);
+                      return permitDate.getTime() === today.getTime();
+                    }).length}
+                  </p>
+                  <p className="text-white/80 text-[10px] mt-0.5 font-medium">Active today</p>
+                  <p className="text-white/70 text-[9px] mt-1">
+                    {forgetIdCards.length} total in history
+                  </p>
+                </div>
+                <FaIdCard className="h-12 w-12 text-white/30 drop-shadow-2xl" />
               </div>
-              <FaIdCard className="h-12 w-12 text-white/30 drop-shadow-2xl" />
             </div>
-          </div>
+          )}
         </div>
 
         {/* Search Bar */}
@@ -306,43 +346,47 @@ const StudentTracking = () => {
       {/* Tabs */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="flex border-b border-gray-200">
-          <button
-            onClick={() => navigate('/cashier/late-payments')}
-            className={`flex-1 px-6 py-4 font-semibold text-sm transition-colors ${
-              activeTab === 'late-payments'
-                ? 'bg-orange-500 text-white border-b-2 border-orange-600'
-                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <div className="flex items-center justify-center gap-2">
-              <FaExclamationTriangle className="h-5 w-5" />
-              <span>Late Payments</span>
-              {latePayments.length > 0 && (
-                <span className="ml-2 px-2 py-1 bg-red-500 text-white text-xs rounded-full">
-                  {latePayments.length}
-                </span>
-              )}
-            </div>
-          </button>
+          {canViewLatePayments && (
+            <button
+              onClick={() => navigate('/cashier/late-payments')}
+              className={`flex-1 px-6 py-4 font-semibold text-sm transition-colors ${
+                activeTab === 'late-payments'
+                  ? 'bg-orange-500 text-white border-b-2 border-orange-600'
+                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <FaExclamationTriangle className="h-5 w-5" />
+                <span>Late Payments</span>
+                {latePayments.length > 0 && (
+                  <span className="ml-2 px-2 py-1 bg-red-500 text-white text-xs rounded-full">
+                    {latePayments.length}
+                  </span>
+                )}
+              </div>
+            </button>
+          )}
 
-          <button
-            onClick={() => navigate('/cashier/forget-id-card')}
-            className={`flex-1 px-6 py-4 font-semibold text-sm transition-colors ${
-              activeTab === 'forget-id-card'
-                ? 'bg-blue-500 text-white border-b-2 border-blue-600'
-                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <div className="flex items-center justify-center gap-2">
-              <FaIdCard className="h-5 w-5" />
-              <span>Forget ID Card Students</span>
-              {forgetIdCards.length > 0 && (
-                <span className="ml-2 px-2 py-1 bg-blue-600 text-white text-xs rounded-full">
-                  {forgetIdCards.length}
-                </span>
-              )}
-            </div>
-          </button>
+          {canViewEntryPermits && (
+            <button
+              onClick={() => navigate('/cashier/forget-id-card')}
+              className={`flex-1 px-6 py-4 font-semibold text-sm transition-colors ${
+                activeTab === 'forget-id-card'
+                  ? 'bg-blue-500 text-white border-b-2 border-blue-600'
+                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <FaIdCard className="h-5 w-5" />
+                <span>Forget ID Card Students</span>
+                {forgetIdCards.length > 0 && (
+                  <span className="ml-2 px-2 py-1 bg-blue-600 text-white text-xs rounded-full">
+                    {forgetIdCards.length}
+                  </span>
+                )}
+              </div>
+            </button>
+          )}
         </div>
 
         {/* Tab Content */}
@@ -355,7 +399,7 @@ const StudentTracking = () => {
           ) : (
             <>
               {/* Late Payments Tab */}
-              {activeTab === 'late-payments' && (
+              {activeTab === 'late-payments' && canViewLatePayments && (
                 <div>
                   <div className="mb-4 flex items-center justify-between">
                     <h2 className="text-xl font-semibold text-gray-800">
@@ -537,7 +581,7 @@ const StudentTracking = () => {
               )}
 
               {/* Forget ID Card Tab */}
-              {activeTab === 'forget-id-card' && (
+              {activeTab === 'forget-id-card' && canViewEntryPermits && (
                 <div>
                   <div className="mb-4 flex items-center justify-between">
                     <h2 className="text-xl font-semibold text-gray-800">

@@ -369,4 +369,27 @@ class RoleController {
             'permissions' => $permissions
         ]);
     }
+
+    // Get permissions for target role by name
+    public function getRolePermissionsByName($roleName) {
+        $roleModel = new RoleModel($this->db);
+
+        // Get role by name
+        $role = $roleModel->getRoleByName($roleName);
+        if (!$role) {
+            http_response_code(404);
+            return json_encode([
+                'success' => false,
+                'message' => 'Role not found'
+            ]);
+        }
+
+        $permissions = $roleModel->getRolePermissions($role['id']);
+
+        return json_encode([
+            'success' => true,
+            'role' => $role,
+            'permissions' => $permissions
+        ]);
+    }
 }

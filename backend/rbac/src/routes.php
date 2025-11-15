@@ -15,7 +15,7 @@ $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
 // Database connection with error handling
 try {
-    $mysqli = new mysqli('rbac-mysql', 'devuser', 'devpass', 'rbac-db');
+    $mysqli = new mysqli('mysql', 'devuser', 'devpass', 'rbac-db');
     if ($mysqli->connect_error) {
         throw new Exception('Database connection failed: ' . $mysqli->connect_error);
     }
@@ -138,6 +138,13 @@ if ($method === 'DELETE' && preg_match('#^/roles/(\d+)/permissions/(\d+)$#', $pa
 if ($method === 'GET' && preg_match('#^/roles/(\d+)/permissions$#', $path, $matches)) {
     $roleId = $matches[1];
     echo $roleController->getRolePermissions($roleId);
+    exit;
+}
+
+// GET permissions for target role by name
+if ($method === 'GET' && preg_match('#^/roles/name/([^/]+)/permissions$#', $path, $matches)) {
+    $roleName = urldecode($matches[1]);
+    echo $roleController->getRolePermissionsByName($roleName);
     exit;
 }
 
