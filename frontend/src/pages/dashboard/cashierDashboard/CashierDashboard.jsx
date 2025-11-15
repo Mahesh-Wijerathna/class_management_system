@@ -27,6 +27,9 @@ import {
   FaEdit,
   FaPlus,
   FaTicketAlt,
+  FaArrowRight,
+  FaCalculator,
+  FaCoins,
 } from "react-icons/fa";
 
 import { getUserData, logout as authLogout } from "../../../api/apiUtils";
@@ -2769,7 +2772,7 @@ const DayEndReportModal = ({
                 <div className="signature-box">
                   <div className="signature-line"></div>
 
-                  <div className="signature-label">Manager Signature</div>
+                  <div className="signature-label">Admin Signature</div>
                 </div>
               </div>
 
@@ -3738,7 +3741,7 @@ const MonthEndReportModal = ({
 
                 <div class="signature-line"></div>
 
-                <div class="signature-label">Manager Signature</div>
+                <div class="signature-label">Admin Signature</div>
 
               </div>
 
@@ -4421,7 +4424,7 @@ const MonthEndReportModal = ({
                     </div>
                     <div className="signature-box">
                       <div className="signature-line"></div>
-                      <div className="signature-label">Manager Signature</div>
+                      <div className="signature-label">Admin Signature</div>
                     </div>
                   </div>
 
@@ -4638,239 +4641,436 @@ const StartCashDrawerModal = ({ onClose, onStart, cashierName }) => {
   );
 };
 
-// Close Out Cash Modal
-const CloseOutCashModal = ({
-  onClose,
-  onCloseOut,
-  cashierName,
-  sessionData,
-  kpis,
-}) => {
-  const [physicalCashCount, setPhysicalCashCount] = useState("");
-  const [error, setError] = useState("");
-  const [isClosing, setIsClosing] = useState(false);
-  const cashInputRef = useRef(null);
+// =====================================================
+// INDUSTRY-STANDARD CASH RECONCILIATION MODALS
+// =====================================================
 
-  useEffect(() => {
-    // Auto-focus cash input
-    setTimeout(() => cashInputRef.current?.focus(), 100);
-  }, []);
+// Step 1: Denomination Breakdown Modal - Count physical cash by denomination
+const DenominationCountModal = ({ onClose, onProceed, sessionData, kpis, breakdown, onUpdate }) => {
+  const calculateTotal = () => {
+    let total = 0;
+    Object.entries(breakdown.bills).forEach(([denom, count]) => {
+      total += parseInt(denom) * parseInt(count || 0);
+    });
+    Object.entries(breakdown.coins).forEach(([denom, count]) => {
+      total += parseInt(denom) * parseInt(count || 0);
+    });
+    return total;
+  };
 
-  // Calculate expected cash amount
   const expectedCash = sessionData
     ? parseFloat(sessionData.startingFloat) + parseFloat(kpis.totalToday || 0)
     : parseFloat(kpis.drawer || 0);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (
-      !physicalCashCount ||
-      isNaN(parseFloat(physicalCashCount)) ||
-      parseFloat(physicalCashCount) < 0
-    ) {
-      setError("Please enter a valid physical cash count");
-      return;
-    }
-
-    setIsClosing(true);
-    setError("");
-
-    try {
-      await onCloseOut(parseFloat(physicalCashCount));
-      onClose();
-    } catch (err) {
-      setError(err.message || "Failed to close out cash drawer");
-    } finally {
-      setIsClosing(false);
-    }
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter") {
-      handleSubmit(e);
-    } else if (e.key === "Escape") {
-      onClose();
-    }
-  };
-
-  const discrepancy = parseFloat(physicalCashCount) - expectedCash;
-  const isOver = discrepancy > 0;
-  const isShort = discrepancy < 0;
+  const totalCounted = calculateTotal();
+  const variance = totalCounted - expectedCash;
 
   return (
-    <div
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-lg"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="bg-gradient-to-r from-rose-600 to-rose-700 text-white px-6 py-5 rounded-t-xl">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-              <FaLock className="text-2xl" />
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+                <FaMoneyBill className="text-2xl" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">Step 1: Count Cash by Denomination</h2>
+                <div className="text-sm opacity-90 mt-1">Industry-standard cash reconciliation</div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs opacity-75">Expected</div>
+              <div className="text-lg font-bold">LKR {expectedCash.toLocaleString()}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Content - Scrollable */}
+        <div className="p-6 max-h-[calc(90vh-280px)] overflow-y-auto">
+          {/* Session Info */}
+          <div className="bg-gradient-to-r from-slate-50 to-slate-100 rounded-lg p-4 mb-6 border border-slate-200">
+            <div className="grid grid-cols-4 gap-4 text-sm">
+              <div>
+                <div className="text-slate-600 mb-1">Opening Balance</div>
+                <div className="font-bold text-slate-800">LKR {sessionData?.startingFloat?.toLocaleString() || "0"}</div>
+              </div>
+              <div>
+                <div className="text-slate-600 mb-1">Collections Today</div>
+                <div className="font-bold text-slate-800">LKR {Number(kpis.totalToday || 0).toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-slate-600 mb-1">Expected Cash</div>
+                <div className="font-bold text-indigo-600">LKR {expectedCash.toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-slate-600 mb-1">Receipts Issued</div>
+                <div className="font-bold text-slate-800">{kpis.receiptsIssuedToday || 0}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6">
+            {/* Bills Section */}
+            <div>
+              <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <FaMoneyBill className="text-green-600" />
+                Paper Currency
+              </h3>
+              <div className="space-y-3">
+                {Object.entries(breakdown.bills).map(([denom, count]) => (
+                  <div key={denom} className="flex items-center gap-3">
+                    <div className="w-24 bg-gradient-to-r from-green-500 to-green-600 text-white px-3 py-2 rounded-lg font-bold text-center shadow-md">
+                      LKR {denom}
+                    </div>
+                    <span className="text-slate-600 font-medium">×</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={count}
+                      onChange={(e) => onUpdate('bills', denom, e.target.value)}
+                      className="w-24 px-3 py-2 border-2 border-slate-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-center font-semibold"
+                      placeholder="0"
+                    />
+                    <span className="text-slate-600">=</span>
+                    <div className="flex-1 bg-slate-100 px-3 py-2 rounded-lg font-bold text-slate-800 text-right">
+                      LKR {(parseInt(denom) * parseInt(count || 0)).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 pt-3 border-t-2 border-slate-300">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-slate-700">Bills Subtotal:</span>
+                  <span className="text-lg font-bold text-green-600">
+                    LKR {Object.entries(breakdown.bills).reduce((sum, [denom, count]) => 
+                      sum + (parseInt(denom) * parseInt(count || 0)), 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Coins Section */}
+            <div>
+              <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <FaCoins className="text-amber-600" />
+                Coins
+              </h3>
+              <div className="space-y-3">
+                {Object.entries(breakdown.coins).map(([denom, count]) => (
+                  <div key={denom} className="flex items-center gap-3">
+                    <div className="w-24 bg-gradient-to-r from-amber-500 to-amber-600 text-white px-3 py-2 rounded-lg font-bold text-center shadow-md">
+                      LKR {denom}
+                    </div>
+                    <span className="text-slate-600 font-medium">×</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={count}
+                      onChange={(e) => onUpdate('coins', denom, e.target.value)}
+                      className="w-24 px-3 py-2 border-2 border-slate-300 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-center font-semibold"
+                      placeholder="0"
+                    />
+                    <span className="text-slate-600">=</span>
+                    <div className="flex-1 bg-slate-100 px-3 py-2 rounded-lg font-bold text-slate-800 text-right">
+                      LKR {(parseInt(denom) * parseInt(count || 0)).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 pt-3 border-t-2 border-slate-300">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-slate-700">Coins Subtotal:</span>
+                  <span className="text-lg font-bold text-amber-600">
+                    LKR {Object.entries(breakdown.coins).reduce((sum, [denom, count]) => 
+                      sum + (parseInt(denom) * parseInt(count || 0)), 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer Summary */}
+        <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-5 border-t-2 border-slate-200">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="text-sm text-slate-600">Total Physical Count</div>
+              <div className="text-3xl font-bold text-indigo-600">LKR {totalCounted.toLocaleString()}</div>
+            </div>
+            {totalCounted > 0 && (
+              <div className={`px-6 py-3 rounded-lg ${
+                variance === 0 ? 'bg-green-100 border-2 border-green-300' :
+                Math.abs(variance) <= 50 ? 'bg-blue-100 border-2 border-blue-300' :
+                'bg-red-100 border-2 border-red-300'
+              }`}>
+                <div className="text-sm font-semibold ${
+                  variance === 0 ? 'text-green-700' :
+                  Math.abs(variance) <= 50 ? 'text-blue-700' :
+                  'text-red-700'
+                }">
+                  {variance === 0 ? '✓ Balanced' :
+                   variance > 0 ? `↑ Over LKR ${Math.abs(variance).toLocaleString()}` :
+                   `↓ Short LKR ${Math.abs(variance).toLocaleString()}`}
+                </div>
+                <div className="text-xs text-slate-600 mt-1">
+                  {variance === 0 ? 'Perfect match' :
+                   Math.abs(variance) <= 50 ? 'Acceptable variance' :
+                   Math.abs(variance) <= 500 ? 'Requires review' :
+                   'Manager approval needed'}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 px-6 py-3 bg-white border-2 border-slate-300 text-slate-700 rounded-lg font-semibold hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onProceed}
+              disabled={totalCounted === 0}
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              Proceed to Reconciliation
+              <FaArrowRight />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Step 2: Reconciliation Review Modal - Variance analysis and submission
+const ReconciliationReviewModal = ({ onClose, onSubmit, data }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Check if OVERAGE exists (physical count > expected) - CANNOT close with overage
+  const hasOverage = data.actual.physicalCount > data.expected.expectedCash;
+  const overageAmount = hasOverage ? (data.actual.physicalCount - data.expected.expectedCash) : 0;
+  
+  // If shortage (physical < expected), remaining stays in drawer for next session
+  const hasShortage = data.actual.physicalCount < data.expected.expectedCash;
+  const remainingInDrawer = hasShortage ? (data.expected.expectedCash - data.actual.physicalCount) : 0;
+
+  const handleSubmit = async () => {
+    // Block submission if there's an OVERAGE
+    if (hasOverage) {
+      alert(`Cannot close with overage of LKR ${overageAmount.toFixed(2)}. Physical count must not exceed expected amount. Please recount or deposit excess.`);
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      await onSubmit();
+    } catch (error) {
+      // Error already handled in submitCashOut, just reset state
+      console.error('Submit failed:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[70vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className={`text-white px-6 py-3 ${
+          data.variance.type === 'acceptable' ? 'bg-gradient-to-r from-green-600 to-emerald-600' :
+          data.variance.type === 'warning' ? 'bg-gradient-to-r from-blue-600 to-cyan-600' :
+          'bg-gradient-to-r from-red-600 to-rose-600'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+                {data.variance.type === 'acceptable' ? <FaCheckCircle className="text-2xl" /> :
+                 <FaExclamationTriangle className="text-2xl" />}
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">Step 2: Cash Reconciliation Report</h2>
+                <div className="text-sm opacity-90 mt-1">{data.variance.status}</div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs opacity-75">Variance</div>
+              <div className="text-2xl font-bold">
+                {data.variance.amount >= 0 ? '+' : ''}{data.variance.amount.toLocaleString()}
+              </div>
+              <div className="text-xs opacity-90">({data.variance.percentage}%)</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Content - Scrollable */}
+        <div className="p-4 overflow-y-auto flex-1 space-y-4">
+          {/* Session Information */}
+          <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+            <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2 text-sm">
+              <FaUser className="text-indigo-600" />
+              Session Information
+            </h3>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <span className="text-slate-600">Cashier:</span>
+                <span className="ml-2 font-semibold text-slate-800">{data.sessionInfo.cashierName} ({data.sessionInfo.cashierId})</span>
+              </div>
+              <div>
+                <span className="text-slate-600">Date:</span>
+                <span className="ml-2 font-semibold text-slate-800">{data.sessionInfo.sessionDate}</span>
+              </div>
+              <div>
+                <span className="text-slate-600">Session Time:</span>
+                <span className="ml-2 font-semibold text-slate-800">{new Date(data.sessionInfo.startTime).toLocaleTimeString()} - {data.sessionInfo.endTime}</span>
+              </div>
+              <div>
+                <span className="text-slate-600">Total Transactions:</span>
+                <span className="ml-2 font-semibold text-slate-800">{data.statistics.totalTransactions}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Financial Summary */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Expected */}
+            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-3 border-2 border-blue-200">
+              <h3 className="font-bold text-blue-800 mb-2 flex items-center gap-2 text-sm">
+                <FaCalculator className="text-blue-600 text-sm" />
+                Expected (System)
+              </h3>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center pb-1 border-b border-blue-200">
+                  <span className="text-xs text-slate-700">Opening Balance</span>
+                  <span className="font-semibold text-slate-800 text-xs">LKR {data.expected.openingBalance.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center pb-1 border-b border-blue-200">
+                  <span className="text-xs text-slate-700">Cash Collections</span>
+                  <span className="font-semibold text-slate-800 text-xs">LKR {data.expected.totalCollections.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center pt-1 border-t-2 border-blue-300">
+                  <span className="font-bold text-blue-800 text-sm">Expected Total</span>
+                  <span className="text-lg font-bold text-blue-600">LKR {data.expected.expectedCash.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Actual */}
+            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-3 border-2 border-purple-200">
+              <h3 className="font-bold text-purple-800 mb-2 flex items-center gap-2 text-sm">
+                <FaMoneyBill className="text-purple-600 text-sm" />
+                Actual (Physical Count)
+              </h3>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center pb-1 border-b border-purple-200">
+                  <span className="text-xs text-slate-700">Bills Total</span>
+                  <span className="font-semibold text-slate-800 text-xs">
+                    LKR {Object.entries(data.actual.breakdown.bills).reduce((sum, [denom, count]) => 
+                      sum + (parseInt(denom) * parseInt(count || 0)), 0).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-1 border-b border-purple-200">
+                  <span className="text-xs text-slate-700">Coins Total</span>
+                  <span className="font-semibold text-slate-800 text-xs">
+                    LKR {Object.entries(data.actual.breakdown.coins).reduce((sum, [denom, count]) => 
+                      sum + (parseInt(denom) * parseInt(count || 0)), 0).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pt-1 border-t-2 border-purple-300">
+                  <span className="font-bold text-purple-800 text-sm">Physical Count</span>
+                  <span className="text-lg font-bold text-purple-600">LKR {data.actual.physicalCount.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Variance Explanation */}
+          <div className={`rounded-lg p-3 border text-xs ${
+            data.variance.amount === 0 ? 'bg-green-50 border-green-300 text-green-800' :
+            data.variance.amount > 0 ? 'bg-blue-50 border-blue-300 text-blue-800' :
+            'bg-red-50 border-red-300 text-red-800'
+          }`}>
+            <div className="font-semibold mb-1">
+              {data.variance.amount === 0 ? '✓ Perfect Balance' :
+               data.variance.amount > 0 ? '↑ Cash Overage (Excess)' :
+               '↓ Cash Shortage (Deficit)'}
             </div>
             <div>
-              <h2 className="text-xl font-bold">Close Out Cash</h2>
-              <div className="text-sm opacity-90 mt-1">
-                End cash handling session
-              </div>
+              {data.variance.amount === 0 ? 'Physical count matches expected amount exactly. No discrepancy.' :
+               data.variance.amount > 0 ? `You have LKR ${Math.abs(data.variance.amount).toLocaleString()} MORE than expected. This excess will be recorded and should be investigated.` :
+               `You have LKR ${Math.abs(data.variance.amount).toLocaleString()} LESS than expected. This shortage will be recorded.`}
             </div>
           </div>
         </div>
 
-        {/* Session Summary */}
-        <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">
-            Session Summary
-          </h3>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <div className="text-gray-600">Starting Float</div>
-              <div className="font-semibold text-gray-800">
-                LKR {sessionData?.startingFloat?.toLocaleString() || "0"}
-              </div>
-            </div>
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <div className="text-gray-600">Cash Sales Today</div>
-              <div className="font-semibold text-gray-800">
-                LKR {Number(kpis.totalToday || 0).toLocaleString()}
-              </div>
-            </div>
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <div className="text-gray-600">Expected Total</div>
-              <div className="font-semibold text-gray-800">
-                LKR {expectedCash.toLocaleString()}
-              </div>
-            </div>
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <div className="text-gray-600">Receipts Issued</div>
-              <div className="font-semibold text-gray-800">
-                {kpis.receipts || 0}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="p-6">
-          <form onSubmit={handleSubmit}>
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Physical Cash Count (LKR)
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">
-                  LKR
-                </span>
-                <input
-                  ref={cashInputRef}
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={physicalCashCount}
-                  onChange={(e) => setPhysicalCashCount(e.target.value)}
-                  onKeyDown={handleKeyPress}
-                  className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent text-lg font-semibold"
-                  placeholder="0.00"
-                  disabled={isClosing}
-                />
-              </div>
-              <div className="text-xs text-gray-500 mt-2">
-                Count all physical cash in the drawer
-              </div>
-            </div>
-
-            {/* Discrepancy Display */}
-            {physicalCashCount && !isNaN(parseFloat(physicalCashCount)) && (
-              <div
-                className={`mb-4 p-4 rounded-lg border ${
-                  discrepancy === 0
-                    ? "bg-green-50 border-green-200"
-                    : isOver
-                    ? "bg-blue-50 border-blue-200"
-                    : "bg-red-50 border-red-200"
-                }`}
-              >
-                <div
-                  className={`flex items-center gap-2 text-sm font-semibold ${
-                    discrepancy === 0
-                      ? "text-green-700"
-                      : isOver
-                      ? "text-blue-700"
-                      : "text-red-700"
-                  }`}
-                >
-                  {discrepancy === 0 ? (
-                    <>
-                      <FaCheckCircle className="text-green-500" />
-                      Cash count matches expected amount
-                    </>
-                  ) : isOver ? (
-                    <>
-                      <FaExclamationTriangle className="text-blue-500" />
-                      Over by LKR {Math.abs(discrepancy).toLocaleString()}
-                    </>
-                  ) : (
-                    <>
-                      <FaExclamationTriangle className="text-red-500" />
-                      Short by LKR {Math.abs(discrepancy).toLocaleString()}
-                    </>
-                  )}
+        {/* Footer Actions - Fixed at bottom */}
+        <div className="bg-slate-50 px-4 py-3 border-t-2 border-slate-200 flex-shrink-0">
+          {/* Overage Warning Banner */}
+          {hasOverage && (
+            <div className="mb-3 bg-red-50 border-2 border-red-300 rounded-lg p-3 flex items-center gap-3">
+              <FaExclamationTriangle className="text-red-600 text-xl flex-shrink-0" />
+              <div className="flex-1">
+                <div className="font-bold text-red-800 text-sm">Cannot Close with Overage</div>
+                <div className="text-red-700 text-xs mt-1">
+                  Excess LKR {overageAmount.toFixed(2)} - Physical count exceeds expected amount. Please recount or deposit the excess before closing.
                 </div>
               </div>
-            )}
-
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <div className="flex items-center gap-2 text-red-700 text-sm">
-                  <FaExclamationTriangle className="text-red-500" />
-                  {error}
+            </div>
+          )}
+          
+          {/* Shortage Info Banner (Allowed - remaining stays in drawer) */}
+          {hasShortage && (
+            <div className="mb-3 bg-blue-50 border-2 border-blue-300 rounded-lg p-3 flex items-center gap-3">
+              <FaCheckCircle className="text-blue-600 text-xl flex-shrink-0" />
+              <div className="flex-1">
+                <div className="font-bold text-blue-800 text-sm">Shortage Detected - Will Retain in Drawer</div>
+                <div className="text-blue-700 text-xs mt-1">
+                  LKR {remainingInDrawer.toFixed(2)} will remain in cash drawer for next session.
                 </div>
               </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isClosing}
-                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isClosing || !physicalCashCount}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-rose-600 to-rose-700 text-white rounded-lg font-semibold hover:from-rose-700 hover:to-rose-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isClosing ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Closing...
-                  </>
-                ) : (
-                  <>
-                    <FaLock className="text-sm" />
-                    Close Session
-                  </>
-                )}
-              </button>
             </div>
-          </form>
-        </div>
-
-        {/* Footer */}
-        <div className="bg-gray-50 px-6 py-4 rounded-b-xl">
-          <div className="text-xs text-center text-gray-500">
-            <p>🔒 Closing the cash drawer will:</p>
-            <p className="mt-1">• Generate reconciliation report</p>
-            <p>• Record session end time and cashier</p>
-            <p>• Secure the cash drawer</p>
+          )}
+          
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-2.5 bg-white border-2 border-slate-300 text-slate-700 rounded-lg font-semibold hover:bg-slate-50 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+            >
+              <span>←</span> Back to Count
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting || hasOverage}
+              className={`flex-1 px-4 py-2.5 text-white rounded-lg font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm ${
+                hasOverage ? 'bg-gray-400' :
+                hasShortage ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700' :
+                data.variance.type === 'acceptable' ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700' :
+                data.variance.type === 'warning' ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700' :
+                'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700'
+              }`}
+              title={hasOverage ? `Cannot close: overage of LKR ${overageAmount.toFixed(2)}` : hasShortage ? `Shortage of LKR ${remainingInDrawer.toFixed(2)} will remain in drawer` : ''}
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Closing Session...
+                </>
+              ) : hasOverage ? (
+                <>
+                  <FaExclamationTriangle className="text-lg" />
+                  Cannot Close (Overage)
+                </>
+              ) : (
+                <>
+                  <FaLock className="text-lg" />
+                  Confirm & Close Day
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -5064,7 +5264,7 @@ const UnlockModal = ({ onClose, onUnlock, cashierName }) => {
 
 // Quick Payment Modal for FAST cashier workflow
 
-const QuickPaymentModal = ({ student, classData, onClose, onSuccess }) => {
+const QuickPaymentModal = ({ student, classData, onClose, onSuccess, cashDrawerSession }) => {
   const [submitting, setSubmitting] = useState(false);
 
   const payButtonRef = useRef(null);
@@ -5123,6 +5323,8 @@ const QuickPaymentModal = ({ student, classData, onClose, onSuccess }) => {
         cashierId: getUserData()?.userid,
 
         createdBy: getUserData()?.userid,
+
+        sessionId: cashDrawerSession?.id, // Link payment to active session
       };
 
       const res = await createPayment(payload);
@@ -5499,7 +5701,9 @@ const AdmissionFeeModal = ({ student, onClose, onSuccess }) => {
 
         cashierId: getUserData()?.userid,
 
-        createdBy: getUserData()?.userid
+        createdBy: getUserData()?.userid,
+
+        sessionId: cashDrawerSession?.id, // Link payment to active session
 
       };
 
@@ -5725,6 +5929,7 @@ const QuickEnrollmentModal = ({
   studentPayments = [],
   onClose,
   onSuccess,
+  cashDrawerSession,
 }) => {
   const [availableClasses, setAvailableClasses] = useState([]);
 
@@ -5920,6 +6125,9 @@ const QuickEnrollmentModal = ({
       }
     }
 
+    // Variable to track enrollment ID for potential rollback
+    let enrollmentIdForRollback = null;
+    
     try {
       setSubmitting(true);
 
@@ -6045,6 +6253,8 @@ const QuickEnrollmentModal = ({
       );
 
       const enrollResult = await enrollResponse.json();
+      
+      console.log("✅ Enrollment API Response:", enrollResult);
 
       if (!enrollResult?.success) {
         alert(enrollResult?.message || "Enrollment creation failed");
@@ -6053,6 +6263,10 @@ const QuickEnrollmentModal = ({
 
         return;
       }
+
+      // Store enrollment ID for potential rollback
+      enrollmentIdForRollback = enrollResult?.data?.id;
+      console.log("📝 Enrollment created with ID:", enrollmentIdForRollback);
 
       // STEP 2: Record payments based on payment option
 
@@ -6082,19 +6296,36 @@ const QuickEnrollmentModal = ({
           cashierId: getUserData()?.userid,
 
           createdBy: getUserData()?.userid,
+
+          sessionId: cashDrawerSession?.id, // Link payment to active session
         };
 
         const admissionPaymentRes = await createPayment(admissionPayload);
+        
+        console.log("✅ Admission Payment API Response:", admissionPaymentRes);
 
         if (!admissionPaymentRes?.success) {
           const errorMsg = admissionPaymentRes?.message || "Unknown error";
 
           console.error("❌ Admission fee payment failed:", errorMsg);
 
+          // Rollback: Delete the enrollment since payment failed
+          if (enrollmentIdForRollback) {
+            try {
+              console.log("🔄 Rolling back enrollment (admission payment failed):", enrollmentIdForRollback);
+              await fetch("http://localhost:8087/routes.php/delete_enrollment", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: enrollmentIdForRollback }),
+              });
+              console.log("✅ Enrollment rollback successful");
+            } catch (rollbackError) {
+              console.error("❌ Rollback failed:", rollbackError);
+            }
+          }
+
           alert(
-            "Enrollment created but admission fee payment recording failed: " +
-              errorMsg +
-              "\n\nPlease collect the admission fee manually."
+            "❌ Admission fee payment failed: " + errorMsg + "\n\nEnrollment was not created. Please try again."
           );
 
           setSubmitting(false);
@@ -6136,17 +6367,39 @@ const QuickEnrollmentModal = ({
           cashierId: getUserData()?.userid,
 
           createdBy: getUserData()?.userid,
+
+          sessionId: cashDrawerSession?.id, // Link payment to active session
         };
 
         const paymentRes = await createPayment(classPayload);
+        
+        console.log("✅ Class Payment API Response:", paymentRes);
 
         if (!paymentRes?.success) {
+          const errorMsg = paymentRes?.message || "Unknown error";
+          
+          console.error("❌ Class payment failed:", errorMsg);
+
+          // Rollback: Delete the enrollment since payment failed
+          if (enrollmentIdForRollback) {
+            try {
+              console.log("🔄 Rolling back enrollment (class payment failed):", enrollmentIdForRollback);
+              await fetch("http://localhost:8087/routes.php/delete_enrollment", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: enrollmentIdForRollback }),
+              });
+              console.log("✅ Enrollment rollback successful");
+            } catch (rollbackError) {
+              console.error("❌ Rollback failed:", rollbackError);
+            }
+          }
+
           alert(
-            "Enrollment created but class payment recording failed: " +
-              (paymentRes?.message || "Unknown error")
+            "❌ Class payment failed: " + errorMsg + "\n\nEnrollment was not created. Please try again."
           );
 
-          onSuccess({ enrolled: true, paid: false });
+          setSubmitting(false);
 
           return;
         }
@@ -6256,6 +6509,37 @@ const QuickEnrollmentModal = ({
         message: successMessage,
       });
     } catch (error) {
+      console.error("❌ ENROLLMENT ERROR:", error);
+      console.error("❌ Error message:", error?.message);
+      console.error("❌ Error stack:", error?.stack);
+      
+      // CRITICAL: Rollback enrollment if payment failed
+      if (enrollmentIdForRollback) {
+        try {
+          console.log("🔄 Rolling back enrollment ID:", enrollmentIdForRollback);
+          
+          // Delete the enrollment record
+          const rollbackResponse = await fetch(
+            "http://localhost:8087/routes.php/delete_enrollment",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: enrollmentIdForRollback }),
+            }
+          );
+          
+          const rollbackResult = await rollbackResponse.json();
+          
+          if (rollbackResult?.success) {
+            console.log("✅ Enrollment rolled back successfully");
+          } else {
+            console.error("❌ Failed to rollback enrollment:", rollbackResult?.message);
+          }
+        } catch (rollbackError) {
+          console.error("❌ Error during rollback:", rollbackError);
+        }
+      }
+      
       alert(error?.message || "Enrollment failed");
 
       setSubmitting(false);
@@ -7168,11 +7452,13 @@ export default function CashierDashboard() {
 
   // Cash Drawer State Management
   const [cashDrawerSession, setCashDrawerSession] = useState(null);
+  const [isCashedOut, setIsCashedOut] = useState(false); // Track if cash-out already done today
   const [showStartDrawerModal, setShowStartDrawerModal] = useState(false);
   const [showCloseDrawerModal, setShowCloseDrawerModal] = useState(false);
   const [startingFloat, setStartingFloat] = useState("");
   const [physicalCashCount, setPhysicalCashCount] = useState("");
   const [cashDrawerLoading, setCashDrawerLoading] = useState(false);
+  const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
 
   // Track cashier opening time (first login of the day)
 
@@ -7214,43 +7500,98 @@ export default function CashierDashboard() {
     try {
       const cashierId = user?.userid || "unknown";
 
-      const response = await getCashierStats(cashierId, "today");
-
-      if (response?.success && response?.data?.stats) {
-        const stats = response.data.stats;
-
-        const cashCollected = Number(stats.cash_collected || 0);
+      // Calculate KPIs based on session state
+      if (cashDrawerSession) {
+        // CRITICAL: Pass sessionId to get stats ONLY for active session, not entire day
+        const sessionId = cashDrawerSession?.id || null;
         const startingFloat = cashDrawerSession?.startingFloat || 0;
-        const totalDrawerBalance = cashCollected + startingFloat;
-
-        console.log("💰 Cash Drawer Calculation:");
+        
+        console.log("💰 Loading KPIs for active session:", sessionId);
         console.log("  - Starting Float:", startingFloat);
-        console.log("  - Cash Collected Today:", cashCollected);
-        console.log("  - Total Drawer Balance:", totalDrawerBalance);
-        console.log("  - Cash Drawer Session:", cashDrawerSession);
+        
+        const response = await getCashierStats(cashierId, "today", sessionId);
+
+        if (response?.success && response?.data?.stats) {
+          const stats = response.data.stats;
+
+          // ACTIVE SESSION: Show real-time stats from THIS session only
+          const cashCollected = Number(stats.cash_collected || 0);
+          const openingBalance = Number(stats.opening_balance || startingFloat || 0);
+          
+          // CRITICAL FIX: After cash-out, use cash_drawer_balance from database
+          // (which was updated to next_opening_balance during recordCashOut)
+          let totalDrawerBalance;
+          
+          console.log("🔍 KPI Calculation Debug:");
+          console.log("  - isCashedOut:", isCashedOut);
+          console.log("  - stats.cash_drawer_balance:", stats.cash_drawer_balance);
+          console.log("  - stats.opening_balance:", stats.opening_balance);
+          console.log("  - stats.cash_collected:", stats.cash_collected);
+          
+          if (isCashedOut) {
+            // After cash-out: Use the persisted cash_drawer_balance (variance/remaining amount)
+            totalDrawerBalance = Number(stats.cash_drawer_balance || 0);
+            console.log("  ✅ Cash-out done, using persisted drawer balance:", totalDrawerBalance);
+          } else {
+            // Before cash-out: Calculate as opening + collections
+            totalDrawerBalance = openingBalance + cashCollected;
+            console.log("  ➕ Before cash-out, calculated drawer balance:", totalDrawerBalance);
+          }
+          
+          console.log("  - Cash Collected:", cashCollected);
+          console.log("  - Opening Balance:", openingBalance);
+          console.log("  - Total Drawer Balance:", totalDrawerBalance);
+          console.log("  - Collections:", stats.total_collected);
+
+          setKpis({
+            totalToday: Number(stats.total_collected || 0),
+            receipts: Number(stats.total_receipts || 0),
+            pending: Number(stats.pending_count || 0),
+            drawer: totalDrawerBalance, // After cash-out: persisted balance, Before: opening + collections
+            fullCardsIssued: Number(stats.full_cards_issued || 0),
+            halfCardsIssued: Number(stats.half_cards_issued || 0),
+            freeCardsIssued: Number(stats.free_cards_issued || 0),
+          });
+        } else {
+          // Stats API failed but session exists - show opening balance at least
+          console.log("⚠️ Stats API failed, showing opening balance only");
+          setKpis({
+            totalToday: 0,
+            receipts: 0,
+            pending: 0,
+            drawer: startingFloat, // Show opening balance even if stats fail
+            fullCardsIssued: 0,
+            halfCardsIssued: 0,
+            freeCardsIssued: 0,
+          });
+        }
+      } else {
+        // NO ACTIVE SESSION: Show zeros
+        console.log("💰 No Active Session - All KPIs at zero");
 
         setKpis({
-          totalToday: Number(stats.total_collected || 0),
-
-          receipts: Number(stats.total_receipts || 0),
-
-          pending: Number(stats.pending_count || 0),
-
-          drawer: totalDrawerBalance, // Include starting float
-
-          fullCardsIssued: Number(stats.full_cards_issued || 0),
-
-          halfCardsIssued: Number(stats.half_cards_issued || 0),
-
-          freeCardsIssued: Number(stats.free_cards_issued || 0),
+          totalToday: 0, // No collections in closed session
+          receipts: 0, // No receipts in closed session
+          pending: 0, // No pending in closed session
+          drawer: 0, // No active session
+          fullCardsIssued: 0, // No cards in closed session
+          halfCardsIssued: 0,
+          freeCardsIssued: 0,
         });
       }
     } catch (error) {
       console.error("Failed to load cashier KPIs:", error);
-
-      // Keep existing KPIs on error
+      
+      // On error, at least show the opening balance if session exists
+      if (cashDrawerSession?.startingFloat) {
+        console.log("⚠️ Error loading KPIs, showing opening balance:", cashDrawerSession.startingFloat);
+        setKpis(prev => ({
+          ...prev,
+          drawer: cashDrawerSession.startingFloat,
+        }));
+      }
     }
-  }, [user, cashDrawerSession]);
+  }, [user, cashDrawerSession, isCashedOut]);
 
   // Load KPIs on mount and set up auto-refresh
 
@@ -8352,20 +8693,22 @@ export default function CashierDashboard() {
   // Cash Drawer API Functions
   const startCashDrawerSession = async (startingFloat) => {
     try {
-      console.log("Starting cash drawer session with user:", user);
-      console.log("User ID:", user?.userid);
-      console.log("User Name:", user?.name);
-      console.log("User Role:", user?.role);
+      console.log("📝 Starting cash drawer session with user:", user);
+      console.log("  - User ID:", user?.userid);
+      console.log("  - User Name:", user?.name);
+      console.log("  - User Role:", user?.role);
+      
+      if (!user?.userid) {
+        throw new Error("User ID is not available. Please log in again.");
+      }
 
-      // For now, use the test cashier ID until we fix the user authentication
-      // TODO: Fix user authentication to properly identify cashier users
       const requestBody = {
-        cashier_id: "C001", // Use the known cashier ID from auth database
+        cashier_id: user?.userid, // Use actual cashier ID from logged-in user
         cashier_name: user?.name || "Cashier",
         opening_balance: startingFloat,
       };
 
-      console.log("Request body:", requestBody);
+      console.log("📤 Request body:", requestBody);
 
       const response = await fetch("http://localhost:8083/api/session/start", {
         method: "POST",
@@ -8388,28 +8731,33 @@ export default function CashierDashboard() {
       console.log("Success result:", result);
 
       // Store session data locally
+      const sessionDate = new Date().toISOString().split('T')[0];
       setCashDrawerSession({
         id: result.data.session.session_id,
         startingFloat: startingFloat,
         startTime: new Date().toISOString(),
         cashierId: user?.userid,
         cashierName: user?.name,
+        sessionDate: sessionDate,
       });
 
-      // Store in localStorage for persistence
-      localStorage.setItem(
-        "cashDrawerSession",
-        JSON.stringify({
-          id: result.data.session.session_id,
-          startingFloat: startingFloat,
-          startTime: new Date().toISOString(),
-          cashierId: user?.userid,
-          cashierName: user?.name,
-        })
-      );
+      // Note: session state is persisted server-side. Do not use localStorage.
+
+      // Immediately update KPIs to show opening balance in cash drawer
+      setKpis({
+        totalToday: 0, // No collections yet
+        receipts: 0, // No receipts yet
+        pending: 0, // No pending yet
+        drawer: startingFloat, // Show opening balance immediately
+        fullCardsIssued: 0,
+        halfCardsIssued: 0,
+        freeCardsIssued: 0,
+      });
 
       showToast("Cash drawer session started successfully", "success");
-      loadCashierKPIs(); // Refresh KPIs
+      
+      // Also trigger async KPI load (will update with actual data from backend)
+      setTimeout(() => loadCashierKPIs(), 100);
 
       return result;
     } catch (error) {
@@ -8418,83 +8766,449 @@ export default function CashierDashboard() {
     }
   };
 
-  const closeCashDrawerSession = async (physicalCashCount) => {
-    try {
-      if (!cashDrawerSession) {
-        throw new Error("No active cash drawer session found");
+  // =====================================================
+  // INDUSTRY-LEVEL CASH OUT LOGIC
+  // =====================================================
+  
+  const [cashCountBreakdown, setCashCountBreakdown] = useState({
+    // Sri Lankan Currency Denominations
+    bills: {
+      5000: 0,
+      1000: 0,
+      500: 0,
+      100: 0,
+      50: 0,
+      20: 0,
+    },
+    coins: {
+      10: 0,
+      5: 0,
+      2: 0,
+      1: 0,
+    }
+  });
+  
+  const [reconciliationData, setReconciliationData] = useState(null);
+  const [showDenominationModal, setShowDenominationModal] = useState(false);
+  const [showReconciliationModal, setShowReconciliationModal] = useState(false);
+  
+  // Variance thresholds (industry standard)
+  const VARIANCE_THRESHOLDS = {
+    ACCEPTABLE: 50,      // LKR 50 or less - balanced
+    WARNING: 500,        // LKR 51-500 - warning but acceptable
+    CRITICAL: Infinity   // Over LKR 500 - critical variance (still can proceed)
+  };
+  
+  // Calculate total from denomination breakdown
+  const calculateDenominationTotal = useCallback(() => {
+    let total = 0;
+    
+    // Add bills
+    Object.entries(cashCountBreakdown.bills).forEach(([denom, count]) => {
+      total += parseInt(denom) * parseInt(count || 0);
+    });
+    
+    // Add coins
+    Object.entries(cashCountBreakdown.coins).forEach(([denom, count]) => {
+      total += parseInt(denom) * parseInt(count || 0);
+    });
+    
+    return total;
+  }, [cashCountBreakdown]);
+  
+  // Step 1: Open denomination counting modal
+  const openCashOutProcess = () => {
+    if (!cashDrawerSession) {
+      showToast("No active cash drawer session", "error");
+      return;
+    }
+    
+    // Reset denomination breakdown
+    setCashCountBreakdown({
+      bills: { 5000: 0, 1000: 0, 500: 0, 100: 0, 50: 0, 20: 0 },
+      coins: { 10: 0, 5: 0, 2: 0, 1: 0 }
+    });
+    
+    setShowDenominationModal(true);
+  };
+  
+  // Update denomination count
+  const updateDenominationCount = (type, denomination, value) => {
+    setCashCountBreakdown(prev => ({
+      ...prev,
+      [type]: {
+        ...prev[type],
+        [denomination]: parseInt(value) || 0
       }
-
-      const expectedCash =
-        cashDrawerSession.startingFloat + parseFloat(kpis.totalToday || 0);
-      const discrepancy = physicalCashCount - expectedCash;
-
+    }));
+  };
+  
+  // Step 2: Process to reconciliation
+  const proceedToReconciliation = () => {
+    const physicalCashCount = calculateDenominationTotal();
+    
+    // Calculate expected cash
+    const expectedCash = cashDrawerSession.startingFloat + parseFloat(kpis.totalToday || 0);
+    const variance = physicalCashCount - expectedCash;
+    const variancePercent = expectedCash > 0 ? ((variance / expectedCash) * 100).toFixed(2) : 0;
+    
+    // Determine status
+    let status, varianceType;
+    
+    if (Math.abs(variance) <= VARIANCE_THRESHOLDS.ACCEPTABLE) {
+      status = 'BALANCED';
+      varianceType = 'acceptable';
+    } else if (Math.abs(variance) <= VARIANCE_THRESHOLDS.WARNING) {
+      status = variance > 0 ? 'OVERAGE' : 'SHORTAGE';
+      varianceType = 'warning';
+    } else {
+      status = variance > 0 ? 'SIGNIFICANT OVERAGE' : 'SIGNIFICANT SHORTAGE';
+      varianceType = 'critical';
+    }
+    
+    const reconciliation = {
+      sessionInfo: {
+        sessionId: cashDrawerSession.id,
+        cashierId: user?.userid,
+        cashierName: user?.username || cashDrawerSession.cashierName,
+        sessionDate: new Date().toLocaleDateString('en-GB'),
+        startTime: cashDrawerSession.startTime,
+        endTime: new Date().toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' })
+      },
+      expected: {
+        openingBalance: cashDrawerSession.startingFloat,
+        totalCollections: parseFloat(kpis.totalToday || 0),
+        expectedCash: expectedCash
+      },
+      actual: {
+        physicalCount: physicalCashCount,
+        breakdown: { ...cashCountBreakdown }
+      },
+      variance: {
+        amount: variance,
+        percentage: variancePercent,
+        status: status,
+        type: varianceType
+      },
+      statistics: {
+        receiptsIssued: kpis.receiptsIssuedToday || 0,
+        pendingPayments: kpis.pendingPaymentsToday || 0,
+        totalTransactions: (kpis.receiptsIssuedToday || 0) + (kpis.pendingPaymentsToday || 0)
+      }
+    };
+    
+    setReconciliationData(reconciliation);
+    setShowDenominationModal(false);
+    setShowReconciliationModal(true);
+  };
+  
+  // Step 3: Final submission
+  const submitCashOut = async () => {
+    try {
+      if (!reconciliationData) {
+        throw new Error("No reconciliation data available");
+      }
+      
+      // Calculate remaining in drawer (if shortage, retain remaining for next session)
+      const physicalCount = reconciliationData.actual.physicalCount;
+      const expectedCash = reconciliationData.expected.expectedCash;
+      const remainingInDrawer = physicalCount < expectedCash ? (expectedCash - physicalCount) : 0;
+      
+      // Next session opening balance = remaining amount (shortage stays in drawer)
+      const nextOpeningBalance = remainingInDrawer;
+      
+      console.log('💰 Closing session with shortage logic:', {
+        physicalCount,
+        expectedCash,
+        shortage: remainingInDrawer,
+        deposited: physicalCount,
+        nextOpeningBalance
+      });
+      
+      // Record a cash-out (do not close the session) so day-end reports remain possible
       const response = await fetch(
-        "http://localhost:8083/api/session/close-day",
+        "http://localhost:8083/api/session/cash-out",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            session_id: cashDrawerSession.id,
-            closing_balance: physicalCashCount,
-            notes: `Day ended - Expected: LKR ${expectedCash.toLocaleString()}, Actual: LKR ${physicalCashCount.toLocaleString()}, Discrepancy: LKR ${discrepancy.toLocaleString()}`,
+            session_id: reconciliationData.sessionInfo.sessionId,
+            closing_balance: reconciliationData.actual.physicalCount,
+            denomination_breakdown: JSON.stringify(reconciliationData.actual.breakdown),
+            expected_balance: reconciliationData.expected.expectedCash,
+            variance_amount: reconciliationData.variance.amount,
+            variance_percentage: reconciliationData.variance.percentage,
+            variance_status: reconciliationData.variance.status,
+            manager_override: null,
+            next_opening_balance: nextOpeningBalance,
+            notes: generateClosingNotes(reconciliationData),
           }),
         }
       );
 
       if (!response.ok) {
-        throw new Error("Failed to close cash drawer session");
+        const errorText = await response.text();
+        console.error('❌ Close-day API error:', response.status, errorText);
+        throw new Error(`Failed to close session: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
+      
+      console.log('✅ Cash out recorded successfully:', result);
 
-      // Clear session data
-      setCashDrawerSession(null);
-      localStorage.removeItem("cashDrawerSession");
+      // CRITICAL FIX: Keep session active but mark as cashed-out (disable Cash Out button)
+      console.log('💰 Cash-out recorded, session remains active for reports. Remaining drawer:', nextOpeningBalance);
+      
+      // Mark as cashed out (this will disable Cash Out button)
+      setIsCashedOut(true);
 
-      // Show success message with discrepancy info
-      if (discrepancy === 0) {
+      // Update KPIs to reflect remaining balance in drawer (variance amount)
+      setKpis((prev) => ({
+        ...prev,
+        drawer: nextOpeningBalance, // Show remaining balance (shortage retained in drawer)
+      }));
+      
+      // CRITICAL: Wait for database to commit, then force reload KPIs to get updated cash_drawer_balance
+      console.log('⏳ Waiting for database update to commit...');
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Increased wait time
+      
+      // Force reload KPIs from backend to get the updated cash_drawer_balance
+      console.log('🔄 Forcing KPI reload to fetch updated cash_drawer_balance from database');
+      try {
+        await loadCashierKPIs();
+        console.log('✅ KPIs reloaded successfully after cash-out');
+      } catch (error) {
+        console.error('⚠️ Failed to reload KPIs after cash-out (non-critical):', error);
+        // Non-critical error - KPIs will refresh on next auto-refresh cycle
+      }
+
+      // Close modals first
+      setShowReconciliationModal(false);
+      setReconciliationData(null);
+      
+      // Show appropriate success message AFTER state updates
+      if (remainingInDrawer > 0) {
         showToast(
-          "Cash drawer closed successfully - No discrepancy",
+          `✅ Cash out recorded - LKR ${remainingInDrawer.toFixed(2)} remaining in drawer for next session (Deposited: LKR ${physicalCount.toFixed(2)}). You can now close the session.`,
           "success"
         );
-      } else if (discrepancy > 0) {
+      } else if (reconciliationData.variance.type === 'acceptable') {
         showToast(
-          `Cash drawer closed - Over by LKR ${discrepancy.toLocaleString()}`,
+          `✅ Cash out recorded successfully - Balanced (All money deposited). You can now close the session.`,
+          "success"
+        );
+      } else if (reconciliationData.variance.type === 'warning') {
+        showToast(
+          `⚠️ Cash out recorded with ${reconciliationData.variance.status.toLowerCase()}. You can now close the session.`,
           "warning"
         );
       } else {
         showToast(
-          `Cash drawer closed - Short by LKR ${Math.abs(
-            discrepancy
-          ).toLocaleString()}`,
-          "error"
+          `⚠️ Cash out recorded with ${reconciliationData.variance.status.toLowerCase()}. You can now close the session.`,
+          "warning"
         );
       }
-
-      loadCashierKPIs(); // Refresh KPIs
+      
+      console.log('✅ Cash out complete - Session still active, Cash Out button disabled, Session Close enabled');
 
       return result;
     } catch (error) {
-      console.error("Error closing cash drawer session:", error);
-      throw error;
+      console.error("❌ Error closing cash drawer session:", error);
+      
+      // Better error messages
+      let errorMessage = "Failed to close cash drawer";
+      if (error.message.includes('Failed to fetch')) {
+        errorMessage = "Network error: Cannot connect to cashier service (port 8083). Please check if backend is running.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      showToast(errorMessage, "error");
+      throw error; // Re-throw so modal doesn't close on error
     }
   };
 
-  // Load existing cash drawer session on component mount
-  useEffect(() => {
-    const savedSession = localStorage.getItem("cashDrawerSession");
-    if (savedSession) {
-      try {
-        const sessionData = JSON.parse(savedSession);
-        setCashDrawerSession(sessionData);
-      } catch (error) {
-        console.error("Error loading saved cash drawer session:", error);
-        localStorage.removeItem("cashDrawerSession");
+  // Close the active session (finalize day-end) - separate from cash-out
+  const closeSession = async () => {
+    try {
+      if (!cashDrawerSession) {
+        showToast('No active session to close', 'error');
+        return;
       }
+
+      // Check if cash-out has been done
+      if (!isCashedOut) {
+        showToast('Please complete cash-out before closing session', 'error');
+        return;
+      }
+
+      const confirmClose = window.confirm(
+        `Are you sure you want to CLOSE the current session?\n\n` +
+        `Remaining cash in drawer: LKR ${Number(kpis.drawer || 0).toLocaleString()}`
+      );
+      if (!confirmClose) return;
+
+      const sessionId = cashDrawerSession.id;
+      
+      // After cash-out, kpis.drawer contains the actual remaining balance
+      // This is the amount that will be left in the drawer (or taken to safe)
+      const closingBalance = Number(kpis.drawer || 0);
+      const expectedBalance = Number((cashDrawerSession.startingFloat || 0) + (kpis.totalToday || 0));
+
+      console.log('🔒 Closing session:', {
+        sessionId,
+        closingBalance: closingBalance,
+        remainingInDrawer: closingBalance,
+        isCashedOut
+      });
+
+      const response = await fetch('http://localhost:8083/api/session/close-day', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          closing_balance: closingBalance,
+          expected_balance: expectedBalance,
+          notes: `Session closed by cashier. Remaining cash in drawer: LKR ${closingBalance.toLocaleString()}`
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to close session: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+
+      // Clear session and reset all state for next session
+      setCashDrawerSession(null);
+      setIsCashedOut(false); // Reset cash-out flag for next session
+      setKpis({
+        totalToday: 0,
+        receipts: 0,
+        pending: 0,
+        drawer: 0,
+        fullCardsIssued: 0,
+        halfCardsIssued: 0,
+        freeCardsIssued: 0,
+      });
+
+      showToast(`Session closed successfully. Remaining balance: LKR ${closingBalance.toLocaleString()}`, 'success');
+
+      return result;
+    } catch (error) {
+      console.error('Error closing session:', error);
+      showToast('Failed to close session: ' + (error.message || ''), 'error');
+      throw error;
     }
-  }, []);
+  };
+  
+  // Generate detailed closing notes
+  const generateClosingNotes = (data) => {
+    const lines = [];
+    lines.push(`=== DAY END RECONCILIATION ===`);
+    lines.push(`Date: ${data.sessionInfo.sessionDate}`);
+    lines.push(`Cashier: ${data.sessionInfo.cashierName} (${data.sessionInfo.cashierId})`);
+    lines.push(`Session: ${data.sessionInfo.startTime} - ${data.sessionInfo.endTime}`);
+    lines.push(``);
+    lines.push(`Opening Balance: LKR ${data.expected.openingBalance.toLocaleString()}`);
+    lines.push(`Total Collections: LKR ${data.expected.totalCollections.toLocaleString()}`);
+    lines.push(`Expected Cash: LKR ${data.expected.expectedCash.toLocaleString()}`);
+    lines.push(`Physical Count: LKR ${data.actual.physicalCount.toLocaleString()}`);
+    lines.push(`Variance: LKR ${data.variance.amount.toLocaleString()} (${data.variance.percentage}%)`);
+    lines.push(`Status: ${data.variance.status}`);
+    lines.push(``);
+    lines.push(`Transactions: ${data.statistics.totalTransactions} (${data.statistics.receiptsIssued} receipts, ${data.statistics.pendingPayments} pending)`);
+    
+    return lines.join('\n');
+  };
+
+  // Load existing cash drawer session from DATABASE on component mount (PERMANENT SOLUTION)
+  useEffect(() => {
+    const loadActiveSession = async () => {
+      if (!user?.userid) {
+        console.log('⚠️ No user ID available, cannot load session');
+        setSessionCheckComplete(true);
+        return;
+      }
+      
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        console.log('🔍 Loading session for cashier:', user.userid, 'Date:', today);
+        console.log('🔍 Full user object:', user);
+        const response = await fetch(
+          `http://localhost:8083/api/session/current?cashier_id=${user.userid}&date=${today}`
+        );
+
+        if (!response.ok) {
+          console.error('❌ Failed to fetch session, HTTP status:', response.status);
+          // Server is authoritative; mark check complete and show start banner
+          setCashDrawerSession(null);
+          setSessionCheckComplete(true);
+          return;
+        }
+
+        const result = await response.json();
+
+        if (result.success && result.data.session) {
+          const session = result.data.session;
+          console.log('📊 Loaded active session from database:', session);
+          
+          // Check if session is from today
+          const sessionDate = session.session_date; // Format: YYYY-MM-DD
+          const todayDate = new Date().toISOString().split('T')[0];
+          
+          if (sessionDate !== todayDate) {
+            console.warn('⚠️ Session is from a previous day:', sessionDate, '!== Today:', todayDate);
+            console.log('❌ Clearing old session - cashier must close previous day first');
+            
+            setCashDrawerSession(null);
+            
+            // Show warning to user
+            showToast(
+              `⚠️ You have an unclosed session from ${sessionDate}. Please contact manager to close previous day before starting new session.`,
+              'error'
+            );
+            setSessionCheckComplete(true);
+            return;
+          }
+          
+          // Map database session to app state format (only if from today)
+          const sessionData = {
+            id: session.session_id,
+            startingFloat: parseFloat(session.opening_balance || 0),
+            startTime: session.first_login_time,
+            cashierId: session.cashier_id,
+            cashierName: session.cashier_name,
+            sessionDate: session.session_date,
+          };
+          
+          console.log('✅ Session loaded successfully:', sessionData);
+          setCashDrawerSession(sessionData);
+          
+          // Set cash-out status from backend response
+          const cashedOutStatus = result.data.is_cashed_out || false;
+          console.log('💰 Cash-out status from backend:', cashedOutStatus);
+          setIsCashedOut(cashedOutStatus);
+          
+          setSessionCheckComplete(true);
+        } else {
+          console.log('ℹ️ No active session found in database for today');
+          setCashDrawerSession(null);
+          setSessionCheckComplete(true);
+        }
+      } catch (error) {
+        console.error('❌ Error loading session from database:', error);
+        // On error, mark check complete and rely on server (no cached fallbacks)
+        setCashDrawerSession(null);
+        setSessionCheckComplete(true);
+      }
+    };
+    
+    loadActiveSession();
+  }, [user, user?.userid]); // Include full user object to re-trigger if user data changes
 
   // Refresh KPIs when cash drawer session changes (e.g., when loaded from localStorage or after starting)
   useEffect(() => {
@@ -10010,6 +10724,8 @@ export default function CashierDashboard() {
                                           cashierId: getUserData()?.userid,
 
                                           createdBy: getUserData()?.userid,
+
+                                          sessionId: cashDrawerSession?.id, // Link payment to active session
                                         };
 
                                         const res = await createPayment(
@@ -10830,11 +11546,34 @@ export default function CashierDashboard() {
       }
     >
       <div className="min-h-screen bg-slate-100 relative">
-        {/* Main Content Area with Blur Effect when Locked */}
+        {/* 🔒 CASH DRAWER WARNING - Must start session first (only show after session check complete) */}
+        {sessionCheckComplete && !cashDrawerSession && (
+          <div className="bg-gradient-to-r from-amber-500 to-orange-600 text-white px-6 py-4 shadow-lg sticky top-0 z-50 border-b-4 border-amber-700">
+            <div className="flex items-center justify-between max-w-7xl mx-auto">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center animate-pulse">
+                  <FaLock className="text-2xl" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">Cash Drawer Not Started</h3>
+                  <p className="text-amber-100 text-sm">Start your cash drawer session to process payments • Reports are still accessible</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowStartDrawerModal(true)}
+                className="bg-white text-amber-600 hover:bg-amber-50 px-6 py-3 rounded-lg font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+              >
+                <FaLockOpen />
+                Start Cash Drawer
+              </button>
+            </div>
+          </div>
+        )}
 
+        {/* Main Content Area with Blur Effect when Locked (but allow access to reports after closing session) */}
         <div
           className={`transition-all duration-300 ${
-            isLocked ? "blur-sm pointer-events-none select-none" : ""
+            isLocked ? "opacity-50 pointer-events-none select-none" : ""
           }`}
         >
           {activeTab === "register" ? (
@@ -10872,6 +11611,27 @@ export default function CashierDashboard() {
             </div>
           ) : (
             <div className="p-6">
+              {/* Session Information Banner - Subtle Single Line */}
+              {cashDrawerSession && (
+                <div className={`mb-4 rounded-lg px-4 py-2.5 border ${
+                  cashDrawerSession.sessionDate === new Date().toISOString().split('T')[0]
+                    ? 'bg-green-50/50 border-green-200'
+                    : 'bg-amber-50 border-amber-300'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className={`text-sm ${
+                      cashDrawerSession.sessionDate === new Date().toISOString().split('T')[0]
+                        ? 'text-green-700'
+                        : 'text-amber-700'
+                    }`}>
+                      {cashDrawerSession.sessionDate === new Date().toISOString().split('T')[0]
+                        ? '✓ Active Session - Today'
+                        : '⚠️ Active Session - Previous Day'} • Session Date: <strong>{cashDrawerSession.sessionDate}</strong> • Started: <strong>{new Date(cashDrawerSession.startTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong> • Opening Balance: <strong>LKR {Number(cashDrawerSession.startingFloat).toLocaleString()}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Glassy KPI Cards with refreshed colors and consistent sizing */}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
                 {/* Today's Collections */}
@@ -10882,7 +11642,7 @@ export default function CashierDashboard() {
                     </div>
                     <div>
                       <div className="text-xs font-semibold text-emerald-800">
-                        Today's Collections
+                        Session Collections
                       </div>
                     </div>
                   </div>
@@ -11087,7 +11847,7 @@ export default function CashierDashboard() {
 
                     <div className="space-y-4">
                       {/* Cash Drawer Controls */}
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-3 gap-3">
                         <button
                           onClick={() => setShowStartDrawerModal(true)}
                           disabled={cashDrawerSession}
@@ -11104,25 +11864,46 @@ export default function CashierDashboard() {
                         >
                           <FaMoneyBill className="text-lg" />
                           {cashDrawerSession
-                            ? "Session Active"
+                            ? `Session Active ${cashDrawerSession.sessionDate === new Date().toISOString().split('T')[0] ? '(Today)' : `(${cashDrawerSession.sessionDate})`}`
                             : "Start Cash Drawer"}
                         </button>
+
                         <button
-                          onClick={() => setShowCloseDrawerModal(true)}
-                          disabled={!cashDrawerSession}
+                          onClick={openCashOutProcess}
+                          disabled={!cashDrawerSession || isCashedOut}
                           className={`backdrop-blur-sm text-white py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 ${
-                            !cashDrawerSession
+                            !cashDrawerSession || isCashedOut
                               ? "bg-gray-400 cursor-not-allowed opacity-60"
                               : "bg-gradient-to-br from-rose-500/90 to-rose-600/90 hover:from-rose-600 hover:to-rose-700"
                           }`}
                           title={
                             !cashDrawerSession
                               ? "No active cash drawer session"
-                              : "Close current cash drawer session"
+                              : isCashedOut
+                              ? "Cash out already recorded today - Close session to finish"
+                              : "Record cash-out (do not close session)"
                           }
                         >
                           <FaLock className="text-lg" />
-                          Close Out Cash
+                          {isCashedOut ? "✓ Cash Out Done" : "Cash Out (Record)"}
+                        </button>
+
+                        <button
+                          onClick={closeSession}
+                          disabled={!cashDrawerSession}
+                          className={`backdrop-blur-sm text-white py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 ${
+                            !cashDrawerSession
+                              ? "bg-gray-400 cursor-not-allowed opacity-60"
+                              : "bg-gradient-to-br from-orange-500/90 to-orange-600/90 hover:from-orange-600 hover:to-orange-700"
+                          }`}
+                          title={
+                            !cashDrawerSession
+                              ? "No active cash drawer session"
+                              : "Close the current session (finalize day-end)"
+                          }
+                        >
+                          <FaSignOutAlt className="text-lg" />
+                          Close Session
                         </button>
                       </div>
 
@@ -11134,9 +11915,14 @@ export default function CashierDashboard() {
                               setDayEndMode("summary");
                               setDayEndLoading(true);
                               const cashierId = user?.userid || "unknown";
+                              if (!cashDrawerSession) {
+                                alert('Please start a cash drawer session first to view day-end reports');
+                                return;
+                              }
                               const res = await getCashierStats(
                                 cashierId,
-                                "today"
+                                "today",
+                                cashDrawerSession.id
                               );
                               const transactions =
                                 res?.data?.transactions || [];
@@ -11174,9 +11960,14 @@ export default function CashierDashboard() {
                               setDayEndMode("full");
                               setDayEndLoading(true);
                               const cashierId = user?.userid || "unknown";
+                              if (!cashDrawerSession) {
+                                alert('Please start a cash drawer session first to view day-end reports');
+                                return;
+                              }
                               const res = await getCashierStats(
                                 cashierId,
-                                "today"
+                                "today",
+                                cashDrawerSession.id
                               );
                               const transactions =
                                 res?.data?.transactions || [];
@@ -11216,9 +12007,14 @@ export default function CashierDashboard() {
                               setMonthEndMode("summary");
                               setMonthEndLoading(true);
                               const cashierId = user?.userid || "unknown";
+                              if (!cashDrawerSession) {
+                                alert('Please start a cash drawer session first to view month-end reports');
+                                return;
+                              }
                               const res = await getCashierStats(
                                 cashierId,
-                                "month"
+                                "month",
+                                cashDrawerSession.id
                               );
                               const transactions =
                                 res?.data?.transactions || [];
@@ -11258,9 +12054,14 @@ export default function CashierDashboard() {
                               setMonthEndMode("full");
                               setMonthEndLoading(true);
                               const cashierId = user?.userid || "unknown";
+                              if (!cashDrawerSession) {
+                                alert('Please start a cash drawer session first to view month-end reports');
+                                return;
+                              }
                               const res = await getCashierStats(
                                 cashierId,
-                                "month"
+                                "month",
+                                cashDrawerSession.id
                               );
                               const transactions =
                                 res?.data?.transactions || [];
@@ -11430,6 +12231,7 @@ export default function CashierDashboard() {
           <QuickPaymentModal
             student={student}
             classData={quickPayClass}
+            cashDrawerSession={cashDrawerSession}
             onClose={() => {
               setShowQuickPay(false);
 
@@ -11486,6 +12288,7 @@ export default function CashierDashboard() {
             student={student}
             studentEnrollments={enrollments}
             studentPayments={payments}
+            cashDrawerSession={cashDrawerSession}
             onClose={() => {
               setShowQuickEnroll(false);
 
@@ -11710,16 +12513,143 @@ export default function CashierDashboard() {
           />
         )}
 
-        {/* Close Out Cash Modal */}
-        {showCloseDrawerModal && (
-          <CloseOutCashModal
-            cashierName={user?.name}
+        {/* Industry-Standard Cash Reconciliation Modals */}
+        {showDenominationModal && (
+          <DenominationCountModal
+            onClose={() => setShowDenominationModal(false)}
+            onProceed={proceedToReconciliation}
             sessionData={cashDrawerSession}
             kpis={kpis}
-            onClose={() => setShowCloseDrawerModal(false)}
-            onCloseOut={closeCashDrawerSession}
+            breakdown={cashCountBreakdown}
+            onUpdate={updateDenominationCount}
           />
         )}
+
+        {showReconciliationModal && reconciliationData && (
+          <ReconciliationReviewModal
+            onClose={() => {
+              setShowReconciliationModal(false);
+              setShowDenominationModal(true);
+            }}
+            onSubmit={submitCashOut}
+            data={reconciliationData}
+          />
+        )}
+
+        {/* OLD MODALS REMOVED - Using new industry-standard components above */}
+        {false && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-t-2xl">
+                <h2 className="text-2xl font-bold">💰 Count Physical Cash</h2>
+                <p className="text-blue-100 text-sm mt-1">Enter the exact count of each denomination</p>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                {/* Bills Section */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <span className="text-2xl">💵</span> Bank Notes
+                  </h3>
+                  <div className="space-y-3">
+                    {Object.keys(cashCountBreakdown.bills).sort((a, b) => b - a).map(denom => (
+                      <div key={denom} className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-green-100 text-green-700 px-3 py-2 rounded-lg font-bold text-lg min-w-[100px] text-center">
+                            LKR {parseInt(denom).toLocaleString()}
+                          </div>
+                          <span className="text-gray-400">×</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="0"
+                            value={cashCountBreakdown.bills[denom]}
+                            onChange={(e) => updateDenominationCount('bills', denom, e.target.value)}
+                            className="w-24 px-3 py-2 border-2 border-gray-300 rounded-lg text-center text-lg font-semibold focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                            placeholder="0"
+                          />
+                          <span className="text-gray-400">=</span>
+                          <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-lg font-bold text-lg min-w-[140px] text-right">
+                            LKR {(parseInt(denom) * cashCountBreakdown.bills[denom]).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Coins Section */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <span className="text-2xl">🪙</span> Coins
+                  </h3>
+                  <div className="space-y-3">
+                    {Object.keys(cashCountBreakdown.coins).sort((a, b) => b - a).map(denom => (
+                      <div key={denom} className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-amber-100 text-amber-700 px-3 py-2 rounded-lg font-bold text-lg min-w-[100px] text-center">
+                            LKR {parseInt(denom).toLocaleString()}
+                          </div>
+                          <span className="text-gray-400">×</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="0"
+                            value={cashCountBreakdown.coins[denom]}
+                            onChange={(e) => updateDenominationCount('coins', denom, e.target.value)}
+                            className="w-24 px-3 py-2 border-2 border-gray-300 rounded-lg text-center text-lg font-semibold focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                            placeholder="0"
+                          />
+                          <span className="text-gray-400">=</span>
+                          <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-lg font-bold text-lg min-w-[140px] text-right">
+                            LKR {(parseInt(denom) * cashCountBreakdown.coins[denom]).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Total */}
+                <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xl font-semibold">Total Physical Cash</span>
+                    <span className="text-3xl font-bold">LKR {calculateDenominationTotal().toLocaleString()}</span>
+                  </div>
+                </div>
+                
+                {/* Actions */}
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => setShowDenominationModal(false)}
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 px-6 rounded-xl font-semibold transition-all duration-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={proceedToReconciliation}
+                    disabled={calculateDenominationTotal() === 0}
+                    className={`flex-1 py-3 px-6 rounded-xl font-semibold transition-all duration-200 ${
+                      calculateDenominationTotal() === 0
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg'
+                    }`}
+                  >
+                    Proceed to Reconciliation →
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Duplicate legacy reconciliation modal removed to avoid overlay conflicts.
+            The modern `ReconciliationReviewModal` component (defined earlier)
+            is used instead and provides the Back/Confirm actions. */}
+        {/* END OLD MODALS - These are disabled and replaced by new industry-standard modals above */}
 
         {/* Toast Notification */}
 

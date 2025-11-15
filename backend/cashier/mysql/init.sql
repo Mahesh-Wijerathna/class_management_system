@@ -39,10 +39,9 @@ CREATE TABLE IF NOT EXISTS cashier_sessions (
     INDEX idx_cashier_date (cashier_id, session_date),
     INDEX idx_date (session_date),
     INDEX idx_status (session_status),
-    INDEX idx_last_activity (last_activity_time),
+    INDEX idx_last_activity (last_activity_time)
     
-    -- Unique constraint: One session per cashier per day
-    UNIQUE KEY unique_daily_session (cashier_id, session_date)
+    -- Note: Removed unique constraint - multiple sessions per day allowed (session-based, not day-based)
     
     -- Note: Foreign key to users table removed - cashier_db is independent
     -- Foreign key would reference users(userid) in the auth database

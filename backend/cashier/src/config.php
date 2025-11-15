@@ -1,4 +1,11 @@
 <?php
+// Start output buffering to prevent PHP warnings from corrupting JSON responses
+ob_start();
+
+// Disable error display (log only)
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+
 // Database configuration for Cashier Backend
 
 // Cashier database (for session management)
@@ -124,6 +131,9 @@ function getCashierName($cashierId) {
 
 // Error handler
 function handleError($message, $code = 500) {
+    // Clear any output buffer to ensure clean JSON response
+    if (ob_get_length()) ob_clean();
+    
     http_response_code($code);
     echo json_encode([
         'success' => false,
@@ -134,6 +144,9 @@ function handleError($message, $code = 500) {
 
 // Success response
 function sendSuccess($data = [], $message = 'Success') {
+    // Clear any output buffer to ensure clean JSON response
+    if (ob_get_length()) ob_clean();
+    
     http_response_code(200);
     echo json_encode([
         'success' => true,

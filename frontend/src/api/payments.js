@@ -136,11 +136,18 @@ export const getPaymentStats = async (studentId) => {
   }
 };
 
-export const getCashierStats = async (cashierId, period = 'today') => {
+export const getCashierStats = async (cashierId, period = 'today', sessionId = null) => {
   try {
     // Add cache-busting parameter to prevent browser caching
     const timestamp = Date.now();
-    const response = await paymentApi.get(`/routes.php/get_cashier_stats?cashierId=${cashierId}&period=${period}&_t=${timestamp}`);
+    let url = `/routes.php/get_cashier_stats?cashierId=${cashierId}&period=${period}&_t=${timestamp}`;
+    
+    // CRITICAL: If sessionId is provided, include it to filter stats by active session ONLY
+    if (sessionId) {
+      url += `&sessionId=${sessionId}`;
+    }
+    
+    const response = await paymentApi.get(url);
     return response.data;
   } catch (error) {
     throw handleApiError(error);

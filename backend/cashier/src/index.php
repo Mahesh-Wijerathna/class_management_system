@@ -25,6 +25,8 @@ if (strpos($path, '/api/session') === 0) {
         $controller->logActivity();
     } elseif ($path === '/api/session/close-day' && $request_method === 'POST') {
         $controller->closeDay();
+    } elseif ($path === '/api/session/cash-out' && $request_method === 'POST') {
+        $controller->recordCashOut();
     } elseif ($path === '/api/session/lock' && $request_method === 'POST') {
         $controller->lockSession();
     } elseif ($path === '/api/session/unlock' && $request_method === 'POST') {
@@ -45,6 +47,7 @@ if (strpos($path, '/api/session') === 0) {
             'POST /api/session/update-kpis' => 'Update session KPIs',
             'POST /api/session/activity' => 'Log session activity',
             'POST /api/session/close-day' => 'Close day end session',
+            'POST /api/session/cash-out' => 'Record cash-out (no close)',
             'POST /api/session/lock' => 'Lock session',
             'POST /api/session/unlock' => 'Unlock session'
         ]
