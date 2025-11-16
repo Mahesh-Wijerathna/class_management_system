@@ -40,6 +40,8 @@ const teacherSidebarSections = [
     items: [
       { name: 'Payment Days', path: '/teacher/finance/payment-days', icon: <FaBell className="h-5 w-5" /> },
       { name: 'Monthly/Daily Records', path: '/teacher/finance/records', icon: <FaChartBar className="h-5 w-5" /> },
+      { name: 'Study Pack Payments', path: '/teacher/study-pack-payments', icon: <FaChartBar className="h-5 w-5" /> },
+
     ]
   },
   {

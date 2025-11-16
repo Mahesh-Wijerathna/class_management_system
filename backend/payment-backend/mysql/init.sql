@@ -89,10 +89,19 @@ CREATE TABLE IF NOT EXISTS student_purchases (
     purchase_date DATETIME DEFAULT CURRENT_TIMESTAMP,
     payment_status ENUM('pending','completed','failed') DEFAULT 'pending',
     transaction_id VARCHAR(100),
+    person_name VARCHAR(100) NOT NULL,
+    person_role VARCHAR(50) NOT NULL,
+    class_name VARCHAR(100) NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_student_id (student_id),
     INDEX idx_study_pack_id (study_pack_id),
-    INDEX idx_transaction_id (transaction_id)
+    INDEX idx_transaction_id (transaction_id),
+    INDEX idx_payment_status (payment_status),
+    -- Enforce uniqueness at the database level to avoid race-condition duplicates
+    UNIQUE KEY uniq_transaction_id (transaction_id),
+    UNIQUE KEY uniq_student_pack_completed (student_id, study_pack_id, payment_status)
 );
 
 -- Recommended constraints (apply manually if not already present):

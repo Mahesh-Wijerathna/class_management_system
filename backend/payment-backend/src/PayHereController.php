@@ -173,7 +173,78 @@ class PayHereController {
 
     public function getPaymentStatus($orderId) {
         try {
-            // Get payment details from financial_records table
+            // FIRST: Check if this is a study pack purchase (NEW SINGLE-TABLE SYSTEM)
+            $studyPackStmt = $this->mysqli->prepare("
+                SELECT 
+                    transaction_id as order_id,
+                    amount,
+                    payment_status as status,
+                    'online' as payment_method,
+                    transaction_id as reference_number,
+                    notes,
+                    purchase_date as created_at,
+                    person_name,
+                    class_name,
+                    study_pack_id as class_id,
+                    'study_pack' as category
+                FROM student_purchases 
+                WHERE transaction_id = ?
+            ");
+            $studyPackStmt->bind_param("s", $orderId);
+            $studyPackStmt->execute();
+            $studyPackResult = $studyPackStmt->get_result();
+            
+            if ($studyPackRow = $studyPackResult->fetch_assoc()) {
+                // This is a study pack purchase - return data from student_purchases table
+                // Parse person_name to get first_name and last_name
+                $nameParts = explode(' ', $studyPackRow['person_name'], 2);
+                $firstName = $nameParts[0] ?? '';
+                $lastName = $nameParts[1] ?? '';
+                
+                // Parse student details from notes
+                $email = '';
+                $mobile = '';
+                $address = '';
+                $district = '';
+                
+                if ($studyPackRow['notes']) {
+                    $notes = $studyPackRow['notes'];
+                    // Extract student details from notes
+                    if (preg_match('/Email:\s*([^\s,|]+)/', $notes, $emailMatch)) {
+                        $email = $emailMatch[1];
+                    }
+                    if (preg_match('/Mobile:\s*([^\s,|]+)/', $notes, $mobileMatch)) {
+                        $mobile = $mobileMatch[1];
+                    }
+                    if (preg_match('/Address:\s*([^,|]+)/', $notes, $addressMatch)) {
+                        $address = trim($addressMatch[1]);
+                    }
+                    if (preg_match('/District:\s*([^\s,|]+)/', $notes, $districtMatch)) {
+                        $district = $districtMatch[1];
+                    }
+                }
+                
+                return [
+                    'order_id' => $studyPackRow['order_id'],
+                    'amount' => $studyPackRow['amount'],
+                    'status' => $studyPackRow['status'],
+                    'payment_method' => $studyPackRow['payment_method'],
+                    'reference_number' => $studyPackRow['reference_number'],
+                    'notes' => $studyPackRow['notes'],
+                    'created_at' => $studyPackRow['created_at'],
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'email' => $email,
+                    'phone' => $mobile,
+                    'address' => $address,
+                    'city' => $district,
+                    'class_name' => $studyPackRow['class_name'],
+                    'class_id' => $studyPackRow['class_id'],
+                    'category' => 'study_pack'
+                ];
+            }
+            
+            // SECOND: Check financial_records for class enrollments
             $stmt = $this->mysqli->prepare("
                 SELECT 
                     transaction_id as order_id,
@@ -185,7 +256,8 @@ class PayHereController {
                     date as created_at,
                     person_name,
                     class_name,
-                    class_id
+                    class_id,
+                    category
                 FROM financial_records 
                 WHERE transaction_id = ?
             ");

@@ -13,6 +13,11 @@ class DevPaymentHelper {
             $stmt = $this->mysqli->prepare("UPDATE financial_records SET status = 'paid' WHERE transaction_id = ?");
             $stmt->bind_param("s", $orderId);
             $stmt->execute();
+
+            // Also update student_purchases for study-pack single-table flow
+            $stmt2 = $this->mysqli->prepare("UPDATE student_purchases SET payment_status = 'completed' WHERE transaction_id = ?");
+            $stmt2->bind_param("s", $orderId);
+            $stmt2->execute();
             
             // Create enrollment in class backend
             $this->createEnrollmentInClassBackend($orderId);

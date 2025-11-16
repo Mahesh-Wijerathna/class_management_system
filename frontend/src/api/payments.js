@@ -146,6 +146,16 @@ export const getStudentPurchasedStudyPacks = async (studentId) => {
   }
 };
 
+// Get study pack purchases for a teacher
+export const getTeacherStudyPackPurchases = async (teacherId) => {
+  try {
+    const response = await paymentApi.get(`/routes.php/get_teacher_study_pack_purchases?teacherId=${encodeURIComponent(teacherId)}`);
+    return response.data;
+  } catch (error) {
+    throw handleApiError(error);
+  }
+};
+
 // Create a student purchase (study pack)
 export const createStudentPurchase = async ({ studentId, studyPackId, transactionId, status = 'completed' }) => {
   try {

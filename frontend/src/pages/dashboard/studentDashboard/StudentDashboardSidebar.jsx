@@ -22,6 +22,8 @@ const studentSidebarSections = [
 		items: [
 			{ name: 'Live Classes', path: '/student/liveclasses', icon: <FaCalendar className="h-5 w-5" /> },
 			{ name: 'My Payments', path: '/student/my-payments', icon: <FaCreditCard className="h-5 w-5" /> },
+			{ name: 'My Study Pack Payments', path: '/student/my-study-pack-payments', icon: <FaCreditCard className="h-5 w-5" /> },
+
 			{ name: 'My Classes', path: '/student/my-classes', icon: <FaBook className="h-5 w-5" /> },
 			{ name: 'My Study Packs', path: '/student/studypacks', icon: <FaGraduationCap className="h-5 w-5" /> },
 			{ name: 'Past Lessons', path: '/student/pastlessons', icon: <FaFolder className="h-5 w-5" /> },

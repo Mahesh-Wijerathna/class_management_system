@@ -21,6 +21,7 @@ import StudyPackInvoice from '../../pages/dashboard/studentDashboard/StudyPack/S
 import StudentStudyPackPaymentCancel from '../../pages/dashboard/studentDashboard/StudyPack/StudentStudyPackPaymentCancel';
 import LiveClasses from '../../pages/dashboard/studentDashboard/LiveClasses';
 import ExamResult from '../../pages/dashboard/studentDashboard/ExamResult';
+import MyStudyPackPayments from '../../pages/dashboard/studentDashboard/StudyPack/MyStudyPackPayments';
 
 
 export const studentRoutes = [
@@ -37,6 +38,7 @@ export const studentRoutes = [
   { path: "/student/receipt", element: <Receipt /> },
 
   { path: "/student/my-payments", element: <MyPayments/> },
+  { path: "/student/my-study-pack-payments", element: <MyStudyPackPayments/> },
 
   { path: "/student/purchasestudypack", element: <PurchaseStudyPack /> },
   { path: "/student/purchasestudypack01", element: <PurchaseStudyPackOne /> },

@@ -143,6 +143,10 @@ switch ($method) {
             $transactionId = $_GET['transactionId'];
             $result = $paymentController->getPaymentByTransactionId($transactionId);
             echo json_encode($result);
+        } elseif ($path === '/health/studypack') {
+            // Health check for study pack purchase flow
+            $result = $paymentController->getStudyPackPurchaseHealth();
+            echo json_encode($result);
         } elseif ($path === '/get_all_payments') {
             $result = $paymentController->getAllPayments();
             echo json_encode($result);
@@ -150,6 +154,10 @@ switch ($method) {
             // Accept alphanumeric student IDs (e.g., S09231)
             $studentId = $_GET['studentId'];
             $result = $paymentController->getStudentPurchasedStudyPacks($studentId);
+            echo json_encode($result);
+        } elseif ($path === '/get_teacher_study_pack_purchases' && isset($_GET['teacherId'])) {
+            $teacherId = $_GET['teacherId'];
+            $result = $paymentController->getTeacherStudyPackPurchases($teacherId);
             echo json_encode($result);
         } elseif ($path === '/get_payment_stats') {
             $result = $paymentController->getPaymentStats();

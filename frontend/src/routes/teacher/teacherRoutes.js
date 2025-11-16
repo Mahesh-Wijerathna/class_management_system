@@ -11,11 +11,13 @@ import CreateStudyPack from '../../pages/dashboard/teacherDashboard/StudyPack/cr
 import TeacherStudyPacks from '../../pages/dashboard/teacherDashboard/StudyPack/TeacherStudyPacks';
 import TeacherStudyPackDetail from '../../pages/dashboard/teacherDashboard/StudyPack/TeacherStudyPackDetail';
 import TeacherStudyPackEdit from '../../pages/dashboard/teacherDashboard/StudyPack/TeacherStudyPackEdit';
+import TeacherStudyPackPayments from '../../pages/dashboard/teacherDashboard/StudyPack/TeacherStudyPackPayments';
 
 import ExamDesigner from '../../pages/dashboard/teacherDashboard/Exam/ExamDesigner';
 import MarkingView from '../../pages/dashboard/teacherDashboard/Exam/MarkingView';
 import ResultsView from '../../pages/dashboard/teacherDashboard/Exam/ResultsView';
 import Dashboard from '../../pages/dashboard/teacherDashboard/Exam/Dashboard';
+
 
 export const teacherRoutes = [
   { path: "/teacherdashboard", element: <TeacherDashboard/> },
@@ -31,11 +33,14 @@ export const teacherRoutes = [
   { path: "/teacher/study-pack/create", element: <CreateStudyPack/> },
   { path: "/teacher/study-pack/:id", element: <TeacherStudyPackDetail/> },
   { path: "/teacher/study-pack/:id/edit", element: <TeacherStudyPackEdit/> },
+  { path: "/teacher/study-pack-payments", element: <TeacherStudyPackPayments/> },
+
 
   { path: "/teacher/exams/create", element: <ExamDesigner/> },
   { path: "/teacher/exams/manage", element: <MarkingView/> },
   { path: "/teacher/exams/results", element: <ResultsView/> },
   { path: "/teacher/exams/dashboard", element: <Dashboard/> },
+
 
 
 ];

@@ -88,7 +88,58 @@ class PaymentController {
             // Use the final amount calculated by frontend (includes all discounts and fees)
             $finalAmount = $data['amount'] ?? ($class['fee'] ?? 0);
 
-            // Create financial record
+            // For study packs, create purchase record directly (skip financial_records)
+            if ($isStudyPack) {
+                // Create comprehensive notes with student details
+                $tuteMedium = $data['medium'] ?? $data['tuteMedium'] ?? '';
+                $studentDetails = [];
+                if ($firstName) $studentDetails[] = "First Name: $firstName";
+                if ($lastName) $studentDetails[] = "Last Name: $lastName";
+                if ($email) $studentDetails[] = "Email: $email";
+                if ($mobile) $studentDetails[] = "Mobile: $mobile";
+                if ($address) $studentDetails[] = "Address: $address";
+                if ($district) $studentDetails[] = "District: $district";
+                if ($tuteMedium) $studentDetails[] = "Tute Medium: $tuteMedium";
+                
+                $baseNotes = $data['notes'] ?? '';
+                $notes = $baseNotes;
+                if (!empty($studentDetails)) {
+                    $notes = $baseNotes . (empty($baseNotes) ? '' : ' | ') . implode(', ', $studentDetails);
+                }
+
+                // Create study pack purchase record directly
+                $purchaseResult = $this->createStudentPurchase(
+                    $studentId, 
+                    $classId, 
+                    $transactionId, 
+                    'pending',
+                    $studentName,
+                    'student',
+                    $data['className'] ?? 'Study Pack',
+                    $finalAmount,
+                    $notes
+                );
+
+                if (!$purchaseResult['success']) {
+                    return ['success' => false, 'message' => 'Failed to create study pack purchase record'];
+                }
+
+                return [
+                    'success' => true,
+                    'message' => 'Study pack payment created successfully. Purchase will be completed after payment confirmation.',
+                    'data' => [
+                        'transactionId' => $transactionId,
+                        'amount' => $finalAmount,
+                        'classId' => $classId,
+                        'className' => $data['className'] ?? 'Study Pack',
+                        'studentId' => $studentId,
+                        'studentName' => $studentName,
+                        'purchaseId' => $purchaseResult['purchase_id']
+                    ]
+                ];
+            }
+
+            // Create financial record (only for class enrollments)
             $stmt = $this->db->prepare("
                 INSERT INTO financial_records (
                     transaction_id, date, type, category, person_name, user_id, person_role,
@@ -98,12 +149,12 @@ class PaymentController {
 
             $date = date('Y-m-d');
             $type = 'income';
-            $category = $isStudyPack ? 'study_pack' : 'class_enrollment';
+            $category = 'class_enrollment';
             $personName = $studentName;
             $userId = $studentId; // Original alphanumeric ID for display/storage
             $personRole = 'student';
-            $className = $isStudyPack ? ($data['className'] ?? 'Study Pack') : ($class['className'] ?? '');
-            $classId = $classId; // For study pack, store pack id here
+            $className = $class['className'] ?? '';
+            $classId = $classId;
             // For cash payments, status should be 'paid' immediately
             $status = ($data['paymentMethod'] === 'cash' || $data['status'] === 'paid') ? 'paid' : 'pending';
             $paymentMethod = $data['paymentMethod'] ?? 'online';
@@ -161,7 +212,40 @@ class PaymentController {
     // Process payment
     public function processPayment($transactionId, $paymentData) {
         try {
-            // Step 1: Get payment details
+            // Step 1: Check if this is a study pack purchase (look in student_purchases table)
+            $studyPackCheck = $this->db->prepare("SELECT id, student_id, study_pack_id FROM student_purchases WHERE transaction_id = ? LIMIT 1");
+            $studyPackCheck->bind_param("s", $transactionId);
+            $studyPackCheck->execute();
+            $studyPackResult = $studyPackCheck->get_result();
+            
+            if ($studyPackResult->num_rows > 0) {
+                // This is a study pack purchase - update status to completed
+                $updateStmt = $this->db->prepare("
+                    UPDATE student_purchases 
+                    SET payment_status = 'completed'
+                    WHERE transaction_id = ?
+                ");
+                
+                if ($updateStmt->execute([$transactionId])) {
+                    $purchase = $studyPackResult->fetch_assoc();
+                    return [
+                        'success' => true,
+                        'message' => 'Study pack payment processed successfully',
+                        'data' => [
+                            'transactionId' => $transactionId,
+                            'purchaseId' => $purchase['id'],
+                            'status' => 'completed'
+                        ]
+                    ];
+                } else {
+                    return [
+                        'success' => false,
+                        'message' => 'Failed to update study pack purchase status'
+                    ];
+                }
+            }
+
+            // Step 2: Get payment details from financial_records (for class enrollments)
             $payment = $this->getPaymentByTransactionId($transactionId);
             if (!$payment['success']) {
                 return ['success' => false, 'message' => 'Payment not found'];
@@ -169,7 +253,7 @@ class PaymentController {
 
             $payment = $payment['data'];
             
-            // Step 2: Update payment status to paid
+            // Step 3: Update payment status to paid
             $updateStmt = $this->db->prepare("
                 UPDATE financial_records 
                 SET status = 'paid'
@@ -177,20 +261,6 @@ class PaymentController {
             ");
             
             if ($updateStmt->execute([$transactionId])) {
-                // Study pack flow: record purchase and return
-                if (isset($payment['category']) && $payment['category'] === 'study_pack') {
-                    // Pass original alphanumeric user_id
-                    $this->createStudentPurchase($payment['user_id'], (int)$payment['class_id'], $transactionId, 'completed');
-                    return [
-                        'success' => true,
-                        'message' => 'Study pack payment processed successfully',
-                        'data' => [
-                            'transactionId' => $transactionId,
-                            'amount' => $payment['amount'],
-                            'status' => 'paid'
-                        ]
-                    ];
-                }
 
                 // Step 3: Get class payment tracking configuration from class backend
                 $classDetails = $this->getClassFromClassBackend($payment['class_id']);
@@ -580,7 +650,7 @@ class PaymentController {
     }
 
     // Create a student purchase record (for study packs)
-    public function createStudentPurchase($studentId, $studyPackId, $transactionId = null, $status = 'completed') {
+    public function createStudentPurchase($studentId, $studyPackId, $transactionId = null, $status = 'pending', $personName = null, $personRole = null, $className = null, $amount = null, $notes = null) {
         try {
             // Accept alphanumeric student id (e.g. S09231). Extract digits for duplicate logic.
             $studentIdOriginal = trim((string)$studentId);
@@ -588,6 +658,7 @@ class PaymentController {
                 return ['success' => false, 'message' => 'Invalid student id for purchase'];
             }
             $studentDigits = preg_replace('/\D+/', '', $studentIdOriginal);
+            
             // IDEMPOTENCY 1: transaction id uniqueness
             if ($transactionId) {
                 $checkTxn = $this->db->prepare("SELECT id, student_id FROM student_purchases WHERE transaction_id = ? LIMIT 1");
@@ -599,25 +670,78 @@ class PaymentController {
                     return ['success' => true, 'message' => 'Purchase already recorded (transaction match)', 'purchase_id' => $existing['id']];
                 }
             }
+            
             // IDEMPOTENCY 2: Prevent duplicate completed purchases per (student_id, study_pack_id)
-            $checkDup = $this->db->prepare("SELECT id, transaction_id FROM student_purchases WHERE student_id = ? AND study_pack_id = ? AND payment_status = 'completed' LIMIT 1");
-            $checkDup->bind_param("si", $studentIdOriginal, $studyPackId);
-            $checkDup->execute();
-            $dupRes = $checkDup->get_result();
-            if ($dupRes->num_rows > 0) {
-                $existing = $dupRes->fetch_assoc();
-                return ['success' => true, 'message' => 'Purchase already recorded (student/studyPack match)', 'purchase_id' => $existing['id'], 'transaction_id' => $existing['transaction_id']];
+            if ($status === 'completed') {
+                $checkDup = $this->db->prepare("SELECT id, transaction_id FROM student_purchases WHERE student_id = ? AND study_pack_id = ? AND payment_status = 'completed' LIMIT 1");
+                $checkDup->bind_param("si", $studentIdOriginal, $studyPackId);
+                $checkDup->execute();
+                $dupRes = $checkDup->get_result();
+                if ($dupRes->num_rows > 0) {
+                    $existing = $dupRes->fetch_assoc();
+                    return ['success' => true, 'message' => 'Purchase already recorded (student/studyPack match)', 'purchase_id' => $existing['id'], 'transaction_id' => $existing['transaction_id']];
+                }
             }
-            // Insert new purchase (store original id)
-            $stmt = $this->db->prepare("INSERT INTO student_purchases (student_id, study_pack_id, payment_status, transaction_id) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param("siss", $studentIdOriginal, $studyPackId, $status, $transactionId);
+            
+            // Use provided values or set defaults
+            $personName = $personName ?? 'Student';
+            $personRole = $personRole ?? 'student';
+            $className = $className ?? 'Study Pack Purchase';
+            $amount = $amount ?? 0;
+            $notes = $notes ?? '';
+            
+            // Insert new purchase with all required fields
+            $stmt = $this->db->prepare("
+                INSERT INTO student_purchases (
+                    student_id, study_pack_id, payment_status, transaction_id,
+                    person_name, person_role, class_name, amount, notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->bind_param(
+                "sisssssds",
+                $studentIdOriginal, 
+                $studyPackId, 
+                $status, 
+                $transactionId,
+                $personName,
+                $personRole,
+                $className,
+                $amount,
+                $notes
+            );
+            
             if ($stmt->execute()) {
                 return ['success' => true, 'message' => 'Purchase recorded', 'purchase_id' => $stmt->insert_id];
             } else {
+                // Log statement error for diagnostics
+                error_log('CREATE_STUDENT_PURCHASE_ERROR: ' . $stmt->error);
+
                 // Handle potential duplicate key (after adding constraints) gracefully
-                if (strpos($stmt->error, 'Duplicate') !== false) {
+                if (stripos($stmt->error, 'Duplicate') !== false) {
+                    // Find existing purchase by transaction_id if available, otherwise by student+pack+completed
+                    if (!empty($transactionId)) {
+                        $q = $this->db->prepare("SELECT id FROM student_purchases WHERE transaction_id = ? LIMIT 1");
+                        $q->bind_param('s', $transactionId);
+                        $q->execute();
+                        $r = $q->get_result();
+                        if ($r && $r->num_rows > 0) {
+                            $row = $r->fetch_assoc();
+                            return ['success' => true, 'message' => 'Purchase already exists (transaction)', 'purchase_id' => $row['id']];
+                        }
+                    }
+
+                    $q2 = $this->db->prepare("SELECT id FROM student_purchases WHERE student_id = ? AND study_pack_id = ? AND payment_status = 'completed' LIMIT 1");
+                    $q2->bind_param('si', $studentIdOriginal, $studyPackId);
+                    $q2->execute();
+                    $r2 = $q2->get_result();
+                    if ($r2 && $r2->num_rows > 0) {
+                        $row = $r2->fetch_assoc();
+                        return ['success' => true, 'message' => 'Purchase already exists (student+pack)', 'purchase_id' => $row['id']];
+                    }
+
                     return ['success' => true, 'message' => 'Purchase already exists (constraint)', 'purchase_id' => null];
                 }
+
                 return ['success' => false, 'message' => 'Failed to record purchase: ' . $stmt->error];
             }
         } catch (Exception $e) {
@@ -709,7 +833,23 @@ class PaymentController {
     // Get purchased study packs for a student
     public function getStudentPurchasedStudyPacks($studentId) {
         try {
-            $stmt = $this->db->prepare("SELECT study_pack_id, payment_status, transaction_id, purchase_date FROM student_purchases WHERE student_id = ? AND payment_status = 'completed' ORDER BY purchase_date DESC");
+            $stmt = $this->db->prepare("
+                SELECT 
+                    id,
+                    study_pack_id, 
+                    payment_status, 
+                    transaction_id, 
+                    purchase_date,
+                    person_name,
+                    person_role,
+                    class_name,
+                    amount,
+                    notes,
+                    created_at
+                FROM student_purchases 
+                WHERE student_id = ? 
+                ORDER BY purchase_date DESC
+            ");
             $stmt->bind_param("s", $studentId);
             $stmt->execute();
             $res = $stmt->get_result();
@@ -720,6 +860,59 @@ class PaymentController {
             return ['success' => true, 'data' => $items];
         } catch (Exception $e) {
             return ['success' => false, 'message' => 'Error retrieving purchases: ' . $e->getMessage()];
+        }
+    }
+
+    // Get study pack purchases for a teacher (by querying teacher backend for pack ids)
+    public function getTeacherStudyPackPurchases($teacherId) {
+        try {
+            $teacherId = trim((string)$teacherId);
+            if ($teacherId === '') return ['success' => true, 'data' => []];
+
+            // Call teacher backend to get study packs by teacher
+            // Use container/service hostname so the call works from inside the payment-backend container
+            $url = "http://teacher-backend/routes.php/study_packs_by_teacher?teacherId=" . urlencode($teacherId);
+            $resp = @file_get_contents($url);
+            if ($resp === FALSE) {
+                return ['success' => false, 'message' => 'Failed to fetch study packs from teacher backend'];
+            }
+
+            $json = json_decode($resp, true);
+            $packIds = [];
+            if ($json && isset($json['success']) && $json['success'] && is_array($json['data'])) {
+                foreach ($json['data'] as $p) {
+                    if (isset($p['id'])) $packIds[] = (int)$p['id'];
+                }
+            }
+
+            if (empty($packIds)) {
+                return ['success' => true, 'data' => []];
+            }
+
+            // Build prepared statement with IN clause
+            $placeholders = implode(',', array_fill(0, count($packIds), '?'));
+            $sql = "SELECT id, student_id, study_pack_id, payment_status, transaction_id, purchase_date, person_name, person_role, class_name, amount, notes, created_at FROM student_purchases WHERE study_pack_id IN ($placeholders) ORDER BY purchase_date DESC";
+            $stmt = $this->db->prepare($sql);
+
+            // bind params dynamically
+            $types = str_repeat('i', count($packIds));
+            $bindParams = [];
+            $bindParams[] = &$types;
+            for ($i = 0; $i < count($packIds); $i++) {
+                $bindParams[] = &$packIds[$i];
+            }
+
+            call_user_func_array([$stmt, 'bind_param'], $bindParams);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $items = [];
+            while ($row = $res->fetch_assoc()) {
+                $items[] = $row;
+            }
+
+            return ['success' => true, 'data' => $items];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Error retrieving teacher purchases: ' . $e->getMessage()];
         }
     }
 
@@ -860,6 +1053,47 @@ class PaymentController {
 
         } catch (Exception $e) {
             return ['success' => false, 'message' => 'Error retrieving payment stats: ' . $e->getMessage()];
+        }
+    }
+
+    // Health check for study pack purchase flow
+    public function getStudyPackPurchaseHealth() {
+        try {
+            // 1) simple DB check
+            $ok = $this->db->query("SELECT 1 as ok");
+            if (!$ok) return ['success' => false, 'message' => 'DB connectivity check failed'];
+
+            // 2) recent financial_records for study_pack (24h)
+            $stmt = $this->db->prepare(
+                "SELECT transaction_id, status, person_name, amount, created_at FROM financial_records WHERE category = 'study_pack' AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) ORDER BY created_at DESC LIMIT 5"
+            );
+            $stmt->execute();
+            $recentFin = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+            // 3) recent student_purchases (24h)
+            $stmt2 = $this->db->prepare(
+                "SELECT id, student_id, study_pack_id, transaction_id, payment_status, amount, purchase_date FROM student_purchases WHERE purchase_date >= DATE_SUB(NOW(), INTERVAL 24 HOUR) ORDER BY purchase_date DESC LIMIT 5"
+            );
+            $stmt2->execute();
+            $recentPurchases = $stmt2->get_result()->fetch_all(MYSQLI_ASSOC);
+
+            // 4) check if any paid financial_records has a matching student_purchases
+            $stmt3 = $this->db->prepare(
+                "SELECT fr.transaction_id FROM financial_records fr JOIN student_purchases sp ON fr.transaction_id = sp.transaction_id WHERE fr.category = 'study_pack' AND fr.status = 'paid' ORDER BY fr.created_at DESC LIMIT 1"
+            );
+            $stmt3->execute();
+            $match = $stmt3->get_result()->fetch_assoc();
+
+            return [
+                'success' => true,
+                'data' => [
+                    'recent_financial_records' => $recentFin,
+                    'recent_student_purchases' => $recentPurchases,
+                    'paid_financial_with_purchase_exists' => !empty($match)
+                ]
+            ];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'Health check failed: ' . $e->getMessage()];
         }
     }
 
