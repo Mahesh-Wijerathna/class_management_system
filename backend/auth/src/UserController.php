@@ -24,6 +24,30 @@ class UserController {
         if ($user->createUser($role, $password)) {
             $userid = $user->userid;
             
+            // Sync user to RBAC system (non-blocking)
+            $rbacSyncData = [
+                'userid' => $userid,
+                'role' => $role,
+                'firstName' => $role === 'admin' ? 'Admin User ' . $userid : $userid, // Use more descriptive name for admin users
+                'lastName' => '', // Empty lastName for admin users
+                'email' => '' // Admin users may not have email in basic registration
+            ];
+            
+            // Call RBAC backend to create user (don't block on failure)
+            $rbacResponse = @file_get_contents('http://rbac-backend:80/users', false, stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => 'Content-Type: application/json',
+                    'content' => json_encode($rbacSyncData)
+                ]
+            ]));
+            
+            $rbacSyncSuccess = false;
+            if ($rbacResponse !== false) {
+                $rbacResult = json_decode($rbacResponse, true);
+                $rbacSyncSuccess = isset($rbacResult['success']) && $rbacResult['success'];
+            }
+            
             // Enhanced response for better user experience
             $response = [
                 'success' => true,
@@ -447,10 +471,17 @@ class UserController {
     public function forgotPasswordRequestOtp($userid) {
         // Check if this is a teacher ID (starts with 'T' followed by numbers)
         $isTeacherId = preg_match('/^T\d+$/', $userid);
+        // Check if this is a teacher staff ID (starts with 'TS' followed by numbers)
+        $isStaffId = preg_match('/^TS\d+$/', $userid);
         
         if ($isTeacherId) {
             // Handle teacher forgot password
             return $this->teacherForgotPasswordRequestOtp($userid);
+        }
+
+        if ($isStaffId) {
+            // Handle teacher_staff forgot password
+            return $this->staffForgotPasswordRequestOtp($userid);
         }
         
         // Handle student forgot password (existing logic)
@@ -465,6 +496,8 @@ class UserController {
             'message' => "Failed to fetch student data for user ID: $userid"
         ]);
     }
+
+    
 
     $userData = json_decode($response, true);
 
@@ -650,6 +683,128 @@ class UserController {
             return json_encode([
                 'success' => false,
                 'message' => 'Error processing teacher forgot password request: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    // Staff (teacher_staff) forgot password OTP request
+    public function staffForgotPasswordRequestOtp($staffId) {
+        try {
+            // Try multiple candidate URLs to fetch staff details from teacher backend
+            $candidates = [];
+            $envUrl = getenv('TEACHER_SERVICE_URL');
+            if ($envUrl) $candidates[] = rtrim($envUrl, '/') . '/routes.php/staff/' . $staffId;
+            $candidates[] = 'http://teacher-backend/routes.php/staff/' . $staffId;
+            $candidates[] = 'http://host.docker.internal:8088/routes.php/staff/' . $staffId;
+            $candidates[] = 'http://localhost:8088/routes.php/staff/' . $staffId;
+
+            $staffResp = null;
+            foreach ($candidates as $url) {
+                try {
+                    $resp = @file_get_contents($url);
+                    if ($resp === false) continue;
+                    $decoded = json_decode($resp, true);
+                    if ($decoded && isset($decoded['success']) && $decoded['success'] && isset($decoded['data'])) {
+                        $staffResp = $decoded['data'];
+                        break;
+                    }
+                    // Some teacher backend endpoints may return the staff object directly
+                    if ($decoded && isset($decoded['staffId'])) {
+                        $staffResp = $decoded;
+                        break;
+                    }
+                } catch (Exception $e) {
+                    continue;
+                }
+            }
+
+            if (!$staffResp) {
+                return json_encode([
+                    'success' => false,
+                    'message' => 'Failed to fetch staff data for ID: ' . $staffId
+                ]);
+            }
+
+            // Determine phone field (try common keys)
+            $phone_number = $staffResp['phone'] ?? $staffResp['mobile'] ?? $staffResp['phone_number'] ?? '';
+            if (empty($phone_number)) {
+                return json_encode([
+                    'success' => false,
+                    'message' => 'Mobile number not found for staff ID: ' . $staffId
+                ]);
+            }
+
+            // Format phone
+            $formatted_phone = $phone_number;
+            if (strlen($phone_number) === 10 && substr($phone_number, 0, 1) === '0') {
+                $formatted_phone = '94' . substr($phone_number, 1);
+            } elseif (strlen($phone_number) === 9 && substr($phone_number, 0, 1) === '0') {
+                $formatted_phone = '94' . substr($phone_number, 1);
+            } elseif (strlen($phone_number) === 11 && substr($phone_number, 0, 2) === '94') {
+                $formatted_phone = $phone_number;
+            } elseif (strlen($phone_number) === 10 && substr($phone_number, 0, 1) === '7') {
+                $formatted_phone = '94' . $phone_number;
+            }
+
+            // Generate OTP
+            $otp = rand(100000, 999999);
+
+            // Update OTP in auth database for this staff user
+            $user = new UserModel($this->db);
+            $user->updateUser($staffId, null, null, $otp);
+
+            // Send OTP via external service
+            $sendOtpUrl = 'https://down-south-front-end.onrender.com/send_otp';
+            $postData = json_encode([
+                'phoneNumber' => $formatted_phone,
+                'otp' => (string)$otp
+            ]);
+
+            $ch = curl_init($sendOtpUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Content-Length: ' . strlen($postData)
+            ]);
+
+            $otpResponse = curl_exec($ch);
+            if (curl_errno($ch)) {
+                return json_encode([
+                    'success' => true,
+                    'message' => 'OTP generated successfully (External service failed: ' . curl_error($ch) . ')',
+                    'otp' => $otp
+                ]);
+            }
+
+            $otpResponseData = json_decode($otpResponse, true);
+            if ($otpResponseData === null) {
+                return json_encode([
+                    'success' => true,
+                    'message' => 'OTP generated successfully (Invalid response from external service)',
+                    'otp' => $otp
+                ]);
+            }
+
+            if (isset($otpResponseData['success']) && !$otpResponseData['success']) {
+                return json_encode([
+                    'success' => true,
+                    'message' => 'OTP generated successfully (External service failed: ' . ($otpResponseData['message'] ?? 'Unknown error') . ')',
+                    'otp' => $otp
+                ]);
+            }
+
+            return json_encode([
+                'success' => true,
+                'message' => 'OTP sent to ' . $phone_number,
+                'otp' => $otp,
+                'service_response' => $otpResponseData
+            ]);
+        } catch (Exception $e) {
+            return json_encode([
+                'success' => false,
+                'message' => 'Error processing staff forgot password request: ' . $e->getMessage()
             ]);
         }
     }
@@ -1196,6 +1351,30 @@ public function resetPassword($userid, $otp, $newPassword) {
         $stmt->bind_param("sssss", $cashierId, $hashedPassword, $name, $email, $phone);
         
         if ($stmt->execute()) {
+            // Sync user to RBAC system (non-blocking)
+            $rbacSyncData = [
+                'userid' => $cashierId,
+                'role' => 'cashier',
+                'firstName' => $name,
+                'lastName' => '', // Empty lastName for cashiers
+                'email' => $email
+            ];
+            
+            // Call RBAC backend to create user (don't block on failure)
+            $rbacResponse = @file_get_contents('http://rbac-backend:80/users', false, stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => 'Content-Type: application/json',
+                    'content' => json_encode($rbacSyncData)
+                ]
+            ]));
+            
+            $rbacSyncSuccess = false;
+            if ($rbacResponse !== false) {
+                $rbacResult = json_decode($rbacResponse, true);
+                $rbacSyncSuccess = isset($rbacResult['success']) && $rbacResult['success'];
+            }
+            
             // Format phone number for external service
             $formatted_phone = $phone;
             if (strlen($phone) === 10 && substr($phone, 0, 1) === '0') {
@@ -1544,7 +1723,8 @@ public function resetPassword($userid, $otp, $newPassword) {
             $user = new UserModel($this->db);
             $teacherData = $user->getUserById($teacherId);
             
-            if ($teacherData && $teacherData['role'] === 'teacher' && password_verify($password, $teacherData['password'])) {
+            // Allow both 'teacher' and 'teacher_staff' roles to authenticate
+            if ($teacherData && in_array($teacherData['role'], ['teacher', 'teacher_staff']) && password_verify($password, $teacherData['password'])) {
                 // Remove password from response
                 unset($teacherData['password']);
                 
@@ -1585,7 +1765,8 @@ public function resetPassword($userid, $otp, $newPassword) {
             $user = new UserModel($this->db);
             $teacherData = $user->getTeacherByEmail($email);
             
-            if ($teacherData && $teacherData['role'] === 'teacher' && password_verify($password, $teacherData['password'])) {
+            // Allow both 'teacher' and 'teacher_staff' when logging in with email
+            if ($teacherData && in_array($teacherData['role'], ['teacher', 'teacher_staff']) && password_verify($password, $teacherData['password'])) {
                 // Remove password from response
                 unset($teacherData['password']);
                 
@@ -1674,6 +1855,69 @@ public function resetPassword($userid, $otp, $newPassword) {
             error_log("❌ TEACHER WELCOME WHATSAPP ERROR: " . json_encode([
                 'phone' => $phone,
                 'teacherId' => $teacherId,
+                'timestamp' => date('d/m/Y, H:i:s'),
+                'error' => $e->getMessage()
+            ]));
+            return false;
+        }
+    }
+
+    // Send welcome message specifically for teacher staff (teacher_staff)
+    public function sendStaffWelcomeMessage($staffId, $name, $phone, $password) {
+        try {
+            $message = "👋 Welcome to TCMS Team!\n\n";
+            $message .= "Staff ID: {$staffId}\n";
+            $message .= "Name: {$name}\n\n";
+            $message .= "Your staff account has been created by your teacher.\n";
+            $message .= "You can login using:\n";
+            $message .= "• Staff ID: {$staffId}\n";
+            $message .= "• Password: {$password}\n\n";
+            $message .= "For security, you can change your password using the 'Forgot Password' flow at any time.\n";
+            $message .= "If you have any issues, contact your teacher or system administrator.\n\n";
+            $message .= "Account Status: ✅ Active | ✅ Ready for Login";
+
+            // Format phone for external service
+            $formatted_phone = $phone;
+            if (strlen($phone) === 10 && substr($phone, 0, 1) === '0') {
+                $formatted_phone = '94' . substr($phone, 1);
+            }
+
+            $payload = [
+                'phoneNumber' => $formatted_phone,
+                'otp' => $message // Using otp field for message content
+            ];
+
+            $context = stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => 'Content-Type: application/json',
+                    'content' => json_encode($payload)
+                ]
+            ]);
+
+            $response = @file_get_contents('https://down-south-front-end.onrender.com/send_otp', false, $context);
+
+            if ($response === FALSE) {
+                error_log("❌ STAFF WELCOME WHATSAPP FAILED: " . json_encode([
+                    'phone' => $phone,
+                    'staffId' => $staffId,
+                    'timestamp' => date('d/m/Y, H:i:s'),
+                    'error' => 'Failed to send staff welcome WhatsApp message'
+                ]));
+                return false;
+            } else {
+                error_log("✅ STAFF WELCOME WHATSAPP SENT: " . json_encode([
+                    'phone' => $phone,
+                    'staffId' => $staffId,
+                    'timestamp' => date('d/m/Y, H:i:s'),
+                    'message' => 'Staff welcome message sent successfully'
+                ]));
+                return true;
+            }
+        } catch (Exception $e) {
+            error_log("❌ STAFF WELCOME WHATSAPP ERROR: " . json_encode([
+                'phone' => $phone,
+                'staffId' => $staffId,
                 'timestamp' => date('d/m/Y, H:i:s'),
                 'error' => $e->getMessage()
             ]));

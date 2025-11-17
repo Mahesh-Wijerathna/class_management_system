@@ -135,7 +135,6 @@ export const getPaymentStats = async (studentId) => {
     throw handleApiError(error);
   }
 };
-
 // Get purchased study packs for a student
 export const getStudentPurchasedStudyPacks = async (studentId) => {
   try {
@@ -165,6 +164,18 @@ export const createStudentPurchase = async ({ studentId, studyPackId, transactio
       transaction_id: transactionId,
       status
     });
+    return response.data;
+  } catch (error) {
+    throw handleApiError(error);
+  }
+};
+
+// Get cashier stats (from other branch)
+export const getCashierStats = async (cashierId, period = 'today') => {
+  try {
+    // Add cache-busting parameter to prevent browser caching
+    const timestamp = Date.now();
+    const response = await paymentApi.get(`/routes.php/get_cashier_stats?cashierId=${cashierId}&period=${period}&_t=${timestamp}`);
     return response.data;
   } catch (error) {
     throw handleApiError(error);

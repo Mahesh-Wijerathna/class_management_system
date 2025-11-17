@@ -74,6 +74,30 @@ if ($method === 'POST' && $path === '/routes.php/user') {
         if ($user->createUser($data['role'], $data['password'])) {
             $userid = $user->userid;
             
+            // Sync user to RBAC system (non-blocking)
+            $rbacSyncData = [
+                'userid' => $userid,
+                'role' => 'student',
+                'firstName' => $data['firstName'],
+                'lastName' => $data['lastName'],
+                'email' => $data['email'] ?? ''
+            ];
+            
+            // Call RBAC backend to create user (don't block on failure)
+            $rbacResponse = @file_get_contents('http://rbac-backend:80/users', false, stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => 'Content-Type: application/json',
+                    'content' => json_encode($rbacSyncData)
+                ]
+            ]));
+            
+            $rbacSyncSuccess = false;
+            if ($rbacResponse !== false) {
+                $rbacResult = json_decode($rbacResponse, true);
+                $rbacSyncSuccess = isset($rbacResult['success']) && $rbacResult['success'];
+            }
+            
             // Then register student data in student backend
             $studentRegistrationData = [
                 'userid' => $userid,
@@ -97,7 +121,94 @@ if ($method === 'POST' && $path === '/routes.php/user') {
     }
     
     // For non-student registrations, handle normally
-    echo $controller->register($data['role'], $data['password'], null);
+    // First create the user in auth database
+    $user = new UserModel($mysqli);
+    if ($user->createUser($data['role'], $data['password'])) {
+        $userid = $user->userid;
+        
+        // Sync user to RBAC system (non-blocking) for admin and other roles
+        $rbacSyncData = [
+            'userid' => $userid,
+            'role' => $data['role'],
+            'firstName' => $data['firstName'] ?? 'Admin',
+            'lastName' => $data['lastName'] ?? 'User',
+            'email' => $data['email'] ?? 'admin@example.com'
+        ];
+        
+        // Call RBAC backend to create user (don't block on failure)
+        $rbacResponse = @file_get_contents('http://rbac-backend:80/users', false, stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => 'Content-Type: application/json',
+                'content' => json_encode($rbacSyncData)
+            ]
+        ]));
+        
+        $rbacSyncSuccess = false;
+        if ($rbacResponse !== false) {
+            $rbacResult = json_decode($rbacResponse, true);
+            $rbacSyncSuccess = isset($rbacResult['success']) && $rbacResult['success'];
+            
+            // If RBAC sync was successful, automatically assign appropriate roles
+            if ($rbacSyncSuccess) {
+                if ($data['role'] === 'admin') {
+                    // Assign admin role (ID: 1)
+                    $roleAssignResponse = @file_get_contents("http://rbac-backend:80/users/{$userid}/roles/1", false, stream_context_create([
+                        'http' => [
+                            'method' => 'POST',
+                            'header' => 'Content-Type: application/json',
+                            'content' => json_encode([])
+                        ]
+                    ]));
+                } elseif ($data['role'] === 'cashier') {
+                    // Assign cashier role (ID: 5)
+                    $roleAssignResponse = @file_get_contents("http://rbac-backend:80/users/{$userid}/roles/5", false, stream_context_create([
+                        'http' => [
+                            'method' => 'POST',
+                            'header' => 'Content-Type: application/json',
+                            'content' => json_encode([])
+                        ]
+                    ]));
+                }
+            }
+        }
+        
+        echo json_encode([
+            'success' => true,
+            'userid' => $userid,
+            'role' => $data['role'],
+            'message' => 'Account created successfully in TCMS',
+            'system' => 'TCMS (Tuition Class Management System)',
+            'timestamp' => date('Y-m-d H:i:s'),
+            'status' => 'active',
+            'rbac_synced' => $rbacSyncSuccess
+        ]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'User creation failed']);
+    }
+    exit;
+}
+
+// CREATE user with explicit userid (used by other services to provision users)
+if ($method === 'POST' && $path === '/routes.php/create_user') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['userid']) || !isset($data['role']) || !isset($data['password'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing userid, role or password']);
+        exit;
+    }
+
+    $userModel = new UserModel($mysqli);
+    try {
+        $ok = $userModel->createUserWithId($data['userid'], $data['role'], $data['password'], $data['name'] ?? null, $data['email'] ?? null, $data['phone'] ?? null);
+        if ($ok) {
+            echo json_encode(['success' => true, 'message' => 'User created in auth', 'userid' => $data['userid']]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Failed to create user in auth']);
+        }
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+    }
     exit;
 }
 
@@ -387,12 +498,49 @@ if ($method === 'POST' && $path === '/routes.php/teacher') {
     
     // First create the teacher in auth database
     $user = new UserModel($mysqli);
+    // Generate an initial candidate ID
     $teacherId = $user->generateUserId('teacher');
-    
-    // Check if teacher ID already exists
-    if ($user->getUserById($teacherId)) {
-        echo json_encode(['success' => false, 'message' => 'Teacher ID already exists']);
-        exit;
+
+    // If the generated ID collides with either auth DB or teacher backend, pick the next numeric ID.
+    $prefix = strtoupper(substr($teacherId, 0, 1));
+    $numeric = (int)substr($teacherId, 1);
+    $maxAttempts = 1000;
+    $attempts = 0;
+    while (true) {
+        $attempts++;
+        // Check auth DB
+        $existsAuth = (bool)$user->getUserById($teacherId);
+
+        // Check teacher backend (some deployments use host.docker.internal)
+        $teacherExists = false;
+        $teacherCheckUrls = [
+            'http://host.docker.internal:8088/routes.php/get_teacher_by_id?teacherId=' . urlencode($teacherId),
+            'http://localhost:8088/routes.php/get_teacher_by_id?teacherId=' . urlencode($teacherId),
+            getenv('TEACHER_SERVICE_URL') ? rtrim(getenv('TEACHER_SERVICE_URL'), '/') . '/routes.php/get_teacher_by_id?teacherId=' . urlencode($teacherId) : null
+        ];
+        foreach ($teacherCheckUrls as $url) {
+            if (!$url) continue;
+            $resp = @file_get_contents($url);
+            if ($resp === false) continue;
+            $decoded = json_decode($resp, true);
+            if ($decoded && isset($decoded['success']) && $decoded['success']) {
+                $teacherExists = true;
+                break;
+            }
+        }
+
+        if (!$existsAuth && !$teacherExists) {
+            break; // unique ID found
+        }
+
+        if ($attempts >= $maxAttempts) {
+            echo json_encode(['success' => false, 'message' => 'Failed to generate unique Teacher ID after multiple attempts']);
+            exit;
+        }
+
+        // increment numeric and form next candidate
+        $numeric++;
+        $teacherId = $prefix . str_pad($numeric, 3, "0", STR_PAD_LEFT);
     }
     
     // Check if email already exists
@@ -415,6 +563,44 @@ if ($method === 'POST' && $path === '/routes.php/teacher') {
     $result = $user->createTeacherUser($teacherId, $data['password'], $data['name'], $data['email'], $data['phone']);
     
     if ($result) {
+        // Sync user to RBAC system (non-blocking)
+        $rbacSyncData = [
+            'userid' => $teacherId,
+            'role' => 'teacher',
+            'firstName' => $data['name'],
+            'lastName' => '', // Empty lastName for teachers
+            'email' => $data['email']
+        ];
+        
+        // Call RBAC backend to create user (handle conflicts)
+        $rbacResponse = @file_get_contents('http://rbac-backend:80/users', false, stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => 'Content-Type: application/json',
+                'content' => json_encode($rbacSyncData)
+            ]
+        ]));
+        
+        $rbacSyncSuccess = false;
+        if ($rbacResponse !== false) {
+            $rbacResult = json_decode($rbacResponse, true);
+            $rbacSyncSuccess = isset($rbacResult['success']) && $rbacResult['success'];
+        } else {
+            // If RBAC user creation failed with conflict, assume user exists and try to assign role
+            $rbacSyncSuccess = true;
+        }
+        
+        // If RBAC sync was successful (or user already exists), automatically assign teacher role
+        if ($rbacSyncSuccess) {
+            $roleAssignResponse = @file_get_contents("http://rbac-backend:80/users/{$teacherId}/roles/4", false, stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => 'Content-Type: application/json',
+                    'content' => json_encode([])
+                ]
+            ]));
+        }
+        
         // Then register teacher data in teacher backend
         $teacherRegistrationData = [
             'teacherId' => $teacherId,
@@ -446,20 +632,25 @@ if ($method === 'POST' && $path === '/routes.php/teacher') {
                     'message' => 'Teacher created successfully',
                     'teacherId' => $teacherId,
                     'whatsapp_sent' => $whatsappResult,
-                    'whatsapp_message' => $whatsappResult ? 'Welcome message sent successfully' : 'WhatsApp service unavailable'
+                    'whatsapp_message' => $whatsappResult ? 'Welcome message sent successfully' : 'WhatsApp service unavailable',
+                    'rbac_synced' => $rbacSyncSuccess
                 ]);
             } else {
-                // Teacher backend failed, but auth backend succeeded
+                // Teacher backend failed, but auth backend and RBAC succeeded
                 echo json_encode([
-                    'success' => false, 
-                    'message' => 'Teacher created in auth system but failed to create in teacher backend: ' . ($teacherBackendResponse['message'] ?? 'Unknown error')
+                    'success' => true, 
+                    'message' => 'Teacher created in auth system and RBAC, but failed to create in teacher backend: ' . ($teacherBackendResponse['message'] ?? 'Unknown error'),
+                    'teacherId' => $teacherId,
+                    'rbac_synced' => $rbacSyncSuccess
                 ]);
             }
         } else {
-            // Teacher backend call failed
+            // Teacher backend call failed, but auth backend and RBAC succeeded
             echo json_encode([
-                'success' => false, 
-                'message' => 'Teacher created in auth system but failed to connect to teacher backend'
+                'success' => true, 
+                'message' => 'Teacher created in auth system and RBAC, but failed to connect to teacher backend',
+                'teacherId' => $teacherId,
+                'rbac_synced' => $rbacSyncSuccess
             ]);
         }
     } else {
@@ -756,6 +947,43 @@ if ($method === 'POST' && $path === '/routes.php/send-welcome-whatsapp') {
         exit;
     }
     echo $controller->sendWelcomeWhatsAppMessage($data['userid'], $data['studentData']);
+    exit;
+}
+
+// Send teacher welcome WhatsApp message (for teacher accounts and teacher_staff)
+if ($method === 'POST' && $path === '/routes.php/send-teacher-welcome-whatsapp') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['userid']) || !isset($data['teacherData'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing userid or teacherData']);
+        exit;
+    }
+
+    // teacherData should include: name, phone, (optional) password
+    $teacherData = $data['teacherData'];
+    $name = $teacherData['name'] ?? '';
+    $phone = $teacherData['phone'] ?? ($teacherData['mobile'] ?? '');
+    $password = $teacherData['password'] ?? ($teacherData['pwd'] ?? '');
+
+    echo $controller->sendTeacherWelcomeMessage($data['userid'], $name, $phone, $password);
+    exit;
+}
+
+// Send staff (teacher_staff) welcome WhatsApp message
+if ($method === 'POST' && $path === '/routes.php/send-staff-welcome-whatsapp') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['userid']) || !isset($data['teacherData'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing userid or teacherData']);
+        exit;
+    }
+
+    $teacherData = $data['teacherData'];
+    $name = $teacherData['name'] ?? '';
+    $phone = $teacherData['phone'] ?? ($teacherData['mobile'] ?? '');
+    $password = $teacherData['password'] ?? ($teacherData['pwd'] ?? '');
+
+    echo $controller->sendStaffWelcomeMessage($data['userid'], $name, $phone, $password);
     exit;
 }
 

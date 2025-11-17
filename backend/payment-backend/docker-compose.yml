@@ -22,6 +22,7 @@ services:
     networks:
       - payment-network
       - class-network
+      - student-network
 
   payment-mysql:
     image: mysql:8.0
@@ -61,6 +62,9 @@ networks:
   class-network:
     external: true
     name: backend_class-network
+  student-network:
+    external: true
+    name: backend_student-network
 
 volumes:
   payment_mysql_data:

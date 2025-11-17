@@ -4,5 +4,3 @@
 
 // Include the routes file
 require_once __DIR__ . '/routes.php';
-?>
-

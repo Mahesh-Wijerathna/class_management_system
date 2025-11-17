@@ -397,6 +397,235 @@ class TeacherModel {
         $result = $stmt->get_result();
         return $result->num_rows > 0;
     }
+
+    // ==========================
+    // Teacher staff related methods
+    // ==========================
+
+    // Generate unique staffId for a teacher staff: TS + 5 digits
+    public function generateStaffId() {
+        do {
+            $random = str_pad(rand(0, 99999), 5, '0', STR_PAD_LEFT);
+            $staffId = 'TS' . $random;
+            $stmt = $this->conn->prepare("SELECT staffId FROM teacher_staff WHERE staffId = ?");
+            $stmt->bind_param("s", $staffId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+        } while ($res && $res->num_rows > 0);
+
+        return $staffId;
+    }
+
+    // Create a staff record linked to a teacher
+    public function createStaff($teacherId, $data) {
+        $staffId = $this->generateStaffId();
+        $sql = "INSERT INTO teacher_staff (staffId, teacherId, name, email, phone, password, permissions, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        $stmt = $this->conn->prepare($sql);
+        if (!$stmt) {
+            throw new Exception("Prepare failed: " . $this->conn->error);
+        }
+
+        $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
+        $permissions = isset($data['permissions']) ? json_encode($data['permissions']) : null;
+        $status = $data['status'] ?? 'active';
+
+        $stmt->bind_param("ssssssss",
+            $staffId,
+            $teacherId,
+            $data['name'],
+            $data['email'],
+            $data['phone'],
+            $hashedPassword,
+            $permissions,
+            $status
+        );
+
+        if ($stmt->execute()) {
+            return [
+                'success' => true,
+                'message' => 'Staff created successfully',
+                'staffId' => $staffId
+            ];
+        } else {
+            throw new Exception("Execute failed: " . $stmt->error);
+        }
+    }
+
+    // Create a staff record with a pre-generated staffId (used for atomic provisioning)
+    public function createStaffWithId($staffId, $teacherId, $data) {
+        $sql = "INSERT INTO teacher_staff (staffId, teacherId, name, email, phone, password, permissions, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        $stmt = $this->conn->prepare($sql);
+        if (!$stmt) {
+            throw new Exception("Prepare failed: " . $this->conn->error);
+        }
+
+        $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
+        $permissions = isset($data['permissions']) ? json_encode($data['permissions']) : null;
+        $status = $data['status'] ?? 'active';
+
+        $stmt->bind_param("ssssssss",
+            $staffId,
+            $teacherId,
+            $data['name'],
+            $data['email'],
+            $data['phone'],
+            $hashedPassword,
+            $permissions,
+            $status
+        );
+
+        if ($stmt->execute()) {
+            return [
+                'success' => true,
+                'message' => 'Staff created successfully',
+                'staffId' => $staffId
+            ];
+        } else {
+            throw new Exception("Execute failed: " . $stmt->error);
+        }
+    }
+
+    // Get all staff for a given teacher
+    public function getStaffByTeacher($teacherId) {
+        $sql = "SELECT id, staffId, teacherId, name, email, phone, permissions, status, created_at FROM teacher_staff WHERE teacherId = ? ORDER BY name ASC";
+        $stmt = $this->conn->prepare($sql);
+        if (!$stmt) {
+            throw new Exception("Prepare failed: " . $this->conn->error);
+        }
+        $stmt->bind_param("s", $teacherId);
+        if (!$stmt->execute()) {
+            throw new Exception("Execute failed: " . $stmt->error);
+        }
+        $result = $stmt->get_result();
+        $rows = [];
+        while ($r = $result->fetch_assoc()) {
+            if (isset($r['permissions']) && $r['permissions'] !== null) {
+                $r['permissions'] = json_decode($r['permissions'], true);
+            }
+            $rows[] = $r;
+        }
+        return $rows;
+    }
+
+    // Get staff by staffId
+    public function getStaffById($staffId) {
+        $sql = "SELECT id, staffId, teacherId, name, email, phone, password, permissions, status, created_at FROM teacher_staff WHERE staffId = ?";
+        $stmt = $this->conn->prepare($sql);
+        if (!$stmt) {
+            throw new Exception("Prepare failed: " . $this->conn->error);
+        }
+        $stmt->bind_param("s", $staffId);
+        if (!$stmt->execute()) {
+            throw new Exception("Execute failed: " . $stmt->error);
+        }
+        $result = $stmt->get_result();
+        return $result->fetch_assoc();
+    }
+
+    // Update a staff record by staffId
+    public function updateStaff($staffId, $data) {
+        // Fetch existing staff to preserve fields if not provided
+        $existing = $this->getStaffById($staffId);
+        if (!$existing) throw new Exception('Staff not found');
+
+        $name = $data['name'] ?? $existing['name'];
+        $email = array_key_exists('email', $data) ? $data['email'] : $existing['email'];
+        $phone = array_key_exists('phone', $data) ? $data['phone'] : $existing['phone'];
+        $status = $data['status'] ?? $existing['status'];
+        $permissions = isset($data['permissions']) ? json_encode($data['permissions']) : $existing['permissions'];
+
+        // Build SQL depending on whether password is being updated
+        if (!empty($data['password'])) {
+            $sql = "UPDATE teacher_staff SET name = ?, email = ?, phone = ?, password = ?, permissions = ?, status = ? WHERE staffId = ?";
+            $stmt = $this->conn->prepare($sql);
+            if (!$stmt) throw new Exception("Prepare failed: " . $this->conn->error);
+            $hashed = password_hash($data['password'], PASSWORD_DEFAULT);
+            $stmt->bind_param("sssssss", $name, $email, $phone, $hashed, $permissions, $status, $staffId);
+        } else {
+            $sql = "UPDATE teacher_staff SET name = ?, email = ?, phone = ?, permissions = ?, status = ? WHERE staffId = ?";
+            $stmt = $this->conn->prepare($sql);
+            if (!$stmt) throw new Exception("Prepare failed: " . $this->conn->error);
+            $stmt->bind_param("ssssss", $name, $email, $phone, $permissions, $status, $staffId);
+        }
+
+        if ($stmt->execute()) {
+            return ['success' => true, 'message' => 'Staff updated successfully', 'staffId' => $staffId];
+        } else {
+            throw new Exception("Execute failed: " . $stmt->error);
+        }
+    }
+
+    // Delete a staff record by staffId
+    public function deleteStaff($staffId) {
+        $sql = "DELETE FROM teacher_staff WHERE staffId = ?";
+        $stmt = $this->conn->prepare($sql);
+        if (!$stmt) throw new Exception("Prepare failed: " . $this->conn->error);
+        $stmt->bind_param("s", $staffId);
+        if ($stmt->execute()) {
+            return ['success' => true, 'message' => 'Staff deleted successfully', 'staffId' => $staffId];
+        } else {
+            throw new Exception("Execute failed: " . $stmt->error);
+        }
+    }
+
+    // Check if staffId exists
+    public function staffIdExists($staffId) {
+        $sql = "SELECT staffId FROM teacher_staff WHERE staffId = ?";
+        $stmt = $this->conn->prepare($sql);
+        if (!$stmt) {
+            throw new Exception("Prepare failed: " . $this->conn->error);
+        }
+        $stmt->bind_param("s", $staffId);
+        if (!$stmt->execute()) {
+            throw new Exception("Execute failed: " . $stmt->error);
+        }
+        $result = $stmt->get_result();
+        return $result->num_rows > 0;
+    }
+
+    // Check if email exists among staff for a teacher (optional exclude)
+    public function staffEmailExists($email, $teacherId = null) {
+        $sql = "SELECT staffId FROM teacher_staff WHERE email = ?";
+        $params = [$email];
+        $types = "s";
+        if ($teacherId) {
+            $sql .= " AND teacherId = ?";
+            $params[] = $teacherId;
+            $types .= "s";
+        }
+        $stmt = $this->conn->prepare($sql);
+        if (!$stmt) {
+            throw new Exception("Prepare failed: " . $this->conn->error);
+        }
+        $stmt->bind_param($types, ...$params);
+        if (!$stmt->execute()) {
+            throw new Exception("Execute failed: " . $stmt->error);
+        }
+        $result = $stmt->get_result();
+        return $result->num_rows > 0;
+    }
+
+    // Check if phone exists among staff for a teacher
+    public function staffPhoneExists($phone, $teacherId = null) {
+        $sql = "SELECT staffId FROM teacher_staff WHERE phone = ?";
+        $params = [$phone];
+        $types = "s";
+        if ($teacherId) {
+            $sql .= " AND teacherId = ?";
+            $params[] = $teacherId;
+            $types .= "s";
+        }
+        $stmt = $this->conn->prepare($sql);
+        if (!$stmt) {
+            throw new Exception("Prepare failed: " . $this->conn->error);
+        }
+        $stmt->bind_param($types, ...$params);
+        if (!$stmt->execute()) {
+            throw new Exception("Execute failed: " . $stmt->error);
+        }
+        $result = $stmt->get_result();
+        return $result->num_rows > 0;
+    }
     
     // Generate next teacher ID
     public function generateNextTeacherId() {

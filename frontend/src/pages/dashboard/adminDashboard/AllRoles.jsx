@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import adminSidebarSections from './AdminDashboardSidebar';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
 import BasicTable from '../../../components/BasicTable';
-import { FaEdit, FaTrash } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaEye } from 'react-icons/fa';
 import CustomButton from '../../../components/CustomButton';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import BasicButton from '../../../components/CustomButton';
 import { useNavigate } from 'react-router-dom';
+import { roleApi } from '../../../utils/roles';
+import { getCurrentUserPermissions } from '../../../utils/permissionChecker';
+import { getUserData } from '../../../api/apiUtils';
 
 const columns = [
   { key: 'id', label: 'Role Id' },
@@ -21,36 +24,72 @@ const roleTypes = [
   { value: 'teacher', label: 'Teacher' },
   { value: 'student', label: 'Student' },
   { value: 'cashier', label: 'Cashier' },
+  { value: 'teacher_staff', label: 'Teacher Staff' },
 ];
-
-const LOCAL_STORAGE_KEY = 'all_roles_data';
 
 const AllRoles = () => {
   const navigate = useNavigate();
-  const [roles, setRoles] = useState(() => {
-    const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  });
+  const [roles, setRoles] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [alertOpen, setAlertOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editRole, setEditRole] = useState(null);
   const [updateAlertOpen, setUpdateAlertOpen] = useState(false);
   const [pendingUpdate, setPendingUpdate] = useState(null);
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
 
+  // Fetch roles and user permissions on component mount
   useEffect(() => {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(roles));
-  }, [roles]);
+    fetchRoles();
+    fetchUserPermissions();
+  }, []);
+
+  const fetchRoles = async () => {
+    try {
+      setLoading(true);
+      const rolesData = await roleApi.getAllRoles();
+      setRoles(rolesData);
+    } catch (error) {
+      console.error('Error fetching roles:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUserPermissions = async () => {
+    try {
+      setPermissionsLoading(true);
+      const user = getUserData();
+      if (user?.userid) {
+        const perms = await getCurrentUserPermissions(user.userid);
+        setUserPermissions(perms);
+      }
+    } catch (error) {
+      console.error('Failed to fetch user permissions:', error);
+    } finally {
+      setPermissionsLoading(false);
+    }
+  };
 
   const handleDelete = (id) => {
     setDeleteId(id);
     setAlertOpen(true);
   };
 
-  const confirmDelete = () => {
-    setRoles(prev => prev.filter(role => role.id !== deleteId));
-    setAlertOpen(false);
-    setDeleteId(null);
+  const confirmDelete = async () => {
+    try {
+      await roleApi.deleteRole(deleteId);
+      setRoles(prev => prev.filter(role => role.id !== deleteId));
+      setAlertOpen(false);
+      setDeleteId(null);
+    } catch (error) {
+      console.error('Error deleting role:', error);
+      // Show error alert
+      setAlertOpen(false);
+      // You might want to add error handling here
+    }
   };
 
   const handleAddNew = () => {
@@ -63,40 +102,45 @@ const AllRoles = () => {
     setFormOpen(true);
   };
 
-  const getNextId = () => {
-    if (roles.length === 0) return 1;
-    return Math.max(...roles.map(r => r.id)) + 1;
-  };
-
-  const handleFormSubmit = (values, { resetForm }) => {
-    if (editRole) {
-      // Show alert before updating
-      setPendingUpdate({ values, resetForm });
-      setUpdateAlertOpen(true);
-    } else {
-      setRoles(prev => [
-        ...prev,
-        { id: getNextId(), ...values }
-      ]);
-      setFormOpen(false);
-      setEditRole(null);
-      resetForm && resetForm();
+  const handleFormSubmit = async (values, { resetForm }) => {
+    try {
+      if (editRole) {
+        // Show alert before updating
+        setPendingUpdate({ values, resetForm });
+        setUpdateAlertOpen(true);
+      } else {
+        await roleApi.createRole({ name: values.name, description: values.description, permission_ids: [] });
+        setFormOpen(false);
+        setEditRole(null);
+        resetForm && resetForm();
+        // Refresh roles
+        fetchRoles();
+      }
+    } catch (error) {
+      console.error('Error creating role:', error);
+      // Handle error
     }
   };
 
-  const confirmUpdate = () => {
+  const confirmUpdate = async () => {
     if (pendingUpdate && editRole) {
-      setRoles(prev => prev.map(r => r.id === editRole.id ? { ...r, ...pendingUpdate.values } : r));
-      setFormOpen(false);
-      setEditRole(null);
-      pendingUpdate.resetForm && pendingUpdate.resetForm();
+      try {
+        await roleApi.updateRole(editRole.id, { name: pendingUpdate.values.name, description: pendingUpdate.values.description, permission_ids: [] });
+        setFormOpen(false);
+        setEditRole(null);
+        pendingUpdate.resetForm && pendingUpdate.resetForm();
+        // Refresh roles
+        fetchRoles();
+      } catch (error) {
+        console.error('Error updating role:', error);
+      }
     }
     setUpdateAlertOpen(false);
     setPendingUpdate(null);
   };
 
   return (
-    <DashboardLayout sidebarItems={adminSidebarSections}>
+    <DashboardLayout sidebarItems={AdminDashboardSidebar(userPermissions)}>
       <div className="w-full max-w-25xl bg-white rounded-lg shadow p-4 mx-auto">
         <div className="flex justify-between items-center mb-2">
           <h1 className="text-2xl font-bold">All Roles</h1>
@@ -173,14 +217,16 @@ const AllRoles = () => {
               >
                 {({ values, handleChange }) => (
                   <>
-                    <CustomTextField
-                      id="id"
-                      name="id"
-                      label="Role Id"
-                      value={editRole ? editRole.id : getNextId()}
-                      onChange={() => {}}
-                      disabled
-                    />
+                    {editRole && (
+                      <CustomTextField
+                        id="id"
+                        name="id"
+                        label="Role Id"
+                        value={editRole.id}
+                        onChange={() => {}}
+                        disabled
+                      />
+                    )}
                     <CustomTextField
                       id="name"
                       name="name"

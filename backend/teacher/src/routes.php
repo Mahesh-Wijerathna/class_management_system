@@ -65,6 +65,18 @@ try {
             } elseif (preg_match('/^\/study_pack$/', $path)) {
                 $id = $_GET['id'] ?? null;
                 $response = $controller->getStudyPackById($id);
+            } elseif (preg_match('#^/staff/([A-Za-z0-9_\-]+)$#', $path, $matches)) {
+                // Get staff by staffId (single staff)
+                $staffId = $matches[1];
+                $response = $controller->getStaffById($staffId);
+            } elseif (preg_match('#^/teacher/([A-Za-z0-9_\-]+)/staff$#', $path, $matches)) {
+                // Get staff list for a teacher
+                $teacherId = $matches[1];
+                $response = $controller->getStaffForTeacher($teacherId);
+            } elseif (preg_match('#^/teacher/([A-Za-z0-9_\-]+)/staff/([A-Za-z0-9_\-]+)$#', $path, $matches)) {
+                // Get single staff under a teacher (reuse getStaffForTeacher or implement separately)
+                $teacherId = $matches[1];
+                $response = $controller->getStaffForTeacher($teacherId);
             } elseif ($path === '/get_active_teachers') {
                 $response = $controller->getActiveTeachers();
             } elseif ($path === '/get_next_teacher_id') {
@@ -89,13 +101,13 @@ try {
                 http_response_code(404);
             }
             break;
-            
+
         case 'POST':
             // For file uploads, don't parse JSON body
             $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
             $isMultipart = stripos($contentType, 'multipart/form-data') !== false;
             $input = $isMultipart ? [] : json_decode(file_get_contents('php://input'), true);
-            
+
             if ($path === '/create_teacher' || $path === '/') {
                 $response = $controller->createTeacher($input);
             } elseif ($path === '/create_study_pack') {
@@ -107,6 +119,13 @@ try {
                 $response = $studyPackController->uploadVideo($_POST, $_FILES);
             } elseif ($path === '/study_pack_upload_document') {
                 $response = $studyPackController->uploadDocument($_POST, $_FILES);
+            } elseif (preg_match('#^/teacher/([A-Za-z0-9_\-]+)/staff$#', $path, $matches) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+                $teacherId = $matches[1];
+                $response = $controller->createStaff($teacherId, $input);
+            } elseif ($path === '/teacher/staff/login') {
+                $staffId = $input['staffId'] ?? '';
+                $password = $input['password'] ?? '';
+                $response = $controller->loginStaffWithId($staffId, $password);
             } elseif ($path === '/login') {
                 $email = $input['email'] ?? '';
                 $password = $input['password'] ?? '';
@@ -128,7 +147,7 @@ try {
                 http_response_code(404);
             }
             break;
-            
+
         case 'PUT':
             $input = json_decode(file_get_contents('php://input'), true);
 
@@ -147,6 +166,9 @@ try {
             } elseif (preg_match('/^\/study_pack_link\/(\d+)$/', $path, $matches)) {
                 $linkId = (int)$matches[1];
                 $response = $studyPackController->updateLink($linkId, $input);
+            } elseif (preg_match('#^/teacher/staff/([A-Za-z0-9_\-]+)$#', $path, $matches)) {
+                $staffId = $matches[1];
+                $response = $controller->updateStaff($staffId, $input);
             } else {
                 $response = [
                     'success' => false,
@@ -155,7 +177,7 @@ try {
                 http_response_code(404);
             }
             break;
-            
+
         case 'DELETE':
             if (preg_match('/^\/delete_teacher\/(.+)$/', $path, $matches)) {
                 $teacherId = $matches[1];
@@ -169,6 +191,9 @@ try {
             } elseif (preg_match('/^\/study_pack_link\/(\d+)$/', $path, $matches)) {
                 $linkId = (int)$matches[1];
                 $response = $studyPackController->deleteLink($linkId);
+            } elseif (preg_match('#^/teacher/staff/([A-Za-z0-9_\-]+)$#', $path, $matches)) {
+                $staffId = $matches[1];
+                $response = $controller->deleteStaff($staffId);
             } else {
                 $response = [
                     'success' => false,
@@ -177,7 +202,7 @@ try {
                 http_response_code(404);
             }
             break;
-            
+
         default:
             $response = [
                 'success' => false,

@@ -11,7 +11,7 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import BasicAlertBox from '../../../components/BasicAlertBox';
-import { getActiveTeachers, updateTeacherDetails, deleteTeacherFromTeacherBackend, getTeacherForEdit, deleteTeacher } from '../../../api/teachers';
+import { getActiveTeachers, updateTeacherDetails, updateTeacher, deleteTeacherFromTeacherBackend, getTeacherForEdit, deleteTeacher } from '../../../api/teachers';
 
 
 const TeacherInfo = () => {
@@ -211,6 +211,39 @@ const TeacherInfo = () => {
       
       // Reload teachers from backend
       await loadTeachers();
+
+      // Also update auth backend record so forgot-password uses the new phone
+      try {
+        const authUpdateData = {};
+        if (updateData.name) authUpdateData.name = updateData.name;
+        if (updateData.email) authUpdateData.email = updateData.email;
+        if (updateData.phone) authUpdateData.phone = updateData.phone;
+        if (updateData.password) authUpdateData.password = updateData.password;
+
+        if (Object.keys(authUpdateData).length > 0) {
+          const authResp = await updateTeacher(values.teacherId, authUpdateData);
+          console.log('Auth backend update response:', authResp);
+          if (!authResp || !authResp.success) {
+            // Warn but don't fail the overall update
+            setSaveAlert({
+              open: true,
+              message: `Teacher updated in teacher backend but failed to update auth record: ${authResp?.message || 'Unknown error'}`,
+              onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+              confirmText: 'OK',
+              type: 'warning'
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Error updating auth backend:', err);
+        setSaveAlert({
+          open: true,
+          message: `Teacher updated in teacher backend but failed to update auth record: ${err.message || 'Unknown error'}`,
+          onConfirm: () => setSaveAlert(a => ({ ...a, open: false })),
+          confirmText: 'OK',
+          type: 'warning'
+        });
+      }
       setEditingTeacher(null);
       setShowEditModal(false);
       setSaveAlert({

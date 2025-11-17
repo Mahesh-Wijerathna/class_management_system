@@ -61,6 +61,18 @@ class UserModel {
         
         return $stmt->execute();
     }
+
+    // Create a generic user record with provided userid and role
+    public function createUserWithId($userid, $role, $password, $name = null, $email = null, $phone = null) {
+        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+
+        $stmt = $this->conn->prepare("INSERT INTO users (userid, password, role, name, email, phone) VALUES (?, ?, ?, ?, ?, ?)");
+        if (!$stmt) {
+            throw new Exception('Prepare failed: ' . $this->conn->error);
+        }
+        $stmt->bind_param("ssssss", $userid, $hashedPassword, $role, $name, $email, $phone);
+        return $stmt->execute();
+    }
     // Get user by ID
     public function getUserById($userid) {
         $stmt = $this->conn->prepare("SELECT userid, password, role, name, email, phone, otp FROM users WHERE userid = ?");

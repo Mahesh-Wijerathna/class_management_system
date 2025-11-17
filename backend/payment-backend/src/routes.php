@@ -162,6 +162,11 @@ switch ($method) {
         } elseif ($path === '/get_payment_stats') {
             $result = $paymentController->getPaymentStats();
             echo json_encode($result);
+        } elseif ($path === '/get_cashier_stats' && isset($_GET['cashierId'])) {
+            $cashierId = $_GET['cashierId'];
+            $period = $_GET['period'] ?? 'today'; // today, month, all, or specific date YYYY-MM-DD
+            $result = $paymentController->getCashierStats($cashierId, $period);
+            echo json_encode($result);
         } elseif ($path === '/generate_invoice' && isset($_GET['transactionId'])) {
             $transactionId = $_GET['transactionId'];
             $result = $paymentController->generateInvoice($transactionId);

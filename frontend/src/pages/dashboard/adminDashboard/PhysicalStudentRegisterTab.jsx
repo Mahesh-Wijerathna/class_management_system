@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import * as Yup from 'yup';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomButton from '../../../components/CustomButton';
@@ -8,6 +8,211 @@ import { FaUser, FaPhone, FaIdCard, FaCalendarAlt, FaVenusMars, FaGraduationCap,
 import { Formik } from 'formik';
 import JsBarcode from 'jsbarcode';
 import { register, saveBarcode } from '../../../api/auth';
+import { createPayment } from '../../../api/payments';
+import { getUserData } from '../../../api/apiUtils';
+
+// Fast Receipt Printer - Opens print dialog immediately (same as CashierDashboard)
+const printPaymentReceipt = ({ student, paymentData, cashierName }) => {
+  const printWindow = window.open('', '_blank');
+  
+  if (!printWindow) {
+    alert('Please allow pop-ups to print receipts');
+    return;
+  }
+
+  const receiptDate = new Date();
+  const formattedDate = receiptDate.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+  const formattedTime = receiptDate.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  const receiptHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Payment Receipt - ${paymentData.transactionId || 'N/A'}</title>
+      <style>
+        @media print {
+          @page { margin: 0; }
+          body { margin: 0.5cm; }
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          font-family: 'Courier New', monospace;
+          padding: 20px;
+          max-width: 80mm;
+          margin: 0 auto;
+        }
+        .receipt {
+          border: 2px dashed #333;
+          padding: 15px;
+        }
+        .header {
+          text-align: center;
+          border-bottom: 2px solid #333;
+          padding-bottom: 10px;
+          margin-bottom: 15px;
+        }
+        .header .logo {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          margin-bottom: 5px;
+        }
+        .header .logo-icon {
+          font-size: 24px;
+        }
+        .header h1 {
+          font-size: 20px;
+          font-weight: bold;
+          margin: 0;
+        }
+        .header .subtitle {
+          font-size: 12px;
+          color: #666;
+        }
+        .section {
+          margin-bottom: 15px;
+          padding-bottom: 10px;
+          border-bottom: 1px dashed #999;
+        }
+        .section:last-child {
+          border-bottom: none;
+        }
+        .row {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 8px;
+          font-size: 13px;
+        }
+        .row .label {
+          font-weight: bold;
+          color: #333;
+        }
+        .row .value {
+          text-align: right;
+          color: #000;
+        }
+        .total-section {
+          background: #f0f0f0;
+          padding: 10px;
+          margin: 15px 0;
+          border-radius: 5px;
+        }
+        .total-row {
+          display: flex;
+          justify-content: space-between;
+          font-size: 16px;
+          font-weight: bold;
+        }
+        .footer {
+          text-align: center;
+          margin-top: 20px;
+          padding-top: 15px;
+          border-top: 2px solid #333;
+          font-size: 11px;
+        }
+        .thank-you {
+          font-size: 14px;
+          font-weight: bold;
+          margin-bottom: 10px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="receipt">
+        <div class="header">
+          <div class="logo">
+            <span class="logo-icon">🎓</span>
+            <h1>TCMS</h1>
+          </div>
+          <div class="subtitle">Admission Fee Receipt</div>
+        </div>
+
+        <div class="section">
+          <div class="row">
+            <span class="label">Receipt No:</span>
+            <span class="value">${paymentData.transactionId || 'N/A'}</span>
+          </div>
+          <div class="row">
+            <span class="label">Date/Time:</span>
+            <span class="value">${formattedDate}, ${formattedTime}</span>
+          </div>
+          <div class="row">
+            <span class="label">Cashier:</span>
+            <span class="value">${cashierName || 'Cashier'}</span>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="row">
+            <span class="label">Student Name:</span>
+            <span class="value">${student.firstName} ${student.lastName}</span>
+          </div>
+          <div class="row">
+            <span class="label">Student ID:</span>
+            <span class="value">${student.studentId || student.id}</span>
+          </div>
+          <div class="row">
+            <span class="label">Contact:</span>
+            <span class="value">${student.mobile || student.phone || 'N/A'}</span>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="row">
+            <span class="label">Payment Type:</span>
+            <span class="value">Admission Fee</span>
+          </div>
+          <div class="row">
+            <span class="label">Payment Method:</span>
+            <span class="value">Cash</span>
+          </div>
+        </div>
+
+        <div class="total-section">
+          <div class="total-row">
+            <span>AMOUNT PAID:</span>
+            <span>LKR ${Number(paymentData.amount).toLocaleString()}</span>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="row">
+            <span class="label">Notes:</span>
+          </div>
+          <div style="margin-top: 5px; font-size: 12px; color: #666;">
+            Admission Fee - Collected during physical registration
+          </div>
+        </div>
+
+        <div class="footer">
+          <div class="thank-you">Thank You!</div>
+          <div>For inquiries, please contact the office</div>
+          <div style="margin-top: 5px;">This is a computer-generated receipt</div>
+        </div>
+      </div>
+      <script>
+        window.onload = function() {
+          setTimeout(function() {
+            window.print();
+          }, 250);
+        };
+      </script>
+    </body>
+    </html>
+  `;
+
+  printWindow.document.write(receiptHTML);
+  printWindow.document.close();
+};
 
 // Helper to parse NIC (Sri Lankan)
 function parseNIC(nic) {
@@ -85,7 +290,10 @@ const step1Schema = Yup.object().shape({
     .required('Mobile number is required'),
 });
 
-const PhysicalStudentRegisterTab = () => {
+const PhysicalStudentRegisterTab = ({ onAdmissionFeePaid }) => {
+  // Get logged-in user (cashier) data for tracking who created the payment
+  const user = useMemo(() => getUserData(), []);
+  
   const [step, setStep] = useState(1);
   const [summaryValues, setSummaryValues] = useState({});
   const [nicInfo, setNicInfo] = useState(null);
@@ -119,6 +327,10 @@ const PhysicalStudentRegisterTab = () => {
     type: 'info',
     onConfirm: () => setAlertConfig(prev => ({ ...prev, open: false }))
   });
+  
+  // Admission fee state variables
+  const [collectAdmissionFee, setCollectAdmissionFee] = useState(false);
+  const [admissionFeeAmount, setAdmissionFeeAmount] = useState(1000); // Default admission fee
 
   // Generate unique student ID (same as online registration - S0 + 4 random digits)
   const generateStudentId = () => {
@@ -260,10 +472,65 @@ const PhysicalStudentRegisterTab = () => {
         // Save barcode data to backend
         try {
           await saveBarcode(response.userid, response.userid, `${summaryValues.firstName} ${summaryValues.lastName}`);
-          console.log('Barcode data saved to backend');
         } catch (error) {
           console.error('Failed to save barcode data:', error);
-          // Don't fail the registration if barcode save fails
+        }
+        
+        // Record admission fee payment if checkbox is checked
+        if (collectAdmissionFee && admissionFeeAmount > 0) {
+          try {
+            const admissionPayload = {
+              paymentType: 'admission_fee',
+              paymentMethod: 'cash',
+              channel: 'physical',
+              studentId: response.userid,
+              amount: admissionFeeAmount,
+              notes: 'Admission Fee - Collected during physical registration',
+              cashierId: user?.userid, // Track which cashier collected this payment
+              createdBy: user?.userid  // Alternative field for tracking
+            };
+            
+            const admissionPaymentRes = await createPayment(admissionPayload);
+            
+            if (admissionPaymentRes?.success) {
+              
+              // Extract transaction ID from response
+              const transactionId = admissionPaymentRes?.transactionId || admissionPaymentRes?.data?.transactionId || admissionPaymentRes?.data?.transaction_id;
+              
+              // Print receipt for admission fee payment
+              if (transactionId) {
+                const receiptData = {
+                  transactionId: transactionId,
+                  amount: admissionFeeAmount,
+                  paymentMethod: 'Cash',
+                  notes: 'Admission Fee - Collected during physical registration'
+                };
+                
+                printPaymentReceipt({
+                  student: {
+                    firstName: summaryValues.firstName,
+                    lastName: summaryValues.lastName,
+                    studentId: response.userid,
+                    id: response.userid,
+                    mobile: summaryValues.mobile,
+                    phone: summaryValues.mobile
+                  },
+                  paymentData: receiptData,
+                  cashierName: user?.name || user?.username || 'Cashier'
+                });
+              }
+              
+              if (onAdmissionFeePaid && typeof onAdmissionFeePaid === 'function') {
+                onAdmissionFeePaid(admissionFeeAmount);
+              }
+            } else {
+              console.error('❌ Failed to record admission fee payment:', admissionPaymentRes);
+              alert('⚠️ Registration successful but admission fee payment recording failed.\n\nError: ' + (admissionPaymentRes?.message || 'Unknown error') + '\n\nPlease record the admission fee payment manually in the Cashier Dashboard.');
+            }
+          } catch (error) {
+            console.error('Error recording admission fee payment:', error);
+            alert('⚠️ Registration successful but admission fee payment recording failed.\n\nError: ' + error.message + '\n\nPlease record the admission fee payment manually in the Cashier Dashboard.');
+          }
         }
         
         // Send welcome WhatsApp message
@@ -328,8 +595,6 @@ const PhysicalStudentRegisterTab = () => {
         setTimeout(() => {
           generateBarcodeOnCanvas(response.userid, 'success-barcode-display');
         }, 100);
-        
-        console.log('Physical registration successful! Student ID:', response.userid);
       } else {
         setAlertConfig({
           open: true,
@@ -710,6 +975,9 @@ const PhysicalStudentRegisterTab = () => {
                           parentMobile: '',
                         });
                         setSummaryValues({});
+                        // Reset admission fee state
+                        setCollectAdmissionFee(false);
+                        setAdmissionFeeAmount(1000);
                       }}
                     >
                       Register Another Student
@@ -733,6 +1001,49 @@ const PhysicalStudentRegisterTab = () => {
               <CustomTextField label="District" value={summaryValues.district} readOnly icon={FaUser} />
               <CustomTextField label="Parent Name" value={summaryValues.parentName} readOnly icon={FaUser} />
               <CustomTextField label="Parent Mobile Number" value={summaryValues.parentMobile} readOnly icon={FaPhone} />
+              
+              {/* Admission Fee Section */}
+              <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 mt-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={collectAdmissionFee}
+                    onChange={(e) => setCollectAdmissionFee(e.target.checked)}
+                    className="mt-1 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <div className="flex-1">
+                    <span className="font-semibold text-[#1a365d]">Admission Fee Collected (Optional)</span>
+                    <div className="text-xs text-green-700 mt-1">
+                      ✅ Check this ONLY if the student paid admission fee AND will enroll in Physical Only/Hybrid 1/Hybrid 2/Hybrid 4 classes.
+                    </div>
+                    <div className="text-xs text-blue-700 mt-1">
+                      ℹ️ Not required for Online Only/ Hybrid 3 students. Can be collected later via Cashier Dashboard.
+                    </div>
+                  </div>
+                </label>
+                
+                {/* Admission Fee Amount Input - Only show when checkbox is checked */}
+                {collectAdmissionFee && (
+                  <div className="mt-4 bg-white rounded-lg p-3 border-2 border-blue-400">
+                    <label className="block text-sm font-semibold text-[#1a365d] mb-2">
+                      Admission Fee Amount (LKR) *
+                    </label>
+                    <input
+                      type="number"
+                      value={admissionFeeAmount}
+                      onChange={(e) => setAdmissionFeeAmount(Number(e.target.value) || 0)}
+                      className="w-full px-4 py-3 border-2 border-[#1a365d] rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-lg font-semibold"
+                      min="0"
+                      step="100"
+                      placeholder="Enter admission fee amount"
+                    />
+                    <div className="text-xs text-slate-600 mt-2">
+                      💡 Default: LKR 1,000 (can be adjusted)
+                    </div>
+                  </div>
+                )}
+              </div>
+              
               <div className="flex gap-4 mt-2">
                 <CustomButton type="button" onClick={() => setStep(2)}>
                   Back

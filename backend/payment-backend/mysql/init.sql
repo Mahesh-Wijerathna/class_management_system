@@ -54,16 +54,13 @@ CREATE TABLE IF NOT EXISTS financial_records (
     payment_method VARCHAR(50),
     reference_number VARCHAR(100),
     notes TEXT,
-    delivery_status ENUM('pending', 'processing', 'delivered') DEFAULT 'pending',
     created_by VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_transaction_id (transaction_id),
     INDEX idx_user_id (user_id),
     INDEX idx_class_id (class_id),
-    INDEX idx_status (status),
-    INDEX idx_delivery_status (delivery_status)
+    INDEX idx_status (status)
 );
-
 -- Class Earnings Configuration Table
 -- Stores per-class earnings configuration including teacher dashboard access and revenue split settings
 CREATE TABLE IF NOT EXISTS class_earnings_config (
@@ -84,7 +81,7 @@ CREATE TABLE IF NOT EXISTS class_earnings_config (
 -- Student purchases for study packs
 CREATE TABLE IF NOT EXISTS student_purchases (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    student_id varchar(20) NOT NULL,
+    student_id varchar(50) NOT NULL,
     study_pack_id INT NOT NULL,
     purchase_date DATETIME DEFAULT CURRENT_TIMESTAMP,
     payment_status ENUM('pending','completed','failed') DEFAULT 'pending',
@@ -108,3 +105,4 @@ CREATE TABLE IF NOT EXISTS student_purchases (
 -- ALTER TABLE student_purchases ADD UNIQUE KEY uniq_transaction_id (transaction_id);
 -- ALTER TABLE student_purchases ADD UNIQUE KEY uniq_student_pack_completed (student_id, study_pack_id, payment_status);
 -- Note: The code now enforces idempotency checks; adding these constraints will give hard guarantees.
+

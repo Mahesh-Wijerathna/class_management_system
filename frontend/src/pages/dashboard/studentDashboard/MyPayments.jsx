@@ -29,23 +29,48 @@ const MyPayments = () => {
         setLoading(false);
         return;
       }
+      const studentId = userData.userid;
 
-      const res = await getStudentPayments(userData.userid);
-      if (res.success && Array.isArray(res.data)) {
-        // Normalize fields for the UI
-        const mapped = res.data.map((p) => ({
-          date: p.date || p.purchase_date || p.created_at || null,
-          className: p.class_name || p.className || p.subject || 'N/A',
-          amount: parseFloat(p.amount || p.paid_amount || 0),
-          method: p.payment_method || p.method || 'online',
-          status: p.status || p.payment_status || 'completed',
-          transaction_id: p.transaction_id || p.invoiceId || p.id || '',
-          raw: p
-        }));
+      const response = await getStudentPayments(studentId);
+
+      // Normalize and merge different backend shapes into a single UI-friendly format
+      if (response && response.success && Array.isArray(response.data)) {
+        const mapped = response.data.map((p) => {
+          const paymentType = p.payment_type || p.paymentType || 'class_payment';
+          const isAdmissionFee = paymentType === 'admission_fee';
+
+          let displayClassName = '';
+          if (isAdmissionFee) {
+            const baseName = p.class_name || p.className || '';
+            displayClassName = baseName ? `Admission Fee - ${baseName}` : 'Admission Fee';
+          } else {
+            // prefer class_name/className, append subject if present
+            const base = p.class_name || p.className || '';
+            displayClassName = base || (p.subject ? `${base} - ${p.subject}` : 'N/A');
+          }
+
+          const rawDate = p.date || p.purchase_date || p.created_at || null;
+          const dateIso = rawDate ? new Date(rawDate).toISOString() : null;
+
+          const amountNum = parseFloat(p.amount || p.paid_amount || p.fee || 0) || 0;
+          const methodRaw = p.payment_method || p.method || 'online';
+          const statusRaw = (p.status || p.payment_status || 'paid').toString();
+
+          return {
+            date: dateIso,
+            userId: p.user_id || p.userId || p.student_id || studentId || '',
+            className: displayClassName,
+            amount: amountNum,
+            method: methodRaw,
+            status: statusRaw.toLowerCase(),
+            transaction_id: p.transaction_id || p.invoiceId || p.id || '',
+            raw: p
+          };
+        });
 
         setPayments(mapped);
       } else {
-        setError(res.message || 'Failed to load payments');
+        setError((response && response.message) || 'Failed to load payments');
         setPayments([]);
       }
     } catch (err) {
