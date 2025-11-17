@@ -39,6 +39,12 @@ const cashierSidebarSections = [
       { name: 'Late Payments', path: '/cashier/late-payments', icon: <FaExclamationTriangle className="h-5 w-5" /> },
       { name: 'Forget ID Card Students', path: '/cashier/forget-id-card', icon: <FaIdCard className="h-5 w-5" /> },
     ]
+  },
+  {
+    section: 'Reports & History',
+    items: [
+      { name: 'Session End Report History', path: '/cashier/session-report-history', icon: <FaHistory className="h-5 w-5" /> },
+    ]
   // },
   // {
   //   section: 'Payment Management',

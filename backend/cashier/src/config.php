@@ -1,11 +1,4 @@
 <?php
-// Start output buffering to prevent PHP warnings from corrupting JSON responses
-ob_start();
-
-// Disable error display (log only)
-ini_set('display_errors', '0');
-error_reporting(E_ALL);
-
 // Database configuration for Cashier Backend
 
 // Cashier database (for session management)
@@ -21,20 +14,14 @@ define('AUTH_DB_NAME', getenv('AUTH_DB_NAME') ?: 'auth-db');
 define('AUTH_DB_USER', getenv('AUTH_DB_USER') ?: 'devuser');
 define('AUTH_DB_PASSWORD', getenv('AUTH_DB_PASSWORD') ?: 'devpass');
 
+// Payment database (for transaction data - read-only)
+define('PAYMENT_DB_HOST', getenv('PAYMENT_DB_HOST') ?: 'payment-mysql');
+define('PAYMENT_DB_NAME', getenv('PAYMENT_DB_NAME') ?: 'payment_db');
+define('PAYMENT_DB_USER', getenv('PAYMENT_DB_USER') ?: 'paymentuser');
+define('PAYMENT_DB_PASSWORD', getenv('PAYMENT_DB_PASSWORD') ?: 'paymentpass');
+
 // Timezone
 date_default_timezone_set('Asia/Colombo');
-
-// CORS Configuration
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-header('Content-Type: application/json');
-
-// Handle preflight requests
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
 
 // Database connection function (Cashier DB)
 function getDBConnection() {
@@ -78,6 +65,26 @@ function getAuthDBConnection() {
     }
     
     return $authConn;
+}
+
+// Payment database connection function (for transaction queries - read-only)
+function getPaymentDBConnection() {
+    static $paymentConn = null;
+    
+    if ($paymentConn === null) {
+        try {
+            $dsn = "mysql:host=" . PAYMENT_DB_HOST . ";dbname=" . PAYMENT_DB_NAME . ";charset=" . DB_CHARSET;
+            $paymentConn = new PDO($dsn, PAYMENT_DB_USER, PAYMENT_DB_PASSWORD);
+            $paymentConn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $paymentConn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Payment DB connection failed: " . $e->getMessage());
+            // Not critical - day end reports can work with session-level data
+            return null;
+        }
+    }
+    
+    return $paymentConn;
 }
 
 // Verify if cashier user exists in auth database

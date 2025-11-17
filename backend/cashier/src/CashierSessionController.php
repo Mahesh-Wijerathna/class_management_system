@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/config.php';
+// Config is loaded by index.php
 
 class CashierSessionController {
     
@@ -35,14 +35,14 @@ class CashierSessionController {
         try {
             $db = getDBConnection();
             
-            // Check if an ACTIVE or LOCKED session already exists for today
+            // First, check if there's ANY active or locked session for this cashier (from any date)
             $stmt = $db->prepare("
                 SELECT * FROM cashier_sessions 
-                WHERE cashier_id = ? AND session_date = ? AND session_status IN ('active', 'locked')
-                ORDER BY session_id DESC
+                WHERE cashier_id = ? AND session_status IN ('active', 'locked')
+                ORDER BY session_date DESC, session_id DESC
                 LIMIT 1
             ");
-            $stmt->execute([$cashierId, $today]);
+            $stmt->execute([$cashierId]);
             $existingSession = $stmt->fetch();
             
             if ($existingSession) {
@@ -109,12 +109,15 @@ class CashierSessionController {
     }
     
     /**
-     * Get current session for a cashier on a specific date
+     * Get current session for a cashier
+     * If date parameter is provided, checks for session on that specific date
+     * If date is today or not provided, returns ANY active session (even from previous dates)
      * GET /api/session/current?cashier_id=C00001&date=2025-10-18
      */
     public function getCurrentSession() {
         $cashierId = $_GET['cashier_id'] ?? null;
         $date = $_GET['date'] ?? date('Y-m-d');
+        $today = date('Y-m-d');
         
         if (!$cashierId) {
             handleError('Missing required parameter: cashier_id', 400);
@@ -123,13 +126,27 @@ class CashierSessionController {
         try {
             $db = getDBConnection();
             
-            $stmt = $db->prepare("
-                SELECT * FROM cashier_sessions 
-                WHERE cashier_id = ? AND session_date = ? AND session_status IN ('active', 'locked')
-                ORDER BY session_id DESC
-                LIMIT 1
-            ");
-            $stmt->execute([$cashierId, $date]);
+            // If checking for today's session, find ANY active session (not just today's)
+            // This prevents creating duplicate sessions when old ones are not closed
+            if ($date === $today) {
+                $stmt = $db->prepare("
+                    SELECT * FROM cashier_sessions 
+                    WHERE cashier_id = ? AND session_status IN ('active', 'locked')
+                    ORDER BY session_date DESC, session_id DESC
+                    LIMIT 1
+                ");
+                $stmt->execute([$cashierId]);
+            } else {
+                // For historical date lookup, check that specific date only
+                $stmt = $db->prepare("
+                    SELECT * FROM cashier_sessions 
+                    WHERE cashier_id = ? AND session_date = ? AND session_status IN ('active', 'locked')
+                    ORDER BY session_id DESC
+                    LIMIT 1
+                ");
+                $stmt->execute([$cashierId, $date]);
+            }
+            
             $session = $stmt->fetch();
             
             if ($session) {
@@ -685,6 +702,220 @@ class CashierSessionController {
         } catch (PDOException $e) {
             error_log("Unlock session error: " . $e->getMessage());
             handleError('Failed to unlock session: ' . $e->getMessage(), 500);
+        }
+    }
+    
+    /**
+     * Save Session End Report to database
+     * POST /api/reports/save-session-report
+     * Body: {
+     *   "session_id": 123,
+     *   "report_type": "full",
+     *   "report_data": {...},
+     *   "is_final": true
+     * }
+     */
+    public function saveSessionReport() {
+        $data = getJsonInput();
+        
+        if (!isset($data['session_id']) || !isset($data['report_data'])) {
+            handleError('Missing required fields: session_id, report_data', 400);
+        }
+        
+        try {
+            $db = getDBConnection();
+            
+            // Get session details
+            $stmt = $db->prepare("
+                SELECT * FROM cashier_sessions WHERE session_id = ?
+            ");
+            $stmt->execute([$data['session_id']]);
+            $session = $stmt->fetch();
+            
+            if (!$session) {
+                handleError('Session not found', 404);
+            }
+            
+            // Get cash-out amount
+            $stmt = $db->prepare("
+                SELECT MAX(amount) as cash_out_amount 
+                FROM cash_drawer_transactions 
+                WHERE session_id = ? AND transaction_type = 'cash_out'
+            ");
+            $stmt->execute([$data['session_id']]);
+            $cashOutResult = $stmt->fetch();
+            $cashOutAmount = $cashOutResult ? floatval($cashOutResult['cash_out_amount']) : null;
+            
+            // Calculate expected closing and variance
+            $openingBalance = floatval($session['opening_balance']);
+            $totalCollections = floatval($session['total_collections']);
+            $expectedClosing = $openingBalance + $totalCollections;
+            $variance = $cashOutAmount ? ($cashOutAmount - $expectedClosing) : 0;
+            
+            // Extract card counts from report data
+            $reportData = $data['report_data'];
+            $fullCards = isset($reportData['card_summary']['full_count']) ? intval($reportData['card_summary']['full_count']) : 0;
+            $halfCards = isset($reportData['card_summary']['half_count']) ? intval($reportData['card_summary']['half_count']) : 0;
+            $freeCards = isset($reportData['card_summary']['free_count']) ? intval($reportData['card_summary']['free_count']) : 0;
+            
+            // Insert report
+            $stmt = $db->prepare("
+                INSERT INTO session_end_reports (
+                    session_id,
+                    report_date,
+                    report_time,
+                    report_type,
+                    cashier_id,
+                    cashier_name,
+                    session_date,
+                    session_start_time,
+                    session_end_time,
+                    opening_balance,
+                    total_collections,
+                    cash_out_amount,
+                    expected_closing,
+                    variance,
+                    total_receipts,
+                    full_cards_issued,
+                    half_cards_issued,
+                    free_cards_issued,
+                    report_data,
+                    is_final,
+                    created_by
+                ) VALUES (?, CURDATE(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            
+            $stmt->execute([
+                $data['session_id'],
+                $data['report_type'] ?? 'full',
+                $session['cashier_id'],
+                $session['cashier_name'],
+                $session['session_date'],
+                $session['first_login_time'],
+                $session['day_end_time'],
+                $openingBalance,
+                $totalCollections,
+                $cashOutAmount,
+                $expectedClosing,
+                $variance,
+                intval($session['receipts_issued']),
+                $fullCards,
+                $halfCards,
+                $freeCards,
+                json_encode($reportData),
+                isset($data['is_final']) ? ($data['is_final'] ? 1 : 0) : 0,
+                $session['cashier_id']
+            ]);
+            
+            $reportId = $db->lastInsertId();
+            
+            sendSuccess([
+                'report_id' => $reportId,
+                'message' => 'Session report saved successfully'
+            ]);
+            
+        } catch (PDOException $e) {
+            error_log("Save session report error: " . $e->getMessage());
+            handleError('Failed to save session report: ' . $e->getMessage(), 500);
+        }
+    }
+    
+    /**
+     * Get Session Report History
+     * GET /api/reports/session-history
+     * Query params: ?cashier_id=C001&from_date=2025-01-01&to_date=2025-01-31&limit=50
+     */
+    public function getSessionReportHistory() {
+        try {
+            $cashierId = $_GET['cashier_id'] ?? null;
+            $fromDate = $_GET['from_date'] ?? null;
+            $toDate = $_GET['to_date'] ?? null;
+            $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 50;
+            $onlyFinal = isset($_GET['only_final']) && $_GET['only_final'] === 'true';
+            
+            $db = getDBConnection();
+            
+            $sql = "
+                SELECT 
+                    r.*,
+                    s.session_status
+                FROM session_end_reports r
+                LEFT JOIN cashier_sessions s ON r.session_id = s.session_id
+                WHERE 1=1
+            ";
+            
+            $params = [];
+            
+            if ($cashierId) {
+                $sql .= " AND r.cashier_id = ?";
+                $params[] = $cashierId;
+            }
+            
+            if ($fromDate) {
+                $sql .= " AND r.report_date >= ?";
+                $params[] = $fromDate;
+            }
+            
+            if ($toDate) {
+                $sql .= " AND r.report_date <= ?";
+                $params[] = $toDate;
+            }
+            
+            if ($onlyFinal) {
+                $sql .= " AND r.is_final = 1";
+            }
+            
+            $sql .= " ORDER BY r.report_time DESC LIMIT " . intval($limit);
+            
+            $stmt = $db->prepare($sql);
+            $stmt->execute($params);
+            $reports = $stmt->fetchAll();
+            
+            // Parse JSON report_data for each report
+            foreach ($reports as &$report) {
+                $report['report_data'] = json_decode($report['report_data'], true);
+            }
+            
+            sendSuccess([
+                'reports' => $reports,
+                'count' => count($reports)
+            ]);
+            
+        } catch (PDOException $e) {
+            error_log("Get session report history error: " . $e->getMessage());
+            handleError('Failed to fetch session report history: ' . $e->getMessage(), 500);
+        }
+    }
+    
+    /**
+     * Get Single Session Report by ID
+     * GET /api/reports/session-report/{id}
+     */
+    public function getSessionReport($reportId) {
+        try {
+            $db = getDBConnection();
+            
+            $stmt = $db->prepare("
+                SELECT r.*, s.session_status
+                FROM session_end_reports r
+                LEFT JOIN cashier_sessions s ON r.session_id = s.session_id
+                WHERE r.report_id = ?
+            ");
+            $stmt->execute([$reportId]);
+            $report = $stmt->fetch();
+            
+            if (!$report) {
+                handleError('Report not found', 404);
+            }
+            
+            // Parse JSON report_data
+            $report['report_data'] = json_decode($report['report_data'], true);
+            
+            sendSuccess(['report' => $report]);
+            
+        } catch (PDOException $e) {
+            error_log("Get session report error: " . $e->getMessage());
+            handleError('Failed to fetch session report: ' . $e->getMessage(), 500);
         }
     }
 }

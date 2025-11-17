@@ -399,6 +399,54 @@ export const sessionAPI = {
       throw error;
     }
   },
+
+  // Save Session End Report to database
+  saveSessionReport: async (sessionId, reportData, reportType = 'full', isFinal = false) => {
+    try {
+      const CASHIER_REPORTS_API_BASE = 'http://localhost:8083/api/reports';
+      const response = await axios.post(`${CASHIER_REPORTS_API_BASE}/save-session-report`, {
+        session_id: sessionId,
+        report_type: reportType,
+        report_data: reportData,
+        is_final: isFinal,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error saving session report:', error);
+      throw error;
+    }
+  },
+
+  // Get Session Report History
+  getSessionReportHistory: async (filters = {}) => {
+    try {
+      const CASHIER_REPORTS_API_BASE = 'http://localhost:8083/api/reports';
+      const params = {
+        cashier_id: filters.cashierId,
+        from_date: filters.fromDate,
+        to_date: filters.toDate,
+        limit: filters.limit || 50,
+        only_final: filters.onlyFinal || false,
+      };
+      const response = await axios.get(`${CASHIER_REPORTS_API_BASE}/session-history`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error getting session report history:', error);
+      throw error;
+    }
+  },
+
+  // Get Single Session Report by ID
+  getSessionReportById: async (reportId) => {
+    try {
+      const CASHIER_REPORTS_API_BASE = 'http://localhost:8083/api/reports';
+      const response = await axios.get(`${CASHIER_REPORTS_API_BASE}/session-report/${reportId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting session report:', error);
+      throw error;
+    }
+  },
 };
 
 // Utility functions for cashier operations
@@ -487,6 +535,45 @@ export const cashierUtils = {
   },
 };
 
+// Day End Report API
+export const dayEndReportAPI = {
+  // Generate day end report for a specific date
+  generateReport: async ({ reportDate, cashierId, reportType = 'full', isFinal = false }) => {
+    try {
+      const response = await axios.post('http://localhost:8083/api/reports/day-end/generate', {
+        report_date: reportDate,
+        cashier_id: cashierId,
+        report_type: reportType,
+        is_final: isFinal
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Generate day end report error:', error);
+      throw error;
+    }
+  },
+
+  // Get day end report history
+  getReportHistory: async ({ cashierId, fromDate, toDate, onlyFinal = false, limit = 50 }) => {
+    try {
+      const params = new URLSearchParams({
+        cashier_id: cashierId,
+        limit: limit.toString()
+      });
+      
+      if (fromDate) params.append('from_date', fromDate);
+      if (toDate) params.append('to_date', toDate);
+      if (onlyFinal) params.append('only_final', 'true');
+      
+      const response = await axios.get(`http://localhost:8083/api/reports/day-end/history?${params.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get day end report history error:', error);
+      throw error;
+    }
+  }
+};
+
 export default {
   paymentAPI,
   studentAPI,
@@ -494,5 +581,6 @@ export default {
   receiptAPI,
   dashboardAPI,
   sessionAPI,
+  dayEndReportAPI,
   cashierUtils,
 }; 

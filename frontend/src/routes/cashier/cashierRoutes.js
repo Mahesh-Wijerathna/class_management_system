@@ -1,5 +1,6 @@
 import CashierDashboard from '../../pages/dashboard/cashierDashboard/CashierDashboard';
 import StudentTracking from '../../pages/dashboard/cashierDashboard/StudentTracking';
+import SessionEndReportHistory from '../../pages/dashboard/cashierDashboard/SessionEndReportHistory';
 
 export const cashierRoutes = [
   {
@@ -13,6 +14,10 @@ export const cashierRoutes = [
   {
     path: '/cashier/forget-id-card',
     element: <StudentTracking />,
+  },
+  {
+    path: '/cashier/session-report-history',
+    element: <SessionEndReportHistory />,
   }
 ];
 
