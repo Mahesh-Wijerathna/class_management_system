@@ -95,8 +95,7 @@ const AllRoles = () => {
         userId = user?.userid || user?.userId || user?.id;
       }
 
-      // Default admin id when none found (matches other pages)
-      if (!userId) userId = 'A002';
+      
 
       const perms = await getUserPermissions(userId);
       setUserPermissions(perms || []);

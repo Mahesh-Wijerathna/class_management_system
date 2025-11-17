@@ -10,6 +10,10 @@ import * as Yup from 'yup';
 import BasicTable from '../../../components/BasicTable';
 import { getAllClasses, createClass, updateClass, deleteClass } from '../../../api/classes';
 import { getActiveTeachers } from '../../../api/teachers';
+import DashboardLayout from '../../../components/layout/DashboardLayout';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
+import { getUserPermissions } from '../../../api/rbac';
+import { getUserData } from '../../../api/apiUtils';
 
 
 const streamOptions = [
@@ -179,6 +183,10 @@ const CreateClass = ({ onLogout }) => {
   // State for teachers
   const [teacherList, setTeacherList] = useState([]);
   const [loadingTeachers, setLoadingTeachers] = useState(false);
+  // Sidebar permissions state
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -238,6 +246,41 @@ const CreateClass = ({ onLogout }) => {
   useEffect(() => {
     loadClasses();
     loadTeachers();
+  }, []);
+
+  // Load user permissions and compute filtered sidebar
+  useEffect(() => {
+    const loadUserPermissions = async () => {
+      try {
+        setPermissionsLoading(true);
+        const stored = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+        let userId;
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            userId = parsed.userid || parsed.userId || parsed.id;
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        if (!userId) {
+          const user = getUserData();
+          userId = user?.userid || user?.userId || user?.id;
+        }
+
+        const perms = await getUserPermissions(userId);
+        setUserPermissions(perms || []);
+        setFilteredSidebarSections(AdminDashboardSidebar(perms || []));
+      } catch (err) {
+        console.error('Failed to load user permissions for sidebar', err);
+        setFilteredSidebarSections(AdminDashboardSidebar([]));
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    loadUserPermissions();
   }, []);
 
   // Auto-sync myClasses with admin classes on component mount
@@ -870,7 +913,7 @@ const CreateClass = ({ onLogout }) => {
   }, [selectedTheoryId, formValues.courseType, revisionRelation, classes]);
 
   return (
-    <>
+    <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
       <BasicAlertBox
         open={alertBox.open}
         message={alertBox.message}
@@ -2088,7 +2131,7 @@ const CreateClass = ({ onLogout }) => {
           )}
         </div>
       </div>
-    </>
+    </DashboardLayout>
   );
 };
 

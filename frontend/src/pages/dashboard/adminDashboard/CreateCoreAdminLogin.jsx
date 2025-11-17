@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomButton from '../../../components/CustomButton';
@@ -6,6 +6,10 @@ import BasicForm from '../../../components/BasicForm';
 import { useNavigate } from 'react-router-dom';
 import * as Yup from 'yup';
 import { FaUser, FaLock, FaPhone, FaIdCard, FaEnvelope } from 'react-icons/fa';
+import DashboardLayout from '../../../components/layout/DashboardLayout';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
+import { getUserPermissions } from '../../../api/rbac';
+import { getUserData } from '../../../api/apiUtils';
 
 const phoneRegex = /^0\d{9}$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
@@ -30,6 +34,11 @@ const initialValues = {
 
 const CreateCoreAdminLogin = () => {
   const navigate = useNavigate();
+  // Sidebar permissions state
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
+
   const [submitCount, setSubmitCount] = React.useState(0);
   const [alertBox, setAlertBox] = React.useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
 
@@ -49,8 +58,43 @@ const CreateCoreAdminLogin = () => {
     });
   };
 
+  useEffect(() => {
+    const loadUserPermissions = async () => {
+      try {
+        setPermissionsLoading(true);
+        const stored = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+        let userId;
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            userId = parsed.userid || parsed.userId || parsed.id;
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        if (!userId) {
+          const user = getUserData();
+          userId = user?.userid || user?.userId || user?.id;
+        }
+
+        const perms = await getUserPermissions(userId);
+        setUserPermissions(perms || []);
+        setFilteredSidebarSections(AdminDashboardSidebar(perms || []));
+      } catch (err) {
+        console.error('Failed to load user permissions for sidebar', err);
+        setFilteredSidebarSections(AdminDashboardSidebar([]));
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    loadUserPermissions();
+  }, []);
+
   return (
-    <div className="w-full max-w-5xl mx-auto bg-white p-8 rounded-lg shadow mt-10">
+    <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
+      <div className="w-full max-w-5xl mx-auto bg-white p-8 rounded-lg shadow mt-10">
       <BasicAlertBox
         open={alertBox.open}
         message={alertBox.message}
@@ -149,7 +193,8 @@ const CreateCoreAdminLogin = () => {
           </>
         )}
       </BasicForm>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 };
 

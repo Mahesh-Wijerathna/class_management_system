@@ -4,7 +4,9 @@ import DashboardLayout from '../../../components/layout/DashboardLayout';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomButton from '../../../components/CustomButton';
 import BasicForm from '../../../components/BasicForm';
-import adminSidebarSections from './AdminDashboardSidebar';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
+import { getUserPermissions } from '../../../api/rbac';
+import { getUserData } from '../../../api/apiUtils';
 import { useNavigate } from 'react-router-dom';
 import * as Yup from 'yup';
 import { FaUser, FaLock, FaPhone, FaIdCard, FaEnvelope } from 'react-icons/fa';
@@ -31,6 +33,11 @@ const initialValues = {
 
 const CreateCashierLogin = () => {
   const navigate = useNavigate();
+  // Sidebar permissions state
+  const [userPermissions, setUserPermissions] = React.useState([]);
+  const [permissionsLoading, setPermissionsLoading] = React.useState(true);
+  const [filteredSidebarSections, setFilteredSidebarSections] = React.useState([]);
+
   const [submitCount, setSubmitCount] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
   const [alertBox, setAlertBox] = React.useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
@@ -56,6 +63,41 @@ const CreateCashierLogin = () => {
     };
     
     loadNextCashierId();
+  }, []);
+
+  // Load user permissions and compute filtered sidebar
+  React.useEffect(() => {
+    const loadUserPermissions = async () => {
+      try {
+        setPermissionsLoading(true);
+        const stored = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+        let userId;
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            userId = parsed.userid || parsed.userId || parsed.id;
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        if (!userId) {
+          const user = getUserData();
+          userId = user?.userid || user?.userId || user?.id;
+        }
+
+        const perms = await getUserPermissions(userId);
+        setUserPermissions(perms || []);
+        setFilteredSidebarSections(AdminDashboardSidebar(perms || []));
+      } catch (err) {
+        console.error('Failed to load user permissions for sidebar', err);
+        setFilteredSidebarSections(AdminDashboardSidebar([]));
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    loadUserPermissions();
   }, []);
 
   const handleSubmit = async (values) => {
@@ -115,7 +157,8 @@ const CreateCashierLogin = () => {
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto bg-white p-8 rounded-lg shadow mt-10">
+    <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
+      <div className="w-full max-w-5xl mx-auto bg-white p-8 rounded-lg shadow mt-10">
       <BasicAlertBox
         open={alertBox.open}
         message={alertBox.message}
@@ -222,7 +265,8 @@ const CreateCashierLogin = () => {
           </>
         )}
       </BasicForm>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 };
 

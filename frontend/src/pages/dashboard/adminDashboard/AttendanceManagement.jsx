@@ -78,7 +78,7 @@ const AttendanceManagement = ({ onLogout }) => {
       try {
         setPermissionsLoading(true);
         const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
-        let userId = 'A002';
+        let userId = null;
         if (userData) {
           try {
             const user = JSON.parse(userData);

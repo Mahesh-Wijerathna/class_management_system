@@ -19,7 +19,9 @@ import {
     FaChartBar, FaCalendarAlt, FaFlag, FaCheckCircle, FaTimesCircle, FaTimes,
     FaFingerprint
 } from 'react-icons/fa';
-import adminSidebarSections from './AdminDashboardSidebar';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
+import { getUserPermissions } from '../../../api/rbac';
+import { getUserData } from '../../../api/apiUtils';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 
 const StudentMonitoringDashboard = ({ onLogout }) => {
@@ -160,6 +162,37 @@ const StudentMonitoringDashboard = ({ onLogout }) => {
         loadMonitoringData();
         const interval = setInterval(loadMonitoringData, 30000);
         return () => clearInterval(interval);
+    }, []);
+
+    // Load RBAC permissions for sidebar filtering
+    const [filteredSidebarSections, setFilteredSidebarSections] = useState(() => AdminDashboardSidebar([]));
+    const [permissionsLoading, setPermissionsLoading] = useState(true);
+
+    useEffect(() => {
+        const loadPermissions = async () => {
+            try {
+                setPermissionsLoading(true);
+                const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+                let userId = null;
+                if (userData) {
+                    try { const parsed = JSON.parse(userData); userId = parsed.userid || parsed.id || userId; } catch (e) { }
+                } else {
+                    const user = getUserData();
+                    if (user) userId = user.userid || user.id || userId;
+                }
+
+                const resp = await getUserPermissions(userId);
+                const perms = Array.isArray(resp) ? resp : (resp?.permissions || resp?.data || []);
+                setFilteredSidebarSections(AdminDashboardSidebar(perms));
+            } catch (err) {
+                console.error('Failed to load permissions for StudentMonitoringDashboard sidebar', err);
+                setFilteredSidebarSections(AdminDashboardSidebar([]));
+            } finally {
+                setPermissionsLoading(false);
+            }
+        };
+
+        loadPermissions();
     }, []);
 
     // Block student
@@ -597,7 +630,7 @@ const StudentMonitoringDashboard = ({ onLogout }) => {
     }
 
     return (
-        <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections} >
+        <DashboardLayout userRole="Administrator" sidebarItems={permissionsLoading ? AdminDashboardSidebar([]) : filteredSidebarSections} >
       <div className="w-full max-w-25xl bg-white rounded-lg shadow p-4 mx-auto">
         <div className="max-w-7xl mx-auto p-6">
             {/* Header */}

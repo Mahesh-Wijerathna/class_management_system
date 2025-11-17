@@ -6,7 +6,9 @@ import { getAllStudents } from '../../../api/students';
 import { getAllEarningsConfigs, saveClassEarningsConfig } from '../../../api/earningsConfig';
 import axios from 'axios';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import adminSidebarSections from './AdminDashboardSidebar';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
+import { getUserPermissions } from '../../../api/rbac';
+import { getUserData } from '../../../api/apiUtils';
 import BasicTable from '../../../components/BasicTable';
 
 const ClassPayments = () => {
@@ -25,6 +27,10 @@ const ClassPayments = () => {
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [classPaymentData, setClassPaymentData] = useState({});
+  // Sidebar permissions state
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
   
   // Earnings Mode States - Per Class Configuration
   const [classEarningsConfig, setClassEarningsConfig] = useState({});
@@ -96,6 +102,43 @@ const ClassPayments = () => {
   // Load data on component mount
   useEffect(() => {
     loadData();
+  }, []);
+
+  // Load user permissions and compute filtered sidebar
+  useEffect(() => {
+    const loadUserPermissions = async () => {
+      try {
+        setPermissionsLoading(true);
+        const stored = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+        let userId;
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            userId = parsed.userid || parsed.userId || parsed.id;
+          } catch (e) {
+            console.error('Failed to parse stored userData', e);
+          }
+        }
+
+        if (!userId) {
+          const user = getUserData();
+          userId = user?.userid || user?.userId || user?.id;
+        }
+
+        
+
+        const perms = await getUserPermissions(userId);
+        setUserPermissions(perms || []);
+        setFilteredSidebarSections(AdminDashboardSidebar(perms || []));
+      } catch (err) {
+        console.error('Failed to load user permissions for sidebar', err);
+        setFilteredSidebarSections(AdminDashboardSidebar([]));
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    loadUserPermissions();
   }, []);
 
   const loadData = async () => {
@@ -897,7 +940,7 @@ const ClassPayments = () => {
 
   if (loading) {
     return (
-      <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
+      <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -910,7 +953,7 @@ const ClassPayments = () => {
 
   if (error) {
     return (
-      <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
+      <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <FaExclamationTriangle className="text-red-500 text-4xl mx-auto mb-4" />
@@ -928,7 +971,7 @@ const ClassPayments = () => {
   }
 
   return (
-    <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
+    <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
       <div className="w-full max-w-7xl mx-auto bg-white p-8 rounded-lg shadow">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">

@@ -6,6 +6,10 @@ import BasicTable from '../../../components/BasicTable';
 import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import BasicAlertBox from '../../../components/BasicAlertBox';
+import DashboardLayout from '../../../components/layout/DashboardLayout';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
+import { getUserPermissions } from '../../../api/rbac';
+import { getUserData } from '../../../api/apiUtils';
 
 const initialCoreAdmins = [
   {
@@ -18,6 +22,10 @@ const initialCoreAdmins = [
 ];
 
 const CoreAdminInfo = () => {
+  // Sidebar permissions state
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
   const [coreAdmins, setCoreAdmins] = useState(() => {
     const stored = localStorage.getItem('coreAdmins');
     return stored ? JSON.parse(stored) : initialCoreAdmins;
@@ -25,6 +33,40 @@ const CoreAdminInfo = () => {
   useEffect(() => {
     localStorage.setItem('coreAdmins', JSON.stringify(coreAdmins));
   }, [coreAdmins]);
+
+  useEffect(() => {
+    const loadUserPermissions = async () => {
+      try {
+        setPermissionsLoading(true);
+        const stored = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+        let userId;
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            userId = parsed.userid || parsed.userId || parsed.id;
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        if (!userId) {
+          const user = getUserData();
+          userId = user?.userid || user?.userId || user?.id;
+        }
+
+        const perms = await getUserPermissions(userId);
+        setUserPermissions(perms || []);
+        setFilteredSidebarSections(AdminDashboardSidebar(perms || []));
+      } catch (err) {
+        console.error('Failed to load user permissions for sidebar', err);
+        setFilteredSidebarSections(AdminDashboardSidebar([]));
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    loadUserPermissions();
+  }, []);
   const [editingAdmin, setEditingAdmin] = useState(null);
   const [editValues, setEditValues] = useState({});
   const [showEditModal, setShowEditModal] = useState(false);
@@ -82,7 +124,8 @@ const CoreAdminInfo = () => {
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow">
+    <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
+      <div className="p-6 bg-white rounded-lg shadow">
       <h1 className="text-2xl font-bold mb-4">Core Admin Information</h1>
       <p className="mb-6 text-gray-700">View, edit and delete core admin details.</p>
       <BasicTable
@@ -244,7 +287,8 @@ const CoreAdminInfo = () => {
         confirmText={saveAlert.confirmText}
         type={saveAlert.type}
       />
-    </div>
+      </div>
+    </DashboardLayout>
   );
 };
 

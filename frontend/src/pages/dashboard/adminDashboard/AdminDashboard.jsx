@@ -114,7 +114,7 @@ const AdminDashboard = () => {
 
         // Get current user ID from stored user data
         const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
-        let userId = 'A002'; // Default admin user from database
+        let userId = null; // Default admin user from database
 
         if (userData) {
           try {

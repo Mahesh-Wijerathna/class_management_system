@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import adminSidebarSections from './AdminDashboardSidebar';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
+import { getUserPermissions } from '../../../api/rbac';
+import { getUserData } from '../../../api/apiUtils';
 import CustomButton from '../../../components/CustomButton';
 import CustomButton2 from '../../../components/CustomButton2';
 import BasicTable from '../../../components/BasicTable';
@@ -205,6 +207,38 @@ const StudentEnrollment = () => {
   // Load students on component mount
   useEffect(() => {
     fetchStudents();
+  }, []);
+
+
+  // RBAC: load permissions and compute filtered sidebar
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState(() => AdminDashboardSidebar([]));
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadPermissions = async () => {
+      try {
+        setPermissionsLoading(true);
+        const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+        let userId = null;
+        if (userData) {
+          try { const parsed = JSON.parse(userData); userId = parsed.userid || parsed.id || userId; } catch (e) { }
+        } else {
+          const user = getUserData();
+          if (user) userId = user.userid || user.id || userId;
+        }
+
+        const resp = await getUserPermissions(userId);
+        const perms = Array.isArray(resp) ? resp : (resp?.permissions || resp?.data || []);
+        setFilteredSidebarSections(AdminDashboardSidebar(perms));
+      } catch (err) {
+        console.error('Failed to load permissions for StudentEnrollment sidebar', err);
+        setFilteredSidebarSections(AdminDashboardSidebar([]));
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    loadPermissions();
   }, []);
 
   // Refresh students data from backend
@@ -1557,7 +1591,7 @@ const StudentEnrollment = () => {
   };
 
   return (
-    // <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
+    <DashboardLayout userRole="Administrator" sidebarItems={permissionsLoading ? AdminDashboardSidebar([]) : filteredSidebarSections}>
       <div className="p-6 bg-white rounded-lg shadow">
         <div className="flex justify-between items-center mb-4">
           <div>
@@ -2462,7 +2496,7 @@ const StudentEnrollment = () => {
           </div>
         )}
       </div>
-    /* </DashboardLayout> */
+    </DashboardLayout>
   );
 };
 

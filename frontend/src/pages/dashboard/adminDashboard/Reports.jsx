@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import adminSidebarSections from './AdminDashboardSidebar';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
+import { getUserPermissions } from '../../../api/rbac';
+import { getUserData } from '../../../api/apiUtils';
 import FinancialReport from './FinancialReport';
 import StudentPaymentReport from './StudentPaymentReport';
 import AttendanceReport from './AttendanceReport';
@@ -19,9 +21,35 @@ const Placeholder = ({ label }) => (
 
 const Reports = () => {
   const [activeTab, setActiveTab] = useState('financial');
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState(() => AdminDashboardSidebar([]));
+
+  useEffect(() => {
+    const loadPermissions = async () => {
+      try {
+        // Resolve user id from common storage locations
+        const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+        let userId = null;
+        if (userData) {
+          try { const parsed = JSON.parse(userData); userId = parsed.userid || parsed.id || userId; } catch (e) {}
+        } else {
+          const user = getUserData();
+          if (user) userId = user.userid || user.id || userId;
+        }
+
+        const resp = await getUserPermissions(userId);
+        const perms = Array.isArray(resp) ? resp : (resp?.permissions || resp?.data || []);
+        setFilteredSidebarSections(AdminDashboardSidebar(perms));
+      } catch (err) {
+        console.error('Failed to load permissions for Reports sidebar', err);
+        setFilteredSidebarSections(AdminDashboardSidebar([]));
+      }
+    };
+
+    loadPermissions();
+  }, []);
 
   return (
-    <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
+    <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
       <div className="p-6 bg-white rounded-lg shadow">
         <h1 className="text-2xl font-bold mb-6">Reporting System</h1>
         <div className="flex gap-4 border-b mb-6">

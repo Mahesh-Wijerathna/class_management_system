@@ -31,15 +31,27 @@ const UserRoleAssignment = () => {
 
   const fetchUserPermissions = async () => {
     try {
-      const user = getUserData();
-      if (user?.userid) {
-        const response = await getUserPermissions(user.userid);
-        const permissions = response.permissions || response.data || [];
-        
-        // Filter sidebar sections based on permissions
-        const filteredSections = AdminDashboardSidebar(permissions);
-        setFilteredSidebarSections(filteredSections);
+      // Resolve user id from common storage locations to match other pages
+      const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+      let userId = null; // sensible default admin id used elsewhere
+
+      if (userData) {
+        try {
+          const parsed = JSON.parse(userData);
+          userId = parsed.userid || parsed.id || userId;
+        } catch (err) {
+          console.error('Error parsing stored userData:', err);
+        }
+      } else {
+        const user = getUserData();
+        if (user) userId = user.userid || user.id || userId;
       }
+
+      const userPermsResp = await getUserPermissions(userId);
+      const perms = Array.isArray(userPermsResp) ? userPermsResp : (userPermsResp?.permissions || userPermsResp?.data || []);
+
+      const filteredSections = AdminDashboardSidebar(perms);
+      setFilteredSidebarSections(filteredSections);
     } catch (error) {
       console.error('Failed to fetch user permissions:', error);
       // Fallback: show all sections if permission loading fails
