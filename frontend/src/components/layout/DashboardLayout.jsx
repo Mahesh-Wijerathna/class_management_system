@@ -71,8 +71,8 @@ const DashboardContent = ({
       ? sidebarSections
       : [];
 
-  // Use isSidebarOpen unless locked
-  const effectiveSidebarOpen = isLocked !== undefined ? isLocked : isSidebarOpen;
+  // If locked, force sidebar closed. Otherwise, use toggle state.
+  const effectiveSidebarOpen = isLocked ? false : isSidebarOpen;
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -111,9 +111,11 @@ const DashboardContent = ({
 };
 
 const DashboardLayout = (props) => {
+  const { defaultSidebarOpen = true, ...otherProps } = props;
+  
   return (
-    <SidebarProvider>
-      <DashboardContent {...props} />
+    <SidebarProvider defaultOpen={defaultSidebarOpen}>
+      <DashboardContent {...otherProps} />
     </SidebarProvider>
   );
 };

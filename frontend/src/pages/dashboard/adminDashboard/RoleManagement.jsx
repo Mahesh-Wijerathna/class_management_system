@@ -10,9 +10,7 @@ import CustomTextField from '../../../components/CustomTextField';
 //import CustomSelectField from '../../../components/CustomSelectField';
 import BasicButton from '../../../components/CustomButton';
 import BasicCheckbox from '../../../components/BasicCheckbox';
-import { roleApi } from '../../../utils/roles';
-import { permissionApi } from '../../../utils/permissions';
-import { getCurrentUserPermissions } from '../../../utils/permissionChecker';
+import { getUserPermissions, getAllRoles, createRole, updateRole, deleteRole, getAllPermissions } from '../../../api/rbac';
 import { getUserData } from '../../../api/apiUtils';
 
 const columns = [
@@ -37,8 +35,7 @@ const RoleManagement = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState(null);
   const [selectedPermissions, setSelectedPermissions] = useState([]);
-  const [userPermissions, setUserPermissions] = useState([]);
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
 
   // Fetch roles, permissions, and user permissions on component mount
   useEffect(() => {
@@ -49,24 +46,27 @@ const RoleManagement = () => {
 
   const fetchUserPermissions = async () => {
     try {
-      setPermissionsLoading(true);
       const user = getUserData();
       if (user?.userid) {
-        const perms = await getCurrentUserPermissions(user.userid);
-        setUserPermissions(perms);
+        const response = await getUserPermissions(user.userid);
+        const permissions = response.permissions || response.data || [];
+        
+        // Filter sidebar sections based on permissions
+        const filteredSections = AdminDashboardSidebar(permissions);
+        setFilteredSidebarSections(filteredSections);
       }
     } catch (error) {
       console.error('Failed to fetch user permissions:', error);
-    } finally {
-      setPermissionsLoading(false);
+      // Fallback: show all sections if permission loading fails
+      setFilteredSidebarSections(AdminDashboardSidebar([]));
     }
   };
 
   const fetchRoles = async () => {
     try {
       setLoading(true);
-      const roles = await roleApi.getAllRoles();
-      setRoles(roles);
+      const response = await getAllRoles();
+      setRoles(response.roles || response.data || response);
     } catch (error) {
       console.error('Error fetching roles:', error);
       setAlertMessage('Failed to load roles. Please try again.');
@@ -79,8 +79,8 @@ const RoleManagement = () => {
 
   const fetchPermissions = async () => {
     try {
-      const permissions = await permissionApi.getAllPermissions();
-      setPermissions(permissions);
+      const response = await getAllPermissions();
+      setPermissions(response.permissions || response.data || response);
     } catch (error) {
       console.error('Error fetching permissions:', error);
     }
@@ -141,7 +141,7 @@ const RoleManagement = () => {
     try {
       setSubmitting(true);
 
-      await roleApi.deleteRole(roleToDelete.id);
+      await deleteRole(roleToDelete.id);
 
       setAlertMessage('Role deleted successfully!');
       setAlertType('success');
@@ -173,10 +173,10 @@ const RoleManagement = () => {
       };
 
       if (isEditMode) {
-        await roleApi.updateRole(selectedRole.id, roleData);
+        await updateRole(selectedRole.id, roleData);
         setAlertMessage('Role updated successfully!');
       } else {
-        await roleApi.createRole(roleData);
+        await createRole(roleData);
         setAlertMessage('Role created successfully!');
       }
 
@@ -222,7 +222,7 @@ const RoleManagement = () => {
   };
 
   return (
-    <DashboardLayout sidebarItems={AdminDashboardSidebar(userPermissions)}>
+    <DashboardLayout sidebarItems={filteredSidebarSections}>
       <div className="w-full max-w-25xl bg-white rounded-lg shadow p-4 mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div>

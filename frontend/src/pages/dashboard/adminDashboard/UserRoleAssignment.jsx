@@ -4,9 +4,7 @@ import AdminDashboardSidebar from './AdminDashboardSidebar';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 import BasicButton from '../../../components/CustomButton';
 import BasicCheckbox from '../../../components/BasicCheckbox';
-import { userApi } from '../../../utils/users';
-import { roleApi } from '../../../utils/roles';
-import { getCurrentUserPermissions } from '../../../utils/permissionChecker';
+import { getUserPermissions, getAllRoles, getUserById, getUserRoles, assignRoleToUser, revokeRoleFromUser } from '../../../api/rbac';
 import { getUserData } from '../../../api/apiUtils';
 import { FaUserMinus } from 'react-icons/fa';
 
@@ -23,8 +21,7 @@ const UserRoleAssignment = () => {
   const [selectedRolesToAssign, setSelectedRolesToAssign] = useState([]);
   const [searchUserId, setSearchUserId] = useState('');
   const [searchingUser, setSearchingUser] = useState(false);
-  const [userPermissions, setUserPermissions] = useState([]);
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
 
   // Fetch roles on component mount
   useEffect(() => {
@@ -34,23 +31,26 @@ const UserRoleAssignment = () => {
 
   const fetchUserPermissions = async () => {
     try {
-      setPermissionsLoading(true);
       const user = getUserData();
       if (user?.userid) {
-        const perms = await getCurrentUserPermissions(user.userid);
-        setUserPermissions(perms);
+        const response = await getUserPermissions(user.userid);
+        const permissions = response.permissions || response.data || [];
+        
+        // Filter sidebar sections based on permissions
+        const filteredSections = AdminDashboardSidebar(permissions);
+        setFilteredSidebarSections(filteredSections);
       }
     } catch (error) {
       console.error('Failed to fetch user permissions:', error);
-    } finally {
-      setPermissionsLoading(false);
+      // Fallback: show all sections if permission loading fails
+      setFilteredSidebarSections(AdminDashboardSidebar([]));
     }
   };
 
   const fetchRoles = async () => {
     try {
-      const roles = await roleApi.getAllRoles();
-      setRoles(roles);
+      const response = await getAllRoles();
+      setRoles(response.roles || response.data || response);
     } catch (error) {
       console.error('Error fetching roles:', error);
     }
@@ -66,16 +66,17 @@ const UserRoleAssignment = () => {
 
     try {
       setSearchingUser(true);
-      const user = await userApi.getUserById(searchUserId.trim());
+      const user = await getUserById(searchUserId.trim());
       setSelectedUser(user);
       setUserFormOpen(true);
 
       // Fetch user's current roles
-      const userRoles = await userApi.getUserRoles(searchUserId.trim());
-      setUserRoles(userRoles);
+      const userRolesResponse = await getUserRoles(searchUserId.trim());
+      const userRolesData = userRolesResponse.roles || userRolesResponse.data || userRolesResponse;
+      setUserRoles(userRolesData);
 
       // Determine available roles (not already assigned as RBAC roles)
-      const assignedRbacRoles = userRoles.filter(role => !role.is_inherent);
+      const assignedRbacRoles = userRolesData.filter(role => !role.is_inherent);
       const assignedRoleIds = assignedRbacRoles.map(role => role.role_id);
       const available = roles.filter(role => !assignedRoleIds.includes(role.id));
       setAvailableRoles(available);
@@ -99,7 +100,7 @@ const UserRoleAssignment = () => {
 
       // Assign each selected role
       for (const roleId of selectedRolesToAssign) {
-        await userApi.assignRoleToUser(selectedUser.userid, roleId);
+        await assignRoleToUser(selectedUser.userid, roleId);
       }
 
       setAlertMessage(`Successfully assigned ${selectedRolesToAssign.length} role(s) to ${selectedUser.firstName} ${selectedUser.lastName}!`);
@@ -107,7 +108,8 @@ const UserRoleAssignment = () => {
       setAlertOpen(true);
 
       // Refresh user roles
-      const updatedRoles = await userApi.getUserRoles(selectedUser.userid);
+      const updatedRolesResponse = await getUserRoles(selectedUser.userid);
+      const updatedRoles = updatedRolesResponse.roles || updatedRolesResponse.data || updatedRolesResponse;
       setUserRoles(updatedRoles);
 
       // Update available roles (exclude already assigned RBAC roles)
@@ -133,14 +135,15 @@ const UserRoleAssignment = () => {
     try {
       setSubmitting(true);
 
-      await userApi.revokeRoleFromUser(selectedUser.userid, roleId);
+      await revokeRoleFromUser(selectedUser.userid, roleId);
 
       setAlertMessage('Role revoked successfully!');
       setAlertType('success');
       setAlertOpen(true);
 
       // Refresh user roles
-      const updatedRoles = await userApi.getUserRoles(selectedUser.userid);
+      const updatedRolesResponse = await getUserRoles(selectedUser.userid);
+      const updatedRoles = updatedRolesResponse.roles || updatedRolesResponse.data || updatedRolesResponse;
       setUserRoles(updatedRoles);
 
       // Update available roles (exclude already assigned RBAC roles)
@@ -180,7 +183,7 @@ const UserRoleAssignment = () => {
   };
 
   return (
-    <DashboardLayout sidebarItems={AdminDashboardSidebar(userPermissions)}>
+    <DashboardLayout sidebarItems={filteredSidebarSections}>
       <div className="w-full max-w-4xl bg-white rounded-lg shadow p-6 mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-800">User Role Assignment</h1>
@@ -280,7 +283,7 @@ const UserRoleAssignment = () => {
                 {/* Current Roles */}
                 <div>
                   <h3 className="text-lg font-semibold mb-3 text-gray-800">Current Roles</h3>
-                  {userRoles.length > 0 ? (
+                  {Array.isArray(userRoles) && userRoles.length > 0 ? (
                     <div className="space-y-2 max-h-60 overflow-y-auto">
                       {userRoles.map(role => (
                         <div key={role.id || role.role_name} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">

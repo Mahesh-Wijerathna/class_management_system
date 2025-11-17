@@ -9,8 +9,7 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import BasicButton from '../../../components/CustomButton';
-import { permissionApi } from '../../../utils/permissions';
-import { getCurrentUserPermissions } from '../../../utils/permissionChecker';
+import { getUserPermissions, createPermission, getAllPermissions, updatePermission, deletePermission } from '../../../api/rbac';
 import { getUserData } from '../../../api/apiUtils';
 
 const columns = [
@@ -40,8 +39,7 @@ const PermissionManagement = () => {
   const [selectedPermission, setSelectedPermission] = useState(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [permissionToDelete, setPermissionToDelete] = useState(null);
-  const [userPermissions, setUserPermissions] = useState([]);
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
 
   // Fetch permissions on component mount
   useEffect(() => {
@@ -51,24 +49,27 @@ const PermissionManagement = () => {
 
   const fetchUserPermissions = async () => {
     try {
-      setPermissionsLoading(true);
       const user = getUserData();
       if (user?.userid) {
-        const perms = await getCurrentUserPermissions(user.userid);
-        setUserPermissions(perms);
+        const response = await getUserPermissions(user.userid);
+        const permissions = response.permissions || response.data || [];
+        
+        // Filter sidebar sections based on permissions
+        const filteredSections = AdminDashboardSidebar(permissions);
+        setFilteredSidebarSections(filteredSections);
       }
     } catch (error) {
       console.error('Failed to fetch user permissions:', error);
-    } finally {
-      setPermissionsLoading(false);
+      // Fallback: show all sections if permission loading fails
+      setFilteredSidebarSections(AdminDashboardSidebar([]));
     }
   };
 
   const fetchPermissions = async () => {
     try {
       setLoading(true);
-      const permissions = await permissionApi.getAllPermissions();
-      setPermissions(permissions);
+      const response = await getAllPermissions();
+      setPermissions(response.permissions || response.data || response);
     } catch (error) {
       console.error('Error fetching permissions:', error);
       setAlertMessage('Failed to load permissions. Please try again.');
@@ -102,7 +103,7 @@ const PermissionManagement = () => {
     try {
       setSubmitting(true);
 
-      await permissionApi.deletePermission(permissionToDelete.id);
+      await deletePermission(permissionToDelete.id);
 
       setAlertMessage('Permission deleted successfully!');
       setAlertType('success');
@@ -134,10 +135,10 @@ const PermissionManagement = () => {
       };
 
       if (isEditMode) {
-        await permissionApi.updatePermission(selectedPermission.id, permissionData);
+        await updatePermission(selectedPermission.id, permissionData);
         setAlertMessage('Permission updated successfully!');
       } else {
-        await permissionApi.createPermission(permissionData);
+        await createPermission(permissionData);
         setAlertMessage('Permission created successfully!');
       }
 
@@ -173,7 +174,7 @@ const PermissionManagement = () => {
   };
 
   return (
-    <DashboardLayout sidebarItems={AdminDashboardSidebar(userPermissions)}>
+    <DashboardLayout sidebarItems={filteredSidebarSections}>
       <div className="w-full max-w-25xl bg-white rounded-lg shadow p-4 mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div>

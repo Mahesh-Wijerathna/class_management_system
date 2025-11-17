@@ -21,6 +21,7 @@ import SpeedPostDeliveries from '../../pages/dashboard/adminDashboard/SpeedPostD
 import PermissionManagement from '../../pages/dashboard/adminDashboard/PermissionManagement';
 import RoleManagement from '../../pages/dashboard/adminDashboard/RoleManagement';
 import UserRoleAssignment from '../../pages/dashboard/adminDashboard/UserRoleAssignment';
+import ApiTest from '../../pages/dashboard/api-test';
 
 export const adminDashboardRoutes = [
   { path: "/admindashboard", element: <AdminDashboard/> },
@@ -46,4 +47,5 @@ export const adminDashboardRoutes = [
   { path: "/admin/permissions", element: <PermissionManagement /> },
   { path: "/admin/roles/manage", element: <RoleManagement /> },
   { path: "/admin/roles/assign", element: <UserRoleAssignment /> },
+  { path: "/admin/api-test", element: <ApiTest /> },
 ];

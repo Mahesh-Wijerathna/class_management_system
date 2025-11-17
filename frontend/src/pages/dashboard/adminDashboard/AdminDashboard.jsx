@@ -36,6 +36,9 @@ import {
   FaExchangeAlt
 } from 'react-icons/fa';
 
+// new 
+import { getUserPermissions } from '../../../api/rbac';
+
 const AdminDashboard = () => {
   const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
   const [analytics, setAnalytics] = useState(null);
@@ -125,7 +128,7 @@ const AdminDashboard = () => {
         console.log('Fetching permissions for user:', userId);
 
         // Get user permissions
-        const userPermissions = await getCurrentUserPermissions(userId);
+        const userPermissions = await getUserPermissions(userId);
 
         console.log('User permissions:', userPermissions);
 

@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS users (
     otp_created_at TIMESTAMP NULL DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+-- insert admin user
+INSERT INTO users (userid, password, role, name, email) VALUES
+('A001', '$2y$10$f2y4zDt1EIMSdtl9qLXrx.PQKTszayybERqfI7Ush0DhIPG5L7bA2', 'admin', 'System Administrator', 'admin@system.com');
 
 CREATE TABLE IF NOT EXISTS students (
     id INT AUTO_INCREMENT PRIMARY KEY,

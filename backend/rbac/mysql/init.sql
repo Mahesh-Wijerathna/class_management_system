@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS user_roles (
 
 -- Insert sample users
 INSERT INTO users (userid, firstName, lastName, email, role) VALUES
-('A002', 'System', 'Administrator', 'admin@system.com', 'admin')
+('A001', 'System', 'Administrator', 'admin@system.com', 'admin')
 ON DUPLICATE KEY UPDATE
     firstName = VALUES(firstName),
     lastName = VALUES(lastName),
@@ -108,22 +108,28 @@ INSERT IGNORE INTO permissions (name, target_userrole, description) VALUES
 ('system_management.access_all_data', 'admin', 'Can access all system data'),
 ('system_management.notifications', 'admin', 'Can manage notifications'),
 ('system_management.backup_and_restore', 'admin', 'Can perform backup and restore operations'),
-('payment_processing.process_payment', 'cashier', 'Can process payments'),
-('payment_processing.payment_history', 'cashier', 'Can view payment history'),
-('student_management.student_records', 'cashier', 'Can view student records'),
-('student_management.student_payments', 'cashier', 'Can view student payments'),
-('financial_records.daily_transactions', 'cashier', 'Can view daily transactions'),
-('financial_records.monthly_reports', 'cashier', 'Can generate monthly reports'),
-('financial_records.revenue_summary', 'cashier', 'Can view revenue summary'),
-('reports_and_analytics.financial_reports', 'cashier', 'Can generate financial reports'),
-('reports_and_analytics.payment_analytics', 'cashier', 'Can view payment analytics'),
-('reports_and_analytics.print_receipts', 'cashier', 'Can print receipts'),
-('schedule_and_calendar.payment_schedule', 'cashier', 'Can view payment schedule'),
-('schedule_and_calendar.due_dates', 'cashier', 'Can view due dates'),
-('settings_and_profile.my_profile', 'cashier', 'Can view own profile'),
-('settings_and_profile.settings', 'cashier', 'Can manage own settings'),
-('settings_and_profile.notifications', 'cashier', 'Can manage notifications'),
-('student.enrollment', 'student', 'Can enroll in classes'),
+
+
+-- ('payment_processing.process_payment', 'cashier', 'Can process payments'),
+-- ('payment_processing.payment_history', 'cashier', 'Can view payment history'),
+-- ('student_management.student_records', 'cashier', 'Can view student records'),
+-- ('student_management.student_payments', 'cashier', 'Can view student payments'),
+-- ('financial_records.daily_transactions', 'cashier', 'Can view daily transactions'),
+-- ('financial_records.monthly_reports', 'cashier', 'Can generate monthly reports'),
+-- ('financial_records.revenue_summary', 'cashier', 'Can view revenue summary'),
+-- ('reports_and_analytics.financial_reports', 'cashier', 'Can generate financial reports'),
+-- ('reports_and_analytics.payment_analytics', 'cashier', 'Can view payment analytics'),
+-- ('reports_and_analytics.print_receipts', 'cashier', 'Can print receipts'),
+-- ('schedule_and_calendar.payment_schedule', 'cashier', 'Can view payment schedule'),
+-- ('schedule_and_calendar.due_dates', 'cashier', 'Can view due dates'),
+-- ('settings_and_profile.my_profile', 'cashier', 'Can view own profile'),
+-- ('settings_and_profile.settings', 'cashier', 'Can manage own settings'),
+-- ('settings_and_profile.notifications', 'cashier', 'Can manage notifications'),
+-- ('student.enrollment', 'student', 'Can enroll in classes'),
+('dashboard_overview.cashier_dashboard', 'cashier', 'Can view cashier dashboard'),
+('student_tracking.late_payments', 'cashier', 'Can track late payments'),
+('student_tracking.forget_id_card_students', 'cashier', 'Can issue temporary ID cards'),
+
 
 
 ('dashboard_overview.dashboard_overview', 'teacher', 'Can view dashboard overview'),
@@ -168,14 +174,17 @@ INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES
 -- Student gets enrollment (role_id = 3)
 (3, 47), -- student.enrollment
 -- Teacher gets class management (role_id = 4) targeted for teacher role
-(4, 48), (4, 50), (4, 51), (4, 52), (4, 53), (4, 54), (4, 55), (4, 56), (4, 57), (4, 58), (4, 59), (4, 60), (4, 61), (4, 62), (4, 63),
--- Cashier gets all cashier permissions (role_id = 5)
-(5, 32), (5, 33), (5, 34), (5, 35), (5, 36), (5, 37), (5, 38), (5, 39), (5, 40),
-(5, 41), (5, 42), (5, 43), (5, 44), (5, 45), (5, 46), (5, 49);
+(4, 48), (4, 50), (4, 51), (4, 52), (4, 53), (4, 54), (4, 55), (4, 56), (4, 57), (4, 58), (4, 59), (4, 60), (4, 61), (4, 62), (4, 63);
 
--- Assign roles to users
--- NOTE: Roles are now assigned automatically when users are created via the auth system sync
--- This ensures proper RBAC integration without hardcoded assignments
+-- Assign cashier targeted permissions to cashier role
+INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES
+((SELECT id FROM roles WHERE name = 'cashier'), (SELECT id FROM permissions WHERE name = 'dashboard_overview.cashier_dashboard')),
+((SELECT id FROM roles WHERE name = 'cashier'), (SELECT id FROM permissions WHERE name = 'student_tracking.late_payments')),
+((SELECT id FROM roles WHERE name = 'cashier'), (SELECT id FROM permissions WHERE name = 'student_tracking.forget_id_card_students'));
+
+
+
+-- Assign teacher targeted permissions to teacher role
 
 
 
