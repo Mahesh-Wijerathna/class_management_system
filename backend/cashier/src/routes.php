@@ -7,6 +7,32 @@ header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-W
 header('Access-Control-Allow-Credentials: false');
 header('Content-Type: application/json');
 
+// Ensure PHP does not emit HTML error pages to clients. Convert uncaught errors
+// and fatal crashes into clean JSON responses so the frontend can parse them.
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+
+set_exception_handler(function($e) {
+    error_log("Uncaught exception: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+    if (ob_get_length()) ob_clean();
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'message' => 'Internal server error', 'details' => $e->getMessage()]);
+    exit();
+});
+
+register_shutdown_function(function() {
+    $err = error_get_last();
+    if ($err && ($err['type'] & (E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR))) {
+        error_log("Fatal error: " . print_r($err, true));
+        if (ob_get_length()) ob_clean();
+        http_response_code(500);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => 'Fatal server error', 'details' => $err['message']]);
+        exit();
+    }
+});
+
 // Handle preflight OPTIONS requests
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);

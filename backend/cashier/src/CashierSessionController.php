@@ -482,51 +482,54 @@ class CashierSessionController {
      */
     public function closeDay() {
         $data = getJsonInput();
-        
+
         if (!isset($data['session_id'])) {
             handleError('Missing required field: session_id', 400);
         }
-        
+
         $sessionId = $data['session_id'];
-        $closingBalance = isset($data['closing_balance']) ? floatval($data['closing_balance']) : null;
+        $closingBalance = isset($data['closing_balance']) ? floatval($data['closing_balance']) : 0;
         $expectedBalance = isset($data['expected_balance']) ? floatval($data['expected_balance']) : null;
-        $varianceAmount = isset($data['variance_amount']) ? floatval($data['variance_amount']) : null;
+        $varianceAmount = isset($data['variance_amount']) ? floatval($data['variance_amount']) : 0;
         $variancePercentage = $data['variance_percentage'] ?? null;
         $varianceStatus = $data['variance_status'] ?? 'UNKNOWN';
         $denominationBreakdown = $data['denomination_breakdown'] ?? null;
         $managerOverride = $data['manager_override'] ?? null;
         $notes = $data['notes'] ?? 'Day ended';
-        
+
         try {
             $db = getDBConnection();
-            
+
+            // Use a transaction to ensure atomic update + insert
+            $db->beginTransaction();
+
             // Get session details
-            $stmt = $db->prepare("SELECT * FROM cashier_sessions WHERE session_id = ?");
+            $stmt = $db->prepare("SELECT * FROM cashier_sessions WHERE session_id = ? FOR UPDATE");
             $stmt->execute([$sessionId]);
             $session = $stmt->fetch();
-            
+
             if (!$session) {
+                $db->rollBack();
                 handleError('Session not found', 404);
             }
-            
-            // Update session with enhanced reconciliation data (session-based, not day-based)
-            $stmt = $db->prepare("
-                UPDATE cashier_sessions 
-                SET 
-                    closing_balance = ?,
-                    day_end_time = NOW(),
-                    session_status = 'closed'
-                WHERE session_id = ?
-            ");
-            $stmt->execute([$closingBalance, $sessionId]);
-            
-            // Log closing balance transaction with full reconciliation details
+
+            // Defensive: ensure numeric values are present
+            $openingBalance = isset($session['opening_balance']) ? floatval($session['opening_balance']) : 0;
+            $totalCollections = isset($session['total_collections']) ? floatval($session['total_collections']) : 0;
+
+            // Update session state
+            $updateStmt = $db->prepare(
+                "UPDATE cashier_sessions SET closing_balance = ?, day_end_time = NOW(), session_status = 'closed', last_activity_time = NOW() WHERE session_id = ?"
+            );
+            $updateStmt->execute([$closingBalance, $sessionId]);
+
+            // Build transaction notes
             $transactionNotes = "=== DAY END RECONCILIATION ===\n";
-            $transactionNotes .= "Expected Balance: LKR " . number_format($expectedBalance, 2) . "\n";
+            $transactionNotes .= "Expected Balance: LKR " . number_format($expectedBalance ?? ($openingBalance + $totalCollections), 2) . "\n";
             $transactionNotes .= "Physical Count: LKR " . number_format($closingBalance, 2) . "\n";
-            $transactionNotes .= "Variance: LKR " . number_format($varianceAmount, 2) . " (" . $variancePercentage . "%)\n";
+            $transactionNotes .= "Variance: LKR " . number_format($varianceAmount, 2) . " (" . ($variancePercentage ?? 'N/A') . "%)\n";
             $transactionNotes .= "Status: " . $varianceStatus . "\n";
-            
+
             if ($denominationBreakdown) {
                 $transactionNotes .= "\n--- Denomination Breakdown ---\n";
                 $breakdown = json_decode($denominationBreakdown, true);
@@ -547,21 +550,19 @@ class CashierSessionController {
                     }
                 }
             }
-            
+
             if ($managerOverride) {
                 $transactionNotes .= "\n🔐 MANAGER OVERRIDE APPROVED\n";
                 $transactionNotes .= "Significant variance approved by management.\n";
             }
-            
+
             $transactionNotes .= "\n" . $notes;
-            
-            $stmt = $db->prepare("
-                INSERT INTO cash_drawer_transactions (
-                    session_id, transaction_type, amount, balance_after,
-                    notes, created_by
-                ) VALUES (?, 'closing_balance', ?, ?, ?, ?)
-            ");
-            $stmt->execute([
+
+            // Insert closing balance transaction
+            $insStmt = $db->prepare(
+                "INSERT INTO cash_drawer_transactions (session_id, transaction_type, amount, balance_after, notes, created_by) VALUES (?, 'closing_balance', ?, ?, ?, ?)"
+            );
+            $insStmt->execute([
                 $sessionId,
                 $closingBalance,
                 $closingBalance,
@@ -569,21 +570,19 @@ class CashierSessionController {
                 $session['cashier_id']
             ]);
 
-            // If frontend provided a next opening balance (remaining left in drawer),
-            // persist it to the session's cash_drawer_balance so KPIs / next session
-            // can read the expected starting amount.
+            // Persist next opening balance if provided
             if (isset($data['next_opening_balance'])) {
                 $nextOpen = floatval($data['next_opening_balance']);
                 try {
-                    $updateStmt = $db->prepare("UPDATE cashier_sessions SET cash_drawer_balance = ? WHERE session_id = ?");
-                    $updateStmt->execute([$nextOpen, $sessionId]);
+                    $updateNext = $db->prepare("UPDATE cashier_sessions SET cash_drawer_balance = ? WHERE session_id = ?");
+                    $updateNext->execute([$nextOpen, $sessionId]);
                 } catch (PDOException $e) {
                     error_log("Failed to persist next_opening_balance for session $sessionId: " . $e->getMessage());
-                    // don't fail the day-end because persisting next opening balance failed
+                    // continue - don't fail day-end due to this
                 }
             }
-            
-            // Log day end activity with enhanced data
+
+            // Log day end activity
             $this->logActivityInternal($sessionId, 'day_end_report', [
                 'closing_balance' => $closingBalance,
                 'expected_balance' => $expectedBalance,
@@ -595,24 +594,35 @@ class CashierSessionController {
                 'notes' => $notes,
                 'day_end_time' => date('Y-m-d H:i:s')
             ]);
-            
-            // Prepare enhanced report
-            $firstLogin = new DateTime($session['first_login_time']);
+
+            // Prepare enhanced report with safe DateTime handling
+            try {
+                if (!empty($session['first_login_time'])) {
+                    $firstLogin = new DateTime($session['first_login_time']);
+                } else {
+                    // Fallback to session_date at midnight
+                    $firstLogin = new DateTime($session['session_date'] . ' 00:00:00');
+                }
+            } catch (Exception $e) {
+                error_log('Invalid first_login_time, using session_date fallback: ' . $e->getMessage());
+                $firstLogin = new DateTime($session['session_date'] . ' 00:00:00');
+            }
+
             $dayEnd = new DateTime();
             $hoursActive = $firstLogin->diff($dayEnd);
-            
-            $difference = $closingBalance - $session['opening_balance'];
-            $calculatedDiscrepancy = $difference - $session['total_collections'];
-            
+
+            $difference = $closingBalance - $openingBalance;
+            $calculatedDiscrepancy = $difference - $totalCollections;
+
             $report = [
                 'session_date' => $session['session_date'],
                 'first_login' => $firstLogin->format('h:i A'),
                 'day_end' => $dayEnd->format('h:i A'),
                 'total_hours' => $hoursActive->format('%h hours %i minutes'),
-                'total_collections' => floatval($session['total_collections']),
-                'receipts_issued' => intval($session['receipts_issued']),
-                'pending_payments' => intval($session['pending_payments']),
-                'opening_balance' => floatval($session['opening_balance']),
+                'total_collections' => floatval($totalCollections),
+                'receipts_issued' => intval($session['receipts_issued'] ?? 0),
+                'pending_payments' => intval($session['pending_payments'] ?? 0),
+                'opening_balance' => floatval($openingBalance),
                 'closing_balance' => $closingBalance,
                 'expected_balance' => $expectedBalance,
                 'difference' => $difference,
@@ -623,19 +633,23 @@ class CashierSessionController {
                 'manager_approved' => $managerOverride ? true : false,
                 'status' => $varianceStatus
             ];
-            
+
+            $db->commit();
+
             $successMessage = 'Day ended successfully';
             if ($varianceStatus === 'BALANCED') {
                 $successMessage .= ' - Cash drawer balanced';
             } elseif ($managerOverride) {
                 $successMessage .= ' - Variance approved by manager';
             }
-            
+
             sendSuccess([
                 'report' => $report
             ], $successMessage);
-            
-        } catch (PDOException $e) {
+
+        } catch (Exception $e) {
+            // Ensure rollback on any error
+            try { if (isset($db) && $db->inTransaction()) $db->rollBack(); } catch (Exception $ex) {}
             error_log("Close day error: " . $e->getMessage());
             handleError('Failed to close day: ' . $e->getMessage(), 500);
         }

@@ -166,5 +166,11 @@ function sendSuccess($data = [], $message = 'Success') {
 // Get JSON input
 function getJsonInput() {
     $input = file_get_contents('php://input');
-    return json_decode($input, true);
+    if (!$input) return [];
+    $data = json_decode($input, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        error_log('Invalid JSON input: ' . json_last_error_msg());
+        handleError('Invalid JSON input: ' . json_last_error_msg(), 400);
+    }
+    return $data;
 }

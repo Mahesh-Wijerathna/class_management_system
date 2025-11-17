@@ -8613,7 +8613,14 @@ export default function CashierDashboard() {
         throw new Error(`Failed to start cash drawer session: ${errorText}`);
       }
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseErr) {
+        const text = await response.text();
+        console.error('Invalid JSON response from close-day endpoint:', text, parseErr);
+        throw new Error('Invalid JSON response from server: ' + (text || parseErr.message));
+      }
       console.log("Success result:", result);
 
       // Store session data locally
@@ -11643,11 +11650,13 @@ export default function CashierDashboard() {
                       onChange={(e) => setScanValue(e.target.value)}
                       placeholder="Scan Student ID barcode or enter manually..."
                       className="flex-1 border border-slate-300/50 rounded-xl px-4 py-3 text-lg focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 bg-white/80 backdrop-blur-sm shadow-sm"
+                      disabled={!cashDrawerSession || isCashedOut}
                     />
 
                     <button
                       type="submit"
-                      className="bg-gradient-to-br from-emerald-500/90 to-emerald-600/90 backdrop-blur-sm text-white px-6 py-3 rounded-xl font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+                      className={`bg-gradient-to-br from-emerald-500/90 to-emerald-600/90 backdrop-blur-sm text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg ${(!cashDrawerSession || isCashedOut) ? 'opacity-60 cursor-not-allowed hover:shadow-none' : 'hover:shadow-xl hover:scale-105 hover:from-emerald-600 hover:to-emerald-700'}`}
+                      disabled={!cashDrawerSession || isCashedOut}
                     >
                       Load Student
                     </button>
@@ -11655,7 +11664,8 @@ export default function CashierDashboard() {
                     <button
                       type="button"
                       onClick={() => setShowScanner(true)}
-                      className="bg-gradient-to-br from-blue-500/90 to-blue-600/90 backdrop-blur-sm text-white px-4 py-3 rounded-xl font-semibold hover:from-blue-600 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+                      className={`bg-gradient-to-br from-blue-500/90 to-blue-600/90 backdrop-blur-sm text-white px-4 py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg ${(!cashDrawerSession || isCashedOut) ? 'opacity-60 cursor-not-allowed hover:shadow-none' : 'hover:from-blue-600 hover:to-blue-700 hover:shadow-xl hover:scale-105'}`}
+                      disabled={!cashDrawerSession || isCashedOut}
                     >
                       <FaCamera className="inline mr-2" />
                       Scanner
@@ -12095,7 +12105,8 @@ export default function CashierDashboard() {
                       <div className="grid grid-cols-2 gap-3">
                         <button
                           onClick={() => setActiveTab("register")}
-                          className="bg-gradient-to-br from-amber-500/90 to-amber-600/90 backdrop-blur-sm text-white py-3 px-4 rounded-xl text-sm font-semibold hover:from-amber-600 hover:to-amber-700 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105"
+                          disabled={!cashDrawerSession || isCashedOut}
+                          className={`bg-gradient-to-br from-amber-500/90 to-amber-600/90 backdrop-blur-sm text-white py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg ${(!cashDrawerSession || isCashedOut) ? 'opacity-60 cursor-not-allowed hover:shadow-none' : 'hover:from-amber-600 hover:to-amber-700 hover:shadow-xl hover:scale-105'}`}
                         >
                           <FaUserPlus className="text-lg" />
                           Register Student
@@ -12110,10 +12121,10 @@ export default function CashierDashboard() {
                               );
                             }
                           }}
-                          disabled={!student}
-                          className={`py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 ${
-                            student
-                              ? "bg-gradient-to-br from-sky-500/90 to-sky-600/90 backdrop-blur-sm text-white hover:from-sky-600 hover:to-sky-700"
+                          disabled={!student || !cashDrawerSession || isCashedOut}
+                          className={`py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg ${
+                            student && cashDrawerSession && !isCashedOut
+                              ? "bg-gradient-to-br from-sky-500/90 to-sky-600/90 backdrop-blur-sm text-white hover:from-sky-600 hover:to-sky-700 hover:shadow-xl hover:scale-105"
                               : "bg-slate-300/80 text-slate-500 cursor-not-allowed"
                           }`}
                         >
