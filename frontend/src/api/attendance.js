@@ -235,6 +235,7 @@ export const trackZoomAttendance = async (userData, classData) => {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
       },
       body: JSON.stringify(attendanceData)
     });
@@ -262,6 +263,7 @@ export const getMonthlyAttendance = async (classId, year, month) => {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
       },
     });
     
@@ -287,6 +289,7 @@ export const trackJoinButtonClick = async (classId, studentId, clickData = {}) =
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
       },
       body: JSON.stringify({
         classId,
@@ -322,6 +325,7 @@ export const getJoinButtonClicks = async (classId, studentId, startDate, endDate
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
       },
     });
     

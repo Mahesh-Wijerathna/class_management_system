@@ -5,6 +5,7 @@ const classApi = axios.create({
   baseURL: 'http://localhost:8087/routes.php',
   headers: {
     'Content-Type': 'application/json',
+    'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
   },
 });
 
@@ -138,9 +139,37 @@ export const requestLatePayment = async (classId, studentId) => {
 };
 
 // Fetch payment history for a specific class from payment backend
+// export const getPaymentHistoryForClass = async (studentId, classId) => {
+//   try {
+//     const response = await axios.get(`http://localhost:8090/routes.php/get_student_payments?studentId=${studentId}`);
+//     if (response.data.success && response.data.data) {
+//       // Filter payments for this specific class
+//       const classPayments = response.data.data.filter(payment => payment.class_id === classId);
+//       return classPayments.map(payment => ({
+//         date: payment.date,
+//         amount: payment.amount,
+//         status: payment.status,
+//         payment_method: payment.payment_method,
+//         transaction_id: payment.transaction_id,
+//         reference_number: payment.reference_number,
+//         notes: payment.notes || ''
+//       }));
+//     }
+//     return [];
+//   } catch (error) {
+//     console.error('Error fetching payment history:', error);
+//     return [];
+//   }
+// };
+
 export const getPaymentHistoryForClass = async (studentId, classId) => {
   try {
-    const response = await axios.get(`http://localhost:8090/routes.php/get_student_payments?studentId=${studentId}`);
+    const response = await axios.get(`http://localhost:8090/routes.php/get_student_payments?studentId=${studentId}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
+        'Content-Type': 'application/json'
+      }
+    });
     if (response.data.success && response.data.data) {
       // Filter payments for this specific class
       const classPayments = response.data.data.filter(payment => payment.class_id === classId);

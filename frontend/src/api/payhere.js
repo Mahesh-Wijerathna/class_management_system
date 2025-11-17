@@ -5,6 +5,7 @@ const paymentApi = axios.create({
   baseURL: 'http://localhost:8090/routes.php',
   headers: {
     'Content-Type': 'application/json',
+    'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
   },
 });
 

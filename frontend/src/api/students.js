@@ -22,6 +22,7 @@ export const getAllStudents = async (filters = {}) => {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
       },
     });
     
@@ -44,6 +45,7 @@ export const getStudentById = async (studentId) => {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
       },
     });
     
@@ -92,6 +94,7 @@ export const getStudentByMobile = async (mobile) => {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
       },
     });
     
@@ -114,6 +117,7 @@ export const getStudentsByStream = async (stream) => {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
       },
     });
     
@@ -136,6 +140,7 @@ export const getActiveStudents = async () => {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
       },
     });
     
@@ -167,6 +172,7 @@ export const updateStudent = async (studentId, studentData) => {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
       },
       body: JSON.stringify(studentData),
     });
@@ -190,6 +196,7 @@ export const deleteStudent = async (studentId) => {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
       },
     });
     

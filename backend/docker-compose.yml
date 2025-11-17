@@ -275,6 +275,7 @@ services:
     networks:
       - teacher-network
       - class-network
+      - auth-network
 
   attendance-backend:
     build: ./attendance-backend

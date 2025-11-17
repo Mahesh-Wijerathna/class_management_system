@@ -13,25 +13,26 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
+    'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
   },
   withCredentials: false,
 });
 
 // Request interceptor
-api.interceptors.request.use(
-  (config) => {
-    // Get token from appropriate storage
-    const storage = getStorage();
-    const token = storage.getItem('authToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+// api.interceptors.request.use(
+//   (config) => {
+//     // Get token from appropriate storage
+//     const storage = getStorage();
+//     const token = storage.getItem('authToken');
+//     if (token) {
+//       config.headers.Authorization = `Bearer ${token}`;
+//     }
+//     return config;
+//   },
+//   (error) => {
+//     return Promise.reject(error);
+//   }
+// );
 
 // Response interceptor for error handling and token refresh
 api.interceptors.response.use(

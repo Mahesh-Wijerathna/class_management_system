@@ -155,6 +155,7 @@ export const updateStudentProfile = async (userid, profileData) => {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
       },
       body: JSON.stringify(profileData)
     });
