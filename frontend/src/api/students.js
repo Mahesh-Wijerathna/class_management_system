@@ -1,5 +1,17 @@
 import { apiGet, apiPost, apiPut, apiDelete, handleApiError } from './apiUtils';
 
+// Helper to get auth token and build headers
+const getAuthToken = () => {
+  return localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+};
+
+const buildHeaders = (contentType = 'application/json') => {
+  const headers = { 'Content-Type': contentType };
+  const token = getAuthToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+};
+
 // =====================================================
 // STUDENT MANAGEMENT API FUNCTIONS
 // =====================================================
@@ -17,13 +29,10 @@ export const getAllStudents = async (filters = {}) => {
     // Call student backend directly
     const studentBackendUrl = 'http://localhost:8086';
     const endpoint = `/routes.php/getAllStudents${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-    
+    console.log('authToken:', getAuthToken());
     const response = await fetch(`${studentBackendUrl}${endpoint}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
-      },
+      headers: buildHeaders(),
     });
     
     if (!response.ok) {
@@ -43,10 +52,7 @@ export const getStudentById = async (studentId) => {
     const studentBackendUrl = 'http://localhost:8086';
     const response = await fetch(`${studentBackendUrl}/routes.php/get_with_id/${studentId}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
-      },
+      headers: buildHeaders(),
     });
     
     if (!response.ok) {
@@ -92,10 +98,7 @@ export const getStudentByMobile = async (mobile) => {
     const studentBackendUrl = 'http://localhost:8086';
     const response = await fetch(`${studentBackendUrl}/routes.php/students/mobile/${mobile}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
-      },
+      headers: buildHeaders(),
     });
     
     if (!response.ok) {
@@ -115,10 +118,7 @@ export const getStudentsByStream = async (stream) => {
     const studentBackendUrl = 'http://localhost:8086';
     const response = await fetch(`${studentBackendUrl}/routes.php/getAllStudents?stream=${stream}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
-      },
+      headers: buildHeaders(),
     });
     
     if (!response.ok) {
@@ -138,10 +138,7 @@ export const getActiveStudents = async () => {
     const studentBackendUrl = 'http://localhost:8086';
     const response = await fetch(`${studentBackendUrl}/routes.php/getAllStudents?status=active`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
-      },
+      headers: buildHeaders(),
     });
     
     if (!response.ok) {
@@ -170,10 +167,7 @@ export const updateStudent = async (studentId, studentData) => {
     const studentBackendUrl = 'http://localhost:8086';
     const response = await fetch(`${studentBackendUrl}/routes.php/update-student/${studentId}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
-      },
+      headers: buildHeaders(),
       body: JSON.stringify(studentData),
     });
     
@@ -194,10 +188,7 @@ export const deleteStudent = async (studentId) => {
     const studentBackendUrl = 'http://localhost:8086';
     const response = await fetch(`${studentBackendUrl}/routes.php/delete-student/${studentId}`, {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
-      },
+      headers: buildHeaders(),
     });
     
     if (!response.ok) {

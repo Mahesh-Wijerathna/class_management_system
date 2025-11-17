@@ -10,7 +10,7 @@ import CustomTextField from '../../../components/CustomTextField';
 import BasicButton from '../../../components/CustomButton';
 import { useNavigate } from 'react-router-dom';
 import { roleApi } from '../../../utils/roles';
-import { getCurrentUserPermissions } from '../../../utils/permissionChecker';
+import { getUserPermissions } from '../../../api/rbac';
 import { getUserData } from '../../../api/apiUtils';
 
 const columns = [
@@ -39,12 +39,28 @@ const AllRoles = () => {
   const [pendingUpdate, setPendingUpdate] = useState(null);
   const [userPermissions, setUserPermissions] = useState([]);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
 
   // Fetch roles and user permissions on component mount
   useEffect(() => {
     fetchRoles();
     fetchUserPermissions();
   }, []);
+
+  // Update filtered sidebar sections when permissions load or change
+  useEffect(() => {
+    try {
+      if (permissionsLoading) {
+        // while loading, show no filtering (or could show empty)
+        setFilteredSidebarSections(AdminDashboardSidebar([]));
+      } else {
+        setFilteredSidebarSections(AdminDashboardSidebar(userPermissions));
+      }
+    } catch (err) {
+      console.error('Error filtering sidebar sections:', err);
+      setFilteredSidebarSections(AdminDashboardSidebar([]));
+    }
+  }, [userPermissions, permissionsLoading]);
 
   const fetchRoles = async () => {
     try {
@@ -61,11 +77,29 @@ const AllRoles = () => {
   const fetchUserPermissions = async () => {
     try {
       setPermissionsLoading(true);
-      const user = getUserData();
-      if (user?.userid) {
-        const perms = await getCurrentUserPermissions(user.userid);
-        setUserPermissions(perms);
+      // Try to read stored user data from sessionStorage or localStorage
+      const stored = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+      let userId = undefined;
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          userId = parsed.userid || parsed.userId || parsed.id;
+        } catch (e) {
+          console.error('Failed to parse stored userData', e);
+        }
       }
+
+      // Fallback to getUserData() helper if available
+      if (!userId) {
+        const user = getUserData();
+        userId = user?.userid || user?.userId || user?.id;
+      }
+
+      // Default admin id when none found (matches other pages)
+      if (!userId) userId = 'A002';
+
+      const perms = await getUserPermissions(userId);
+      setUserPermissions(perms || []);
     } catch (error) {
       console.error('Failed to fetch user permissions:', error);
     } finally {
@@ -140,7 +174,7 @@ const AllRoles = () => {
   };
 
   return (
-    <DashboardLayout sidebarItems={AdminDashboardSidebar(userPermissions)}>
+    <DashboardLayout sidebarItems={filteredSidebarSections}>
       <div className="w-full max-w-25xl bg-white rounded-lg shadow p-4 mx-auto">
         <div className="flex justify-between items-center mb-2">
           <h1 className="text-2xl font-bold">All Roles</h1>

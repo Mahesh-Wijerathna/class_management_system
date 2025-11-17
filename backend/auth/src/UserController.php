@@ -444,14 +444,19 @@ class UserController {
             $decoded = JWT::decode($token, new Key($secretKey, 'HS256'));
             
             // Check if user is blocked (for students)
+            // Use internal student backend endpoint to determine block status instead
             if (isset($decoded->role) && $decoded->role === 'student') {
-                $monitoring = new StudentMonitoringModel($this->db);
-                if ($monitoring->isStudentBlocked($decoded->userid)) {
-                    return json_encode([
-                        'success' => false,
-                        'message' => 'Your account has been blocked by the administrator. Please contact support for assistance.',
-                        'blocked' => true
-                    ]);
+                $url = "http://student-backend/routes.php/student-blocked/{$decoded->userid}";
+                $resp = @file_get_contents($url);
+                if ($resp !== false) {
+                    $blockedData = json_decode($resp, true);
+                    if (isset($blockedData['blocked']) && $blockedData['blocked']) {
+                        return json_encode([
+                            'success' => false,
+                            'message' => 'Your account has been blocked by the administrator. Please contact support for assistance.',
+                            'blocked' => true
+                        ]);
+                    }
                 }
             }
             

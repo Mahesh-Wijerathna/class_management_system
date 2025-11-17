@@ -7,6 +7,15 @@ const STUDENT_API = 'http://localhost:8086';
 const TEACHER_API = 'http://localhost:8088';
 const CLASS_API = 'http://localhost:8087';
 
+// Auth helpers
+const getAuthToken = () => localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+const authHeaders = (contentType = 'application/json') => {
+  const headers = { 'Content-Type': contentType };
+  const token = getAuthToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+};
+
 /**
  * Get dashboard analytics data
  * Returns comprehensive metrics for admin dashboard
@@ -37,37 +46,25 @@ export const getDashboardAnalytics = async () => {
 
     const [paymentsRes, studentsRes, teachersRes, classesRes] = await Promise.allSettled([
       axios.get(`${PAYMENT_API}/routes.php/get_all_payments`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
+        headers: authHeaders()
       }).catch(err => {
         console.warn('Payment API failed:', err.message);
         return { data: { data: [] } };
       }),
       axios.get(`${STUDENT_API}/routes.php/getAllStudents`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
+        headers: authHeaders()
       }).catch(err => {
         console.warn('Student API failed:', err.message);
         return { data: [] };
       }),
       axios.get(`${TEACHER_API}/routes.php/get_all_teachers`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
+        headers: authHeaders()
       }).catch(err => {
         console.warn('Teacher API failed:', err.message);
         return { data: { data: [] } };
       }),
       axios.get(`${CLASS_API}/routes.php/get_all_classes`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
+        headers: authHeaders()
       }).catch(err => {
         console.warn('Class API failed:', err.message);
         return { data: { data: [] } };
@@ -598,10 +595,7 @@ export const getDashboardAlerts = async () => {
     const [speedPostRes, monitoringRes] = await Promise.all([
       // Get speed post deliveries with pending status
       axios.get(`${PAYMENT_API}/routes.php/get_all_payments`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
+        headers: authHeaders()
       }).catch(() => ({ data: { data: [] } })),
       // Monitoring alerts would come from monitoring API
       Promise.resolve({ data: { suspicious_count: 0, violations_count: 0 } })

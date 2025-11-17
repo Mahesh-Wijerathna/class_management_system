@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import adminSidebarSections from './AdminDashboardSidebar';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
+import { getUserPermissions } from '../../../api/rbac';
 import { 
   FaUsers, FaVideo, FaQrcode, FaChartBar, FaDownload, 
   FaCalendarAlt, FaClock, FaCheckCircle, FaTimesCircle, 
@@ -62,9 +63,43 @@ const AttendanceManagement = ({ onLogout }) => {
   const [refreshInterval, setRefreshInterval] = useState(30000); // 30 seconds
   const [lastRefresh, setLastRefresh] = useState(Date.now()); // Force re-calculations
   const [refreshingClass, setRefreshingClass] = useState(null); // Track which class is being refreshed
+  // Sidebar permissions state
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
 
   useEffect(() => {
     loadInitialData();
+  }, []);
+
+  // Load user permissions and compute filtered sidebar
+  useEffect(() => {
+    const loadUserPermissions = async () => {
+      try {
+        setPermissionsLoading(true);
+        const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+        let userId = 'A002';
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            userId = user.userid || userId;
+          } catch (err) {
+            console.error('Failed to parse userData from storage', err);
+          }
+        }
+
+        const perms = await getUserPermissions(userId);
+        setUserPermissions(perms || []);
+        setFilteredSidebarSections(AdminDashboardSidebar(perms || []));
+      } catch (err) {
+        console.error('Failed to load user permissions for sidebar', err);
+        setFilteredSidebarSections(AdminDashboardSidebar([]));
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    loadUserPermissions();
   }, []);
 
   // Auto-refresh effect
@@ -1363,7 +1398,7 @@ const AttendanceManagement = ({ onLogout }) => {
 
   if (loading) {
     return (
-      <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
+      <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -1376,7 +1411,7 @@ const AttendanceManagement = ({ onLogout }) => {
 
   if (error) {
     return (
-      <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
+      <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <FaExclamationTriangle className="text-red-500 text-4xl mx-auto mb-4" />
@@ -1394,7 +1429,7 @@ const AttendanceManagement = ({ onLogout }) => {
   }
 
   return (
-    <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
+    <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
       <div className="w-full max-w-7xl mx-auto bg-white p-8 rounded-lg shadow">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
