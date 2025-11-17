@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import teacherSidebarSections from './TeacherDashboardSidebar';
 import BasicCard from '../../../components/BasicCard';
@@ -83,14 +84,51 @@ const TeacherAllClasses = () => {
     fetchClasses();
   }, []);
 
+  // router helpers (declare before any useEffect that may reference `location`)
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // If URL contains classId & tab params, open the modal to that class/tab (linkable)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(location.search);
+      const classId = params.get('classId');
+      const tab = params.get('tab') || 'overview';
+      if (classId && classes && classes.length > 0) {
+        const cls = classes.find(c => String(c.id) === String(classId) || String(c.classId) === String(classId));
+        if (cls) {
+          // open the modal to the requested tab
+          setSelectedClassForDetails(cls);
+          setDetailsActiveTab(tab);
+          setShowDetailsModal(true);
+          loadClassData(cls.id);
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [location.search, classes]);
+
   // Handle view details
-  const handleViewDetails = (cls) => {
+
+  const openDetailsWithTab = (cls, tab = 'overview') => {
     setSelectedClassForDetails(cls);
-    setDetailsActiveTab('overview');
+    setDetailsActiveTab(tab);
     setShowDetailsModal(true);
     // Load class-specific data
     loadClassData(cls.id);
+    // Push query params so the view is linkable
+    try {
+      const params = new URLSearchParams();
+      params.set('classId', cls.id);
+      params.set('tab', tab);
+      navigate(`/teacher/my-classes?${params.toString()}`, { replace: true });
+    } catch (e) {
+      // ignore navigation errors
+    }
   };
+
+  const handleViewDetails = (cls) => openDetailsWithTab(cls, 'overview');
 
   // Load class-specific data
   const loadClassData = async (classId) => {
@@ -721,6 +759,32 @@ const TeacherAllClasses = () => {
                             "{cls.description}"
                           </div>
                         )}
+                        {/* Quick action links to open class details directly to a specific tab */}
+                        <div className="mt-3 flex items-center gap-2">
+                          {(() => {
+                            const user = getUserData();
+                            // For teacher_staff users, check permissions before showing quick buttons
+                            const perms = user && user.permissions ? user.permissions : {};
+
+                            const showSchedule = !(user && user.role && user.role.toLowerCase() === 'teacher_staff') || Boolean(perms['schedules']);
+                            const showMaterials = !(user && user.role && user.role.toLowerCase() === 'teacher_staff') || Boolean(perms['materials']);
+                            const showRecordings = !(user && user.role && user.role.toLowerCase() === 'teacher_staff') || Boolean(perms['recordings']);
+
+                            return (
+                              <>
+                                {showSchedule && (
+                                  <button onClick={() => openDetailsWithTab(cls, 'schedule')} className="text-sm px-2 py-1 bg-white border rounded text-cyan-700 hover:bg-cyan-50">Schedule</button>
+                                )}
+                                {showMaterials && (
+                                  <button onClick={() => openDetailsWithTab(cls, 'materials')} className="text-sm px-2 py-1 bg-white border rounded text-cyan-700 hover:bg-cyan-50">Materials</button>
+                                )}
+                                {showRecordings && (
+                                  <button onClick={() => openDetailsWithTab(cls, 'recordings')} className="text-sm px-2 py-1 bg-white border rounded text-cyan-700 hover:bg-cyan-50">Recordings</button>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
                       </div>
                     }
                     buttonText="View Details"
@@ -759,7 +823,11 @@ const TeacherAllClasses = () => {
                     </div>
                   </div>
                   <button
-                    onClick={() => setShowDetailsModal(false)}
+                    onClick={() => {
+                      setShowDetailsModal(false);
+                      // clear query params
+                      try { navigate('/teacher/my-classes', { replace: true }); } catch (e) {}
+                    }}
                     className="text-white hover:text-gray-200 transition-colors"
                   >
                     <FaTimesCircle size={24} />
@@ -770,26 +838,53 @@ const TeacherAllClasses = () => {
               {/* Tab Navigation */}
               <div className="border-b border-gray-200">
                 <div className="flex space-x-8 px-6 overflow-x-auto">
-                  {[
-                    { id: 'overview', label: 'Overview', icon: <FaInfoCircle /> },
-                    { id: 'schedule', label: 'Schedule', icon: <FaCalendar /> },
-                    { id: 'materials', label: 'Materials', icon: <FaFileAlt /> },
-                    { id: 'recordings', label: 'Recordings', icon: <FaVideo /> },
-                    { id: 'exams', label: 'Exams', icon: <FaExam /> },
-                    { id: 'assignments', label: 'Assignments', icon: <FaTasks /> }
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setDetailsActiveTab(tab.id)}
-                      className={`flex items-center gap-2 py-4 px-2 border-b-2 transition-colors ${
-                        detailsActiveTab === tab.id
-                          ? 'border-blue-600 text-blue-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700'
-                      }`}
-                    >
-                      {tab.icon} {tab.label}
-                    </button>
-                  ))}
+                    {(() => {
+                      const user = getUserData();
+                      const allTabs = [
+                        { id: 'overview', label: 'Overview', icon: <FaInfoCircle /> },
+                        { id: 'schedule', label: 'Schedule', icon: <FaCalendar /> },
+                        { id: 'materials', label: 'Materials', icon: <FaFileAlt /> },
+                        { id: 'recordings', label: 'Recordings', icon: <FaVideo /> },
+                        
+                        
+                      ];
+
+                      // Map tab id -> permission key for teacher_staff users
+                      const tabPermissionMap = {
+                        overview: 'overview',
+                        schedule: 'schedules',
+                        materials: 'materials',
+                        // recordings should be gated by the recordings permission (not materials)
+                        recordings: 'recordings',
+                        exams: 'exams',
+                        assignments: 'materials'
+                      };
+
+                      const visibleTabs = allTabs.filter(t => {
+                        if (user && user.role && user.role.toLowerCase() === 'teacher_staff') {
+                          const perm = tabPermissionMap[t.id];
+                          // If a permission is mapped, require it; otherwise allow by default
+                          if (!perm) return true;
+                          const perms = user.permissions || {};
+                          return Boolean(perms[perm]);
+                        }
+                        return true;
+                      });
+
+                      return visibleTabs.map(tab => (
+                        <button
+                          key={tab.id}
+                          onClick={() => setDetailsActiveTab(tab.id)}
+                          className={`flex items-center gap-2 py-4 px-2 border-b-2 transition-colors ${
+                            detailsActiveTab === tab.id
+                              ? 'border-blue-600 text-blue-600'
+                              : 'border-transparent text-gray-500 hover:text-gray-700'
+                          }`}
+                        >
+                          {tab.icon} {tab.label}
+                        </button>
+                      ));
+                    })()}
                 </div>
               </div>
 
@@ -919,12 +1014,18 @@ const TeacherAllClasses = () => {
                         <h3 className="text-lg font-semibold flex items-center gap-2">
                           <FaFileAlt /> Class Materials
                         </h3>
-                        <button
-                          onClick={() => setShowAddMaterial(true)}
-                          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
-                        >
-                          <FaFileAlt /> Add Material
-                        </button>
+                        {(() => {
+                          const user = getUserData();
+                          const canAddMaterials = !(user && user.role && user.role.toLowerCase() === 'teacher_staff') || Boolean((user.permissions || {}).materials);
+                          return canAddMaterials ? (
+                            <button
+                              onClick={() => setShowAddMaterial(true)}
+                              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+                            >
+                              <FaFileAlt /> Add Material
+                            </button>
+                          ) : null;
+                        })()}
                       </div>
                       
                       {materials.length > 0 ? (
@@ -968,12 +1069,18 @@ const TeacherAllClasses = () => {
                                   </div>
                                 </div>
                                 <div className="flex gap-2">
-                                  <button
-                                    onClick={() => handleDeleteMaterial(material.id)}
-                                    className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
-                                  >
-                                    🗑️ Delete
-                                  </button>
+                                  {(() => {
+                                    const user = getUserData();
+                                    const canManageMaterials = !(user && user.role && user.role.toLowerCase() === 'teacher_staff') || Boolean((user.permissions || {}).materials);
+                                    return canManageMaterials ? (
+                                      <button
+                                        onClick={() => handleDeleteMaterial(material.id)}
+                                        className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
+                                      >
+                                        🗑️ Delete
+                                      </button>
+                                    ) : null;
+                                  })()}
                                 </div>
                               </div>
                             </div>

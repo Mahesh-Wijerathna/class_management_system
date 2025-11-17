@@ -250,6 +250,29 @@ if ($method === 'POST' && $path === '/routes.php/user') {
     exit;
 }
 
+// CREATE user with explicit userid (used by other services to provision users)
+if ($method === 'POST' && $path === '/routes.php/create_user') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['userid']) || !isset($data['role']) || !isset($data['password'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing userid, role or password']);
+        exit;
+    }
+
+    $userModel = new UserModel($mysqli);
+    try {
+        $ok = $userModel->createUserWithId($data['userid'], $data['role'], $data['password'], $data['name'] ?? null, $data['email'] ?? null, $data['phone'] ?? null);
+        if ($ok) {
+            echo json_encode(['success' => true, 'message' => 'User created in auth', 'userid' => $data['userid']]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Failed to create user in auth']);
+        }
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+    }
+    exit;
+}
+
 
 
 // LOGIN user
@@ -536,12 +559,49 @@ if ($method === 'POST' && $path === '/routes.php/teacher') {
     
     // First create the teacher in auth database
     $user = new UserModel($mysqli);
+    // Generate an initial candidate ID
     $teacherId = $user->generateUserId('teacher');
-    
-    // Check if teacher ID already exists
-    if ($user->getUserById($teacherId)) {
-        echo json_encode(['success' => false, 'message' => 'Teacher ID already exists']);
-        exit;
+
+    // If the generated ID collides with either auth DB or teacher backend, pick the next numeric ID.
+    $prefix = strtoupper(substr($teacherId, 0, 1));
+    $numeric = (int)substr($teacherId, 1);
+    $maxAttempts = 1000;
+    $attempts = 0;
+    while (true) {
+        $attempts++;
+        // Check auth DB
+        $existsAuth = (bool)$user->getUserById($teacherId);
+
+        // Check teacher backend (some deployments use host.docker.internal)
+        $teacherExists = false;
+        $teacherCheckUrls = [
+            'http://host.docker.internal:8088/routes.php/get_teacher_by_id?teacherId=' . urlencode($teacherId),
+            'http://localhost:8088/routes.php/get_teacher_by_id?teacherId=' . urlencode($teacherId),
+            getenv('TEACHER_SERVICE_URL') ? rtrim(getenv('TEACHER_SERVICE_URL'), '/') . '/routes.php/get_teacher_by_id?teacherId=' . urlencode($teacherId) : null
+        ];
+        foreach ($teacherCheckUrls as $url) {
+            if (!$url) continue;
+            $resp = @file_get_contents($url);
+            if ($resp === false) continue;
+            $decoded = json_decode($resp, true);
+            if ($decoded && isset($decoded['success']) && $decoded['success']) {
+                $teacherExists = true;
+                break;
+            }
+        }
+
+        if (!$existsAuth && !$teacherExists) {
+            break; // unique ID found
+        }
+
+        if ($attempts >= $maxAttempts) {
+            echo json_encode(['success' => false, 'message' => 'Failed to generate unique Teacher ID after multiple attempts']);
+            exit;
+        }
+
+        // increment numeric and form next candidate
+        $numeric++;
+        $teacherId = $prefix . str_pad($numeric, 3, "0", STR_PAD_LEFT);
     }
     
     // Check if email already exists
@@ -956,6 +1016,43 @@ if ($method === 'POST' && $path === '/routes.php/send-welcome-whatsapp') {
         exit;
     }
     echo $controller->sendWelcomeWhatsAppMessage($data['userid'], $data['studentData']);
+    exit;
+}
+
+// Send teacher welcome WhatsApp message (for teacher accounts and teacher_staff)
+if ($method === 'POST' && $path === '/routes.php/send-teacher-welcome-whatsapp') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['userid']) || !isset($data['teacherData'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing userid or teacherData']);
+        exit;
+    }
+
+    // teacherData should include: name, phone, (optional) password
+    $teacherData = $data['teacherData'];
+    $name = $teacherData['name'] ?? '';
+    $phone = $teacherData['phone'] ?? ($teacherData['mobile'] ?? '');
+    $password = $teacherData['password'] ?? ($teacherData['pwd'] ?? '');
+
+    echo $controller->sendTeacherWelcomeMessage($data['userid'], $name, $phone, $password);
+    exit;
+}
+
+// Send staff (teacher_staff) welcome WhatsApp message
+if ($method === 'POST' && $path === '/routes.php/send-staff-welcome-whatsapp') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!isset($data['userid']) || !isset($data['teacherData'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Missing userid or teacherData']);
+        exit;
+    }
+
+    $teacherData = $data['teacherData'];
+    $name = $teacherData['name'] ?? '';
+    $phone = $teacherData['phone'] ?? ($teacherData['mobile'] ?? '');
+    $password = $teacherData['password'] ?? ($teacherData['pwd'] ?? '');
+
+    echo $controller->sendStaffWelcomeMessage($data['userid'], $name, $phone, $password);
     exit;
 }
 

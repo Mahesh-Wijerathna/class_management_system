@@ -15,7 +15,13 @@ $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
 // Database connection with error handling
 try {
-    $mysqli = new mysqli('mysql', 'devuser', 'devpass', 'rbac-db');
+    // Read DB configuration from environment when available (useful in Docker)
+    $dbHost = getenv('DB_HOST') ?: 'mysql';
+    $dbUser = getenv('DB_USER') ?: 'devuser';
+    $dbPass = getenv('DB_PASS') ?: 'devpass';
+    $dbName = getenv('DB_NAME') ?: 'rbac-db';
+
+    $mysqli = new mysqli($dbHost, $dbUser, $dbPass, $dbName);
     if ($mysqli->connect_error) {
         throw new Exception('Database connection failed: ' . $mysqli->connect_error);
     }

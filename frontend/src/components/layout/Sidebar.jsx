@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { getUserData } from '../../api/apiUtils';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FaBars, FaTimes, FaGraduationCap, FaSearch, FaStar, FaClock } from 'react-icons/fa';
 
@@ -108,6 +109,46 @@ const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen, isLocked =
 
   const filteredItems = filterMenuItems(items, searchTerm);
 
+  // Helper to find a sidebar item (from the `items` prop) by path
+  const findSidebarItem = (path) => {
+    if (!items || !Array.isArray(items)) return null;
+    for (const section of items) {
+      if (!section.items) continue;
+      for (const it of section.items) {
+        if (it.path === path) return it;
+      }
+    }
+    return null;
+  };
+
+  // Helper to determine if current user is allowed to see a given path
+  const canAccessPath = (path) => {
+    try {
+      const user = getUserData();
+      if (!user) return true; // no user info -> show by default
+      // teachers and admins see everything
+      if (user.role && (user.role.toLowerCase() === 'teacher' || user.role.toLowerCase() === 'admin')) return true;
+      // for teacher_staff, consult the sidebar item's requiredPermission
+      if (user.role && user.role.toLowerCase() === 'teacher_staff') {
+        const item = findSidebarItem(path);
+        if (!item) return false; // deny if item is unknown
+        const required = item.requiredPermission;
+        // if a requiredPermission string exists, require it; otherwise DENY for teacher_staff
+        if (required && typeof required === 'string') {
+          const perms = user.permissions || {};
+          return Boolean(perms[required]);
+        }
+        // For teacher_staff we require an explicit requiredPermission; items with no requiredPermission
+        // are considered admin/teacher-only and are not shown to teacher_staff
+        return false;
+      }
+      // other roles: show by default
+      return true;
+    } catch (e) {
+      return true;
+    }
+  };
+
   // Resolve dynamic route params like ":examId" from storage (or prompt)
   const resolvePath = (rawPath) => {
     if (!rawPath || typeof rawPath !== 'string') return rawPath;
@@ -118,11 +159,7 @@ const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen, isLocked =
     return null; // signal that we don't have an exam id yet
   };
 
-  // Get recent items (mock data - in real app, this would come from localStorage/API)
-  const recentItems = [
-    { id: 1, name: 'My Classes', path: '/student/my-classes', icon: <FaClock className="h-4 w-4" /> },
-    { id: 2, name: 'My Payments', path: '/student/my-payments', icon: <FaStar className="h-4 w-4" /> }
-  ];
+  
 
   // Mock notification data (in real app, this would come from API)
   const getNotificationCount = (path) => {
@@ -251,30 +288,7 @@ const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen, isLocked =
                   </div>
                 )}
 
-          {/* Recent Items */}
-          {isOpen && recentItems.length > 0 && (
-            <div className="p-4 border-b border-white/20">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <FaClock className="h-3 w-3" />
-                Recent
-              </h3>
-              <div className="space-y-1">
-                {recentItems.map((item, index) => (
-                  <button
-                    key={item.id}
-                    onClick={() => navigate(item.path)}
-                    onMouseEnter={(e) => handleMouseEnter(e, item.name)}
-                    onMouseLeave={handleMouseLeave}
-                    className="w-full flex items-center p-2 text-sm text-gray-600 hover:bg-white/60 hover:text-gray-900 rounded-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  >
-                    <span className="mr-3 text-gray-400">{item.icon}</span>
-                    <span className="font-medium">{item.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          
 
           {/* Enhanced Navigation */}
           <nav className={`p-4 ${isLocked ? 'pointer-events-none' : ''}`}>
@@ -293,6 +307,8 @@ const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen, isLocked =
                 )}
                 <div className={`space-y-1 ${collapsedSections[section.section] ? 'hidden' : ''}`}>
                   {section.items.map((item, itemIdx) => {
+                    // If current user is teacher_staff and doesn't have permission for this path, skip rendering
+                    if (!canAccessPath(item.path)) return null;
                     const notificationCount = getNotificationCount(item.path);
                     const itemStatus = getItemStatus(item.path);
                     

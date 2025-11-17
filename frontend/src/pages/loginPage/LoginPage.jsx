@@ -6,6 +6,7 @@ import BasicForm from '../../components/BasicForm'
 import CustomTextField from '../../components/CustomTextField'
 import CustomButton from '../../components/CustomButton'
 import { login } from '../../api/auth'
+import teacherSidebarSections from '../dashboard/teacherDashboard/TeacherDashboardSidebar';
 
 export default function LoginPage() {
   
@@ -74,7 +75,28 @@ export default function LoginPage() {
         // Redirect based on user role
         if (data.user && data.user.role) {
           console.log("User role:", data.user.role);
-          switch (data.user.role.toLowerCase()) {
+          const role = data.user.role.toLowerCase();
+          // Helper for teacher_staff: pick the first sidebar item the staff has permission to view
+          // Only consider items that explicitly declare a string `requiredPermission`.
+          const getTeacherStaffLanding = (user) => {
+            const perms = user.permissions || {};
+            // iterate sidebar sections & items in order and pick the first allowed
+            for (const section of teacherSidebarSections) {
+              if (!section.items) continue;
+              for (const item of section.items) {
+                const required = item.requiredPermission;
+                if (required && typeof required === 'string') {
+                  if (perms[required]) return item.path;
+                }
+                // skip items that don't declare requiredPermission (these are teacher/admin-only)
+              }
+            }
+
+            // fallback to teacher dashboard
+            return '/teacherdashboard';
+          };
+
+          switch (role) {
             case 'admin':
               console.log("Redirecting to admin dashboard");
               navigate('/admindashboard');
@@ -82,6 +104,11 @@ export default function LoginPage() {
             case 'teacher':
               console.log("Redirecting to teacher dashboard");
               navigate('/teacherdashboard');
+              break;
+            case 'teacher_staff':
+              console.log("Redirecting teacher staff to teacher dashboard (minimal view)");
+              // Pass a flag so the dashboard can show the minimal name/id view on initial landing
+              navigate('/teacherdashboard', { state: { minimalView: true } });
               break;
             case 'student':
               console.log("Redirecting to student dashboard");
@@ -139,13 +166,37 @@ export default function LoginPage() {
             console.log("Auto-login with remembered user:", user);
             
             // Redirect based on user role
-            switch (user.role.toLowerCase()) {
+            const role = user.role ? user.role.toLowerCase() : '';
+            const getTeacherStaffLandingAuto = (user) => {
+              const perms = user.permissions || {};
+              for (const section of teacherSidebarSections) {
+                if (!section.items) continue;
+                for (const item of section.items) {
+                  const required = item.requiredPermission;
+                  if (required && typeof required === 'string') {
+                    if (perms[required]) return item.path;
+                  } else {
+                    return item.path;
+                  }
+                }
+              }
+              return '/teacherdashboard';
+            };
+
+            switch (role) {
               case 'admin':
                 navigate('/admindashboard');
                 break;
               case 'teacher':
                 navigate('/teacherdashboard');
                 break;
+      case 'teacher_staff':
+        // Always land on the teacher dashboard so staff can see their name/id
+        // and navigate to permitted pages via the sidebar. Pass a flag so the
+        // dashboard knows this is the initial login landing and can show the
+        // minimal view.
+        navigate('/teacherdashboard', { state: { minimalView: true } });
+        break;
               case 'student':
                 navigate('/studentdashboard');
                 break;
@@ -191,12 +242,35 @@ export default function LoginPage() {
             const user = JSON.parse(userData);
             console.log("Auto-login with session user:", user);
             
-            switch (user.role.toLowerCase()) {
+            // Redirect session user similarly and handle teacher_staff
+            const role2 = (user.role || '').toLowerCase();
+            const getTeacherStaffLandingSession = (user) => {
+              const perms = user.permissions || {};
+              for (const section of teacherSidebarSections) {
+                if (!section.items) continue;
+                for (const item of section.items) {
+                  const required = item.requiredPermission;
+                  if (required && typeof required === 'string') {
+                    if (perms[required]) return item.path;
+                  } else {
+                    return item.path;
+                  }
+                }
+              }
+              return '/teacherdashboard';
+            };
+
+            switch (role2) {
               case 'admin':
                 navigate('/admindashboard');
                 break;
               case 'teacher':
                 navigate('/teacherdashboard');
+                break;
+              case 'teacher_staff':
+                // Always land on the teacher dashboard for session auto-login as well.
+                // Provide the minimalView flag so the dashboard shows only name/id on first load.
+                navigate('/teacherdashboard', { state: { minimalView: true } });
                 break;
               case 'student':
                 navigate('/studentdashboard');
