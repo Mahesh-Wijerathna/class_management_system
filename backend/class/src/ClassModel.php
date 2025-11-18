@@ -93,6 +93,73 @@ class ClassModel {
         if ($relatedTheoryId === '') {
             $relatedTheoryId = null;
         }
+        // If this is a revision related to a theory and some fields are missing
+        // from the request, load the related theory class and use its values
+        // only to fill missing fields. This mirrors createClass behavior and
+        // prevents overwriting user-provided values during updates.
+        if ($relatedTheoryId) {
+            $relStmt = $this->conn->prepare("SELECT * FROM classes WHERE id = ? LIMIT 1");
+            $relStmt->bind_param("i", $relatedTheoryId);
+            if ($relStmt->execute()) {
+                $relRes = $relStmt->get_result();
+                $relatedRow = $relRes->fetch_assoc();
+                if ($relatedRow) {
+                    if (empty($className)) $className = $relatedRow['class_name'] ?? $className;
+                    if (empty($subject)) $subject = $relatedRow['subject'] ?? $subject;
+                    if (empty($teacher)) $teacher = $relatedRow['teacher'] ?? $teacher;
+                    if (empty($teacherId)) $teacherId = $relatedRow['teacher_id'] ?? $teacherId;
+                    if (empty($stream)) $stream = $relatedRow['stream'] ?? $stream;
+                    if (empty($deliveryMethod)) $deliveryMethod = $relatedRow['delivery_method'] ?? $deliveryMethod;
+
+                    if (empty($scheduleDay) || empty($scheduleStartTime) || empty($scheduleEndTime)) {
+                        $scheduleDay = $scheduleDay ?: ($relatedRow['schedule_day'] ?? $scheduleDay);
+                        $scheduleStartTime = $scheduleStartTime ?: ($relatedRow['schedule_start_time'] ?? $scheduleStartTime);
+                        $scheduleEndTime = $scheduleEndTime ?: ($relatedRow['schedule_end_time'] ?? $scheduleEndTime);
+                        $scheduleFrequency = $scheduleFrequency ?: ($relatedRow['schedule_frequency'] ?? $scheduleFrequency);
+                    }
+
+                    if (empty($startDate)) $startDate = $relatedRow['start_date'] ?? $startDate;
+                    if (empty($endDate)) $endDate = $relatedRow['end_date'] ?? $endDate;
+                    if (empty($maxStudents)) $maxStudents = $relatedRow['max_students'] ?? $maxStudents;
+                }
+            }
+            $relStmt->close();
+        }
+        // If this is a revision related to a theory and some fields are missing
+        // from the request, load the related theory class and use its values
+        // only to fill missing fields. This prevents unintentionally
+        // overwriting user-provided values while still allowing defaults.
+        if ($relatedTheoryId) {
+            $relStmt = $this->conn->prepare("SELECT * FROM classes WHERE id = ? LIMIT 1");
+            $relStmt->bind_param("i", $relatedTheoryId);
+            if ($relStmt->execute()) {
+                $relRes = $relStmt->get_result();
+                $relatedRow = $relRes->fetch_assoc();
+                if ($relatedRow) {
+                    // Only fill missing basic metadata
+                    if (empty($className)) $className = $relatedRow['class_name'] ?? $className;
+                    if (empty($subject)) $subject = $relatedRow['subject'] ?? $subject;
+                    if (empty($teacher)) $teacher = $relatedRow['teacher'] ?? $teacher;
+                    if (empty($teacherId)) $teacherId = $relatedRow['teacher_id'] ?? $teacherId;
+                    if (empty($stream)) $stream = $relatedRow['stream'] ?? $stream;
+                    if (empty($deliveryMethod)) $deliveryMethod = $relatedRow['delivery_method'] ?? $deliveryMethod;
+
+                    // Schedule: only fill schedule pieces if they are missing
+                    if (empty($scheduleDay) || empty($scheduleStartTime) || empty($scheduleEndTime)) {
+                        $scheduleDay = $scheduleDay ?: ($relatedRow['schedule_day'] ?? $scheduleDay);
+                        $scheduleStartTime = $scheduleStartTime ?: ($relatedRow['schedule_start_time'] ?? $scheduleStartTime);
+                        $scheduleEndTime = $scheduleEndTime ?: ($relatedRow['schedule_end_time'] ?? $scheduleEndTime);
+                        $scheduleFrequency = $scheduleFrequency ?: ($relatedRow['schedule_frequency'] ?? $scheduleFrequency);
+                    }
+
+                    // Dates and maxStudents: use related values only when not provided
+                    if (empty($startDate)) $startDate = $relatedRow['start_date'] ?? $startDate;
+                    if (empty($endDate)) $endDate = $relatedRow['end_date'] ?? $endDate;
+                    if (empty($maxStudents)) $maxStudents = $relatedRow['max_students'] ?? $maxStudents;
+                }
+            }
+            $relStmt->close();
+        }
         $status = $data['status'] ?? 'active';
         
         // New tute collection fields

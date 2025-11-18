@@ -445,6 +445,9 @@ const CreateClass = ({ onLogout }) => {
     ) {
       const related = classes.find(tc => String(tc.id) === String(selectedTheoryId));
       if (related) {
+        // Copy core identifying fields from related theory class but DO NOT
+        // forcibly override schedule/start/end/maxStudents so the revision
+        // class can have its own schedule when the user edits it.
         submitValues = {
           ...submitValues,
           className: related.className,
@@ -453,11 +456,7 @@ const CreateClass = ({ onLogout }) => {
           teacherId: related.teacherId,
           stream: related.stream,
           deliveryMethod: related.deliveryMethod,
-          schedule: { ...related.schedule },
-          startDate: related.startDate,
-          endDate: related.endDate,
-          maxStudents: related.maxStudents,
-          zoomLink: related.zoomLink || submitValues.zoomLink, // Keep user's zoom link if related doesn't have one
+          zoomLink: related.zoomLink || submitValues.zoomLink,
           description: related.description,
           relatedTheoryId: related.id,
         };
@@ -1183,6 +1182,57 @@ const CreateClass = ({ onLogout }) => {
                             <input type="text" className="px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-900 w-full" value={related?.stream || ''} disabled readOnly />
                             <input type="hidden" name="stream" value={related?.stream || ''} />
                           </div>
+                        </div>
+                        {/* Allow overriding schedule for a related revision class */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-3 bg-white rounded p-3 border">
+                          <CustomSelectField
+                            id="schedule.frequency"
+                            name="schedule.frequency"
+                            label="Frequency"
+                            value={values.schedule.frequency || related?.schedule?.frequency || 'weekly'}
+                            onChange={handleChange}
+                            options={[
+                              { value: 'weekly', label: 'Weekly' },
+                              { value: 'bi-weekly', label: 'Bi-weekly' },
+                              { value: 'monthly', label: 'Monthly' },
+                              { value: 'no-schedule', label: 'No Schedule' },
+                            ]}
+                          />
+                          <CustomSelectField
+                            id="schedule.day"
+                            name="schedule.day"
+                            label="Day"
+                            value={values.schedule.day || related?.schedule?.day || ''}
+                            onChange={handleChange}
+                            options={[
+                              { value: '', label: 'Select Day' },
+                              { value: 'Monday', label: 'Monday' },
+                              { value: 'Tuesday', label: 'Tuesday' },
+                              { value: 'Wednesday', label: 'Wednesday' },
+                              { value: 'Thursday', label: 'Thursday' },
+                              { value: 'Friday', label: 'Friday' },
+                              { value: 'Saturday', label: 'Saturday' },
+                              { value: 'Sunday', label: 'Sunday' },
+                            ]}
+                          />
+                          <CustomTextField
+                            id="schedule.startTime"
+                            name="schedule.startTime"
+                            type="time"
+                            label="Start Time"
+                            value={values.schedule.startTime || related?.schedule?.startTime || ''}
+                            onChange={handleChange}
+                            icon={FaClock}
+                          />
+                          <CustomTextField
+                            id="schedule.endTime"
+                            name="schedule.endTime"
+                            type="time"
+                            label="End Time"
+                            value={values.schedule.endTime || related?.schedule?.endTime || ''}
+                            onChange={handleChange}
+                            icon={FaClock}
+                          />
                         </div>
                         {/* Discount Price Input for Revision class (for theory students) - styled as in image */}
                         <div className="flex flex-col md:flex-row items-center gap-4 p-3 bg-blue-50 rounded-lg mt-2">
