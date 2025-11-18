@@ -145,7 +145,13 @@ const fetchHalls = async () => {
 
   const fetchTeachers = async () => {
   try {
-    const res = await fetch(TEACHERS_API);
+    const token = getAuthToken();
+    const res = await fetch(TEACHERS_API, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
     const data = await res.json();
     if (data.success && Array.isArray(data.data)) {
       setTeacherOptions(data.data.map(t => ({

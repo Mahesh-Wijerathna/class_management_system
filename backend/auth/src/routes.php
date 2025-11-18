@@ -38,9 +38,6 @@ $requiredAuthPaths = [
     '/routes.php/cashiers',
     '/routes.php/teacher',
     '/routes.php/teachers',
-    '/routes.php/teacher/login',
-    '/routes.php/teacher/login-email',
-    '/routes.php/teacher/forgot-password-otp',
     '/routes.php/track-student-login',
     '/routes.php/track-concurrent-session',
     '/routes.php/end-concurrent-session',
@@ -62,7 +59,7 @@ if (in_array($path, $requiredAuthPaths) ||
     preg_match('#^/routes.php/user/([A-Za-z0-9]+)$#', $path) || 
     preg_match('#^/routes.php/cashier/([A-Za-z0-9]+)$#', $path) || 
     preg_match('#^/routes.php/cashier/([A-Za-z0-9]+)/delete$#', $path) || 
-    preg_match('#^/routes.php/teacher/([A-Za-z0-9]+)$#', $path) || 
+    preg_match('#^/routes.php/teacher/(?!login|login-email|forgot-password-otp)([A-Za-z0-9]+)$#', $path) || 
     preg_match('#^/routes.php/student-monitoring/([A-Za-z0-9]+)$#', $path) || 
     preg_match('#^/routes.php/student-blocked/([A-Za-z0-9]+)$#', $path) || 
     preg_match('#^/routes.php/student-block-history/([A-Za-z0-9]+)$#', $path) || 

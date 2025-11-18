@@ -3,7 +3,7 @@ import { FaExclamationTriangle, FaIdCard, FaUser, FaBook, FaCalendar, FaPhone, F
 import { useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import { useCashierSidebar } from './CashierDashboardSidebar';
-import { getUserData } from '../../../api/apiUtils';
+import { getUserData, getAuthToken } from '../../../api/apiUtils';
 import { getStudentById } from '../../../api/students';
 
 const StudentTracking = () => {
@@ -40,7 +40,13 @@ const StudentTracking = () => {
     }
     
     try {
-      const response = await fetch('http://localhost:8081/routes.php/cashiers');
+      const token = getAuthToken();
+      const response = await fetch('http://localhost:8081/routes.php/cashiers', {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json'
+        }
+      });
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.cashiers) {
@@ -85,7 +91,13 @@ const StudentTracking = () => {
     setLoading(true);
     try {
       // Fetch ALL late pay permissions (not just today)
-      const response = await fetch('http://localhost:8087/routes.php/late_pay/all_history');
+      const token = getAuthToken();
+      const response = await fetch('http://localhost:8087/routes.php/late_pay/all_history', {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json'
+        }
+      });
       const data = await response.json();
       
       if (data.success) {
@@ -144,7 +156,13 @@ const StudentTracking = () => {
     setLoading(true);
     try {
       // Fetch ALL entry permit history (not just today)
-      const response = await fetch('http://localhost:8087/routes.php/entry_permit/history');
+      const token = getAuthToken();
+      const response = await fetch('http://localhost:8087/routes.php/entry_permit/history', {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json'
+        }
+      });
       const data = await response.json();
       
       if (data.success) {

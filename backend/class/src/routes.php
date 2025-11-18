@@ -42,7 +42,8 @@ $requiredAuthPaths = [
     '/late_pay/issue',
     '/late_pay/cleanup',
     '/late_pay/expire',
-    '/entry_permit/issue'
+    '/entry_permit/issue',
+    '/get_classes_by_teacher'
 ];
 
 $currentUser = null; // Store authenticated user data globally

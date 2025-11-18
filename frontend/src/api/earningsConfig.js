@@ -2,8 +2,19 @@
 // API service for class earnings configuration
 
 import axios from 'axios';
+import { getAuthToken } from './apiUtils';
 
-const API_BASE_URL = 'http://localhost:8090/routes.php';
+const earningsApi = axios.create({
+  baseURL: 'http://localhost:8090/routes.php',
+});
+
+earningsApi.interceptors.request.use((config) => {
+  const token = getAuthToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 /**
  * Get earnings configuration for a specific class
@@ -22,12 +33,7 @@ const API_BASE_URL = 'http://localhost:8090/routes.php';
 
 export const getClassEarningsConfig = async (classId) => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/earnings-config/${classId}`, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    const response = await earningsApi.get(`/earnings-config/${classId}`);
     return response.data;
   } catch (error) {
     console.error('Error fetching class earnings config:', error);
@@ -50,12 +56,7 @@ export const getClassEarningsConfig = async (classId) => {
 // };
 export const getAllEarningsConfigs = async () => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/earnings-config`, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    const response = await earningsApi.get('/earnings-config');
     return response.data;
   } catch (error) {
     console.error('Error fetching all earnings configs:', error);
@@ -80,12 +81,7 @@ export const getAllEarningsConfigs = async () => {
 // };
 export const saveClassEarningsConfig = async (classId, config) => {
   try {
-    const response = await axios.post(`${API_BASE_URL}/earnings-config/${classId}`, config, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    const response = await earningsApi.post(`/earnings-config/${classId}`, config);
     return response.data;
   } catch (error) {
     console.error('Error saving class earnings config:', error);
