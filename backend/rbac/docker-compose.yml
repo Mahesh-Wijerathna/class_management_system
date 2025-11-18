@@ -54,4 +54,3 @@ volumes:
 
 networks:
   rbac-network:
-    external: true

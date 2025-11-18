@@ -1,13 +1,30 @@
 import axios from 'axios';
+import api from './axiosConfig';
 
 // Create axios instance for class service
 const classApi = axios.create({
   baseURL: 'http://localhost:8087/routes.php',
   headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
+    'Content-Type': 'application/json'
   },
 });
+
+// Add request interceptor to dynamically set Authorization header
+classApi.interceptors.request.use(
+  (config) => {
+    // Get token from appropriate storage
+    const usePersistentStorage = sessionStorage.getItem('usePersistentStorage');
+    const storage = usePersistentStorage === 'true' ? localStorage : sessionStorage;
+    const token = storage.getItem('authToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 // Get all enrollments for a student
 export const getStudentEnrollments = async (studentId) => {
@@ -164,9 +181,14 @@ export const requestLatePayment = async (classId, studentId) => {
 
 export const getPaymentHistoryForClass = async (studentId, classId) => {
   try {
+    // Get token from appropriate storage
+    const usePersistentStorage = sessionStorage.getItem('usePersistentStorage');
+    const storage = usePersistentStorage === 'true' ? localStorage : sessionStorage;
+    const token = storage.getItem('authToken');
+    
     const response = await axios.get(`http://localhost:8090/routes.php/get_student_payments?studentId=${studentId}`, {
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
+        'Authorization': token ? `Bearer ${token}` : '',
         'Content-Type': 'application/json'
       }
     });

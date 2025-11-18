@@ -1,9 +1,4 @@
-import { apiGet, apiPost, apiPut, apiDelete, handleApiError } from './apiUtils';
-
-// Helper to get auth token and build headers
-const getAuthToken = () => {
-  return localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
-};
+import { apiGet, apiPost, apiPut, apiDelete, handleApiError, getAuthToken } from './apiUtils';
 
 const buildHeaders = (contentType = 'application/json') => {
   const headers = { 'Content-Type': contentType };

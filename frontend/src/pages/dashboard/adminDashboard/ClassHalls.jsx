@@ -3,7 +3,7 @@ import BasicAlertBox from '../../../components/BasicAlertBox';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import AdminDashboardSidebar from './AdminDashboardSidebar';
 import { getUserPermissions } from '../../../api/rbac';
-import { getUserData } from '../../../api/apiUtils';
+import { getUserData, getAuthToken } from '../../../api/apiUtils';
 import CustomButton from '../../../components/CustomButton';
 import {
   FaTrash, FaEdit, FaChalkboardTeacher, FaBook, FaUserGraduate, FaCalendarAlt, FaClock
@@ -98,7 +98,13 @@ const fetchClasses = async () => {
 
 const fetchHalls = async () => {
   try {
-    const res = await fetch(`${HALLBOOK_API}?list=1`);
+    const token = getAuthToken();
+    const res = await fetch(`${HALLBOOK_API}?list=1`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
     const data = await res.json();
     if (data.success) {
       // Build classId to name map

@@ -1,4 +1,4 @@
-import { apiPost, apiGet, apiPut, handleApiError } from './apiUtils';
+import { apiPost, apiGet, apiPut, handleApiError, getAuthToken } from './apiUtils';
 import { getStaffById } from './teachers';
 
 export const login = async (credentials) => {
@@ -155,7 +155,7 @@ export const updateStudentProfile = async (userid, profileData) => {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
+        'Authorization': `Bearer ${getAuthToken()}`
       },
       body: JSON.stringify(profileData)
     });

@@ -116,13 +116,7 @@ export const paymentAPI = {
   // Process a new payment
   processPayment: async (paymentData) => {
     try {
-      const response = await axios.post(CASHIER_API.PROCESS_PAYMENT, paymentData, {
-        headers: {
-          // Example headers; replace with your actual headers
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await axios.post(CASHIER_API.PROCESS_PAYMENT, paymentData);
       return response.data;
     } catch (error) {
       throw error;
@@ -132,14 +126,7 @@ export const paymentAPI = {
   // Get payment history with filters
   getPaymentHistory: async (filters = {}) => {
     try {
-      const response = await axios.get(CASHIER_API.GET_PAYMENT_HISTORY, {
-        params: filters,
-        headers: {
-          // Example headers; replace with your actual headers
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await axios.get(CASHIER_API.GET_PAYMENT_HISTORY, { params: filters });
       return response.data;
     } catch (error) {
       throw error;
@@ -149,13 +136,7 @@ export const paymentAPI = {
   // Get specific payment details
   getPaymentDetails: async (paymentId) => {
     try {
-      const response = await axios.get(CASHIER_API.GET_PAYMENT_DETAILS.replace(':id', paymentId), {
-        headers: {
-          // Example headers; replace with your actual headers
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await axios.get(CASHIER_API.GET_PAYMENT_DETAILS.replace(':id', paymentId));
       return response.data;
     } catch (error) {
       throw error;
@@ -167,14 +148,7 @@ export const paymentAPI = {
     try {
       const response = await axios.patch(
         CASHIER_API.UPDATE_PAYMENT_STATUS.replace(':id', paymentId),
-        { status },
-        {
-          headers: {
-            // Example headers; replace with your actual headers
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-            'Content-Type': 'application/json'
-          }
-        }
+        { status }
       );
       return response.data;
     } catch (error) {
@@ -235,11 +209,7 @@ export const studentAPI = {
   getStudents: async (filters = {}) => {
     try {
       const response = await axios.get(CASHIER_API.GET_STUDENTS, {
-        params: filters,
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
+        params: filters
       });
       return response.data;
     } catch (error) {
@@ -250,12 +220,7 @@ export const studentAPI = {
   // Get specific student details
   getStudentDetails: async (studentId) => {
     try {
-      const response = await axios.get(CASHIER_API.GET_STUDENT_DETAILS.replace(':id', studentId), {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await axios.get(CASHIER_API.GET_STUDENT_DETAILS.replace(':id', studentId));
       return response.data;
     } catch (error) {
       throw error;
@@ -266,11 +231,7 @@ export const studentAPI = {
   searchStudents: async (searchQuery) => {
     try {
       const response = await axios.get(CASHIER_API.SEARCH_STUDENTS, {
-        params: { q: searchQuery },
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
+        params: { q: searchQuery }
       });
       return response.data;
     } catch (error) {
@@ -283,13 +244,7 @@ export const studentAPI = {
     try {
       const response = await axios.get(
         CASHIER_API.GET_STUDENT_PAYMENTS.replace(':id', studentId),
-        {
-          params: filters,
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-            'Content-Type': 'application/json'
-          }
-        }
+        { params: filters }
       );
       return response.data;
     } catch (error) {
@@ -369,11 +324,7 @@ export const reportsAPI = {
   getDailyReport: async (date, filters = {}) => {
     try {
       const response = await axios.get(CASHIER_API.GET_DAILY_REPORT, {
-        params: { date, ...filters },
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
+        params: { date, ...filters }
       });
       return response.data;
     } catch (error) {
@@ -385,11 +336,7 @@ export const reportsAPI = {
   getWeeklyReport: async (startDate, endDate, filters = {}) => {
     try {
       const response = await axios.get(CASHIER_API.GET_WEEKLY_REPORT, {
-        params: { startDate, endDate, ...filters },
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
+        params: { startDate, endDate, ...filters }
       });
       return response.data;
     } catch (error) {
@@ -401,11 +348,7 @@ export const reportsAPI = {
   getMonthlyReport: async (year, month, filters = {}) => {
     try {
       const response = await axios.get(CASHIER_API.GET_MONTHLY_REPORT, {
-        params: { year, month, ...filters },
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
+        params: { year, month, ...filters }
       });
       return response.data;
     } catch (error) {
@@ -417,11 +360,7 @@ export const reportsAPI = {
   getCustomReport: async (startDate, endDate, filters = {}) => {
     try {
       const response = await axios.get(CASHIER_API.GET_CUSTOM_REPORT, {
-        params: { startDate, endDate, ...filters },
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
+        params: { startDate, endDate, ...filters }
       });
       return response.data;
     } catch (error) {
@@ -437,11 +376,7 @@ export const reportsAPI = {
         format,
         filters
       }, {
-        responseType: 'blob', // For file downloads
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
+        responseType: 'blob' // For file downloads
       });
       return response.data;
     } catch (error) {
@@ -492,12 +427,7 @@ export const receiptAPI = {
   // Generate receipt
   generateReceipt: async (paymentId) => {
     try {
-      const response = await axios.post(CASHIER_API.GENERATE_RECEIPT, { paymentId }, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await axios.post(CASHIER_API.GENERATE_RECEIPT, { paymentId });
       return response.data;
     } catch (error) {
       throw error;
@@ -511,11 +441,7 @@ export const receiptAPI = {
         CASHIER_API.DOWNLOAD_RECEIPT.replace(':id', receiptId),
         {
           params: { format },
-          responseType: 'blob',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-            'Content-Type': 'application/json'
-          }
+          responseType: 'blob'
         }
       );
       return response.data;
@@ -527,12 +453,7 @@ export const receiptAPI = {
   // Print receipt
   printReceipt: async (receiptId) => {
     try {
-      const response = await axios.get(CASHIER_API.PRINT_RECEIPT.replace(':id', receiptId), {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await axios.get(CASHIER_API.PRINT_RECEIPT.replace(':id', receiptId));
       return response.data;
     } catch (error) {
       throw error;
@@ -578,12 +499,7 @@ export const dashboardAPI = {
   // Get cashier dashboard statistics
   getDashboardStats: async () => {
     try {
-      const response = await axios.get('/cashier/dashboard/stats', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await axios.get('/cashier/dashboard/stats');
       return response.data;
     } catch (error) {
       throw error;
@@ -594,11 +510,7 @@ export const dashboardAPI = {
   getRecentTransactions: async (limit = 10) => {
     try {
       const response = await axios.get('/cashier/dashboard/recent-transactions', {
-        params: { limit },
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
+        params: { limit }
       });
       return response.data;
     } catch (error) {
@@ -609,12 +521,7 @@ export const dashboardAPI = {
   // Get pending payments
   getPendingPayments: async () => {
     try {
-      const response = await axios.get('/cashier/dashboard/pending-payments', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await axios.get('/cashier/dashboard/pending-payments');
       return response.data;
     } catch (error) {
       throw error;
@@ -736,11 +643,6 @@ export const sessionAPI = {
       const response = await axios.post(`${CASHIER_SESSION_API_BASE}/start`, {
         cashier_id: cashierId,
         opening_balance: openingBalance,
-      }, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
       });
       return response.data;
     } catch (error) {
@@ -757,10 +659,6 @@ export const sessionAPI = {
         params: { 
           cashier_id: cashierId,
           date: today 
-        },
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
         }
       });
       return response.data;
@@ -779,11 +677,6 @@ export const sessionAPI = {
         receipts_generated: kpiData.receiptsGenerated,
         pending_payments: kpiData.pendingPayments,
         cash_drawer_balance: kpiData.cashDrawerBalance,
-      }, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
       });
       return response.data;
     } catch (error) {
@@ -800,11 +693,6 @@ export const sessionAPI = {
         activity_type: activityType,
         description: description,
         metadata: JSON.stringify(metadata),
-      }, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
       });
       return response.data;
     } catch (error) {
@@ -820,11 +708,6 @@ export const sessionAPI = {
         session_id: sessionId,
         closing_balance: closingBalance,
         notes: notes,
-      }, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
       });
       return response.data;
     } catch (error) {
@@ -838,11 +721,6 @@ export const sessionAPI = {
     try {
       const response = await axios.post(`${CASHIER_SESSION_API_BASE}/lock`, {
         session_id: sessionId,
-      }, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
       });
       return response.data;
     } catch (error) {
@@ -856,11 +734,6 @@ export const sessionAPI = {
     try {
       const response = await axios.post(`${CASHIER_SESSION_API_BASE}/unlock`, {
         session_id: sessionId,
-      }, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
       });
       return response.data;
     } catch (error) {

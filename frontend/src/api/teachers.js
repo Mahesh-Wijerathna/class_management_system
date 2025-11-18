@@ -7,9 +7,20 @@ const teacherApi = axios.create({
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
   },
   withCredentials: false,
+});
+
+// Add request interceptor to dynamically set Authorization header
+teacherApi.interceptors.request.use((config) => {
+  // Get token from appropriate storage
+  const usePersistentStorage = sessionStorage.getItem('usePersistentStorage');
+  const storage = usePersistentStorage === 'true' ? localStorage : sessionStorage;
+  const token = storage.getItem('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 // Auth API for centralized authentication
@@ -19,9 +30,20 @@ const authApi = axios.create({
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
   },
   withCredentials: false,
+});
+
+// Add request interceptor to dynamically set Authorization header
+authApi.interceptors.request.use((config) => {
+  // Get token from appropriate storage
+  const usePersistentStorage = sessionStorage.getItem('usePersistentStorage');
+  const storage = usePersistentStorage === 'true' ? localStorage : sessionStorage;
+  const token = storage.getItem('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 const teacherApiGet = async (endpoint) => {

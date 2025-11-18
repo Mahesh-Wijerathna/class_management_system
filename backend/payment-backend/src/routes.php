@@ -45,7 +45,8 @@ $earningsConfigController = new EarningsConfigController($mysqli);
 // GLOBAL AUTHENTICATION MIDDLEWARE
 // Require authentication for specific endpoints (add paths one by one for debugging)
 $requiredAuthPaths = [
-    '/get_all_payments'  // Start with this one, add others as needed
+    '/get_all_payments',  // Start with this one, add others as needed
+    '/earnings-config'
 ];
 
 $currentUser = null; // Store authenticated user data globally
