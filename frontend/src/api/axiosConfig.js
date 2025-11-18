@@ -5,6 +5,12 @@ const getStorage = () => {
   const usePersistentStorage = sessionStorage.getItem('usePersistentStorage');
   return usePersistentStorage === 'true' ? localStorage : sessionStorage;
 };
+// auth header builder
+const getAuthHeader = () => {
+  const storage = getStorage();
+  const token = storage.getItem('authToken');
+  return token ? `Bearer ${token}` : '';
+};
 
 // Create axios instance with default config
 const api = axios.create({
@@ -13,7 +19,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`
+    'Authorization': getAuthHeader()
   },
   withCredentials: false,
 });

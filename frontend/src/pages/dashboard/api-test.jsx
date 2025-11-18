@@ -50,6 +50,7 @@ const ApiTest = () => {
         // 4. Create Permission
         const createPermData = await rbacApi.createPermission({
           name: 'test_permission',
+          display_name: 'Test Permission',
           target_user_role: 'admin',
           description: 'Test permission from API test'
         });
@@ -67,6 +68,7 @@ const ApiTest = () => {
         // 7. Update Permission
         const updatePermData = await rbacApi.updatePermission(permissionId, {
           name: 'test_permission_updated',
+          display_name: 'Test Permission (Updated)',
           target_user_role: 'admin',
           description: 'Updated test permission'
         });
@@ -75,6 +77,7 @@ const ApiTest = () => {
         // 8. Create Role
         const createRoleData = await rbacApi.createRole({
           name: 'test_role',
+          display_name: 'Test Role',
           description: 'Test role from API test',
           permission_ids: [permissionId]
         });

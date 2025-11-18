@@ -7,9 +7,9 @@ class PermissionModel {
         $this->conn = $db;
     }
 
-    public function createPermission($name, $targetUserRole, $description) {
-        $stmt = $this->conn->prepare("INSERT INTO permissions (name, target_userrole, description) VALUES (?, ?, ?)");
-        $stmt->bind_param("sss", $name, $targetUserRole, $description);
+    public function createPermission($name, $displayName, $targetUserRole, $description) {
+        $stmt = $this->conn->prepare("INSERT INTO permissions (name, display_name, target_userrole, description) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("ssss", $name, $displayName, $targetUserRole, $description);
 
         if ($stmt->execute()) {
             return $this->conn->insert_id;
@@ -18,7 +18,7 @@ class PermissionModel {
     }
 
     public function getPermissionById($id) {
-        $stmt = $this->conn->prepare("SELECT id, name, target_userrole, description, created_at FROM permissions WHERE id = ?");
+        $stmt = $this->conn->prepare("SELECT id, name, display_name, target_userrole, description, created_at FROM permissions WHERE id = ?");
         $stmt->bind_param("i", $id);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -26,7 +26,7 @@ class PermissionModel {
     }
 
     public function getAllPermissions() {
-        $result = $this->conn->query("SELECT id, name, target_userrole, description, created_at FROM permissions ORDER BY created_at DESC");
+        $result = $this->conn->query("SELECT id, name, display_name, target_userrole, description, created_at FROM permissions ORDER BY created_at DESC");
         return $result->fetch_all(MYSQLI_ASSOC);
     }
 
@@ -38,9 +38,9 @@ class PermissionModel {
         return $result->num_rows > 0;
     }
 
-    public function updatePermission($id, $name, $targetUserRole, $description) {
-        $stmt = $this->conn->prepare("UPDATE permissions SET name = ?, target_userrole = ?, description = ? WHERE id = ?");
-        $stmt->bind_param("sssi", $name, $targetUserRole, $description, $id);
+    public function updatePermission($id, $name, $displayName, $targetUserRole, $description) {
+        $stmt = $this->conn->prepare("UPDATE permissions SET name = ?, display_name = ?, target_userrole = ?, description = ? WHERE id = ?");
+        $stmt->bind_param("ssssi", $name, $displayName, $targetUserRole, $description, $id);
 
         if ($stmt->execute()) {
             return $stmt->affected_rows > 0;

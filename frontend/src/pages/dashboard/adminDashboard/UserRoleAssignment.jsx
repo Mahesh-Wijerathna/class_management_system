@@ -78,14 +78,23 @@ const UserRoleAssignment = () => {
 
     try {
       setSearchingUser(true);
-      const user = await getUserById(searchUserId.trim());
+      const response = await getUserById(searchUserId.trim());
+      const user = response.user;
       setSelectedUser(user);
       setUserFormOpen(true);
 
       // Fetch user's current roles
       const userRolesResponse = await getUserRoles(searchUserId.trim());
       const userRolesData = userRolesResponse.roles || userRolesResponse.data || userRolesResponse;
-      setUserRoles(userRolesData);
+      // Add is_inherent flag (false for assigned RBAC roles)
+      const processedRoles = userRolesData.map(role => ({
+        ...role,
+        role_id: role.role_id,
+        role_name: role.display_name || role.role_name,
+        role_description: role.role_description,
+        is_inherent: false
+      }));
+      setUserRoles(processedRoles);
 
       // Determine available roles (not already assigned as RBAC roles)
       const assignedRbacRoles = userRolesData.filter(role => !role.is_inherent);
@@ -122,7 +131,14 @@ const UserRoleAssignment = () => {
       // Refresh user roles
       const updatedRolesResponse = await getUserRoles(selectedUser.userid);
       const updatedRoles = updatedRolesResponse.roles || updatedRolesResponse.data || updatedRolesResponse;
-      setUserRoles(updatedRoles);
+      const processedUpdatedRoles = updatedRoles.map(role => ({
+        ...role,
+        role_id: role.role_id,
+        role_name: role.display_name || role.role_name,
+        role_description: role.role_description,
+        is_inherent: false
+      }));
+      setUserRoles(processedUpdatedRoles);
 
       // Update available roles (exclude already assigned RBAC roles)
       const assignedRbacRoles = updatedRoles.filter(role => !role.is_inherent);
@@ -156,7 +172,14 @@ const UserRoleAssignment = () => {
       // Refresh user roles
       const updatedRolesResponse = await getUserRoles(selectedUser.userid);
       const updatedRoles = updatedRolesResponse.roles || updatedRolesResponse.data || updatedRolesResponse;
-      setUserRoles(updatedRoles);
+      const processedUpdatedRoles = updatedRoles.map(role => ({
+        ...role,
+        role_id: role.role_id,
+        role_name: role.display_name || role.role_name,
+        role_description: role.role_description,
+        is_inherent: false
+      }));
+      setUserRoles(processedUpdatedRoles);
 
       // Update available roles (exclude already assigned RBAC roles)
       const assignedRbacRoles = updatedRoles.filter(role => !role.is_inherent);
@@ -366,7 +389,7 @@ const UserRoleAssignment = () => {
                               htmlFor={`role-${role.id}`}
                               className="text-sm font-medium text-gray-700 cursor-pointer block"
                             >
-                              {role.name}
+                              {role.display_name || role.name}
                             </label>
                             <p className="text-xs text-gray-500">{role.description}</p>
                           </div>

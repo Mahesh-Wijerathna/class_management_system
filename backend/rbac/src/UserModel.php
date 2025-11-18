@@ -79,7 +79,7 @@ class UserModel {
     // Get user roles
     public function getUserRoles($userid) {
         $stmt = $this->db->prepare("
-            SELECT r.id, r.name, r.description, ur.assigned_at
+            SELECT r.id, r.name, r.display_name, r.description, ur.assigned_at
             FROM user_roles ur
             JOIN roles r ON ur.role_id = r.id
             WHERE ur.user_id = ? AND ur.is_active = TRUE

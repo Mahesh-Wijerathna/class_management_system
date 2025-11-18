@@ -14,7 +14,7 @@ import { getUserData } from '../../../api/apiUtils';
 
 const columns = [
   { key: 'id', label: 'ID' },
-  { key: 'name', label: 'Permission Name' },
+  { key: 'display_name', label: 'Name' },
   { key: 'target_user_role', label: 'Target User Role' },
   { key: 'description', label: 'Description' },
   { key: 'created_at', label: 'Created At' },
@@ -143,6 +143,7 @@ const PermissionManagement = () => {
 
       const permissionData = {
         name: values.name,
+        display_name: values.display_name,
         target_user_role: values.target_user_role,
         description: values.description,
       };
@@ -214,6 +215,7 @@ const PermissionManagement = () => {
             columns={columns}
             data={permissions.map(permission => ({
               ...permission,
+              display_name: permission.display_name || permission.name,
               target_user_role: permission.target_userrole || permission.target_user_role,
               created_at: formatDate(permission.created_at),
             }))}
@@ -224,7 +226,7 @@ const PermissionManagement = () => {
                   title="View Details"
                   onClick={() => {
                     // For now, just show an alert with details
-                    alert(`Permission Details:\n\nID: ${row.id}\nName: ${row.name}\nTarget Role: ${row.target_user_role}\nDescription: ${row.description}\nCreated: ${row.created_at}`);
+                    alert(`Permission Details:\n\nID: ${row.id}\nName: ${row.name}\nDisplay Name: ${row.display_name}\nTarget Role: ${row.target_user_role}\nDescription: ${row.description}\nCreated: ${row.created_at}`);
                   }}
                 >
                   <FaEye />
@@ -282,6 +284,7 @@ const PermissionManagement = () => {
               <BasicForm
                 initialValues={{
                   name: isEditMode ? selectedPermission?.name || '' : '',
+                  display_name: isEditMode ? selectedPermission?.display_name || '' : '',
                   target_user_role: isEditMode ? selectedPermission?.target_user_role || '' : '',
                   description: isEditMode ? selectedPermission?.description || '' : '',
                 }}
@@ -297,6 +300,16 @@ const PermissionManagement = () => {
                       value={values.name}
                       onChange={handleChange}
                       placeholder="e.g., manage_users"
+                      required
+                    />
+
+                    <CustomTextField
+                      id="display_name"
+                      name="display_name"
+                      label="Display Name"
+                      value={values.display_name}
+                      onChange={handleChange}
+                      placeholder="e.g., Manage Users"
                       required
                     />
 

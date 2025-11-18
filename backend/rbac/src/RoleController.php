@@ -45,11 +45,11 @@ class RoleController {
     // Create a new role
     public function createRole($data, $authHeader = null) {
         // Validate required fields
-        if (!isset($data['name']) || !isset($data['description'])) {
+        if (!isset($data['name']) || !isset($data['display_name']) || !isset($data['description'])) {
             http_response_code(400);
             return json_encode([
                 'success' => false,
-                'message' => 'Missing required fields: name, description'
+                'message' => 'Missing required fields: name, display_name, description'
             ]);
         }
 
@@ -58,12 +58,12 @@ class RoleController {
 
         $roleModel = new RoleModel($this->db);
 
-        // Check if role name already exists
-        if ($roleModel->roleExists($data['name'])) {
+        // Check if display name already exists
+        if ($roleModel->displayNameExists($data['display_name'])) {
             http_response_code(409);
             return json_encode([
                 'success' => false,
-                'message' => 'Role with this name already exists'
+                'message' => 'Role with this display name already exists'
             ]);
         }
 
@@ -88,6 +88,7 @@ class RoleController {
         // Create the role
         $roleId = $roleModel->createRole(
             trim($data['name']),
+            trim($data['display_name']),
             trim($data['description']),
             $permissionIds
         );
@@ -144,11 +145,11 @@ class RoleController {
     // Update an existing role
     public function updateRole($id, $data, $authHeader = null) {
         // Validate required fields
-        if (!isset($data['name']) || !isset($data['description'])) {
+        if (!isset($data['name']) || !isset($data['display_name']) || !isset($data['description'])) {
             http_response_code(400);
             return json_encode([
                 'success' => false,
-                'message' => 'Missing required fields: name, description'
+                'message' => 'Missing required fields: name, display_name, description'
             ]);
         }
 
@@ -167,12 +168,12 @@ class RoleController {
             ]);
         }
 
-        // Check if role name already exists (but allow if it's the same role)
-        if ($roleModel->roleExists($data['name']) && $existingRole['name'] !== $data['name']) {
+        // Check if display name already exists (but allow if it's the same role)
+        if ($roleModel->displayNameExists($data['display_name']) && $existingRole['display_name'] !== $data['display_name']) {
             http_response_code(409);
             return json_encode([
                 'success' => false,
-                'message' => 'Role with this name already exists'
+                'message' => 'Role with this display name already exists'
             ]);
         }
 
@@ -198,6 +199,7 @@ class RoleController {
         $updated = $roleModel->updateRole(
             $id,
             trim($data['name']),
+            trim($data['display_name']),
             trim($data['description']),
             $permissionIds
         );

@@ -52,7 +52,7 @@ class UserRoleModel {
         // Only get explicitly assigned RBAC roles (no inherent roles)
         $stmt = $this->conn->prepare("
             SELECT ur.id, ur.user_id, ur.role_id, ur.assigned_by, ur.assigned_at,
-                   r.name as role_name, r.description as role_description,
+                   r.name as role_name, r.display_name, r.description as role_description,
                    u1.firstName as assigned_by_first_name, u1.lastName as assigned_by_last_name
             FROM user_roles ur
             INNER JOIN roles r ON ur.role_id = r.id

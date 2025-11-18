@@ -45,11 +45,11 @@ class PermissionController {
     // Create a new permission
     public function createPermission($data, $authHeader = null) {
         // Validate required fields
-        if (!isset($data['name']) || !isset($data['target_user_role']) || !isset($data['description'])) {
+        if (!isset($data['name']) || !isset($data['display_name']) || !isset($data['target_user_role']) || !isset($data['description'])) {
             http_response_code(400);
             return json_encode([
                 'success' => false,
-                'message' => 'Missing required fields: name, target_user_role, description'
+                'message' => 'Missing required fields: name, display_name, target_user_role, description'
             ]);
         }
 
@@ -79,6 +79,7 @@ class PermissionController {
         // Create the permission
         $permissionId = $permissionModel->createPermission(
             trim($data['name']),
+            trim($data['display_name']),
             $data['target_user_role'],
             trim($data['description'])
         );
@@ -94,6 +95,7 @@ class PermissionController {
                 'permission' => [
                     'id' => $permission['id'],
                     'name' => $permission['name'],
+                    'display_name' => $permission['display_name'],
                     'target_user_role' => $permission['target_userrole'],
                     'description' => $permission['description'],
                     'created_at' => $permission['created_at']
@@ -119,6 +121,7 @@ class PermissionController {
                 return [
                     'id' => $permission['id'],
                     'name' => $permission['name'],
+                    'display_name' => $permission['display_name'],
                     'target_user_role' => $permission['target_userrole'],
                     'description' => $permission['description'],
                     'created_at' => $permission['created_at']
@@ -138,6 +141,7 @@ class PermissionController {
                 'permission' => [
                     'id' => $permission['id'],
                     'name' => $permission['name'],
+                    'display_name' => $permission['display_name'],
                     'target_user_role' => $permission['target_userrole'],
                     'description' => $permission['description'],
                     'created_at' => $permission['created_at']
@@ -155,11 +159,11 @@ class PermissionController {
     // Update an existing permission
     public function updatePermission($id, $data, $authHeader = null) {
         // Validate required fields
-        if (!isset($data['name']) || !isset($data['target_user_role']) || !isset($data['description'])) {
+        if (!isset($data['name']) || !isset($data['display_name']) || !isset($data['target_user_role']) || !isset($data['description'])) {
             http_response_code(400);
             return json_encode([
                 'success' => false,
-                'message' => 'Missing required fields: name, target_user_role, description'
+                'message' => 'Missing required fields: name, display_name, target_user_role, description'
             ]);
         }
 
@@ -201,6 +205,7 @@ class PermissionController {
         $updated = $permissionModel->updatePermission(
             $id,
             trim($data['name']),
+            trim($data['display_name']),
             $data['target_user_role'],
             trim($data['description'])
         );
@@ -216,6 +221,7 @@ class PermissionController {
                 'permission' => [
                     'id' => $permission['id'],
                     'name' => $permission['name'],
+                    'display_name' => $permission['display_name'],
                     'target_user_role' => $permission['target_userrole'],
                     'description' => $permission['description'],
                     'created_at' => $permission['created_at']
