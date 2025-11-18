@@ -863,7 +863,8 @@ class PaymentController {
                     SUM(CASE WHEN fr.status = 'pending' THEN 1 ELSE 0 END) as pending_count,
                     SUM(CASE WHEN fr.status = 'paid' AND fr.payment_method = 'cash' THEN fr.amount ELSE 0 END) as cash_collected,
                     SUM(CASE WHEN fr.status = 'paid' AND fr.payment_method = 'card' THEN fr.amount ELSE 0 END) as card_collected,
-                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_type = 'admission_fee' THEN fr.amount ELSE 0 END) as admission_fees,
+                    -- Treat explicit admission_fee rows OR payments whose notes mention 'admission' as admission fees
+                    SUM(CASE WHEN fr.status = 'paid' AND (fr.payment_type = 'admission_fee' OR LOWER(fr.notes) LIKE '%admission%') THEN fr.amount ELSE 0 END) as admission_fees,
                     SUM(CASE WHEN fr.status = 'paid' AND fr.payment_type = 'class_payment' THEN fr.amount ELSE 0 END) as class_payments,
                     MIN(fr.created_at) as first_transaction,
                     MAX(fr.created_at) as last_transaction
@@ -954,7 +955,8 @@ class PaymentController {
                         'half_count' => 0,
                         'free_count' => 0,
                         'total_amount' => 0,
-                        'tx_count' => 0
+                        'tx_count' => 0,
+                        'admission_fee' => 0
                     ];
                 }
                 
@@ -963,6 +965,11 @@ class PaymentController {
                 if ($paymentType === 'class_payment' || $paymentType === 'admission_fee') {
                     $classMap[$className]['tx_count']++;
                     $classMap[$className]['total_amount'] += floatval($tx['amount'] ?? 0);
+
+                    // Track admission fee separately
+                    if ($paymentType === 'admission_fee') {
+                        $classMap[$className]['admission_fee'] += floatval($tx['amount'] ?? 0);
+                    }
                     
                     // Only analyze card type for class_payment (admission fees don't use cards)
                     if ($paymentType === 'class_payment') {

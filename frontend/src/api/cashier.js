@@ -436,6 +436,25 @@ export const sessionAPI = {
     }
   },
 
+  // Get Day End Report History
+  getDayEndReportHistory: async (filters = {}) => {
+    try {
+      const CASHIER_REPORTS_API_BASE = 'http://localhost:8083/api/reports';
+      const params = {
+        cashier_id: filters.cashierId,
+        from_date: filters.fromDate,
+        to_date: filters.toDate,
+        limit: filters.limit || 50,
+        only_final: filters.onlyFinal || false,
+      };
+      const response = await axios.get(`${CASHIER_REPORTS_API_BASE}/day-end/history`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error getting day end report history:', error);
+      throw error;
+    }
+  },
+
   // Get Single Session Report by ID
   getSessionReportById: async (reportId) => {
     try {

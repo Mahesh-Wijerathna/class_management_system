@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS cashier_sessions (
     -- Note: Foreign key to users table removed - cashier_db is independent
     -- Foreign key would reference users(userid) in the auth database
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Daily cashier sessions with persistent KPIs';
+-- Note: Removed unique constraint - multiple sessions per day allowed (session-based, not day-based)
 
 -- 2. SESSION ACTIVITIES TABLE
 -- Detailed log of all session activities for audit trail

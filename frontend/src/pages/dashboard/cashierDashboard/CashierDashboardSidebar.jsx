@@ -44,6 +44,7 @@ const cashierSidebarSections = [
     section: 'Reports & History',
     items: [
       { name: 'Session End Report History', path: '/cashier/session-report-history', icon: <FaHistory className="h-5 w-5" /> },
+      { name: 'Day End Report History', path: '/cashier/day-end-report-history', icon: <FaFileInvoice className="h-5 w-5" /> },
     ]
   // },
   // {

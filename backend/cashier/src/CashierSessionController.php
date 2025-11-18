@@ -126,18 +126,22 @@ class CashierSessionController {
         try {
             $db = getDBConnection();
             
-            // If checking for today's session, find ANY active session (not just today's)
-            // This prevents creating duplicate sessions when old ones are not closed
-            if ($date === $today) {
-                $stmt = $db->prepare("
-                    SELECT * FROM cashier_sessions 
-                    WHERE cashier_id = ? AND session_status IN ('active', 'locked')
-                    ORDER BY session_date DESC, session_id DESC
-                    LIMIT 1
-                ");
-                $stmt->execute([$cashierId]);
-            } else {
-                // For historical date lookup, check that specific date only
+            // Server-authoritative behavior: first return ANY active/locked session for
+            // this cashier regardless of the date provided by the client. This avoids
+            // client timezone or date formatting issues causing the client to believe
+            // there is no session when one is active on the server.
+            $stmt = $db->prepare("
+                SELECT * FROM cashier_sessions 
+                WHERE cashier_id = ? AND session_status IN ('active', 'locked')
+                ORDER BY session_date DESC, session_id DESC
+                LIMIT 1
+            ");
+            $stmt->execute([$cashierId]);
+            $session = $stmt->fetch();
+
+            // If no active session exists, and a specific date was requested, attempt
+            // to find a session for that historical date (useful for admin lookups).
+            if (!$session && $date) {
                 $stmt = $db->prepare("
                     SELECT * FROM cashier_sessions 
                     WHERE cashier_id = ? AND session_date = ? AND session_status IN ('active', 'locked')
@@ -145,9 +149,8 @@ class CashierSessionController {
                     LIMIT 1
                 ");
                 $stmt->execute([$cashierId, $date]);
+                $session = $stmt->fetch();
             }
-            
-            $session = $stmt->fetch();
             
             if ($session) {
                 
@@ -187,6 +190,60 @@ class CashierSessionController {
         } catch (PDOException $e) {
             error_log("Get session error: " . $e->getMessage());
             handleError('Failed to get session: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Get active session for a cashier (explicit endpoint)
+     * GET /api/session/active?cashier_id=C001
+     * This endpoint always returns any active/locked session for the cashier,
+     * ignoring client-supplied dates. Useful for clients that want a simple
+     * server-authoritative check whether a cashier has an open session.
+     */
+    public function getActiveSession() {
+        $cashierId = $_GET['cashier_id'] ?? null;
+
+        if (!$cashierId) {
+            handleError('Missing required parameter: cashier_id', 400);
+        }
+
+        try {
+            $db = getDBConnection();
+
+            $stmt = $db->prepare("\n                SELECT * FROM cashier_sessions 
+                WHERE cashier_id = ? AND session_status IN ('active', 'locked')
+                ORDER BY session_date DESC, session_id DESC
+                LIMIT 1
+            ");
+            $stmt->execute([$cashierId]);
+            $session = $stmt->fetch();
+
+            if ($session) {
+                // recent activities
+                $stmt = $db->prepare("SELECT * FROM session_activities WHERE session_id = ? ORDER BY activity_time DESC LIMIT 10");
+                $stmt->execute([$session['session_id']]);
+                $activities = $stmt->fetchAll();
+
+                // cash out
+                $stmt = $db->prepare("SELECT COUNT(*) as cash_out_count, MAX(amount) as cash_out_amount FROM cash_drawer_transactions WHERE session_id = ? AND transaction_type = 'cash_out'");
+                $stmt->execute([$session['session_id']]);
+                $cashOutResult = $stmt->fetch();
+                $isCashedOut = ($cashOutResult['cash_out_count'] > 0);
+                $cashOutAmount = $isCashedOut ? floatval($cashOutResult['cash_out_amount']) : null;
+
+                sendSuccess([
+                    'session' => $session,
+                    'recent_activities' => $activities,
+                    'is_cashed_out' => $isCashedOut,
+                    'cash_out_amount' => $cashOutAmount
+                ], 'Active session retrieved successfully');
+            } else {
+                sendSuccess(['session' => null], 'No active session found');
+            }
+
+        } catch (PDOException $e) {
+            error_log("Get active session error: " . $e->getMessage());
+            handleError('Failed to get active session: ' . $e->getMessage(), 500);
         }
     }
     
@@ -771,6 +828,66 @@ class CashierSessionController {
             $fullCards = isset($reportData['card_summary']['full_count']) ? intval($reportData['card_summary']['full_count']) : 0;
             $halfCards = isset($reportData['card_summary']['half_count']) ? intval($reportData['card_summary']['half_count']) : 0;
             $freeCards = isset($reportData['card_summary']['free_count']) ? intval($reportData['card_summary']['free_count']) : 0;
+
+            // Compute admission fee totals for this session and per-class so snapshots include them
+            try {
+                $stmt = $db->prepare("SELECT COALESCE(SUM(amount),0) as total FROM financial_records WHERE session_id = ? AND payment_type = 'admission_fee' AND status = 'paid'");
+                $stmt->execute([$data['session_id']]);
+                $adRow = $stmt->fetch();
+                $admissionFeesTotal = $adRow ? floatval($adRow['total']) : 0;
+
+                // Per-class admission totals
+                $stmt = $db->prepare("SELECT class_id, class_name, COALESCE(SUM(amount),0) as total FROM financial_records WHERE session_id = ? AND payment_type = 'admission_fee' AND status = 'paid' GROUP BY class_id, class_name");
+                $stmt->execute([$data['session_id']]);
+                $adPerClassRows = $stmt->fetchAll();
+                $admissionMap = [];
+                foreach ($adPerClassRows as $r) {
+                    $key = $r['class_id'] ?: ($r['class_name'] ?: 'Unspecified');
+                    $admissionMap[$key] = floatval($r['total']);
+                }
+
+                // Attach totals into reportData
+                $reportData['admission_fees_total'] = $admissionFeesTotal;
+
+                if (isset($reportData['per_class']) && is_array($reportData['per_class'])) {
+                    foreach ($reportData['per_class'] as &$pc) {
+                        $cid = $pc['class_id'] ?? null;
+                        $cname = $pc['class_name'] ?? ($pc['className'] ?? null);
+                        $found = 0;
+                        if ($cid && isset($admissionMap[$cid])) {
+                            $pc['admission_fee'] = $admissionMap[$cid];
+                            $found = 1;
+                        } elseif ($cname && isset($admissionMap[$cname])) {
+                            $pc['admission_fee'] = $admissionMap[$cname];
+                            $found = 1;
+                        }
+                        if (!$found) {
+                            $pc['admission_fee'] = isset($pc['admission_fee']) ? $pc['admission_fee'] : 0;
+                        }
+                    }
+                    unset($pc);
+                } else {
+                    // Build per_class from admission map if none present
+                    $reportData['per_class'] = [];
+                    foreach ($adPerClassRows as $r) {
+                        $reportData['per_class'][] = [
+                            'class_id' => $r['class_id'] ?? null,
+                            'class_name' => $r['class_name'] ?? 'Unspecified',
+                            'teacher' => '-',
+                            'full_count' => 0,
+                            'half_count' => 0,
+                            'free_count' => 0,
+                            'total_amount' => 0,
+                            'tx_count' => 0,
+                            'admission_fee' => floatval($r['total'])
+                        ];
+                    }
+                }
+            } catch (Exception $e) {
+                // Non-fatal: if admission fee calculation fails, proceed without it
+                error_log('Failed to calculate admission fees for snapshot: ' . $e->getMessage());
+                $reportData['admission_fees_total'] = $reportData['admission_fees_total'] ?? 0;
+            }
             
             // Insert report
             $stmt = $db->prepare("
@@ -852,7 +969,8 @@ class CashierSessionController {
             $sql = "
                 SELECT 
                     r.*,
-                    s.session_status
+                    s.session_status,
+                    s.cash_drawer_balance
                 FROM session_end_reports r
                 LEFT JOIN cashier_sessions s ON r.session_id = s.session_id
                 WHERE 1=1
@@ -910,7 +1028,7 @@ class CashierSessionController {
             $db = getDBConnection();
             
             $stmt = $db->prepare("
-                SELECT r.*, s.session_status
+                SELECT r.*, s.session_status, s.cash_drawer_balance
                 FROM session_end_reports r
                 LEFT JOIN cashier_sessions s ON r.session_id = s.session_id
                 WHERE r.report_id = ?

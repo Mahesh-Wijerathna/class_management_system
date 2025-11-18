@@ -181,6 +181,171 @@ class DayEndReportController {
                     'receipts' => $sessionReceipts
                 ];
             }
+
+            // Attempt to reconcile totals from the payment database (if available).
+            // Some payments may be recorded in `payment_db.financial_records` and not
+            // reflected in `session_activities`. If the payment DB is accessible and
+            // `session_id` is present on those records, prefer those sums as authoritative.
+            $paymentConn = getPaymentDBConnection();
+            if ($paymentConn && count($sessionIds) > 0) {
+                try {
+                    // Build placeholders for IN()
+                    $placeholders = implode(',', array_fill(0, count($sessionIds), '?'));
+                    $sql = "SELECT session_id, SUM(amount) as sum_amount, COUNT(DISTINCT transaction_id) as tx_count FROM financial_records WHERE session_id IN ($placeholders) GROUP BY session_id";
+                    $pstmt = $paymentConn->prepare($sql);
+                    $pstmt->execute($sessionIds);
+                    $payments = $pstmt->fetchAll();
+
+                    $paymentsBySession = [];
+                    foreach ($payments as $prow) {
+                        $sid = $prow['session_id'];
+                        $paymentsBySession[$sid] = [
+                            'sum' => floatval($prow['sum_amount'] ?? 0),
+                            'tx_count' => intval($prow['tx_count'] ?? 0)
+                        ];
+                    }
+
+                    // Replace per-session collections and receipts when payment DB has authoritative data
+                    $reconciledTotal = 0;
+                    $reconciledReceipts = 0;
+                    foreach ($sessionSummaries as &$ss) {
+                        $sid = $ss['session_id'];
+                        if (isset($paymentsBySession[$sid])) {
+                            $ss['collections'] = $paymentsBySession[$sid]['sum'];
+                            // Use the distinct transaction count from payment DB as receipts issued
+                            $ss['receipts'] = intval($paymentsBySession[$sid]['tx_count']);
+                        }
+                        $reconciledTotal += floatval($ss['collections']);
+                        $reconciledReceipts += intval($ss['receipts'] ?? 0);
+                    }
+
+                    // If we found any payments, use the reconciled totals as the day's authoritative values
+                    if ($reconciledTotal > 0) {
+                        $totalCollections = $reconciledTotal;
+                    }
+                    if ($reconciledReceipts > 0) {
+                        $totalReceipts = $reconciledReceipts;
+                    }
+                    // Additionally, if payment DB contains detailed records, try to derive
+                    // per-class aggregates and card issuance summary from those rows so
+                    // the UI can display card counts even when session_activities are missing.
+                    try {
+                        $detailSql = "SELECT * FROM financial_records WHERE session_id IN ($placeholders) AND type = 'income' AND status = 'paid'";
+                        $dstmt = $paymentConn->prepare($detailSql);
+                        $dstmt->execute($sessionIds);
+                        $detailRows = $dstmt->fetchAll();
+
+                        if (!empty($detailRows)) {
+                            // Reset/prepare maps derived from payment DB
+                            $perClassMapFromPayments = [];
+                            $cardSummaryFromPayments = [
+                                'full_count' => 0,
+                                'half_count' => 0,
+                                'free_count' => 0,
+                                'full_amount' => 0,
+                                'half_amount' => 0,
+                                'free_amount' => 0
+                            ];
+
+                            foreach ($detailRows as $prow) {
+                                $classId = $prow['class_id'] ?? 'unknown';
+                                $className = $prow['class_name'] ?? ('Class ' . $classId);
+                                $amount = floatval($prow['amount'] ?? 0);
+                                $paymentType = $prow['payment_type'] ?? '';
+                                $notes = strtolower($prow['notes'] ?? '');
+                                if (!isset($perClassMapFromPayments[$classId])) {
+                                    $perClassMapFromPayments[$classId] = [
+                                        'class_id' => $classId,
+                                        'class_name' => $className,
+                                        'full_count' => 0,
+                                        'half_count' => 0,
+                                        'free_count' => 0,
+                                        'total_amount' => 0,
+                                        'transactions' => 0,
+                                        'admission_fee' => 0
+                                    ];
+                                }
+
+                                $perClassMapFromPayments[$classId]['total_amount'] += $amount;
+                                $perClassMapFromPayments[$classId]['transactions']++;
+
+                                // If this payment is explicitly an admission_fee OR notes mention admission,
+                                // record the amount under admission_fee so Day End reports can surface it.
+                                if ($paymentType === 'admission_fee' || strpos($notes, 'admission') !== false) {
+                                    $perClassMapFromPayments[$classId]['admission_fee'] += $amount;
+                                }
+
+                                // Only analyze card-type for class payments (admission fees usually not card-typed)
+                                if ($paymentType === 'class_payment') {
+                                    // Determine card type similar to PaymentController logic
+                                    $isFreeCard = false;
+                                    $isHalfCard = false;
+
+                                    if (strpos($notes, 'full free card') !== false || strpos($notes, '100%') !== false || strpos($notes, '100 %') !== false) {
+                                        $isFreeCard = true;
+                                    } elseif ($amount == 0 && (strpos($notes, 'free card') !== false || strpos($notes, 'complimentary') !== false || strpos($notes, 'free') !== false)) {
+                                        $isFreeCard = true;
+                                    }
+
+                                    if (!$isFreeCard) {
+                                        if (strpos($notes, 'half free card') !== false || strpos($notes, '50%') !== false || strpos($notes, '50 %') !== false || (strpos($notes, 'half') !== false && strpos($notes, 'discount') !== false)) {
+                                            $isHalfCard = true;
+                                        }
+                                    }
+
+                                    if ($isFreeCard) {
+                                        $cardSummaryFromPayments['free_count']++;
+                                        $cardSummaryFromPayments['free_amount'] += $amount;
+                                        $perClassMapFromPayments[$classId]['free_count']++;
+                                    } elseif ($isHalfCard) {
+                                        $cardSummaryFromPayments['half_count']++;
+                                        $cardSummaryFromPayments['half_amount'] += $amount;
+                                        $perClassMapFromPayments[$classId]['half_count']++;
+                                    } else {
+                                        $cardSummaryFromPayments['full_count']++;
+                                        $cardSummaryFromPayments['full_amount'] += $amount;
+                                        $perClassMapFromPayments[$classId]['full_count']++;
+                                    }
+                                }
+                            }
+
+                            // If we derived anything from payment DB, prefer those per-class/card summaries
+                            if (!empty($perClassMapFromPayments)) {
+                                // Merge/replace only missing/zero perClass entries to avoid losing server-side session_activities if present
+                                if (empty($perClass) || count($perClass) === 0) {
+                                    $perClass = array_values($perClassMapFromPayments);
+                                } else {
+                                    // Merge sums by class id: prefer existing perClass if it has transactions, else use payment-derived
+                                    $existingById = [];
+                                    foreach ($perClass as $pc) {
+                                        $existingById[$pc['class_id'] ?? $pc['class_name']] = $pc;
+                                    }
+                                    foreach ($perClassMapFromPayments as $cid => $pinfo) {
+                                        $key = $cid;
+                                        if (!isset($existingById[$key]) || (isset($existingById[$key]) && intval($existingById[$key]['transactions'] ?? 0) === 0)) {
+                                            $existingById[$key] = $pinfo;
+                                        }
+                                    }
+                                    $perClass = array_values($existingById);
+                                }
+
+                                // If original cardSummary is zero (no session activity), replace with payment-derived
+                                $origCountTotal = intval($cardSummary['full_count'] ?? 0) + intval($cardSummary['half_count'] ?? 0) + intval($cardSummary['free_count'] ?? 0);
+                                $newCountTotal = intval($cardSummaryFromPayments['full_count']) + intval($cardSummaryFromPayments['half_count']) + intval($cardSummaryFromPayments['free_count']);
+                                if ($newCountTotal > 0 && $origCountTotal === 0) {
+                                    $cardSummary = $cardSummaryFromPayments;
+                                }
+                            }
+                        }
+                    } catch (Exception $e) {
+                        // Non-fatal: if detailed payment processing fails, fall back to session activity totals
+                        error_log('Failed to extract detailed per-class/card summary from payment DB: ' . $e->getMessage());
+                    }
+                } catch (PDOException $e) {
+                    error_log('Payment DB reconciliation failed: ' . $e->getMessage());
+                    // proceed with previously computed totals if payment DB fails
+                }
+            }
             
             // Calculate closing balance from last session
             $lastSession = end($sessions);

@@ -127,6 +127,9 @@ switch ($method) {
         // Session routes
         if ($path === '/api/session/current') {
             $sessionController->getCurrentSession();
+        } elseif ($path === '/api/session/active') {
+            // New explicit endpoint to return any active/locked session for a cashier
+            $sessionController->getActiveSession();
         }
         // Session End Report routes
         elseif ($path === '/api/reports/session-history') {
