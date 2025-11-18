@@ -84,55 +84,176 @@ const ViewReportModal = ({ report, onClose }) => {
     fetchLiveData();
   }, [report, isOngoingSession]);
   
-  // Debug logging
+  // Enhanced debug logging
   React.useEffect(() => {
     if (report) {
       console.log('📊 === SessionEndReportHistory - Report Data ===');
       console.log('Report ID:', report.report_id);
       console.log('Session ID:', report.session_id);
       console.log('Is Ongoing Session:', isOngoingSession);
+      console.log('isCashedOut:', isCashedOut);
       console.log('Live Data Available:', !!liveData);
-      console.log('Total Collections (DB field):', report.total_collections);
-      console.log('Total Receipts (DB field):', report.total_receipts);
-      console.log('Opening Balance:', report.opening_balance);
-      console.log('Cash Out Amount:', report.cash_out_amount);
-      console.log('Cash Drawer Balance:', report.cash_drawer_balance);
-      console.log('Report Data JSON:', report.report_data);
+      console.log('🔍 DATA SOURCES ANALYSIS:');
+      console.log('  DB Fields - Total Collections:', report.total_collections);
+      console.log('  DB Fields - Total Receipts:', report.total_receipts);
+      console.log('  DB Fields - Opening Balance:', report.opening_balance);
+      console.log('  DB Fields - Cash Out Amount:', report.cash_out_amount);
+      console.log('  DB Fields - Cash Drawer Balance:', report.cash_drawer_balance);
+      console.log('  Snapshot - report_data:', report.report_data);
+      
+      // Parse and analyze snapshot data
+      const parsedSnapshot = typeof report.report_data === 'string' ? JSON.parse(report.report_data) : report.report_data;
+      console.log('  Snapshot - Parsed:', parsedSnapshot);
+      console.log('  Snapshot - per_class count:', Array.isArray(parsedSnapshot?.per_class) ? parsedSnapshot.per_class.length : 0);
+      console.log('  Snapshot - transactions count:', Array.isArray(parsedSnapshot?.transactions) ? parsedSnapshot.transactions.length : 0);
+      console.log('  Snapshot - has card_summary:', !!parsedSnapshot?.card_summary);
+      
       if (liveData) {
-        console.log('Live Data:', liveData);
+        console.log('  Live API - Total Collections:', liveData.totalCollections);
+        console.log('  Live API - Total Receipts:', liveData.totalReceipts);
+        console.log('  Live API - Transactions count:', liveData.transactions?.length || 0);
+        console.log('  Live API - PerClass count:', liveData.perClass?.length || 0);
       }
+      
+      console.log('🧮 COMPUTED TOTALS:');
+      console.log('  snapshotCollections:', snapshotCollections);
+      console.log('  perClassCollectionsFallback:', perClassCollectionsFallback);
+      console.log('  transactionsCollectionsFallback:', transactionsCollectionsFallback);
+      console.log('  computedSnapshotCollections:', computedSnapshotCollections);
+      console.log('  finalComputedCollections:', finalComputedCollections);
+      console.log('  FINAL totalCollections:', totalCollections);
+      console.log('  FINAL totalReceipts:', totalReceipts);
+      
       console.log('Full Report Object:', report);
     }
-  }, [report, liveData, isOngoingSession]);
+  });
   
-  // Parse report_data if it's a string, or use live data if available
+  // Parse report_data if it's a string. If liveData exists (ongoing session) include
+  // live totals, but for closed/cashed sessions we will prefer snapshot values
+  // from `report.report_data` because the live DB fields are often zeroed after cash-out.
   const reportData = report ? (
     liveData ? {
       card_summary: liveData.cardSummary,
       per_class: liveData.perClass,
-      transactions: liveData.transactions
-    } : (typeof report.report_data === 'string' 
-    ? JSON.parse(report.report_data) 
-    : report.report_data || {})
+      transactions: liveData.transactions,
+      total_collections: liveData.totalCollections,
+      total_receipts: liveData.totalReceipts
+    } : (typeof report.report_data === 'string'
+      ? JSON.parse(report.report_data)
+      : report.report_data || {})
   ) : {};
 
   // Extract data
   const cardSummary = reportData.card_summary || {};
   const perClass = reportData.per_class || [];
-  
-  // Build KPIs from report data (use live data if available)
-  const totalCollections = liveData ? Number(liveData.totalCollections || 0) : (report ? Number(report.total_collections || 0) : 0);
-  const totalReceipts = liveData ? Number(liveData.totalReceipts || 0) : (report ? Number(report.total_receipts || 0) : 0);
+
+  // Opening / cash out values from DB (may be stale after snapshot) - MOVED UP to fix TDZ
   const openingBalance = report ? Number(report.opening_balance || 0) : 0;
+  const cashOutAmount = report ? Number(report.cash_out_amount || 0) : 0;
+  const isCashedOut = cashOutAmount > 0 || (report && report.is_final);
+
+  // Snapshot-derived totals (if present in reportData). These are authoritative
+  // for closed sessions because the live system zeros out some fields post cash-out.
+  const snapshotCollections = Number(reportData.total_collections || reportData.totalCollections || (report ? report.total_collections : 0) || 0);
+  const snapshotReceipts = Number(reportData.total_receipts || reportData.totalReceipts || (report ? report.total_receipts : 0) || 0);
+
+  // If snapshot fields are missing/zero (some snapshots only include per_class rows),
+  // compute reasonable fallbacks from per_class or transactions so closed sessions
+  // still display meaningful KPIs.
+  const perClassCollectionsFallback = Number(
+    (Array.isArray(perClass) ? perClass.reduce((s, p) => s + (Number(p.total_amount || p.totalAmount || 0)), 0) : 0)
+  );
+
+  const perClassReceiptsFallback = Number(
+    (Array.isArray(perClass) ? perClass.reduce((s, p) => s + (Number(p.tx_count || p.transactions || 0) || 0), 0) : 0)
+  );
+
+  const transactions = Array.isArray(reportData.transactions) ? reportData.transactions : [];
+  const transactionsCollectionsFallback = Number(
+    transactions.reduce((s, tx) => s + ((tx && (tx.status === 'paid' || tx.status === 'PAID')) ? Number(tx.amount || 0) : 0), 0)
+  );
+
+  const transactionsReceiptsFallback = Number(transactions.length || 0);
+
+  // Final computed snapshot totals (prefer explicit snapshot fields, otherwise fall back)
+  const computedSnapshotCollections = snapshotCollections || perClassCollectionsFallback || transactionsCollectionsFallback || Number(report.total_collections || 0);
+  const computedSnapshotReceipts = snapshotReceipts || perClassReceiptsFallback || transactionsReceiptsFallback || Number(report.total_receipts || 0);
+
+  // If snapshot / per-class / transactions gave zero for collections but the
+  // report contains a `cash_out_amount` (meaning the session was cashed out),
+  // attempt to derive collections from cash_out_amount - opening_balance.
+  // This handles cases where live/DB totals were zeroed but cash_out_amount
+  // preserves the final drawer amount.
+  let finalComputedCollections = Number(computedSnapshotCollections || 0);
+  if (isCashedOut && finalComputedCollections === 0 && Number(cashOutAmount || 0) > 0) {
+    const derived = Number(cashOutAmount || 0) - Number(openingBalance || 0);
+    if (derived > 0) finalComputedCollections = derived;
+  }
+
+  // Choose totals: prefer snapshot when session is cashed out / finalized, otherwise
+  // use liveData (if fetched) or the DB fields on the report record.
+  const totalCollections = React.useMemo(() => {
+    if (isCashedOut) return finalComputedCollections;
+    if (liveData) return Number(liveData.totalCollections || 0);
+    return report ? Number(report.total_collections || 0) : 0;
+  }, [isCashedOut, liveData, report, finalComputedCollections]);
+
+  const totalReceipts = React.useMemo(() => {
+    if (isCashedOut) return computedSnapshotReceipts;
+    if (liveData) return Number(liveData.totalReceipts || 0);
+    return report ? Number(report.total_receipts || 0) : 0;
+  }, [isCashedOut, liveData, report, computedSnapshotReceipts]);
+
   const expectedClosing = openingBalance + totalCollections;
   const cashDrawerBalance = report ? Number(report.cash_drawer_balance || 0) : 0;
-  const cashOutAmount = report ? Number(report.cash_out_amount || 0) : 0;
-
-  const isCashedOut = cashOutAmount > 0 || (report && report.is_final);
 
   // Display logic: when session is not cashed out, show expected closing (opening + collections)
   // as the current cash drawer balance; when cashed out, show the recorded cash_drawer_balance.
   const drawerDisplay = isCashedOut ? cashDrawerBalance : expectedClosing;
+
+  // Enhanced debug logging - MOVED HERE after all variables are defined
+  React.useEffect(() => {
+    if (report) {
+      console.log('📊 === SessionEndReportHistory - Report Data ===');
+      console.log('Report ID:', report.report_id);
+      console.log('Session ID:', report.session_id);
+      console.log('Is Ongoing Session:', isOngoingSession);
+      console.log('isCashedOut:', isCashedOut);
+      console.log('Live Data Available:', !!liveData);
+      console.log('🔍 DATA SOURCES ANALYSIS:');
+      console.log('  DB Fields - Total Collections:', report.total_collections);
+      console.log('  DB Fields - Total Receipts:', report.total_receipts);
+      console.log('  DB Fields - Opening Balance:', report.opening_balance);
+      console.log('  DB Fields - Cash Out Amount:', report.cash_out_amount);
+      console.log('  DB Fields - Cash Drawer Balance:', report.cash_drawer_balance);
+      console.log('  Snapshot - report_data:', report.report_data);
+      
+      // Parse and analyze snapshot data
+      const parsedSnapshot = typeof report.report_data === 'string' ? JSON.parse(report.report_data) : report.report_data;
+      console.log('  Snapshot - Parsed:', parsedSnapshot);
+      console.log('  Snapshot - per_class count:', Array.isArray(parsedSnapshot?.per_class) ? parsedSnapshot.per_class.length : 0);
+      console.log('  Snapshot - transactions count:', Array.isArray(parsedSnapshot?.transactions) ? parsedSnapshot.transactions.length : 0);
+      console.log('  Snapshot - has card_summary:', !!parsedSnapshot?.card_summary);
+      
+      if (liveData) {
+        console.log('  Live API - Total Collections:', liveData.totalCollections);
+        console.log('  Live API - Total Receipts:', liveData.totalReceipts);
+        console.log('  Live API - Transactions count:', liveData.transactions?.length || 0);
+        console.log('  Live API - PerClass count:', liveData.perClass?.length || 0);
+      }
+      
+      console.log('🧮 COMPUTED TOTALS:');
+      console.log('  snapshotCollections:', snapshotCollections);
+      console.log('  perClassCollectionsFallback:', perClassCollectionsFallback);
+      console.log('  transactionsCollectionsFallback:', transactionsCollectionsFallback);
+      console.log('  computedSnapshotCollections:', computedSnapshotCollections);
+      console.log('  finalComputedCollections:', finalComputedCollections);
+      console.log('  FINAL totalCollections:', totalCollections);
+      console.log('  FINAL totalReceipts:', totalReceipts);
+      
+      console.log('Full Report Object:', report);
+    }
+  }, [report, liveData, isOngoingSession, isCashedOut, snapshotCollections, perClassCollectionsFallback, transactionsCollectionsFallback, computedSnapshotCollections, finalComputedCollections, totalCollections, totalReceipts]);
 
   // Aggregate totals from card summary
   const aggregatedTotals = React.useMemo(() => {
