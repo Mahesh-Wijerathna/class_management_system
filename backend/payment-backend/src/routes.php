@@ -42,6 +42,46 @@ $payHereController = new PayHereController($mysqli);
 $devPaymentHelper = new DevPaymentHelper($mysqli);
 $earningsConfigController = new EarningsConfigController($mysqli);
 
+// GLOBAL AUTHENTICATION MIDDLEWARE
+// Require authentication for specific endpoints (add paths one by one for debugging)
+$requiredAuthPaths = [
+    '/get_all_payments'  // Start with this one, add others as needed
+];
+
+$currentUser = null; // Store authenticated user data globally
+$globalToken = null; // Store token globally for use in route handlers
+
+if (in_array($path, $requiredAuthPaths)) {
+    // Use getallheaders() to reliably get the Authorization header
+    $headers = getallheaders();
+    $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+    
+    if (empty($authHeader) || !preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Missing or invalid authorization token']);
+        exit;
+    }
+    $globalToken = $matches[1];
+
+    // Validate the token with the auth backend
+    $tokenValidation = file_get_contents('http://host.docker.internal:8081/routes.php/validate_token', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => 'Content-Type: application/json',
+            'content' => json_encode(['token' => $globalToken])
+        ]
+    ]));
+    $validationResult = json_decode($tokenValidation, true);
+    if (!$validationResult || !$validationResult['success']) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Invalid or expired token']);
+        exit;
+    }
+
+    // Store user data from token for use in controllers
+    $currentUser = $validationResult['data']; // e.g., ['userid' => 'S001', 'role' => 'student']
+}
+
 // Test endpoint
 if ($method === 'GET' && $path === '/test') {
     echo json_encode([

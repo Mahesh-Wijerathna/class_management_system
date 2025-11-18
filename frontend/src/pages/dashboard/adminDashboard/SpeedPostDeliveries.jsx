@@ -20,7 +20,11 @@ const SpeedPostDeliveries = ({ onLogout }) => {
       setError(null);
 
       // Fetch all payments that include speed post
-      const paymentsResponse = await axios.get('http://localhost:8090/routes.php/get_all_payments');
+      const paymentsResponse = await axios.get('http://localhost:8090/routes.php/get_all_payments', {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('authToken') || sessionStorage.getItem('authToken')}`
+        }
+      });
       
       if (paymentsResponse.data.success) {
         const allPayments = paymentsResponse.data.data || [];
@@ -108,7 +112,12 @@ const SpeedPostDeliveries = ({ onLogout }) => {
       const response = await axios.post('http://localhost:8090/routes.php/update_delivery_status', {
         transaction_id: transactionId,
         delivery_status: newStatus
+      }, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('authToken') || sessionStorage.getItem('authToken')}`
+        }
       });
+      
 
       console.log('Update response:', response.data);
 

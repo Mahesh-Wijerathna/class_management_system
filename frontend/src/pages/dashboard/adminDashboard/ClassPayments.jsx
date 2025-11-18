@@ -171,7 +171,12 @@ const ClassPayments = () => {
         
         // First, fetch all payments from payment backend
         try {
-          const paymentsResponse = await axios.get(`http://localhost:8090/routes.php/get_all_payments`);
+          //const paymentsResponse = await axios.get(`http://localhost:8090/routes.php/get_all_payments`);
+          const paymentsResponse = await axios.get(`http://localhost:8090/routes.php/get_all_payments`, {
+                  headers: {
+                    Authorization: `Bearer ${localStorage.getItem('authToken') || sessionStorage.getItem('authToken')}`
+                  }
+                });
           if (paymentsResponse.data.success && paymentsResponse.data.data) {
             // Group payments by class_id
             paymentsResponse.data.data.forEach(payment => {
@@ -247,7 +252,12 @@ const ClassPayments = () => {
         // Fetch payment data for this class
         let classPayments = [];
         try {
-          const paymentsResponse = await axios.get(`http://localhost:8090/routes.php/get_all_payments`);
+          // const paymentsResponse = await axios.get(`http://localhost:8090/routes.php/get_all_payments`);
+          const paymentsResponse = await axios.get(`http://localhost:8090/routes.php/get_all_payments`, {
+                  headers: {
+                    Authorization: `Bearer ${localStorage.getItem('authToken') || sessionStorage.getItem('authToken')}`
+                  }
+                });
           if (paymentsResponse.data.success && paymentsResponse.data.data) {
             classPayments = paymentsResponse.data.data.filter(payment => payment.class_id == classItem.id);
           }

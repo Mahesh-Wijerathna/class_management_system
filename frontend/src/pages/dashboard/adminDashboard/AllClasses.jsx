@@ -9,6 +9,8 @@ import DashboardLayout from '../../../components/layout/DashboardLayout';
 import AdminDashboardSidebar from './AdminDashboardSidebar';
 import { getUserPermissions } from '../../../api/rbac';
 
+
+
 const AllClasses = ({ onLogout }) => {
   const [classes, setClasses] = useState([]);
   const [classDetails, setClassDetails] = useState([]);
@@ -85,7 +87,12 @@ const AllClasses = ({ onLogout }) => {
         // Load payment data for this class from payment backend
         let classPayments = [];
         try {
-          const paymentsResponse = await axios.get(`http://localhost:8090/routes.php/get_all_payments`);
+          //const paymentsResponse = await axios.get(`http://localhost:8090/routes.php/get_all_payments`);
+          const paymentsResponse = await axios.get(`http://localhost:8090/routes.php/get_all_payments`, {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('authToken') || sessionStorage.getItem('authToken')}`
+            }
+          });
           if (paymentsResponse.data.success && paymentsResponse.data.data) {
             classPayments = paymentsResponse.data.data.filter(payment => payment.class_id === classItem.id);
             console.log(`Class ${classItem.id} (${classItem.className}) - Enrollments: ${enrollments.length}, Payments: ${classPayments.length}`);

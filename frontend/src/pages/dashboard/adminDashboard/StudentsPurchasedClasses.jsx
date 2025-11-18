@@ -930,6 +930,7 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('authToken') || sessionStorage.getItem('authToken')}`
         },
         body: JSON.stringify(paymentData)
       });
@@ -945,6 +946,7 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('authToken') || sessionStorage.getItem('authToken')}`
           },
               body: JSON.stringify({
                 transactionId: result.data.transactionId,
@@ -1352,7 +1354,10 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
       // Create payment record
       const paymentResponse = await fetch('http://localhost:8090/routes.php/create_payment', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('authToken') || sessionStorage.getItem('authToken')}`
+        },
         body: JSON.stringify({
           studentId: selectedStudent.studentId,
           classId: enrollment.class_id,
