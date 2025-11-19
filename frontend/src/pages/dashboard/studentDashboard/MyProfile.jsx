@@ -157,6 +157,134 @@ const districts = [
 const genders = ['Male', 'Female', 'Other'];
 
 const MyProfile = ({ onLogout }) => {
+  // Language selection (read from localStorage and listen for changes)
+  const [appLang, setAppLang] = useState(localStorage.getItem('appLang') || 'en');
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (!e) return;
+      if (e.key === 'appLang' && e.newValue) setAppLang(e.newValue);
+    };
+    const onCustom = (e) => {
+      const newLang = e?.detail || localStorage.getItem('appLang');
+      if (newLang) setAppLang(newLang);
+    };
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('appLangChanged', onCustom);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('appLangChanged', onCustom);
+    };
+  }, []);
+
+  const translations = {
+    en: {
+  loadingProfile: 'Loading profile...',
+      redirectingToLogin: 'Redirecting to login...',
+      editProfile: 'Edit Profile',
+      changePassword: 'Change Password',
+      cancel: 'Cancel',
+      changePasswordBtn: 'Change Password',
+      passwordRequirementsTitle: 'Password Requirements:',
+      pw_req_1: 'At least 8 characters long',
+      pw_req_2: 'Contains at least one uppercase letter',
+      pw_req_3: 'Contains at least one lowercase letter',
+      pw_req_4: 'Contains at least one number',
+      pw_req_5: 'Contains at least one special character (@$!%*?&)',
+      changingPassword: 'Changing Password...',
+      profileInformation: 'Profile Information',
+      firstName: 'First Name',
+      lastName: 'Last Name',
+      nic: 'NIC',
+      mobile: 'Mobile',
+      dob: 'Date of Birth',
+      age: 'Age',
+      gender: 'Gender',
+      selectGender: 'Select Gender',
+      male: 'Male',
+      female: 'Female',
+      other: 'Other',
+      email: 'Email',
+      school: 'School',
+      stream: 'Stream',
+      selectStream: 'Select Stream',
+      address: 'Address',
+      district: 'District',
+      selectDistrict: 'Select District',
+      parentName: 'Parent Name',
+      parentMobile: 'Parent Mobile',
+      fixErrors: 'Please fix the following errors:',
+      cancelBtn: 'Cancel',
+      saveChanges: 'Save Changes',
+      saving: 'Saving...',
+      profileUpdatedMessage: 'Your profile information has been successfully updated and saved to the database.',
+      profileUpdatedTitle: 'Profile Updated',
+      updateFailedMessage: 'There was an error updating your profile. Please try again.',
+      updateFailedTitle: 'Update Failed',
+      ok: 'OK',
+  passwordChangedMessage: 'Your password has been successfully changed. You can now use your new password to login.',
+  passwordChangedTitle: 'Password Changed',
+  passwordChangeFailedTitle: 'Password Change Failed',
+  currentPasswordLabel: 'Current Password',
+  newPasswordLabel: 'New Password',
+  confirmNewPasswordLabel: 'Confirm New Password',
+  editProfile: 'Edit Profile'
+    },
+    si: {
+      loadingProfile: 'පැතිකඩ ලෝඩ් වර්මින්...',
+      redirectingToLogin: 'පිවිසුමට යළි යවමින්...',
+      editProfile: 'පැතිකඩ සංස්කරණය',
+      changePassword: 'මුරපදය වෙනස් කරන්න',
+      cancel: 'අවසන් කරන්න',
+      changePasswordBtn: 'මුරපදය වෙනස් කරන්න',
+      passwordRequirementsTitle: 'මුරපද අවශ්‍යතා:',
+      pw_req_1: 'අකුරු 8 ක් හෝ වැඩි විය යුතුය',
+      pw_req_2: 'අවම වශයෙන් එක් විශාල අකුරක් අඩංගු විය යුතුය',
+      pw_req_3: 'අවම වශයෙන් එක් සුළු අකුරක් අඩංගු විය යුතුය',
+      pw_req_4: 'අවම වශයෙන් එක් සංඛ්‍යාවක් අඩංගු විය යුතුය',
+      pw_req_5: 'අවම වශයෙන් එක් විශේෂ චරිතයක් (@$!%*?&) අඩංගු විය යුතුය',
+      changingPassword: 'මුරපදය වෙනස් වෙමින්...',
+      profileInformation: 'පැතිකඩ තොරතුරු',
+      firstName: 'ප්‍රථම නම',
+      lastName: 'අවසන් නම',
+      nic: 'හැඳුනුම්පත (NIC)',
+      mobile: 'ජංගම',
+      dob: 'උපන් දිනය',
+      age: 'වයස',
+      gender: 'ස්ත්‍රී/පුරුෂය',
+      selectGender: 'ස්ත්‍රී/පුරුෂය තෝරන්න',
+      male: 'පුරුෂ',
+      female: 'කාන්තාව',
+      other: 'වෙනත්',
+      email: 'විද්‍යුත් තැපෑල',
+      school: 'පාසල',
+      stream: 'ප්‍රවාහය',
+      selectStream: 'ප්‍රවාහය තෝරන්න',
+      address: 'ලිපිනය',
+      district: 'දිස්ත්‍රික්කය',
+      selectDistrict: 'දිස්ත්‍රික්කය තෝරන්න',
+      parentName: 'මව්පියගේ නම',
+      parentMobile: 'මව්පිය ජංගම',
+      fixErrors: 'කරුණාකර පහත දෝෂ නිවැරදි කරන්න:',
+      cancelBtn: 'අවලංගු කරන්න',
+      saveChanges: 'වෙනස්කම් සුරකින්න',
+      saving: 'සුරකිමින්...',
+      profileUpdatedMessage: 'ඔබගේ පැතිකඩ තොරතුරු සාර්ථකව යාවත්කාලීන කරන ලදී.',
+      profileUpdatedTitle: 'පැතිකඩ යාවත්කාලීන කරන ලදී',
+      updateFailedMessage: 'ඔබගේ පැතිකඩ යාවත්කාලීන කිරීමේදී දෝෂයක් සිදු විය. නැවත උත්සාහ කරන්න.',
+      updateFailedTitle: 'යාවත්කාලීන කිරීම අසාර්ථකයි',
+      ok: 'හරි',
+  passwordChangedMessage: 'ඔබගේ මුරපදය සාර්ථකව වෙනස් විය.',
+  passwordChangedTitle: 'මුරපදය වෙනස් කරන ලදි',
+  passwordChangeFailedTitle: 'මුරපද වෙනස් කිරීම අසාර්ථකයි',
+  currentPasswordLabel: 'වත්මන් මුරපදය',
+  newPasswordLabel: 'නව මුරපදය',
+  confirmNewPasswordLabel: 'නව මුරපදය තහවුරු කරන්න',
+  editProfile: 'පැතිකඩ සංස්කරණය'
+    }
+  };
+
+  const t = (key) => (translations[appLang] && translations[appLang][key]) || translations.en[key] || key;
   const [currentStudent, setCurrentStudent] = useState(null);
   const [studentProfile, setStudentProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -212,7 +340,7 @@ const MyProfile = ({ onLogout }) => {
         onLogout={onLogout}
       >
         <div className="flex items-center justify-center min-h-screen">
-          <div className="text-lg">Loading profile...</div>
+          <div className="text-lg">{t('loadingProfile')}</div>
         </div>
       </DashboardLayout>
     );
@@ -227,7 +355,7 @@ const MyProfile = ({ onLogout }) => {
         onLogout={onLogout}
       >
         <div className="flex items-center justify-center min-h-screen">
-          <div className="text-lg">Redirecting to login...</div>
+          <div className="text-lg">{t('redirectingToLogin')}</div>
         </div>
       </DashboardLayout>
     );
@@ -295,16 +423,16 @@ const MyProfile = ({ onLogout }) => {
         // Show success alert with title
         setAlertBox({
           open: true,
-          message: 'Your profile information has been successfully updated and saved to the database.',
-          title: 'Profile Updated',
+          message: t('profileUpdatedMessage'),
+          title: t('profileUpdatedTitle'),
           type: 'success'
         });
       } else {
         // Show error alert with title
         setAlertBox({
           open: true,
-          message: response.message || 'There was an error updating your profile. Please try again.',
-          title: 'Update Failed',
+          message: response.message || t('updateFailedMessage'),
+          title: t('updateFailedTitle'),
           type: 'danger'
         });
       }
@@ -312,8 +440,8 @@ const MyProfile = ({ onLogout }) => {
       // Show error alert with title
       setAlertBox({
         open: true,
-        message: error.message || 'There was an error updating your profile. Please try again.',
-        title: 'Update Failed',
+        message: error.message || t('updateFailedMessage'),
+        title: t('updateFailedTitle'),
         type: 'danger'
       });
     } finally {
@@ -330,25 +458,25 @@ const MyProfile = ({ onLogout }) => {
       );
       
       if (response.success) {
-        setPasswordMessage('Password changed successfully!');
+        setPasswordMessage(t('passwordChangedMessage'));
         resetForm();
         setShowPasswordForm(false);
         
         // Show success alert with title
         setAlertBox({
           open: true,
-          message: 'Your password has been successfully changed. You can now use your new password to login.',
-          title: 'Password Changed',
+          message: t('passwordChangedMessage'),
+          title: t('passwordChangedTitle'),
           type: 'success'
         });
       } else {
-        setPasswordMessage(response.message || 'Failed to change password');
+        setPasswordMessage(response.message || t('passwordChangeFailedTitle'));
         
         // Show error alert with title
         setAlertBox({
           open: true,
-          message: response.message || 'There was an error changing your password. Please try again.',
-          title: 'Password Change Failed',
+          message: response.message || t('passwordChangeFailedTitle'),
+          title: t('passwordChangeFailedTitle'),
           type: 'danger'
         });
       }
@@ -357,13 +485,13 @@ const MyProfile = ({ onLogout }) => {
       setTimeout(() => setPasswordMessage(''), 3000);
       
     } catch (error) {
-      setPasswordMessage(error.message || 'Failed to change password. Please try again.');
+      setPasswordMessage(error.message || t('passwordChangeFailedTitle'));
       
       // Show error alert with title
       setAlertBox({
         open: true,
-        message: error.message || 'There was an error changing your password. Please try again.',
-        title: 'Password Change Failed',
+        message: error.message || t('passwordChangeFailedTitle'),
+        title: t('passwordChangeFailedTitle'),
         type: 'danger'
       });
     } finally {
@@ -383,24 +511,24 @@ const MyProfile = ({ onLogout }) => {
         message={alertBox.message}
         title={alertBox.title}
         type={alertBox.type}
-        confirmText="OK"
+        confirmText={t('ok')}
         onConfirm={() => setAlertBox({ open: false, message: '', title: '', type: 'info' })}
         showCloseButton={true}
       />
       
       <div className="p-2 sm:p-4 lg:p-6 max-w-6xl mx-auto">
-        <h2 className="text-lg sm:text-xl font-semibold mb-4 text-[#1a365d]">Edit Profile</h2>
+        <h2 className="text-lg sm:text-xl font-semibold mb-4 text-[#1a365d]">{t('editProfile')}</h2>
         
         {/* Password Change Section */}
         <div className="bg-white rounded-2xl shadow-md p-4 sm:p-6 mb-6 border border-gray-100">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
-            <h3 className="text-base sm:text-lg font-semibold text-[#1a365d]">Change Password</h3>
+            <h3 className="text-base sm:text-lg font-semibold text-[#1a365d]">{t('changePassword')}</h3>
                           <button 
                 type="button" 
                 onClick={() => setShowPasswordForm(!showPasswordForm)}
                 className="px-3 sm:px-4 py-2 bg-[#1a365d] text-white text-xs font-bold rounded-lg hover:bg-[#13294b] active:bg-[#0f2038] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#1a365d] focus:ring-opacity-50 shadow-md hover:shadow-xl"
               >
-              {showPasswordForm ? 'Cancel' : 'Change Password'}
+              {showPasswordForm ? t('cancel') : t('changePassword')}
             </button>
           </div>
           
@@ -427,7 +555,7 @@ const MyProfile = ({ onLogout }) => {
                       id="currentPassword"
                       name="currentPassword"
                       type="password"
-                      label="Current Password *"
+                      label={`${t('currentPasswordLabel')} *`}
                       value={values.currentPassword}
                       onChange={handleChange}
                       error={errors.currentPassword}
@@ -440,7 +568,7 @@ const MyProfile = ({ onLogout }) => {
                       id="newPassword"
                       name="newPassword"
                       type="password"
-                      label="New Password *"
+                      label={`${t('newPasswordLabel')} *`}
                       value={values.newPassword}
                       onChange={handleChange}
                       error={errors.newPassword}
@@ -453,7 +581,7 @@ const MyProfile = ({ onLogout }) => {
                       id="confirmPassword"
                       name="confirmPassword"
                       type="password"
-                      label="Confirm New Password *"
+                      label={`${t('confirmNewPasswordLabel')} *`}
                       value={values.confirmPassword}
                       onChange={handleChange}
                       error={errors.confirmPassword}
@@ -464,19 +592,19 @@ const MyProfile = ({ onLogout }) => {
                   </div>
                   
                   <div className="bg-blue-50 p-3 rounded text-xs text-blue-700 border border-blue-200">
-                    <p className="font-semibold mb-1">Password Requirements:</p>
+                    <p className="font-semibold mb-1">{t('passwordRequirementsTitle')}</p>
                     <ul className="list-disc list-inside space-y-1">
-                      <li>At least 8 characters long</li>
-                      <li>Contains at least one uppercase letter</li>
-                      <li>Contains at least one lowercase letter</li>
-                      <li>Contains at least one number</li>
-                      <li>Contains at least one special character (@$!%*?&)</li>
+                      <li>{t('pw_req_1')}</li>
+                      <li>{t('pw_req_2')}</li>
+                      <li>{t('pw_req_3')}</li>
+                      <li>{t('pw_req_4')}</li>
+                      <li>{t('pw_req_5')}</li>
                     </ul>
                   </div>
                   
                   <div className="flex justify-end">
                     <CustomButton type="submit" disabled={isSubmitting}>
-                      {isSubmitting ? 'Changing Password...' : 'Change Password'}
+                      {isSubmitting ? t('changingPassword') : t('changePassword')}
                     </CustomButton>
                   </div>
                 </form>
@@ -487,7 +615,7 @@ const MyProfile = ({ onLogout }) => {
         
         {/* Profile Information Section */}
         <div className="bg-white rounded-2xl shadow-md p-4 sm:p-6 border border-gray-100">
-          <h3 className="text-base sm:text-lg font-semibold mb-4 text-[#1a365d]">Profile Information</h3>
+          <h3 className="text-base sm:text-lg font-semibold mb-4 text-[#1a365d]">{t('profileInformation')}</h3>
           
           {/* Editable Profile Form */}
           <Formik
@@ -504,7 +632,7 @@ const MyProfile = ({ onLogout }) => {
                     id="firstName"
                     name="firstName"
                     type="text"
-                    label="First Name *"
+                    label={`${t('firstName')} *`}
                     value={values.firstName}
                     onChange={handleChange}
                     error={errors.firstName}
@@ -515,7 +643,7 @@ const MyProfile = ({ onLogout }) => {
                     id="lastName"
                     name="lastName"
                     type="text"
-                    label="Last Name *"
+                    label={`${t('lastName')} *`}
                     value={values.lastName}
                     onChange={handleChange}
                     error={errors.lastName}
@@ -526,7 +654,7 @@ const MyProfile = ({ onLogout }) => {
                     id="idNumber"
                     name="idNumber"
                     type="text"
-                    label="NIC *"
+                    label={`${t('nic')} *`}
                     value={values.idNumber}
                     onChange={handleChange}
                     error={errors.idNumber}
@@ -538,7 +666,7 @@ const MyProfile = ({ onLogout }) => {
                     id="mobile"
                     name="mobile"
                     type="text"
-                    label="Mobile *"
+                    label={`${t('mobile')} *`}
                     value={values.mobile}
                     onChange={handleChange}
                     error={errors.mobile}
@@ -550,7 +678,7 @@ const MyProfile = ({ onLogout }) => {
                     id="dob"
                     name="dob"
                     type="date"
-                    label="Date of Birth *"
+                    label={`${t('dob')} *`}
                     value={values.dob}
                     onChange={handleChange}
                     error={errors.dob}
@@ -561,7 +689,7 @@ const MyProfile = ({ onLogout }) => {
                     id="age"
                     name="age"
                     type="number"
-                    label="Age *"
+                    label={`${t('age')} *`}
                     value={values.age}
                     onChange={handleChange}
                     error={errors.age}
@@ -575,7 +703,7 @@ const MyProfile = ({ onLogout }) => {
                   <div className="flex flex-col">
                     <label htmlFor="gender" className="text-xs font-medium text-[#1a365d] mb-1 flex items-center">
                       <FaVenusMars className="mr-2 text-[#1a365d]" />
-                      Gender *
+                      {t('gender')} *
                     </label>
                     <select
                     id="gender"
@@ -588,10 +716,10 @@ const MyProfile = ({ onLogout }) => {
                           : 'border-[#1a365d]'
                       }`}
                     >
-                      <option value="">Select Gender</option>
+                      <option value="">{t('selectGender')}</option>
                       {genders.map((gender) => (
                         <option key={gender} value={gender}>
-                          {gender}
+                          {t(gender.toLowerCase())}
                         </option>
                       ))}
                     </select>
@@ -604,7 +732,7 @@ const MyProfile = ({ onLogout }) => {
                     id="email"
                     name="email"
                     type="email"
-                    label="Email *"
+                    label={`${t('email')} *`}
                     value={values.email}
                     onChange={handleChange}
                     error={errors.email}
@@ -616,7 +744,7 @@ const MyProfile = ({ onLogout }) => {
                     id="school"
                     name="school"
                     type="text"
-                    label="School *"
+                    label={`${t('school')} *`}
                     value={values.school}
                     onChange={handleChange}
                     error={errors.school}
@@ -626,9 +754,9 @@ const MyProfile = ({ onLogout }) => {
                   
                   {/* Stream Select */}
                   <div className="flex flex-col">
-                    <label htmlFor="stream" className="text-xs font-medium text-[#1a365d] mb-1 flex items-center">
+                      <label htmlFor="stream" className="text-xs font-medium text-[#1a365d] mb-1 flex items-center">
                       <FaUser className="mr-2 text-[#1a365d]" />
-                      Stream *
+                      {t('stream')} *
                     </label>
                     <select
                       id="stream"
@@ -641,7 +769,7 @@ const MyProfile = ({ onLogout }) => {
                           : 'border-[#1a365d]'
                       }`}
                     >
-                      <option value="">Select Stream</option>
+                      <option value="">{t('selectStream')}</option>
                       {streams.map((stream) => (
                         <option key={stream} value={stream}>
                           {stream}
@@ -657,7 +785,7 @@ const MyProfile = ({ onLogout }) => {
                     id="address"
                     name="address"
                     type="text"
-                    label="Address *"
+                    label={`${t('address')} *`}
                     value={values.address}
                     onChange={handleChange}
                     error={errors.address}
@@ -668,9 +796,9 @@ const MyProfile = ({ onLogout }) => {
                   
                   {/* District Select */}
                   <div className="flex flex-col">
-                    <label htmlFor="district" className="text-xs font-medium text-[#1a365d] mb-1 flex items-center">
+                      <label htmlFor="district" className="text-xs font-medium text-[#1a365d] mb-1 flex items-center">
                       <FaUser className="mr-2 text-[#1a365d]" />
-                      District *
+                      {t('district')} *
                     </label>
                     <select
                       id="district"
@@ -683,7 +811,7 @@ const MyProfile = ({ onLogout }) => {
                           : 'border-[#1a365d]'
                       }`}
                     >
-                      <option value="">Select District</option>
+                      <option value="">{t('selectDistrict')}</option>
                       {districts.map((district) => (
                         <option key={district} value={district}>
                           {district}
@@ -699,7 +827,7 @@ const MyProfile = ({ onLogout }) => {
                     id="parentName"
                     name="parentName"
                     type="text"
-                    label="Parent Name *"
+                    label={`${t('parentName')} *`}
                     value={values.parentName}
                     onChange={handleChange}
                     error={errors.parentName}
@@ -710,7 +838,7 @@ const MyProfile = ({ onLogout }) => {
                     id="parentMobile"
                     name="parentMobile"
                     type="text"
-                    label="Parent Mobile *"
+                    label={`${t('parentMobile')} *`}
                     value={values.parentMobile}
                     onChange={handleChange}
                     error={errors.parentMobile}
@@ -723,7 +851,7 @@ const MyProfile = ({ onLogout }) => {
                 {/* Validation Summary */}
                 {dirty && !isValid && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <h4 className="text-sm font-semibold text-red-800 mb-2">Please fix the following errors:</h4>
+                    <h4 className="text-sm font-semibold text-red-800 mb-2">{t('fixErrors')}</h4>
                     <ul className="text-xs text-red-700 space-y-1">
                       {Object.keys(errors).map((field) => (
                         <li key={field} className="flex items-center">
@@ -737,13 +865,13 @@ const MyProfile = ({ onLogout }) => {
                 
                 <div className="flex justify-end space-x-4">
                   <CustomButton type="button" onClick={() => navigate('/studentdashboard')}>
-                    Cancel
+                    {t('cancelBtn')}
                   </CustomButton>
                   <CustomButton 
                     type="submit" 
                     disabled={isSubmitting || !isValid || !dirty}
                   >
-                    {isSubmitting ? 'Saving...' : 'Save Changes'}
+                    {isSubmitting ? t('saving') : t('saveChanges')}
                   </CustomButton>
                 </div>
               </form>

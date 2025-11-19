@@ -75,6 +75,724 @@ const MyClasses = ({ onLogout }) => {
   // Attendance data state
   const [attendanceData, setAttendanceData] = useState({});
 
+  // --- i18n inline translations (en + si) ---
+  const translations = {
+    en: {
+  loadingClasses: 'Loading your classes...',
+  refreshPage: 'Refresh Page',
+  totalClasses: 'Total Classes',
+  activeClasses: 'Active Classes',
+  paymentDueLabel: 'Payment Due',
+  paymentTrackingLabel: 'Payment Tracking',
+  searchPlaceholder: 'Search classes by name, subject, teacher, or stream...',
+  sortByName: 'Sort by Name',
+  sortByPurchased: 'Sort by Purchased Date',
+  sortByPaymentDue: 'Sort by Payment Due',
+  sortByPriority: 'Sort by Priority',
+  refreshData: 'Refresh Data',
+  liveHeader: "Live Classes - Today's Online Classes",
+  todaysClassesHeader: "Today's Classes - {date}",
+  tomorrowsClassesHeader: "Tomorrow's Classes - {date}",
+  thisWeeksClassesHeader: "This Week's Classes",
+  thisMonthsClassesHeader: "This Month's Classes",
+  noScheduleClassesHeader: 'No Schedule Classes',
+  paymentDueClassesHeader: 'Payment Due Classes',
+  myClassesHeader: 'My Classes',
+  liveTabDescription: 'Shows online classes scheduled for today within 2 hours before start time',
+  allClassesLabel: 'All Classes',
+  liveClassesLabel: 'Live Classes',
+  todaysClassesLabel: "Today's Classes",
+  tomorrowsClassesLabel: "Tomorrow's Classes",
+  thisWeekLabel: 'This Week Classes',
+  thisMonthLabel: 'This Month Classes',
+  noScheduleLabel: 'No Schedule Classes',
+  paymentDueTabLabel: 'Payment Due Classes',
+  noClassesYouHaveNotPurchased: 'You have not purchased any classes yet.',
+  noLiveSoon: 'No live classes starting soon.',
+  liveTabNoteShort: "Live tab shows online classes scheduled for today within 2 hours before start time.",
+  noClassesToday: 'No classes scheduled for today.',
+  noClassesTomorrow: 'No classes scheduled for tomorrow.',
+  noClassesThisWeek: 'No classes scheduled for this week.',
+  noClassesThisMonth: 'No classes scheduled for this month.',
+  noClassesNoSchedule: 'No classes without schedule.',
+  noPaymentDueClasses: 'No payment due classes.',
+  tryAdjustingSearch: 'Try adjusting your search terms.',
+  noLiveSoon: 'No live classes starting soon.',
+  liveTabTryTodayTip: 'Try the "Today\'s Classes" tab to see all classes scheduled for today.',
+  streamLabel: 'Stream:',
+  subjectLabel: 'Subject:',
+  teacherLabel: 'Teacher:',
+  scheduleLabel: 'Schedule:',
+  nextPaymentLabel: 'Next Payment:',
+  deliveryLabel: 'Delivery:',
+  scheduleNoSchedule: 'No Schedule',
+  scheduleNotSet: 'Schedule not set',
+  notSet: 'Not set',
+  viewDetails: 'View Details',
+  joinClass: 'Join Class',
+  watchNow: 'Watch Now',
+  notAvailable: 'Not Available',
+  makePayment: 'Make Payment',
+  payEarly: 'Pay Early',
+  renewPayment: 'Renew Payment',
+  latePayLabel: 'Late Pay - Payment Due',
+  downloading: 'Downloading...',
+  downloadLabel: 'Download',
+  noMaterials: 'No materials available yet.',
+  materialsUploadsNote: 'Your teacher will upload course materials here.',
+  noPaymentHistoryAvailable: 'No payment history available.',
+  downloadInProgressTitle: 'Download in Progress',
+  downloadInProgressMessage: 'Please wait for the current download to complete',
+  creatingWatermarkedMessage: '🔄 Creating watermarked video... This may take 5-10 minutes for large videos. Please be patient.',
+  failedToDownloadRecording: 'Failed to download recording',
+  failedToDownloadMaterial: 'Failed to download material. Please try again.',
+  zoomNotAvailable: 'Zoom Not Available',
+  physicalClass: 'Physical Class',
+  videoWatermarkWarning: 'This video is protected with watermarks containing your student ID. Unauthorized sharing is prohibited and will be tracked.',
+  videoFallbackText: 'Your browser does not support the video tag.',
+  videoWatermarkMoving: '🎓 ID: {userid} | {fullname}',
+  videoWatermarkCornerTopLeft: 'TCMS - Student ID: {userid}',
+  videoWatermarkTopRight: '{fullname}',
+  videoWatermarkBottomLeft: '© TCMS {year}',
+  videoWatermarkBottomRight: '{date}',
+  videoWatermarkCenterLarge: '{userid}',
+  videoWatermarkCenterSecondary: 'TCMS PROTECTED',
+  courseCompleted: 'Course Completed',
+
+  // Payment / status labels
+  freeCardLabel: 'Free Card',
+  halfCardPaidLabel: 'Half Card (Paid)',
+  halfCardRequiredLabel: 'Half Card (50% Required)',
+  paymentRequiredLabel: 'Payment Required',
+  paidLabel: 'Paid',
+  dueInDays: 'Due in {days} days',
+  dueToday: 'Due Today',
+  overdueByDays: 'Overdue by {days} days',
+  latePaymentApproved: 'Late Payment Approved',
+  unknownLabel: 'Unknown',
+
+  // Delivery / course type / priority labels
+  delivery_online: 'Online Only',
+  delivery_physical: 'Physical Only',
+  delivery_hybrid1: 'Hybrid (Physical + Online)',
+  delivery_hybrid2: 'Hybrid (Physical + Recorded)',
+  delivery_hybrid3: 'Hybrid (Online + Recorded)',
+  delivery_hybrid4: 'Hybrid (Physical + Online + Recorded)',
+  delivery_hybrid: 'Hybrid',
+  delivery_unknown: 'Unknown',
+
+  course_theory: 'Theory',
+  course_revision: 'Revision',
+  course_both: 'Theory + Revision',
+
+  courseTypeLabel: 'Course Type:',
+  freeLabel: 'FREE',
+  Join: 'Join',
+  Zoom: 'Zoom',
+  'Live Now': 'Live Now',
+  Recording: 'Recording',
+  Materials: 'Materials',
+  daysLeft: '{days} Days Left',
+
+  // Time templates
+  classStartsInMinutes: 'Class starts in {minutes} minutes',
+  classStartsInHours: 'Class starts in {hours}h {minutes}m',
+  classEndsInMinutes: 'Class ends in {minutes} minutes',
+  classEndsInHours: 'Class ends in {hours}h {minutes}m',
+  classHasEndedToday: 'Class has ended for today',
+      actionBlocked: '⚠️ Screen recording and screenshots are not allowed for protected content.',
+      protectedContent: '🔒 Protected Content',
+      classTimeEndedTitle: 'Class Time Ended',
+      classTimeEndedMessage: 'Class time has ended. Video access has been closed.',
+      pleaseLoginDownloadRecordings: 'Please log in to download recordings',
+      processingWatermarks: 'Processing Watermarks',
+      recordingDownloaded: '✅ Recording downloaded successfully! Check your downloads folder.',
+      downloadCompleteTitle: 'Download Complete',
+      downloadFailedTitle: 'Download Failed',
+      pleaseLoginDownloadMaterials: 'Please log in to download materials.',
+      downloadMaterialsSuccess: 'Download successful! The file has been saved to your device.\n\nNote: Some PDFs may be password-protected. Use your Student ID as the password: {userid}',
+      freeCardNoPayment: 'Free Card - No payment required',
+      halfCardNeedMore: 'Half Card - Need {amount} more (50% payment required)',
+      paymentRequiredGraceExpired: 'Payment required - grace period expired',
+      paymentRequiredOverdue: 'Payment required - payment overdue',
+      noPaymentHistory: 'No payment history - payment required',
+      paymentRequiredText: 'Payment Required',
+      accessSuspended: 'Access Suspended',
+      courseDropped: 'Course Dropped',
+      paymentRequiredRestoreAccess: 'Payment required - grace period has expired. Please make payment to restore access to this class.',
+      recordedVideoAvailable: 'Recorded Video Available',
+      noVideoAvailable: 'No video available for this class.',
+      videoNotSupported: 'Video Not Supported',
+      videoAccessRestricted: 'Video Access Restricted',
+      authenticationError: 'Authentication Error',
+      success: 'Success',
+      attendanceMarked: 'Attendance marked successfully!',
+      error: 'Error',
+      attendanceMarkError: 'Error marking attendance. Please try again.',
+      forgetCardSuccess: 'Forget card request submitted successfully!',
+      forgetCardError: 'Error submitting forget card request. Please try again.',
+      latePaymentSuccess: "Late payment request submitted successfully! You can attend today's class.",
+      latePaymentError: 'Error submitting late payment request. Please try again.',
+      pleaseLoginAgain: 'No logged-in user found. Please login again.',
+      paymentRequiredBanner: 'Payment required. Please make payment to access class.',
+      afterFreeDays: 'After {days} days: Payment required for access',
+  recordedVideoLabel: 'Recorded Video Available',
+      // Video modal / details modal specific
+      liveClassVideoHeader: 'Live Class Video',
+      currentlyScheduled: 'Currently Scheduled:',
+      securityNoticeTitle: 'Security Notice',
+      securityNoticeMessage: 'This video is protected. Recording, downloading, or screen capture is prohibited and may result in disciplinary action.',
+  videoAccess_restricted: 'Video access is restricted to scheduled class time only',
+  videoAccess_displayIdName: 'Your student ID and name are displayed on the video for security',
+  videoAccess_prohibitedRecording: 'Recording, downloading, or screen capture is strictly prohibited',
+  videoAccess_noControls: 'Video plays like a live stream - no pause, seek, or speed controls',
+  videoAccess_autoplayAudio: 'Video automatically starts and plays at normal speed with audio',
+  videoAccess_useMaximize: 'Use maximize window button for better viewing experience',
+  videoAccess_violationsSuspend: 'Violations may result in immediate suspension of video access',
+  videoAccess_autoStop: 'Video will automatically stop when class time ends',
+      studentIdLabel: 'Student ID:',
+      nameLabel: 'Name:',
+      classLabel: 'Class:',
+      timeLabel: 'Time:',
+      videoStartLabel: 'Video Start:',
+      tcmsSecuredLabel: 'TCMS SECURED',
+      maximizeWindow: '⛶ Maximize Window',
+      exitMaximizeWindow: '⛶ Exit Maximize',
+      clickToMaximizeTip: 'Click to maximize video window',
+      clickToExitMaximizeTip: 'Click to exit maximize mode (or press ESC)',
+      clickToStartVideo: 'Click to Start Video',
+      remainingLabel: '{time} remaining',
+
+      classInformation: 'Class Information',
+      securityAccessInformation: 'Security & Access Information',
+      videoTimingInformation: 'Video Timing Information',
+      classScheduleLabel: 'Class Schedule:',
+      videoStartTimeLabel: 'Video Start Time:',
+      playbackLabel: 'Playback:',
+      maximizeWindowLabel: 'Maximize Window:',
+      noteLabel: 'Note:',
+  videoStartBasedOnJoined: '(based on when you joined)',
+  playbackExplanation: 'Auto-play at normal speed (1x) - no controls available',
+  maximizeWindowTip: 'Click maximize button for better viewing',
+  noteVideoPlaysFromJoin: 'Video plays like a live stream from when you joined the class session',
+
+      // Details modal
+      overviewTab: 'Overview',
+      scheduleTab: 'Schedule',
+      paymentsTab: 'Payments',
+      materialsTab: 'Materials',
+      recordingsTab: 'Recordings',
+      attendanceTab: 'Attendance',
+      paymentTrackingTab: 'Payment Tracking',
+
+      accessRestricted: 'Access Restricted',
+      pleaseMakePaymentToRestoreAccess: 'Please make payment to restore access to this class.',
+      freeAccessGranted: 'Free Access Granted',
+      freeAccessNote: 'You can access this class during the free period.',
+
+      nextClassLabel: 'Next Class',
+      paymentStatusLabel: 'Payment Status',
+      classStatusLabel: 'Class Status',
+
+      recordedVideoInformation: 'Recorded Video Information',
+      recordedVideoAvailableLabel: 'Recorded Video Available',
+      recordedVideoNote: 'Live zoom sessions are disabled when recorded video is available. Use the video player for the best learning experience.',
+
+      joinClassLabel: 'Join Class',
+      notAvailableLabel: 'Not Available',
+      watchNowLabel: '🕐 Watch Now',
+      makePaymentLabel: 'Make Payment',
+      viewScheduleLabel: 'View Schedule',
+      paymentDetailsLabel: 'Payment Details',
+      paymentTrackingLabelShort: 'Payment Tracking',
+      accessTutesLabel: 'Access Tutes',
+      accessExamsLabel: 'Access Exams',
+  zoomLinkLabel: 'Zoom Link:',
+  recordedVideoLabel: 'Recorded Video:',
+  availableLabel: 'Available',
+  studentsLabel: 'Students:',
+  feeLabel: 'Fee:',
+  purchaseDateLabel: 'Purchase Date:',
+  quickActionsHeader: 'Quick Actions',
+  classScheduleHeader: 'Class Schedule',
+  dayLabel: 'Day:',
+  timeLabel: 'Time:',
+  frequencyLabel: 'Frequency:',
+  durationLabel: 'Duration:',
+  extraClassHallLabel: 'Extra Class Hall:',
+  noHallBooked: 'No hall booked',
+  priceBreakdownHeader: 'Price Breakdown & Adjustments',
+  baseClassFeeLabel: 'Base Class Fee',
+  baseClassFeeNote: 'Original monthly class fee',
+  totalDiscountAppliedLabel: 'Total Discount Applied',
+  discountReasonLabel: 'Reason:',
+  discount_earlyEnrollment: 'Early enrollment discount',
+  discount_theoryStudent: 'Theory student discount (if enrolled in related theory class)',
+  discount_promo: 'Promotional offers or campaigns',
+  discount_multiClass: 'Multi-class enrollment benefits',
+  discount_loyalty: 'Student loyalty rewards',
+  discountsAppliedNote: 'Special discounts applied during enrollment. This may include:',
+  additionalFeesAppliedLabel: 'Additional Fees Applied',
+  additionalFeesReason: 'Additional charges applied to your enrollment. This may include:',
+  additional_fee_speedPost: 'Speed post delivery fee for study materials',
+  additional_fee_registration: 'Registration or processing fees',
+  additional_fee_resource: 'Special resource materials fees',
+  additional_fee_lateEnrollment: 'Late enrollment surcharge',
+  theoryStudentDiscountLabel: 'Theory Student Discount',
+  theoryStudentDiscountReason: 'Special discount for students who already enrolled in theory classes. This encourages students to take multiple related classes.',
+  promotionalDiscountLabel: 'Promotional Discount',
+  promotionalDiscountReason: 'Applied promotional discount code during enrollment. This could be from a special campaign, early bird offer, or referral bonus.',
+  speedPostFeeLabel: 'Speed Post Delivery Fee',
+  speedPostFeeReason: 'Additional charge for courier delivery of study materials (books, notes, practice papers) to your registered address. This covers packaging, handling, and postal service charges. Materials will be delivered within 2-3 business days.',
+  calculationLabel: 'Calculation:',
+  baseFeeText: 'Base Fee: LKR {amount}',
+  lessTheoryDiscountText: 'Less Theory Discount: - LKR {amount}',
+  lessPromoDiscountText: 'Less Promo Discount: - LKR {amount}',
+  lessTotalDiscountText: 'Less Total Discount: - LKR {amount}',
+  plusSpeedPostText: 'Plus Speed Post: + LKR {amount}',
+  plusAdditionalFeesText: 'Plus Additional Fees: + LKR {amount}',
+  totalAmountPaidLabel: 'Total Amount Paid',
+  totalAmountPaidNote: 'This is your final monthly payment',
+  paymentInformationHeader: 'Payment Information',
+  youSavedLabel: 'You Saved:',
+  savingsText: 'Total discount of LKR {amount} ({percent}% off base price)'
+  ,
+  // Additional payment UI keys
+  paymentMethodLabel: 'Payment Method',
+  amountLabel: 'Amount',
+  freeDaysLabel: 'Free Days',
+  currentDayLabel: 'Current Day',
+  daysLabel: 'days',
+  ofMonth: 'of month',
+  accessGrantedText: 'Access Granted',
+  accessRestrictedText: 'Access Restricted',
+  freePeriodMessage: 'You have {days} days of free access remaining this month.',
+  paidAccessMessage: 'Payment completed. Full access granted.',
+  pendingPaymentMessage: 'Payment is pending. Please complete payment to access class.',
+  overduePaymentMessage: 'Payment is overdue. Please make payment immediately to restore access.',
+  unpaidPaymentMessage: 'Payment required. Please make payment to access class.',
+  // Payment History / Tracking UI
+  paymentHistoryHeader: 'Payment History',
+  paymentNumber: 'Payment #{number}',
+  invoiceLabel: 'Invoice:',
+  onlinePayment: 'Online Payment',
+  cashPayment: 'Cash Payment',
+  testPayment: 'Test Payment',
+  notSpecified: 'Not specified',
+  paymentTrackingSystemHeader: 'Payment Tracking System',
+  noPaymentTrackingEnabled: 'No payment tracking enabled for this class.',
+  unlimitedAccessMessage: 'You have unlimited access to this class.',
+  freeDaysProgressHeader: 'Free Days Progress',
+  paymentTrackingRulesHeader: 'Payment Tracking Rules:',
+  paymentTrackingRule_first: '• First {freeDays} days of each month: Free access',
+  paymentTrackingRule_after: '• After {freeDays} days: Payment required for access',
+  paymentTrackingRule_status: '• Payment status determines ongoing access',
+  paymentTrackingRule_restore: '• Access is automatically restored upon payment',
+  nextActionsHeader: 'Next Actions:',
+  nextAction_canAccess: '✅ You can currently access this class. Continue learning!',
+  // Materials / Recordings / Attendance
+  loadingMaterialsText: 'Loading materials...',
+  loadingRecordingsText: 'Loading recordings...',
+  noRecordingsAvailable: 'No recordings available yet',
+  teacherHasNotUploadedRecordings: "Your teacher hasn't uploaded any recordings for this class",
+  protectedContentNoticeHeader: '🔒 Protected Content Notice',
+  protectedContentNotice: 'All videos are watermarked with your Student ID ({userid}) and name. Unauthorized sharing, recording, or distribution is strictly prohibited and will be tracked. Your viewing activity is logged for security purposes.',
+  recordingFeaturesHeader: 'Recording Features:',
+  rec_feat_hd: 'HD quality video recordings',
+  rec_feat_playback: 'Playback speed control (0.5x to 2x)',
+  rec_feat_transcripts: 'Searchable transcripts',
+  rec_feat_bookmark: 'Bookmark important moments',
+  rec_feat_offline: 'Download for offline viewing',
+  durationLabel: 'Duration:',
+  uploadedLabel: 'Uploaded:',
+  categoryLabel: 'Category:',
+  viewsLabel: 'views',
+  downloadsLabel: 'downloads',
+  sizeLabel: 'Size:',
+  watchLabel: 'Watch',
+  closeLabel: 'Close',
+  maximizeLabel: 'Maximize',
+  restoreLabel: 'Restore',
+  // Attendance / extra labels
+  attendanceRecordHeader: 'Attendance Record',
+  presentLabel: 'Present',
+  absentLabel: 'Absent',
+  noAttendanceRecords: 'No attendance records available.',
+  attendanceWillAppearNote: 'Attendance will appear here once you join classes.',
+  joinLabel: 'Join:',
+  sourceLabel: 'Source:',
+    },
+    si: {
+  loadingClasses: 'ඔබගේ පන්ති බාගත වෙමින් පවතියි...',
+  refreshPage: 'පිටුව නැවත පූරණය කරන්න',
+  totalClasses: 'මුළු පන්ති',
+  activeClasses: 'සක්‍රීය පන්ති',
+  paymentDueLabel: 'ගෙවීම් අවශ්‍යයි',
+  paymentTrackingLabel: 'ගෙවීම් නිරීක්ෂණය',
+  searchPlaceholder: 'පන්ති නාමය, විෂය, ගුරුතුමා/ගුරුතුමියේ නම හෝ ප්‍රවාහය අනුව සෙවීම...',
+  sortByName: 'නමින් වර්ග කරන්න',
+  sortByPurchased: 'ගත් දිනය අනුව වර්ග කරන්න',
+  sortByPaymentDue: 'ගෙවීම් දිනය අනුව වර්ග කරන්න',
+  sortByPriority: 'ප්‍රමුඛතාව අනුව වර්ග කරන්න',
+  refreshData: 'දත්ත නැවත පූරණය',
+  liveHeader: 'සජීවී පන්ති - අද දින ඔන්ලයින් පන්ති',
+  todaysClassesHeader: 'අද දින පන්ති - {date}',
+  tomorrowsClassesHeader: 'හෙට දින පන්ති - {date}',
+  thisWeeksClassesHeader: 'මෙම සතියේ පන්ති',
+  thisMonthsClassesHeader: 'මෙම මාසයේ පන්ති',
+  noScheduleClassesHeader: 'කාලසටහන නොමැති පන්ති',
+  paymentDueClassesHeader: 'ගෙවීම් අවශ්‍ය පන්ති',
+  myClassesHeader: 'මගේ පන්ති',
+  liveTabDescription: 'අද දින සඳහා ඔන්ලයින් පන්ති 2 පැය ඇතුළත පටන්ගනීම් පෙන්වයි',
+  allClassesLabel: 'සියලු පන්ති',
+  liveClassesLabel: 'සජීවී පන්ති',
+  todaysClassesLabel: 'අද දින පන්ති',
+  tomorrowsClassesLabel: 'හෙට දින පන්ති',
+  thisWeekLabel: 'මෙම සතියේ පන්ති',
+  thisMonthLabel: 'මෙම මාසේ පන්ති',
+  noScheduleLabel: 'කාලසටහන නොමැති පන්ති',
+  paymentDueTabLabel: 'ගෙවීම් අවශ්‍ය පන්ති',
+  noClassesYouHaveNotPurchased: 'ඔබ තවමත් කිසිදු පන්ති මිලදී නොගෙන ඇති අතර.',
+  noLiveSoon: 'ශීඝ්‍රයෙන් ආරම්භ වන සජීවී පන්ති නොමැත.',
+  liveTabNoteShort: 'අද සඳහා ඔන්ලයින් පන්ති 2 පැය ඇතුළත ආරම්භ වන පන්ති පෙන්වයි.',
+  noClassesToday: 'අද සඳහා කිසිදු පන්ති නියමිත නැත.',
+  noClassesTomorrow: 'හෙට සඳහා කිසිදු පන්ති නියමිත නැත.',
+  noClassesThisWeek: 'මෙම සතිය සඳහා කිසිදු පන්ති නියමිත නැත.',
+  noClassesThisMonth: 'මෙම මාසය සඳහා කිසිදු පන්ති නියමිත නැත.',
+  noClassesNoSchedule: 'කාලසටහන නොමැති කිසිදු පන්ති නොමැත.',
+  noPaymentDueClasses: 'ගෙවීම් අවශ්‍ය පන්ති නොමැත.',
+  tryAdjustingSearch: 'ඔබගේ සෙවුම් වචන වෙනස් කර බලන්න.',
+  noLiveSoon: 'ශීඝ්‍රයෙන් ආරම්භ වන සජීවී පන්ති නොමැත.',
+  liveTabTryTodayTip: 'දිනපතා පන්ති බලන්න "අද දින පන්ති" ටැබය පරික්ෂා කරන්න.',
+  streamLabel: 'සිරස්පොයින්ට්:',
+  subjectLabel: 'විෂය:',
+  teacherLabel: 'ගුරුවරු:',
+  scheduleLabel: 'කාලසටහන:',
+  nextPaymentLabel: 'ඊළඟ ගෙවීම්:',
+  deliveryLabel: 'විතරණය:',
+  scheduleNoSchedule: 'කාලසටහන නොමැත',
+  scheduleNotSet: 'කාලසටහන සකස් කර නැත',
+  notSet: 'සැකසී නැත',
+  viewDetails: 'විස්තර බලන්න',
+  joinClass: 'පන්ති එකතුවෙන්න',
+  watchNow: 'දැන් නැරඹීම',
+  notAvailable: 'ලಭ್ಯ නොවේ',
+  makePayment: 'ගෙවීම කරන්න',
+  payEarly: 'පෙර ගෙවීම කරන්න',
+  renewPayment: 'ගෙවීම නැවත කරන්න',
+  latePayLabel: 'වෙනස් ගෙවීම - ගෙවීම අවශ්‍යයි',
+  downloading: 'බාගැනමින්...',
+  downloadLabel: 'බාගැනීම',
+  noMaterials: 'ද්‍රව්‍ය නොමැත.',
+  materialsUploadsNote: 'ඔබගේ ගුරුවරයා මෙහි පාඨමාලා ද්‍රව්‍ය උඩුගත කරනු ඇත.',
+  noPaymentHistoryAvailable: 'ගෙවීම් ඉතිහාසය නොමැත.',
+  // Materials / Recordings / Attendance (Sinhala)
+  loadingMaterialsText: 'ද්‍රව්‍ය පූරණය වෙමින් පවතී...',
+  loadingRecordingsText: 'රෙකෝඩිංග් පූරණය වෙමින් පවතී...',
+  noRecordingsAvailable: 'රෙකෝඩිංග් තවම ලබා ගත නොහැක',
+  teacherHasNotUploadedRecordings: 'මෙම පන්තිය සඳහා ඔබේ ගුරුවරයා තවමත් රෙකෝඩිංග් උඩුගත කර තැබීය නැත',
+  protectedContentNoticeHeader: '🔒 ආරක්ෂිත අන්තර්ගත සංඥාව',
+  protectedContentNotice: 'සියලුම වීඩියෝ ඔබගේ ශිෂ්‍ය ID ({userid}) සහ නම සමඟ ජලලකුණු කර ඇත. අනුමත නොකළ බෙදාහරීම, රෙකෝඩ් කිරීම හෝ බෙදාහැරීම දැඩිව තහනම් ය; එය සලකා බලනු ලැබේ. ඔබගේ නැරඹුම් ක්‍රියාකාරීත්වය ආරක්ෂණය සඳහා ලියාපදිංචි වේ.',
+  recordingFeaturesHeader: 'රෙකෝඩිංග් විශේෂාංග:',
+  rec_feat_hd: 'HD ගුණාත්මකතා වීඩියෝ සටහන්',
+  rec_feat_playback: 'විනෝදාත්මක වේගය පාලනය (0.5x සිට 2x දක්වා)',
+  rec_feat_transcripts: 'සෙවිය හැකි ලේඛන',
+  rec_feat_bookmark: 'වැදගත් මොහොත සංරක්ෂණය කරන්න',
+  rec_feat_offline: 'අපොහොසත් නරඹා ගැනීම සඳහා බාගත කරන්න',
+  durationLabel: 'කාලය:',
+  uploadedLabel: 'උඩුගත කරන ලදි:',
+  categoryLabel: 'වර්ගය:',
+  viewsLabel: 'බලන්නන්',
+  downloadsLabel: 'බාගැනීම්',
+  sizeLabel: 'ප්‍රමාණය:',
+  watchLabel: 'නරඹන්න',
+  closeLabel: 'වහන්න',
+  maximizeLabel: 'විශාල කරන්න',
+  restoreLabel: 'ප්‍රතිස්ථාපනය කරන්න',
+  // Attendance / extra labels (Sinhala)
+  attendanceRecordHeader: 'පෙළගැනීමේ නිවේදනය',
+  presentLabel: 'හැඳි',
+  absentLabel: 'පරද්ද',
+  noAttendanceRecords: 'පෙළගැනීම් සටහන් නොමැත.',
+  attendanceWillAppearNote: 'පන්තිවලට එක්වූ පසු පෙළගැනීම් මෙහි පෙන්වනු ඇත.',
+  joinLabel: 'එක්වූ වේලාව:',
+  sourceLabel: 'මූලාශ්‍රය:',
+  // Payment History / Tracking UI (Sinhala)
+  paymentHistoryHeader: 'ගෙවීම් ඉතිහාසය',
+  paymentNumber: 'ගෙවීම #{number}',
+  invoiceLabel: 'ඉන්වොයිස්:',
+  onlinePayment: 'ඔන්ලයින් ගෙවීම',
+  cashPayment: 'කැෂ් ගෙවීම',
+  testPayment: 'ටෙස්ට් ගෙවීම',
+  notSpecified: 'දක්වා නැත',
+  paymentTrackingSystemHeader: 'ගෙවීම් නිරීක්ෂණ පද්ධතිය',
+  noPaymentTrackingEnabled: 'මෙම පන්තිය සඳහා ගෙවීම් නිරීක්ෂණය සක්‍රිය කර නැත.',
+  unlimitedAccessMessage: 'ඔබට මෙම පන්තිය සදහා අසීමිත ප්‍රවේශය ඇත.',
+  freeDaysProgressHeader: 'නිදහස් දින ප්‍රගතිය',
+  paymentTrackingRulesHeader: 'ගෙවීම් නිරීක්ෂණ නීති:',
+  paymentTrackingRule_first: '• සෑම මාසයකම මුල් {freeDays} දින: නිදහස් ප්‍රවේශය',
+  paymentTrackingRule_after: '• {freeDays} දිනන් පසු: ප්‍රවේශය සඳහා ගෙවීම අවශ්‍ය වේ',
+  paymentTrackingRule_status: '• ගෙවීම් තත්වය පවතින ප්‍රවේශය තීරණය කරයි',
+  paymentTrackingRule_restore: '• ගෙවීම සිදු වූ විට ප්‍රවේශය ස්වයංක්‍රීයව ප්‍රතිසාධනය වේ',
+  nextActionsHeader: 'ඊළඟ ක්‍රියා:',
+  nextAction_canAccess: '✅ ඔබ මේ වන විට මෙම පන්තියට ප්‍රවේශ විය හැක. ඉගෙනීම නවතා නොදමා ඉදිරියට යන්න!',
+  downloadInProgressTitle: 'බාගැනීම ගත වමින් පවතී',
+  downloadInProgressMessage: 'කරුණාකර දැනට පවතින බාගැනීම අවසන් වනතුරු රැඳී සිටින්න',
+  creatingWatermarkedMessage: '🔄 ජල ලකුණු සහිත වීඩියෝ තැනීම... විශාල වීඩියෝ සඳහා මෙය මිනිත්තු 5-10 ක් ගත විය හැක. කරුණාකර ඉවසීමෙන් සිටින්න.',
+  failedToDownloadRecording: 'රෙකෝඩ් බාගැනීම අසමත් විය',
+  failedToDownloadMaterial: 'ද්‍රව්‍යය බාගැනීම අසමත් විය. කරුණාකර නැවත උත්සාහ කරන්න.',
+  zoomNotAvailable: 'Zoom ලබාගත නොහැක',
+  physicalClass: 'භෞතික පන්ති',
+  videoWatermarkWarning: 'මෙම වීඩියෝව ඔබගේ ශිෂ්‍ය ID සහිත ජල ලකුණු සමඟ ආරක්ෂිත කර ඇත. අනුමත නොකළ හුවමාරු හඳුනාගෙන සලකා බලනු ඇත.',
+  videoFallbackText: 'ඔබේ බ්‍රවුසරය වීඩියෝ ටැග් එකට සහාය නොදෙයි.',
+  videoWatermarkMoving: '🎓 හැඳුනුම් අංකය: {userid} | {fullname}',
+  videoWatermarkCornerTopLeft: 'TCMS - ශිෂ්‍ය හැඳුනුම් අංකය: {userid}',
+  videoWatermarkTopRight: '{fullname}',
+  videoWatermarkBottomLeft: '© TCMS {year}',
+  videoWatermarkBottomRight: '{date}',
+  videoWatermarkCenterLarge: '{userid}',
+  videoWatermarkCenterSecondary: 'TCMS ආරක්ෂිතයි',
+  courseCompleted: 'පාඨමාලාව සම්පූර්ණයි',
+
+  // Payment / status labels
+  freeCardLabel: 'නිදහස් කාඩ්',
+  halfCardPaidLabel: 'අර්ධ කාඩ් (ගෙවා ඇත)',
+  halfCardRequiredLabel: 'අර්ධ කාඩ් (50% අවශ්‍යයි)',
+  paymentRequiredLabel: 'ගෙවීම් අවශ්‍යයි',
+  paidLabel: 'ගෙවී ඇත',
+  dueInDays: '{days} දිනන් පසුව ලබාගතයුතු වේ',
+  dueToday: 'අද ගෙවීමට නියමිතයි',
+  overdueByDays: '{days} දිනකින් ප්‍රමාදයි',
+  latePaymentApproved: 'වিলම්බ ගෙවීම් අනුමත විය',
+  unknownLabel: 'නොදන්නා',
+
+  // Delivery / course type / priority labels
+  delivery_online: 'මාධ්‍යය සම්පූර්ණයෙන්ම ඔන්ලයින්',
+  delivery_physical: 'භෞතික පමණක්',
+  delivery_hybrid1: 'සහජීවී + භෞතික',
+  delivery_hybrid2: 'භෞතික + සටහන් වීඩියෝ',
+  delivery_hybrid3: 'ඔන්ලයින් + සටහන් වීඩියෝ',
+  delivery_hybrid4: 'භෞතික + ඔන්ලයින් + සටහන් වීඩියෝ',
+  delivery_hybrid: 'සන්‍යෝජිත',
+  delivery_unknown: 'නොදන්නා',
+
+  course_theory: 'තර්ක',
+  course_revision: 'සංශෝධන',
+  course_both: 'තර්ක + සංශෝධන',
+
+  // Time templates
+  classStartsInMinutes: '{minutes} මිනිත්තුකින් පන්ති ආරම්භ වේ',
+  classStartsInHours: '{hours} පැය {minutes} මිනිත්තුකින් පන්ති ආරම්භ වේ',
+  classEndsInMinutes: '{minutes} මිනිත්තුකින් පන්ති නිමාවට පත්වේ',
+  classEndsInHours: '{hours} පැය {minutes} මිනිත්තුකින් පන්ති නිමාවට පත්වේ',
+  classHasEndedToday: 'අද සඳහා පන්ති නිමාවට පත්වී ඇත',
+  courseTypeLabel: 'පාඨමාලා වර්ගය:',
+  freeLabel: 'නිදහස්',
+  Join: 'පන්ති එක්වන්න',
+  Zoom: 'Zoom',
+  'Live Now': 'සජීවී දැන්',
+  Recording: 'සටහන් වීඩියෝ',
+  Materials: 'ද්‍රව්‍ය',
+  daysLeft: '{days} දින ඉතිරියි',
+      actionBlocked: '⚠️ ආරක්ෂිත අන්තර්ගතය සඳහා තිර රෙකෝඩ් කිරීම සහ ස්ක්‍රීන්ෂොට් ලබා ගැනීම අවශ්‍ය නොවේ.',
+      protectedContent: '🔒 ආරක්ෂිත අන්තර්ගතය',
+      classTimeEndedTitle: 'පන්ති කාලය නිමාවී ඇත',
+      classTimeEndedMessage: 'පන්ති කාලය නිමාවී ඇත. වීඩියෝ ප්‍රවේශය වසා දමන ලදී.',
+      pleaseLoginDownloadRecordings: 'රිස්කෝඩිංග් බාගත කිරීමට කරුණාකර පිවිසෙන්න',
+      processingWatermarks: 'ජල ලකුණු සකස් වෙමින් පවතී',
+      recordingDownloaded: '✅ රෙකෝඩ් කිරීම සාර්ථකව බාගත්හ. ඔබගේ බාගත උපකරණය පිරික්සා බලන්න.',
+      downloadCompleteTitle: 'බාගැනීම සම්පූර්ණයි',
+      downloadFailedTitle: 'බාගැනීම අසමත් විය',
+      pleaseLoginDownloadMaterials: 'දක්ෂතාව බාගත කිරීමට කරුණාකර පිවිසෙන්න.',
+      downloadMaterialsSuccess: 'බාගැනීම සාර්ථකයි! ගොනුව ඔබගේ උපකරණයට සුරැකී ඇත.\n\nසටහන: කිසිදු PDF එකක් මුරපදය සහිත විය හැක. ඔබගේ ශිෂ්‍ය ID  මුරපදය ලෙස භාවිතා කරන්න: {userid}',
+      freeCardNoPayment: 'නිදහස් කාඩ් - ගෙවීමක් අවශ්‍ය නැත',
+      halfCardNeedMore: 'අර්ධ කාඩ් - තවත් {amount} අවශ්‍ය වේ (50% ගෙවීම අවශ්‍ය වේ)',
+      paymentRequiredGraceExpired: 'ගෙවීම් අවශ්‍යයි - ශල්‍ය කාලය අවසන් විය',
+      paymentRequiredOverdue: 'ගෙවීම් අවශ්‍යයි - ගෙවීම ප්‍රමාදයේ පවතී',
+      noPaymentHistory: 'ගෙවීම් ඉතිහාස නොමැත - ගෙවීම අවශ්‍ය වේ',
+      paymentRequiredText: 'ගෙවීම් අවශ්‍යයි',
+      accessSuspended: 'ප්‍රවේශය තහනම්කළහ',
+      courseDropped: 'පාඨමාලාව ඉවත් කරන ලදී',
+      paymentRequiredRestoreAccess: 'ගෙවීම අවශ්‍යයි - ශල්‍ය කාලය අවසන් විය. පන්ති ප්‍රවේශය පැවැත්වීමට කරුණාකර ගෙවීම කරන්න.',
+      recordedVideoAvailable: 'සටහන් වීඩියෝ ලබා ගත හැක',
+      noVideoAvailable: 'මෙම පන්ති සඳහා වීඩියෝ නොමැත.',
+      videoNotSupported: 'වීඩියෝ සහාය නොදක්වයි',
+      videoAccessRestricted: 'වීඩියෝ ප්‍රවේශය සීමා කර ඇත',
+      authenticationError: 'සත්‍යකරණ දෝෂය',
+      success: 'සාර්ථකයි',
+      attendanceMarked: 'හමුව සාර්ථකව ලකුණු කරන ලදි!',
+      error: 'දෝෂය',
+      attendanceMarkError: 'හමුව ලකුණු කිරීමේ දෝෂයක්. කරුණාකර නැවත උත්සාහ කරන්න.',
+      forgetCardSuccess: 'කාඩ් අමතක කිරීමේ අයදුම්පත සමත් විය!',
+      forgetCardError: 'කාඩ් අමතක කිරීමේ අයදුම්පත ඉදිරිපත් කිරීමේ දෝෂයක්. කරුණාකර නැවත උත්සාහ කරන්න.',
+      latePaymentSuccess: 'දැවෙන ගෙවීම් ඉදිරිපත් කිරීම සාර්ථකයි! ඔබට අද පන්තිට සහභාගි විය හැක.',
+      latePaymentError: 'දැවෙන ගෙවීම් ඉදිරිපත් කිරීමේ දෝෂයක්. කරුණාකර නැවත උත්සාහ කරන්න.',
+      pleaseLoginAgain: 'පිවිසුම කර නැති පරිශීලකයෙක් හමුවුනි. කරුණාකර නැවත පුරනය වන්න.',
+      paymentRequiredBanner: 'ගෙවීම් අවශ්‍යයි. පන්තිට ප්‍රවේශ වීමට කරුණාකර ගෙවීම කරන්න.',
+      afterFreeDays: '{days} දිනන් පසුව: ප්‍රවේශය සඳහා ගෙවීම අවශ්‍ය වේ',
+  recordedVideoLabel: 'සටහන් වීඩියෝ ලබා ගත හැක',
+    // Video modal / details modal specific
+    liveClassVideoHeader: 'සජීවී පන්ති වීඩියෝ',
+    currentlyScheduled: 'දැනට නියමිතය:',
+    securityNoticeTitle: 'ආරක්ෂක දැන්වීම',
+    securityNoticeMessage: 'මෙම වීඩියෝ ආරක්ෂිත වේ. රෙකෝඩ් කිරීම, බාගැනීම, හෝ තිරය ගනීම තහනම් වන අතර ඊට අනුව ක්‍රියාමාර්ග ගනු ඇත.',
+  videoAccess_restricted: 'වීඩියෝ ප්‍රවේශය නියමිත පන්ති කාලයට පමණක් සීමා වේ',
+  videoAccess_displayIdName: 'ආරක්ෂාව සඳහා ඔබගේ ශිෂ්‍ය හැඳුනුම් අංකය හා නම වීඩියෝ මත පෙන්වනු ලැබේ',
+  videoAccess_prohibitedRecording: 'රෙකෝඩිං, බාගැනීම හෝ තිර ගැලපීම දැඩිව තහනම් වේ',
+  videoAccess_noControls: 'වීඩියෝව සජීවී ලෙස ක්‍රියා කරයි - නතර කිරීම, සෙවුම හෝ වේග පාලන නොමැත',
+  videoAccess_autoplayAudio: 'වීඩියෝ ස්වයංක්‍රීයව ආරම්භ වේ සහ සාමාන්‍ය වේගයෙන් ශ්‍රව්‍ය සමඟ ක්‍රීයාවට ලක් වේ',
+  videoAccess_useMaximize: 'හොඳ නැරඹුම් අත්දැකීමක් සඳහා විශාල කිරීම බොත්තම භාවිතා කරන්න',
+  videoAccess_violationsSuspend: 'නීති උල්ලංඝනය කිරීමක් සිදු වූ විට වීඩියෝ ප්‍රවේශය වහාම අත්හිටුවන ලැහැ',
+  videoAccess_autoStop: 'පන්ති කාලය අවසන් වන විට වීඩියෝ ස්වයංක්‍රීයව නවත්වනු ලැබේ',
+    studentIdLabel: 'ශිෂ්‍ය ID:',
+    nameLabel: 'නම:',
+    classLabel: 'පන්ති:',
+    timeLabel: 'කාලය:',
+    videoStartLabel: 'වීඩියෝ ආරම්භය:',
+    tcmsSecuredLabel: 'TCMS ආරක්ෂිතයි',
+    maximizeWindow: '⛶ ජනක වින්ඩෝව විශාල කරන්න',
+    exitMaximizeWindow: '⛶ විශාලකරණය ඉවත් කරන්න',
+    clickToMaximizeTip: 'වීඩියෝ ජනකය විශාල කිරීමට සිකටන්න',
+    clickToExitMaximizeTip: 'විශාලකරණය ඉවත් කිරීමට (හෝ ESC ඔබන්න) ක්ලික් කරන්න',
+    clickToStartVideo: 'වීඩියෝ ආරම්භ කිරීමට ක්ලික් කරන්න',
+    remainingLabel: '{time} ඉතිරිව ඇත',
+
+    classInformation: 'පන්ති තොරතුරු',
+    securityAccessInformation: 'ආරක්ෂණය සහ ප්‍රවේශ තොරතුරු',
+    videoTimingInformation: 'වීඩියෝ වේලාව තොරතුරු',
+    classScheduleLabel: 'පන්ති කාලසටහන:',
+    videoStartTimeLabel: 'වීඩියෝ ආරම්භ වේලාව:',
+    playbackLabel: 'දැක්ම:',
+    maximizeWindowLabel: 'ජනක වින්ඩෝව:',
+    noteLabel: 'සටහන:',
+  videoStartBasedOnJoined: '(ඔබ එක්වූ විට පදනම්ව)',
+  playbackExplanation: 'ස්වයංක්‍රීයව සාමාන්‍ය වේගයෙන් (1x) නැරඹීම - පාලන පහසුකම් නොමැත',
+  maximizeWindowTip: 'හොඳ නැරඹුම් සඳහා විශාල කිරීම බොත්තම ක්ලික් කරන්න',
+  noteVideoPlaysFromJoin: 'වීඩියෝ ඔබ එක්වූ විට සිට සජීවී ලෙස ක්‍රීයාවට ලක් වේ',
+
+    // Details modal
+    overviewTab: 'සාරාංශය',
+    scheduleTab: 'කාලසටහන',
+    paymentsTab: 'ගෙවීම්',
+    materialsTab: 'ද්‍රව්‍ය',
+    recordingsTab: 'සටහන්',
+    attendanceTab: 'පෙළගැනීම',
+    paymentTrackingTab: 'ගෙවීම් නිරීක්ෂණය',
+
+    accessRestricted: 'ප්‍රවේශය සීමා කර ඇත',
+    pleaseMakePaymentToRestoreAccess: 'මෙම පන්ති ප්‍රවේශය නැවත ලබා ගැනීමට කරුණාකර ගෙවීම කරන්න.',
+    freeAccessGranted: 'නිදහස් ප්‍රවේශය ලබා දී ඇත',
+    freeAccessNote: 'ඔබට මෙම නිදහස් කාලය තුළ පන්තියට ප්‍රවේශ විය හැක.',
+
+    nextClassLabel: 'ඊළඟ පන්ති',
+    paymentStatusLabel: 'ගෙවීම් තත්ත්වය',
+    classStatusLabel: 'පන්ති තත්ත්වය',
+
+    recordedVideoInformation: 'සටහන් වීඩියෝ තොරතුරු',
+    recordedVideoAvailableLabel: 'සටහන් වීඩියෝ ලබා ගත හැක',
+    recordedVideoNote: 'සටහන් වීඩියෝ ඇති විට සජීවී zoom සැත්කම් අක්‍රීය වේ. හොඳ ඉගෙනීමේ අත්දැකීම සඳහා වීඩියෝ ක්‍රීඩකය භාවිතා කරන්න.',
+
+    joinClassLabel: 'පන්ති එක්වන්න',
+    notAvailableLabel: 'ලභ්‍ය නොවේ',
+    watchNowLabel: '🕐 දැන් නැරඹීම',
+    makePaymentLabel: 'ගෙවීම කරන්න',
+    viewScheduleLabel: 'කාලසටහන බලන්න',
+    paymentDetailsLabel: 'ගෙවීම් විස්තර',
+    paymentTrackingLabelShort: 'ගෙවීම් නිරීක්ෂණය',
+    accessTutesLabel: 'ටියුට් පද්ධතිය ප්‍රවේශය',
+    accessExamsLabel: 'විභාග වලට ප්‍රවේශය',
+  zoomLinkLabel: 'Zoom සබැඳිය:',
+  recordedVideoLabel: 'සටහන් වීඩියෝ:',
+  availableLabel: 'ලබා ගත හැක',
+  studentsLabel: 'ශිෂ්‍යයන්:',
+  feeLabel: 'ගාස්තු:',
+  purchaseDateLabel: 'මිලදීගත් දිනය:',
+  quickActionsHeader: 'කෙටි ක්‍රියාමාර්ග',
+  classScheduleHeader: 'පන්ති කාලසටහන',
+  dayLabel: 'දින:',
+  timeLabel: 'කාලය:',
+  frequencyLabel: 'ආවර්තිය:',
+  durationLabel: 'කාල පරාසය:',
+  extraClassHallLabel: 'අතිරික්ත පන්ති ශාලාව:',
+  noHallBooked: 'ශාලාවක් වෙන් කර නැත',
+  priceBreakdownHeader: 'මිල බෙදීම සහ සැකසුම්',
+  baseClassFeeLabel: 'මුලික පන්ති ගාස්තුව',
+  baseClassFeeNote: 'මුල් මාසික පන්ති ගාස්තුව',
+  totalDiscountAppliedLabel: 'කُل වට්ටම යොදා ඇත',
+  discountReasonLabel: 'හේතුව:',
+  discount_earlyEnrollment: 'පෙර ලියාපදිංචි වට්ටම',
+  discount_theoryStudent: 'තර්ක ශිෂ්‍ය වට්ටම (සම්බන්ධිත තර්ක පන්ති සැසියන් සඳහා)',
+  discount_promo: 'ප්‍රවර්ධන වට්ටම් හෝ ප්‍රචාර',
+  discount_multiClass: 'බහු පන්ති ලියාපදිංචි වීමේ වාසි',
+  discount_loyalty: 'ශිෂ්‍ය නिष्ठා වට්ටම්',
+  discountsAppliedNote: 'ලියාපදිංචිය සමඟ යෙදුණු විශේෂ වට්ටම්. මෙය ඇතුළත් විය හැක:',
+  additionalFeesAppliedLabel: 'අතිරික්ත ගාස්තු යොදා ඇත',
+  additionalFeesReason: 'ඔබගේ ලියාපදිංචිය සඳහා අතිරික්ත ගාස්තු යොදා ඇත. මෙය ඇතුළත් විය හැක:',
+  additional_fee_speedPost: 'අධ්‍යයන ද්‍රව්‍ය සඳහා වේගී තැපැල් ගාස්තුව',
+  additional_fee_registration: 'ලියාපදිංචි කිරීම හෝ සැකසුම් ගාස්තු',
+  additional_fee_resource: 'විශේෂ සම්පත් ද්‍රව්‍ය ගාස්තු',
+  additional_fee_lateEnrollment: 'පසු ලියාපදිංචි කිරීමේ අතිරේක ගාස්තුව',
+  theoryStudentDiscountLabel: 'තර්ක ශිෂ්‍ය වට්ටම',
+  theoryStudentDiscountReason: 'පැවති තර්ක පන්තිවල දැනටමත් ලියාපදිංචි වූ ශිෂ්‍යයන් සඳහා විශේෂ වට්ටම. මෙය සබඳ පාඨමාලා ගැනීමට ප්‍රෝත්සාහනය කරයි.',
+  promotionalDiscountLabel: 'ප්‍රවර්ධන වට්ටම',
+  promotionalDiscountReason: 'ලියාපදිංචි කිරීමේදී යෙදුනු ප්‍රවර්ධන වට්ටම. මෙය විශේෂ ප්‍රචාරණයකින්, පෙර ලියාපදිංචි වට්ටමකින් හෝReferral ප්‍රතිලාභයකින් ඇතිවිය හැක.',
+  speedPostFeeLabel: 'වේගී තැපැල් බෙදාහැරීමේ ගාස්තුව',
+  speedPostFeeReason: 'පන්ති ද්‍රව්‍ය (පොත්, සටහන්, පුහුණු පත්‍ර) ඔබගේ ලියාපදිංචි ලිපිනයට භාර කිරීම සඳහා අමතර ගාස්තුව. ඇසුරුම්, හැසිරවීම සහ තැපැල් සේවා ගාස්තු ඇතුළත් වේ. ද්‍රව්‍ය 2-3 ව්‍යාපාරික දින තුළ බෙදාහැරේ.',
+  calculationLabel: 'ගණනය:',
+  baseFeeText: 'මුලික ගාස්තුව: LKR {amount}',
+  lessTheoryDiscountText: 'තර්ක ශිෂ්‍ය වට්ටම අඩු කිරීම: - LKR {amount}',
+  lessPromoDiscountText: 'ප්‍රවර්ධන වට්ටම අඩු කිරීම: - LKR {amount}',
+  lessTotalDiscountText: 'මුළු වට්ටම අඩු කිරීම: - LKR {amount}',
+  plusSpeedPostText: 'වේගී තැපැල් එකතු කරන්න: + LKR {amount}',
+  plusAdditionalFeesText: 'අතිරික්ත ගාස්තු එකතු කරන්න: + LKR {amount}',
+  totalAmountPaidLabel: 'මුළු ගෙවූ මුදල',
+  totalAmountPaidNote: 'මෙය ඔබගේ අවසන් මාසික ගෙවීමයි',
+  paymentInformationHeader: 'ගෙවීමේ තොරතුරු',
+  youSavedLabel: 'ඔබ ඉතිරි කළේ:',
+  savingsText: 'මුළු වට්ටම LKR {amount} ({percent}% මූලික ගාස්තුවෙන්)'
+  ,
+  paymentMethodLabel: 'ගෙවීම් ක්‍රමය',
+  amountLabel: 'මුදල',
+  freeDaysLabel: 'නිදහස් දින',
+  currentDayLabel: 'වත්මන් දිනය',
+  daysLabel: 'දින',
+  ofMonth: 'මාසයේ'
+  ,
+  accessGrantedText: 'ප්‍රවේශය අවසර දී ඇත',
+  accessRestrictedText: 'ප්‍රවේශය සීමා කර ඇත',
+  freePeriodMessage: 'ඔබට මෙම මාසයේ {days} දින නිදහස් ප්‍රවේශය ඉතිරිව ඇත.',
+  paidAccessMessage: 'ගෙවීම සම්පූර්ණයි. සම්පූර්ණ ප්‍රවේශය ලබා දී ඇත.',
+  pendingPaymentMessage: 'ගෙවීම බලාපොරොත්තුවක් යටතේ පවතී. පන්ති ප්‍රවේශය ලබා ගැනීමට කරුණාකර ගෙවීම සම්පූර්ණ කරන්න.',
+  overduePaymentMessage: 'ගෙවීම ප්‍රමාද වී ඇත. ප්‍රවේශය නැවත ලබා ගැනීමට කරුණාකර වහාම ගෙවීම කරන්න.',
+  unpaidPaymentMessage: 'ගෙවීම අවශ්‍යයි. පන්ති ප්‍රවේශය සඳහා කරුණාකර ගෙවීම කරන්න.'
+    }
+  };
+    // --- added missing translation keys (en/si) ---
+    // Note: inserting new keys under existing translations object requires editing both en and si above; already added keys below for safety.
+
+  const [appLang, setAppLang] = useState(localStorage.getItem('appLang') || 'en');
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === 'appLang') setAppLang(e.newValue || 'en');
+    };
+    const onAppLangChanged = (e) => {
+      setAppLang(e.detail || localStorage.getItem('appLang') || 'en');
+    };
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('appLangChanged', onAppLangChanged);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('appLangChanged', onAppLangChanged);
+    };
+  }, []);
+
+  const t = (key, vars = {}) => {
+    const text = (translations[appLang] && translations[appLang][key]) || (translations.en && translations.en[key]) || key;
+    return Object.keys(vars).reduce((acc, v) => acc.replace(new RegExp(`{${v}}`, 'g'), vars[v]), text);
+  };
+  // --- end i18n additions ---
+
   // Prevent screen recording and video capture attempts
   useEffect(() => {
     if (showRecordingPlayer) {
@@ -89,9 +807,9 @@ const MyClasses = ({ onLogout }) => {
           e.preventDefault();
           setAlertBox({
             open: true,
-            message: '⚠️ Screen recording and screenshots are not allowed for protected content.',
+            message: t('actionBlocked'),
             type: 'warning',
-            title: 'Action Blocked'
+            title: t('protectedContent')
           });
         }
       };
@@ -100,9 +818,9 @@ const MyClasses = ({ onLogout }) => {
       const videoWarningTimer = setTimeout(() => {
         setAlertBox({
           open: true,
-          message: 'This video is protected with watermarks containing your student ID. Unauthorized sharing is prohibited and will be tracked.',
+          message: t('videoWatermarkWarning'),
           type: 'info',
-          title: '🔒 Protected Content'
+          title: t('protectedContent')
         });
       }, 1000);
 
@@ -193,8 +911,8 @@ useEffect(() => {
           setVideoTimeRemaining(null);
           setAlertBox({
             open: true,
-            title: 'Class Time Ended',
-            message: 'Class time has ended. Video access has been closed.',
+            title: t('classTimeEndedTitle'),
+            message: t('classTimeEndedMessage'),
             type: 'warning'
           });
         } else {
@@ -448,7 +1166,7 @@ useEffect(() => {
   const handleDownloadRecording = async (recording) => {
     const userData = getUserData();
     if (!userData || !userData.userid) {
-      alert('Please log in to download recordings');
+  alert(t('pleaseLoginDownloadRecordings'));
       return;
     }
 
@@ -456,9 +1174,9 @@ useEffect(() => {
     if (downloadingRecordingId) {
       setAlertBox({
         open: true,
-        message: 'Please wait for the current download to complete',
+        message: t('downloadInProgressMessage'),
         type: 'warning',
-        title: 'Download in Progress'
+        title: t('downloadInProgressTitle')
       });
       return;
     }
@@ -470,9 +1188,9 @@ useEffect(() => {
       // Show initial processing message
       setAlertBox({
         open: true,
-        message: '🔄 Creating watermarked video... This may take 5-10 minutes for large videos. Please be patient.',
+        message: t('creatingWatermarkedMessage'),
         type: 'info',
-        title: 'Processing Watermarks'
+        title: t('processingWatermarks')
       });
 
       const studentName = userData.fullname || userData.fullName || userData.name || userData.firstName || userData.username || 'Student';
@@ -506,9 +1224,9 @@ useEffect(() => {
 
       setAlertBox({
         open: true,
-        message: '✅ Recording downloaded successfully! Check your downloads folder.',
-        type: 'success',
-        title: 'Download Complete'
+  message: t('recordingDownloaded'),
+  type: 'success',
+  title: t('downloadCompleteTitle')
       });
 
       // Reset after a delay
@@ -523,9 +1241,9 @@ useEffect(() => {
       setDownloadProgress(0);
       setAlertBox({
         open: true,
-        message: error.message || 'Failed to download recording',
+        message: error.message || t('failedToDownloadRecording'),
         type: 'error',
-        title: 'Download Failed'
+        title: t('downloadFailedTitle')
       });
     }
   };
@@ -536,7 +1254,7 @@ useEffect(() => {
     if (!userData || !userData.userid) {
       setAlertBox({
         open: true,
-        message: 'Please log in to download materials.',
+  message: t('pleaseLoginDownloadMaterials'),
         type: 'warning',
         title: 'Authentication Required'
       });
@@ -569,9 +1287,9 @@ useEffect(() => {
       // Show success message
       setAlertBox({
         open: true,
-        message: `Download successful! The file has been saved to your device.\n\nNote: Some PDFs may be password-protected. Use your Student ID as the password: ${userData.userid}`,
+        message: t('downloadMaterialsSuccess', { userid: userData.userid }),
         type: 'success',
-        title: 'Download Complete'
+        title: t('downloadCompleteTitle')
       });
       
       // Reload materials to update download count
@@ -582,9 +1300,9 @@ useEffect(() => {
       console.error('Error downloading material:', error);
       setAlertBox({
         open: true,
-        message: error.message || 'Failed to download material. Please try again.',
+        message: error.message || t('failedToDownloadMaterial'),
         type: 'danger',
-        title: 'Download Failed'
+        title: t('downloadFailedTitle')
       });
     } finally {
       setIsDownloading(false);
@@ -658,7 +1376,7 @@ useEffect(() => {
       return {
         canAccess: true,
         status: 'free-card',
-        message: 'Free Card - No payment required',
+        message: t('freeCardNoPayment'),
         daysRemaining: 999,
         nextPaymentDate: null,
         gracePeriodEndDate: null,
@@ -682,11 +1400,11 @@ useEffect(() => {
         hasPaidHalf
       });
       
-      if (hasPaidHalf) {
+    if (hasPaidHalf) {
         return {
           canAccess: true,
           status: 'half-card',
-          message: `Half Card - ${paidAmount.toFixed(2)} paid of ${halfFee.toFixed(2)} required`,
+      message: t('halfCardNeedMore', { amount: paidAmount.toFixed(2) }),
           daysRemaining: 999,
           nextPaymentDate: null,
           gracePeriodEndDate: null,
@@ -698,7 +1416,7 @@ useEffect(() => {
         return {
           canAccess: false,
           status: 'payment-required',
-          message: `Half Card - Need ${(halfFee - paidAmount).toFixed(2)} more (50% payment required)`,
+          message: t('halfCardNeedMore', { amount: (halfFee - paidAmount).toFixed(2) }),
           daysRemaining: 0,
           nextPaymentDate: null,
           gracePeriodEndDate: null,
@@ -985,11 +1703,11 @@ useEffect(() => {
     if (timeDiff > 15) return null; // Class starts more than 15 minutes from now
     
     if (timeDiff < 0) {
-      return `Started ${Math.abs(Math.round(timeDiff))} minutes ago`;
+      return t('classStartsInMinutes', { minutes: Math.abs(Math.round(timeDiff)) });
     } else if (timeDiff === 0) {
-      return 'Starting now';
+      return t('classStartsInMinutes', { minutes: 0 }) || 'Starting now';
     } else {
-      return `Starts in ${Math.round(timeDiff)} minutes`;
+      return t('classStartsInMinutes', { minutes: Math.round(timeDiff) });
     }
   };
 
@@ -1007,7 +1725,7 @@ useEffect(() => {
       return { 
         color: 'text-purple-600', 
         icon: <FaCheckCircle />, 
-        text: 'Free Card',
+        text: t('freeCardLabel'),
         bgColor: 'bg-purple-50',
         borderColor: 'border-purple-200'
       };
@@ -1018,7 +1736,7 @@ useEffect(() => {
         return { 
           color: 'text-blue-600', 
           icon: <FaCheckCircle />, 
-          text: 'Half Card (Paid)',
+          text: t('halfCardPaidLabel'),
           bgColor: 'bg-blue-50',
           borderColor: 'border-blue-200'
         };
@@ -1026,7 +1744,7 @@ useEffect(() => {
         return { 
           color: 'text-orange-600', 
           icon: <FaExclamationTriangle />, 
-          text: 'Half Card (50% Required)',
+          text: t('halfCardRequiredLabel'),
           bgColor: 'bg-orange-50',
           borderColor: 'border-orange-200'
         };
@@ -1038,7 +1756,7 @@ useEffect(() => {
       return { 
         color: 'text-red-600', 
         icon: <FaTimesCircle />, 
-        text: 'Payment Required',
+        text: t('paymentRequiredLabel'),
         bgColor: 'bg-red-50',
         borderColor: 'border-red-200'
       };
@@ -1049,7 +1767,7 @@ useEffect(() => {
         return { 
           color: 'text-green-600', 
           icon: <FaCheckCircle />, 
-          text: 'Paid',
+          text: t('paidLabel'),
           bgColor: 'bg-green-50',
           borderColor: 'border-green-200'
         };
@@ -1057,7 +1775,7 @@ useEffect(() => {
         return { 
           color: 'text-yellow-600', 
           icon: <FaExclamationTriangle />, 
-          text: daysUntilPayment > 0 ? `Due in ${daysUntilPayment} days` : 'Due Today',
+          text: daysUntilPayment > 0 ? t('dueInDays', { days: daysUntilPayment }) : t('dueToday'),
           bgColor: 'bg-yellow-50',
           borderColor: 'border-yellow-200'
         };
@@ -1065,7 +1783,7 @@ useEffect(() => {
         return { 
           color: 'text-red-600', 
           icon: <FaTimesCircle />, 
-          text: `Overdue by ${Math.abs(daysUntilPayment)} days`,
+          text: t('overdueByDays', { days: Math.abs(daysUntilPayment) }),
           bgColor: 'bg-red-50',
           borderColor: 'border-red-200'
         };
@@ -1073,7 +1791,7 @@ useEffect(() => {
         return { 
           color: 'text-orange-600', 
           icon: <FaUserClock />, 
-          text: 'Late Payment Approved',
+          text: t('latePaymentApproved'),
           bgColor: 'bg-orange-50',
           borderColor: 'border-orange-200'
         };
@@ -1081,7 +1799,7 @@ useEffect(() => {
         return { 
           color: 'text-gray-600', 
           icon: <FaClock />, 
-          text: 'Unknown',
+          text: t('unknownLabel'),
           bgColor: 'bg-gray-50',
           borderColor: 'border-gray-200'
         };
@@ -1092,21 +1810,21 @@ useEffect(() => {
   const getDeliveryMethodInfo = (method) => {
     switch (method) {
       case 'online':
-        return { color: 'text-purple-600', icon: <FaVideo />, text: 'Online Only' };
+  return { color: 'text-purple-600', icon: <FaVideo />, text: t('delivery_online') };
       case 'physical':
-        return { color: 'text-orange-600', icon: <FaMapMarkerAlt />, text: 'Physical Only' };
+  return { color: 'text-orange-600', icon: <FaMapMarkerAlt />, text: t('delivery_physical') };
       case 'hybrid1':
-        return { color: 'text-indigo-600', icon: <FaUsers />, text: 'Hybrid (Physical + Online)' };
+  return { color: 'text-indigo-600', icon: <FaUsers />, text: t('delivery_hybrid1') };
       case 'hybrid2':
-        return { color: 'text-green-600', icon: <FaVideo />, text: 'Hybrid (Physical + Recorded)' };
+  return { color: 'text-green-600', icon: <FaVideo />, text: t('delivery_hybrid2') };
       case 'hybrid3':
-        return { color: 'text-blue-600', icon: <FaVideo />, text: 'Hybrid (Online + Recorded)' };
+  return { color: 'text-blue-600', icon: <FaVideo />, text: t('delivery_hybrid3') };
       case 'hybrid4':
-        return { color: 'text-teal-600', icon: <FaUsers />, text: 'Hybrid (Physical + Online + Recorded)' };
+  return { color: 'text-teal-600', icon: <FaUsers />, text: t('delivery_hybrid4') };
       case 'hybrid':
-        return { color: 'text-indigo-600', icon: <FaUsers />, text: 'Hybrid' };
+  return { color: 'text-indigo-600', icon: <FaUsers />, text: t('delivery_hybrid') };
       default:
-        return { color: 'text-gray-600', icon: <FaUsers />, text: method || 'Unknown' };
+  return { color: 'text-gray-600', icon: <FaUsers />, text: t('delivery_unknown') || method || 'Unknown' };
     }
   };
 
@@ -1114,13 +1832,13 @@ useEffect(() => {
   const getCourseTypeInfo = (type) => {
     switch (type) {
       case 'theory':
-        return { color: 'text-blue-600', icon: <FaBook />, text: 'Theory' };
+  return { color: 'text-blue-600', icon: <FaBook />, text: t('course_theory') };
       case 'revision':
-        return { color: 'text-green-600', icon: <FaGraduationCap />, text: 'Revision' };
+  return { color: 'text-green-600', icon: <FaGraduationCap />, text: t('course_revision') };
       case 'both':
-        return { color: 'text-purple-600', icon: <FaBook />, text: 'Theory + Revision' };
+  return { color: 'text-purple-600', icon: <FaBook />, text: t('course_both') };
       default:
-        return { color: 'text-gray-600', icon: <FaBook />, text: type || 'Unknown' };
+  return { color: 'text-gray-600', icon: <FaBook />, text: type || t('unknownLabel') };
     }
   };
 
@@ -1128,15 +1846,15 @@ useEffect(() => {
   const getClassStatusInfo = (status) => {
     switch (status) {
       case 'active':
-        return { color: 'text-green-600', icon: <FaCheckCircle />, text: 'Active', bgColor: 'bg-green-50', borderColor: 'border-green-200' };
+        return { color: 'text-green-600', icon: <FaCheckCircle />, text: t('success') || 'Active', bgColor: 'bg-green-50', borderColor: 'border-green-200' };
       case 'inactive':
-        return { color: 'text-red-600', icon: <FaTimesCircle />, text: 'Inactive', bgColor: 'bg-red-50', borderColor: 'border-red-200' };
+        return { color: 'text-red-600', icon: <FaTimesCircle />, text: t('error') || 'Inactive', bgColor: 'bg-red-50', borderColor: 'border-red-200' };
       case 'suspended':
-        return { color: 'text-orange-600', icon: <FaPauseCircle />, text: 'Suspended', bgColor: 'bg-orange-50', borderColor: 'border-orange-200' };
+        return { color: 'text-orange-600', icon: <FaPauseCircle />, text: t('accessSuspended') || 'Suspended', bgColor: 'bg-orange-50', borderColor: 'border-orange-200' };
       case 'completed':
         return { color: 'text-blue-600', icon: <FaGraduationCap />, text: 'Completed', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' };
       case 'dropped':
-        return { color: 'text-red-600', icon: <FaTimesCircle />, text: 'Dropped', bgColor: 'bg-red-50', borderColor: 'border-red-200' };
+        return { color: 'text-red-600', icon: <FaTimesCircle />, text: t('courseDropped') || 'Dropped', bgColor: 'bg-red-50', borderColor: 'border-red-200' };
       default:
         return { color: 'text-gray-600', icon: <FaClock />, text: 'Unknown', bgColor: 'bg-gray-50', borderColor: 'border-gray-200' };
     }
@@ -1352,8 +2070,8 @@ useEffect(() => {
     if (cls.enrollmentStatus === 'suspended') {
       setAlertBox({
         open: true,
-        title: 'Access Suspended',
-        message: 'Access to this class has been suspended. Please contact the administrator for more information.',
+        title: t('accessSuspended'),
+        message: t('accessSuspended') + ': Access to this class has been suspended. Please contact the administrator for more information.',
         type: 'danger'
       });
       return;
@@ -1362,8 +2080,8 @@ useEffect(() => {
     if (cls.enrollmentStatus === 'dropped') {
       setAlertBox({
         open: true,
-        title: 'Course Dropped',
-        message: 'You have dropped this course. No access is available.',
+        title: t('courseDropped'),
+        message: t('courseDropped') + ': You have dropped this course. No access is available.',
         type: 'warning'
       });
       return;
@@ -1375,22 +2093,22 @@ useEffect(() => {
       if (paymentTrackingInfo.status === 'payment-required') {
         setAlertBox({
           open: true,
-          title: 'Payment Required',
-          message: 'Payment required - grace period has expired. Please make payment to restore access to this class.',
+          title: t('paymentRequiredText'),
+          message: t('paymentRequiredRestoreAccess'),
           type: 'danger'
         });
       } else if (paymentTrackingInfo.status === 'no-payment') {
         setAlertBox({
           open: true,
-          title: 'Payment Required',
-          message: 'No payment history found. Please make payment to access this class.',
+          title: t('paymentRequiredText'),
+          message: t('noPaymentHistory'),
           type: 'danger'
         });
       } else {
         setAlertBox({
           open: true,
-          title: 'Access Restricted',
-          message: 'Access restricted due to payment issues. Please contact the administrator.',
+          title: t('accessSuspended'),
+          message: t('paymentRequiredRestoreAccess'),
           type: 'danger'
         });
       }
@@ -1469,8 +2187,8 @@ useEffect(() => {
     if (cls.enrollmentStatus === 'suspended') {
       setAlertBox({
         open: true,
-        title: 'Access Suspended',
-        message: 'Access to this class has been suspended. Please contact the administrator for more information.',
+        title: t('accessSuspended'),
+        message: t('accessSuspended') + ': ' + t('paymentRequiredRestoreAccess'),
         type: 'danger'
       });
       return;
@@ -1489,8 +2207,8 @@ useEffect(() => {
     if (cls.enrollmentStatus === 'dropped') {
       setAlertBox({
         open: true,
-        title: 'Course Dropped',
-        message: 'You have dropped this course. No access is available.',
+        title: t('courseDropped'),
+        message: t('courseDropped') + ': ' + t('noPaymentHistory'),
         type: 'warning'
       });
       return;
@@ -1502,22 +2220,22 @@ useEffect(() => {
       if (paymentTrackingInfo.status === 'payment-required') {
         setAlertBox({
           open: true,
-          title: 'Payment Required',
-          message: 'Payment required - grace period has expired. Please make payment to restore access to this class.',
+          title: t('paymentRequiredText'),
+          message: t('paymentRequiredRestoreAccess'),
           type: 'danger'
         });
       } else if (paymentTrackingInfo.status === 'no-payment') {
         setAlertBox({
           open: true,
-          title: 'Payment Required',
-          message: 'No payment history found. Please make payment to access this class.',
+          title: t('paymentRequiredText'),
+          message: t('noPaymentHistory'),
           type: 'danger'
         });
       } else {
         setAlertBox({
           open: true,
-          title: 'Access Restricted',
-          message: 'Access restricted due to payment issues. Please contact the administrator.',
+          title: t('accessSuspended'),
+          message: t('paymentRequiredRestoreAccess'),
           type: 'danger'
         });
       }
@@ -1529,8 +2247,8 @@ useEffect(() => {
       if (cls.videoUrl) {
         setAlertBox({
           open: true,
-          title: 'Recorded Video Available',
-          message: 'Recorded video is available for this class. Live zoom sessions are disabled when recorded video is available. Please use the video player for the best learning experience.',
+          title: t('recordedVideoAvailable'),
+          message: t('recordedVideoAvailable') + ': ' + t('videoNotSupported'),
           type: 'info'
         });
         return;
@@ -1543,16 +2261,16 @@ useEffect(() => {
       } else {
         setAlertBox({
           open: true,
-          title: 'Zoom Not Available',
-          message: 'Zoom link not available for this class.',
+          title: t('zoomNotAvailable') || t('zoomNotAvailable'),
+          message: t('zoomNotAvailable') + ': ' + t('zoomNotAvailable'),
           type: 'warning'
         });
       }
     } else {
       setAlertBox({
         open: true,
-        title: 'Physical Class',
-        message: 'This is a physical class. Please attend at the specified location.',
+        title: t('physicalClass'),
+        message: t('physicalClass'),
         type: 'info'
       });
     }
@@ -1631,18 +2349,18 @@ useEffect(() => {
     
     if (timeToStart > 0) {
       if (timeToStart < 60) {
-        return `Class starts in ${Math.round(timeToStart)} minutes`;
+        return t('classStartsInMinutes', { minutes: Math.round(timeToStart) });
       } else {
-        return `Class starts in ${Math.floor(timeToStart / 60)}h ${Math.round(timeToStart % 60)}m`;
+        return t('classStartsInHours', { hours: Math.floor(timeToStart / 60), minutes: Math.round(timeToStart % 60) });
       }
     } else if (timeToEnd > 0) {
       if (timeToEnd < 60) {
-        return `Class ends in ${Math.round(timeToEnd)} minutes`;
+        return t('classEndsInMinutes', { minutes: Math.round(timeToEnd) });
       } else {
-        return `Class ends in ${Math.floor(timeToEnd / 60)}h ${Math.round(timeToEnd % 60)}m`;
+        return t('classEndsInHours', { hours: Math.floor(timeToEnd / 60), minutes: Math.round(timeToEnd % 60) });
       }
     } else {
-      return 'Class has ended for today';
+      return t('classHasEndedToday');
     }
   };
 
@@ -1652,8 +2370,8 @@ useEffect(() => {
     if (cls.enrollmentStatus === 'suspended') {
       setAlertBox({
         open: true,
-        title: 'Access Suspended',
-        message: 'Access to this class has been suspended. Please contact the administrator for more information.',
+        title: t('accessSuspended'),
+        message: t('accessSuspended'),
         type: 'danger'
       });
       return;
@@ -1662,8 +2380,8 @@ useEffect(() => {
     if (cls.enrollmentStatus === 'completed') {
       setAlertBox({
         open: true,
-        title: 'Course Completed',
-        message: 'This course has been completed. No further access is available.',
+        title: t('courseCompleted'),
+        message: t('courseCompleted'),
         type: 'info'
       });
       return;
@@ -1672,8 +2390,8 @@ useEffect(() => {
     if (cls.enrollmentStatus === 'dropped') {
       setAlertBox({
         open: true,
-        title: 'Course Dropped',
-        message: 'You have dropped this course. No access is available.',
+        title: t('courseDropped'),
+        message: t('courseDropped'),
         type: 'warning'
       });
       return;
@@ -1711,8 +2429,8 @@ useEffect(() => {
     if (!cls.videoUrl) {
       setAlertBox({
         open: true,
-        title: 'No Video Available',
-        message: 'No video available for this class.',
+        title: t('noVideoAvailable') ? t('noVideoAvailable') : t('noVideoAvailable'),
+        message: t('noVideoAvailable'),
         type: 'warning'
       });
       return;
@@ -1722,8 +2440,8 @@ useEffect(() => {
     if (!['hybrid2', 'hybrid3', 'hybrid4'].includes(cls.deliveryMethod)) {
       setAlertBox({
         open: true,
-        title: 'Video Not Supported',
-        message: 'This class does not support recorded video content.',
+        title: t('videoNotSupported'),
+        message: t('videoNotSupported') + ': This class does not support recorded video content.',
         type: 'warning'
       });
       return;
@@ -1734,16 +2452,16 @@ useEffect(() => {
       const timeStatus = getClassTimeStatus(cls);
       if (timeStatus) {
         setAlertBox({
-          open: true,
-          title: 'Video Access Restricted',
-          message: `Video access is only available during class time. ${timeStatus}`,
-          type: 'warning'
-        });
+            open: true,
+            title: t('videoAccessRestricted'),
+            message: t('videoAccessRestricted') + ': ' + (timeStatus || ''),
+            type: 'warning'
+          });
       } else {
         setAlertBox({
           open: true,
-          title: 'Video Access Restricted',
-          message: 'Video access is only available during scheduled class time.',
+          title: t('videoAccessRestricted'),
+          message: t('videoAccessRestricted'),
           type: 'warning'
         });
       }
@@ -1802,8 +2520,8 @@ useEffect(() => {
       if (!userData || !userData.userid) {
         setAlertBox({
           open: true,
-          title: 'Authentication Error',
-          message: 'No logged-in user found. Please login again.',
+          title: t('authenticationError'),
+          message: t('pleaseLoginAgain'),
           type: 'danger'
         });
       return;
@@ -1844,23 +2562,23 @@ useEffect(() => {
         await loadMyClasses();
         setAlertBox({
           open: true,
-          title: 'Success',
-          message: 'Attendance marked successfully!',
+          title: t('success'),
+          message: t('attendanceMarked'),
           type: 'success'
         });
       } else {
         setAlertBox({
           open: true,
-          title: 'Error',
-          message: response.message || 'Failed to mark attendance',
+          title: t('error'),
+          message: response.message || t('attendanceMarkError'),
           type: 'danger'
         });
       }
     } catch (error) {
       setAlertBox({
         open: true,
-        title: 'Error',
-        message: 'Error marking attendance. Please try again.',
+        title: t('error'),
+        message: t('attendanceMarkError'),
         type: 'danger'
       });
     }
@@ -1893,23 +2611,23 @@ useEffect(() => {
         // Request forget card using backend API
         const response = await requestForgetCard(selectedClassForRequest.id, studentId);
         
-        if (response.success) {
+    if (response.success) {
           // Refresh the classes data to show updated status
           await loadMyClasses();
       setShowForgetCardModal(false);
           setSelectedClassForRequest(null);
           setAlertBox({
-            open: true,
-            title: 'Success',
-            message: 'Forget card request submitted successfully!',
-            type: 'success'
+      open: true,
+      title: t('success'),
+      message: t('forgetCardSuccess'),
+      type: 'success'
           });
         } else {
           setAlertBox({
-            open: true,
-            title: 'Error',
-            message: response.message || 'Failed to submit forget card request',
-            type: 'danger'
+      open: true,
+      title: t('error'),
+      message: response.message || t('forgetCardError'),
+      type: 'danger'
           });
         }
       } catch (error) {
@@ -1950,23 +2668,23 @@ useEffect(() => {
         // Request late payment using backend API
         const response = await requestLatePayment(selectedClassForRequest.id, studentId);
         
-        if (response.success) {
+    if (response.success) {
           // Refresh the classes data to show updated status
           await loadMyClasses();
       setShowLatePaymentModal(false);
           setSelectedClassForRequest(null);
           setAlertBox({
-            open: true,
-            title: 'Success',
-            message: 'Late payment request submitted successfully! You can attend today\'s class.',
-            type: 'success'
+      open: true,
+      title: t('success'),
+      message: t('latePaymentSuccess'),
+      type: 'success'
           });
         } else {
           setAlertBox({
-            open: true,
-            title: 'Error',
-            message: response.message || 'Failed to submit late payment request',
-            type: 'danger'
+      open: true,
+      title: t('error'),
+      message: response.message || t('latePaymentError'),
+      type: 'danger'
           });
         }
       } catch (error) {
@@ -1987,7 +2705,7 @@ useEffect(() => {
     } else {
       setAlertBox({
         open: true,
-        title: 'No Exams Available',
+        title: t('error'),
         message: 'No exams available for this class yet.',
         type: 'info'
       });
@@ -2001,7 +2719,7 @@ useEffect(() => {
     } else {
       setAlertBox({
         open: true,
-        title: 'No Tutes Available',
+        title: t('error'),
         message: 'No tutes available for this class yet.',
         type: 'info'
       });
@@ -2019,8 +2737,8 @@ useEffect(() => {
   };
 
   const tabOptions = [
-    { key: 'all', label: 'All Classes', icon: <FaEye />, count: myClasses.length },
-    { key: 'live', label: 'Live Classes', icon: <FaVideo />, count: myClasses.filter(cls => {
+  { key: 'all', labelKey: 'allClassesLabel', label: 'All Classes', icon: <FaEye />, count: myClasses.length },
+  { key: 'live', labelKey: 'liveClassesLabel', label: 'Live Classes', icon: <FaVideo />, count: myClasses.filter(cls => {
       if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
       // Check if delivery method supports online classes
       if (!['online', 'hybrid1', 'hybrid3', 'hybrid4'].includes(cls.deliveryMethod)) return false;
@@ -2045,14 +2763,14 @@ useEffect(() => {
       // Show if class starts within 2 hours before or is currently running (within 1 hour of start)
       return timeDiff >= -120 && timeDiff <= 60;
     }).length },
-    { key: 'today', label: "Today's Classes", icon: <FaCalendar />, count: myClasses.filter(cls => {
+  { key: 'today', labelKey: 'todaysClassesLabel', label: "Today's Classes", icon: <FaCalendar />, count: myClasses.filter(cls => {
       if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
       const today = new Date();
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const todayName = dayNames[today.getDay()];
       return cls.schedule.day === todayName;
     }).length },
-    { key: 'tomorrow', label: "Tomorrow's Classes", icon: <FaCalendarAlt />, count: myClasses.filter(cls => {
+  { key: 'tomorrow', labelKey: 'tomorrowsClassesLabel', label: "Tomorrow's Classes", icon: <FaCalendarAlt />, count: myClasses.filter(cls => {
       if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -2060,21 +2778,21 @@ useEffect(() => {
       const tomorrowName = dayNames[tomorrow.getDay()];
       return cls.schedule.day === tomorrowName;
     }).length },
-    { key: 'this-week', label: 'This Week Classes', icon: <FaCalendarWeek />, count: myClasses.filter(cls => {
+  { key: 'this-week', labelKey: 'thisWeekLabel', label: 'This Week Classes', icon: <FaCalendarWeek />, count: myClasses.filter(cls => {
       if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
       const today = new Date();
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const todayName = dayNames[today.getDay()];
       return cls.schedule.day === todayName || cls.schedule.frequency === 'weekly';
     }).length },
-    { key: 'this-month', label: 'This Month Classes', icon: <FaCalendarAlt />, count: myClasses.filter(cls => {
+  { key: 'this-month', labelKey: 'thisMonthLabel', label: 'This Month Classes', icon: <FaCalendarAlt />, count: myClasses.filter(cls => {
       if (!cls.schedule || cls.schedule.frequency === 'no-schedule') return false;
       return cls.schedule.frequency === 'weekly' || cls.schedule.frequency === 'bi-weekly' || cls.schedule.frequency === 'monthly';
     }).length },
-    { key: 'no-schedule', label: 'No Schedule Classes', icon: <FaClock />, count: myClasses.filter(cls => {
+  { key: 'no-schedule', labelKey: 'noScheduleLabel', label: 'No Schedule Classes', icon: <FaClock />, count: myClasses.filter(cls => {
       return cls.schedule && cls.schedule.frequency === 'no-schedule';
     }).length },
-    { key: 'payment-due', label: 'Payment Due Classes', icon: <FaExclamationTriangle />, count: myClasses.filter(cls => {
+  { key: 'payment-due', labelKey: 'paymentDueTabLabel', label: 'Payment Due Classes', icon: <FaExclamationTriangle />, count: myClasses.filter(cls => {
       // Check if payment is due from month start to paid day
       if (!cls.nextPaymentDate) return false;
       
@@ -2112,7 +2830,7 @@ useEffect(() => {
       >
         <div className="p-6 text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading your classes...</p>
+          <p className="mt-4 text-gray-600">{t('loadingClasses')}</p>
         </div>
       </DashboardLayout>
     );
@@ -2134,7 +2852,7 @@ useEffect(() => {
             onClick={() => window.location.reload()} 
             className="bg-cyan-600 text-white px-4 py-2 rounded hover:bg-cyan-700"
           >
-            Refresh Page
+            {t('refreshPage')}
           </button>
         </div>
       </DashboardLayout>
@@ -2152,58 +2870,38 @@ useEffect(() => {
         <div className="mb-6">
           <h1 className="text-2xl font-bold mb-2 text-center">
             {selectedTab === 'live' ? (
-              <>
-                Live Classes - Today's Online Classes
-              </>
+              t('liveHeader')
             ) : selectedTab === 'today' ? (
-              <>
-                Today's Classes - {new Date().toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}
-              </>
+              t('todaysClassesHeader', { date: new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) })
             ) : selectedTab === 'tomorrow' ? (
-              <>
-                Tomorrow's Classes - {(() => {
-                  const tomorrow = new Date();
-                  tomorrow.setDate(tomorrow.getDate() + 1);
-                  return tomorrow.toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  });
-                })()}
-              </>
+              t('tomorrowsClassesHeader', { date: (() => { const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); return tomorrow.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }); })() })
             ) : selectedTab === 'this-week' ? (
-              'This Week\'s Classes'
+              t('thisWeeksClassesHeader')
             ) : selectedTab === 'this-month' ? (
-              'This Month\'s Classes'
+              t('thisMonthsClassesHeader')
             ) : selectedTab === 'no-schedule' ? (
-              'No Schedule Classes'
+              t('noScheduleClassesHeader')
             ) : selectedTab === 'payment-due' ? (
-              'Payment Due Classes'
+              t('paymentDueClassesHeader')
             ) : (
-              'My Classes'
+              t('myClassesHeader')
             )}
           </h1>
           {selectedTab === 'live' && (
             <p className="text-center text-gray-600 mb-4">
-              Shows online classes scheduled for today within 2 hours before start time
+              {t('liveTabDescription')}
             </p>
           )}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div className="bg-blue-50 p-3 rounded-lg text-center">
               <div className="text-2xl font-bold text-blue-600">{myClasses.length}</div>
-              <div className="text-sm text-blue-700">Total Classes</div>
+              <div className="text-sm text-blue-700">{t('totalClasses')}</div>
             </div>
             <div className="bg-green-50 p-3 rounded-lg text-center">
               <div className="text-2xl font-bold text-green-600">
                 {myClasses.filter(c => c.status === 'active').length}
               </div>
-              <div className="text-sm text-green-700">Active Classes</div>
+              <div className="text-sm text-green-700">{t('activeClasses')}</div>
             </div>
             <div className="bg-yellow-50 p-3 rounded-lg text-center">
               <div className="text-2xl font-bold text-yellow-600">
@@ -2215,7 +2913,7 @@ useEffect(() => {
                          (!paymentInfo.canAccess && paymentInfo.status !== 'no-tracking');
                 }).length}
               </div>
-              <div className="text-sm text-yellow-700">Payment Due</div>
+              <div className="text-sm text-yellow-700">{t('paymentDueLabel')}</div>
             </div>
             <div className="bg-purple-50 p-3 rounded-lg text-center">
               <div className="text-2xl font-bold text-purple-600">
@@ -2237,7 +2935,7 @@ useEffect(() => {
                   return hasPaymentTracking;
                 }).length}
               </div>
-              <div className="text-sm text-purple-700">Payment Tracking</div>
+              <div className="text-sm text-purple-700">{t('paymentTrackingLabel')}</div>
             </div>
           </div>
         </div>
@@ -2248,7 +2946,7 @@ useEffect(() => {
             <div className="relative">
               <input
                 type="text"
-                placeholder="Search classes by name, subject, teacher, or stream..."
+                placeholder={t('searchPlaceholder')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
@@ -2262,15 +2960,15 @@ useEffect(() => {
               onChange={(e) => setSortBy(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
             >
-              <option value="name">Sort by Name</option>
-              <option value="purchased-date">Sort by Purchased Date</option>
-              <option value="payment-due">Sort by Payment Due</option>
-              <option value="status">Sort by Priority</option>
+              <option value="name">{t('sortByName')}</option>
+              <option value="purchased-date">{t('sortByPurchased')}</option>
+              <option value="payment-due">{t('sortByPaymentDue')}</option>
+              <option value="status">{t('sortByPriority')}</option>
             </select>
             <button
               onClick={handleRefresh}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
-              title="Refresh My Classes Data"
+              title={t('refreshData')}
             >
               <FaSync /> Refresh Data
             </button>
@@ -2289,7 +2987,7 @@ useEffect(() => {
               `}
               onClick={() => setSelectedTab(tab.key)}
             >
-              {tab.icon} {tab.label}
+              {tab.icon} {t(tab.labelKey || tab.label) || tab.label}
               <span className="bg-white text-cyan-600 px-2 py-1 rounded-full text-xs">
                 {tab.count}
               </span>
@@ -2400,20 +3098,20 @@ useEffect(() => {
                       )}
                       
                       {/* Critical Alerts */}
-                      {isSuspended && (
+                          {isSuspended && (
                         <div className="bg-orange-50 border-l-2 border-orange-500 p-2 rounded mb-2">
                           <div className="flex items-center gap-2 text-orange-700 text-xs font-semibold">
                             <FaExclamationTriangle />
-                            <span>Suspended - Contact Admin</span>
+                            <span>{t('accessSuspended')} - Contact Admin</span>
                           </div>
                         </div>
                       )}
                       
-                      {!paymentTrackingInfo.canAccess && paymentTrackingInfo.status === 'payment-required' && (
+          {!paymentTrackingInfo.canAccess && paymentTrackingInfo.status === 'payment-required' && (
                         <div className="bg-red-50 border-l-2 border-red-500 p-2 rounded mb-2">
                           <div className="flex items-center gap-2 text-red-700 text-xs font-semibold">
                             <FaExclamationTriangle />
-                            <span>Payment Required</span>
+            <span>{t('paymentRequiredText')}</span>
                           </div>
                         </div>
                       )}
@@ -2422,7 +3120,7 @@ useEffect(() => {
                         <div className="bg-yellow-50 border-l-2 border-yellow-500 p-2 rounded mb-2">
                           <div className="flex items-center gap-2 text-yellow-700 text-xs font-semibold">
                             <FaClock />
-                            <span>{paymentTrackingInfo.daysRemaining} Days Left</span>
+                            <span>{t('daysLeft', { days: paymentTrackingInfo.daysRemaining }) || `${paymentTrackingInfo.daysRemaining} Days Left`}</span>
                           </div>
                         </div>
                       )}
@@ -2430,30 +3128,30 @@ useEffect(() => {
                       {/* Stream & Subject */}
                       <div className="flex items-center gap-1">
                         <FaGraduationCap className="text-gray-400" />
-                        <strong>Stream:</strong> {cls.stream}
+                        <strong>{t('streamLabel') || 'Stream:'}</strong> {cls.stream}
                       </div>
                       
                       <div className="flex items-center gap-1">
                         <FaBook className="text-gray-400" />
-                        <strong>Subject:</strong> {cls.subject}
+                        <strong>{t('subjectLabel') || 'Subject:'}</strong> {cls.subject}
                       </div>
                       
                       {/* Schedule */}
                       <div className="flex items-center gap-1">
                         <FaCalendar className="text-gray-400" />
-                        <strong>Schedule:</strong> {scheduleText}
+                        <strong>{t('scheduleLabel') || 'Schedule:'}</strong> {scheduleText}
                       </div>
                       
                       {/* Next Payment */}
                       <div className="flex items-center gap-1">
                         <FaMoneyBill className="text-gray-400" />
-                        <strong>Next Payment:</strong> {paymentTrackingInfo.nextPaymentDate ? paymentTrackingInfo.nextPaymentDate.toLocaleDateString() : 'Not set'}
+                        <strong>{t('nextPaymentLabel') || 'Next Payment:'}</strong> {paymentTrackingInfo.nextPaymentDate ? paymentTrackingInfo.nextPaymentDate.toLocaleDateString() : (t('notSet') || 'Not set')}
                       </div>
                       
                       {/* Delivery Method */}
                       <div className="flex items-center gap-1">
                         <span className={deliveryInfo.color}>{deliveryInfo.icon}</span>
-                        <strong>Delivery:</strong> {deliveryInfo.text}
+                        <strong>{t('deliveryLabel') || 'Delivery:'}</strong> {deliveryInfo.text}
                       </div>
                       
                       {/* Status Badges */}
@@ -2477,21 +3175,21 @@ useEffect(() => {
                               : 'bg-blue-600 text-white hover:bg-blue-700'
                           }`}
                           title={
-                            isSuspended ? 'Access suspended' :
-                            isCompleted ? 'Course completed' :
-                            isDropped ? 'Course dropped' :
-                            !paymentTrackingInfo.canAccess ? 'Payment required' :
-                            cls.videoUrl ? 'Video only' :
-                            'Join class'
+                            isSuspended ? t('accessSuspended') :
+                            isCompleted ? t('courseCompleted') :
+                            isDropped ? t('courseDropped') :
+                            !paymentTrackingInfo.canAccess ? t('paymentRequiredGraceExpired') :
+                            cls.videoUrl ? t('recordedVideoLabel') :
+                            t('Join') || 'Join class'
                           }
                         >
                           <FaPlay className="text-xs" /> 
-                          {isSuspended ? 'Suspended' : 
-                           isCompleted ? 'Completed' : 
-                           isDropped ? 'Dropped' : 
-                           !paymentTrackingInfo.canAccess ? 'Pay' :
-                           cls.videoUrl ? 'Video' :
-                           'Join'}
+                          {isSuspended ? t('accessSuspended') : 
+                           isCompleted ? t('courseCompleted') : 
+                           isDropped ? t('courseDropped') : 
+                           !paymentTrackingInfo.canAccess ? t('paymentRequiredText') :
+                           cls.videoUrl ? t('recordedVideoLabel') :
+                           t('Join') || 'Join'}
                         </button>
                       </div>
                       
@@ -2501,26 +3199,26 @@ useEffect(() => {
                           {cls.zoomLink && (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid1' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') && !cls.videoUrl && (
                             <div className="flex items-center gap-1 text-blue-600">
                               <FaVideo />
-                              <span>Zoom</span>
+                              <span>{t('Zoom') || 'Zoom'}</span>
                             </div>
                           )}
                           {cls.videoUrl && (cls.deliveryMethod === 'hybrid2' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') && (
                             <div className="flex items-center gap-1 text-green-600">
                               <FaVideo />
-                              <span>{isClassCurrentlyScheduled(cls) ? 'Live Now' : 'Recording'}</span>
+                              <span>{isClassCurrentlyScheduled(cls) ? t('Live Now') || 'Live Now' : t('Recording') || 'Recording'}</span>
                             </div>
                           )}
                           {cls.hasTutes && (
                             <div className="flex items-center gap-1 text-purple-600">
                               <FaBook />
-                              <span>Materials</span>
+                              <span>{t('Materials') || 'Materials'}</span>
                             </div>
                           )}
                         </div>
                       )}
                     </div>
                   }
-                  buttonText="View Details"
+                  buttonText={t('viewDetails') || 'View Details'}
                   onButtonClick={() => handleViewDetails(cls)}
                   buttonDisabled={isSuspended || isDropped || !paymentTrackingInfo.canAccess}
                 >
@@ -2596,26 +3294,26 @@ useEffect(() => {
             })
           ) : (
             <div className="text-center text-gray-500 col-span-full mt-8">
-              {selectedTab === 'all' && !searchTerm ? 'You have not purchased any classes yet.' : 
-               selectedTab === 'live' ? (
-                 <div>
-                   <div>No live classes starting soon.</div>
-                   <div className="text-sm mt-2">
-                     Live tab shows online classes scheduled for today within 2 hours before start time.
-                   </div>
-                   <div className="text-sm mt-1">
-                     Try the "Today's Classes" tab to see all classes scheduled for today.
-                   </div>
-                 </div>
-               ) :
-               selectedTab === 'today' ? 'No classes scheduled for today.' :
-               selectedTab === 'tomorrow' ? 'No classes scheduled for tomorrow.' :
-               selectedTab === 'this-week' ? 'No classes scheduled for this week.' :
-               selectedTab === 'this-month' ? 'No classes scheduled for this month.' :
-               selectedTab === 'no-schedule' ? 'No classes without schedule.' :
-               selectedTab === 'payment-due' ? 'No payment due classes.' :
-               `No ${selectedTab} classes found.`}
-              {searchTerm && <div className="mt-2">Try adjusting your search terms.</div>}
+              {selectedTab === 'all' && !searchTerm ? t('noClassesYouHaveNotPurchased') || 'You have not purchased any classes yet.' : 
+                   selectedTab === 'live' ? (
+                     <div>
+                       <div>{t('noLiveSoon') || 'No live classes starting soon.'}</div>
+                       <div className="text-sm mt-2">
+                         {t('liveTabNoteShort') || 'Live tab shows online classes scheduled for today within 2 hours before start time.'}
+                       </div>
+                       <div className="text-sm mt-1">
+                         {t('liveTabTryTodayTip') || 'Try the "Today\'s Classes" tab to see all classes scheduled for today.'}
+                       </div>
+                     </div>
+                   ) :
+                   selectedTab === 'today' ? t('noClassesToday') || 'No classes scheduled for today.' :
+                   selectedTab === 'tomorrow' ? t('noClassesTomorrow') || 'No classes scheduled for tomorrow.' :
+                   selectedTab === 'this-week' ? t('noClassesThisWeek') || 'No classes scheduled for this week.' :
+                   selectedTab === 'this-month' ? t('noClassesThisMonth') || 'No classes scheduled for this month.' :
+                   selectedTab === 'no-schedule' ? t('noClassesNoSchedule') || 'No classes without schedule.' :
+                   selectedTab === 'payment-due' ? t('noPaymentDueClasses') || 'No payment due classes.' :
+                   `No ${selectedTab} classes found.`}
+                  {searchTerm && <div className="mt-2">{t('tryAdjustingSearch') || 'Try adjusting your search terms.'}</div>}
             </div>
           )}
         </div>
@@ -2624,25 +3322,25 @@ useEffect(() => {
         {showForgetCardModal && (
           <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 backdrop-blur-sm">
             <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-gray-100">
-              <h3 className="text-xl font-bold mb-4 text-gray-900">Request Forget Card</h3>
+              <h3 className="text-xl font-bold mb-4 text-gray-900">{t('forgetCardTitle') || 'Request Forget Card'}</h3>
               <p className="text-gray-700 mb-4 text-base">
-                You are requesting a forget card for: <strong className="text-blue-700">{selectedClassForRequest?.className}</strong>
+                {t('forgetCardRequestFor') || 'You are requesting a forget card for:'} <strong className="text-blue-700">{selectedClassForRequest?.className}</strong>
               </p>
               <p className="text-sm text-gray-600 mb-6 bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">
-                This will allow you to attend the class even if you forgot your ID card.
+                {t('forgetCardNote') || 'This will allow you to attend the class even if you forgot your ID card.'}
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={submitForgetCardRequest}
                   className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-5 py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 active:scale-100"
                 >
-                  Submit Request
+                  {t('submitRequest') || 'Submit Request'}
                 </button>
                 <button
                   onClick={() => setShowForgetCardModal(false)}
                   className="flex-1 bg-gray-200 text-gray-700 px-5 py-3 rounded-xl font-semibold hover:bg-gray-300 transition-all duration-200"
                 >
-                  Cancel
+                  {t('cancel') || 'Cancel'}
                 </button>
               </div>
             </div>
@@ -2653,25 +3351,25 @@ useEffect(() => {
         {showLatePaymentModal && (
           <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 backdrop-blur-sm">
             <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-gray-100">
-              <h3 className="text-xl font-bold mb-4 text-gray-900">Request Late Payment</h3>
+              <h3 className="text-xl font-bold mb-4 text-gray-900">{t('latePaymentTitle') || 'Request Late Payment'}</h3>
               <p className="text-gray-700 mb-4 text-base">
-                You are requesting late payment for: <strong className="text-orange-700">{selectedClassForRequest?.className}</strong>
+                {t('latePaymentRequestFor') || 'You are requesting late payment for:'} <strong className="text-orange-700">{selectedClassForRequest?.className}</strong>
               </p>
               <p className="text-sm text-gray-600 mb-6 bg-orange-50 p-3 rounded-lg border-l-4 border-orange-500">
-                This will allow you to attend today's class without immediate payment.
+                {t('latePaymentNote') || "This will allow you to attend today's class without immediate payment."}
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={submitLatePaymentRequest}
                   className="flex-1 bg-gradient-to-r from-orange-600 to-orange-700 text-white px-5 py-3 rounded-xl font-semibold hover:from-orange-700 hover:to-orange-800 transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105 active:scale-100"
                 >
-                  Submit Request
+                  {t('submitRequest') || 'Submit Request'}
                 </button>
                 <button
                   onClick={() => setShowLatePaymentModal(false)}
                   className="flex-1 bg-gray-200 text-gray-700 px-5 py-3 rounded-xl font-semibold hover:bg-gray-300 transition-all duration-200"
                 >
-                  Cancel
+                  {t('cancel') || 'Cancel'}
                 </button>
               </div>
             </div>
@@ -2712,10 +3410,10 @@ useEffect(() => {
                   <div className="flex items-center gap-4">
                     <FaVideo className="text-2xl" />
                     <div>
-                      <h2 className="text-2xl font-bold">Live Class Video</h2>
+                      <h2 className="text-2xl font-bold">{t('liveClassVideoHeader')}</h2>
                       <p className="text-green-100">{selectedClassForVideo.className} • {selectedClassForVideo.subject}</p>
                       <div className="text-yellow-200 text-sm mt-1">
-                        🕐 Currently Scheduled: {selectedClassForVideo.schedule?.day} {selectedClassForVideo.schedule?.startTime}-{selectedClassForVideo.schedule?.endTime}
+                        🕐 {t('currentlyScheduled')} {selectedClassForVideo.schedule?.day} {selectedClassForVideo.schedule?.startTime}-{selectedClassForVideo.schedule?.endTime}
                       </div>
                     </div>
                   </div>
@@ -2736,9 +3434,9 @@ useEffect(() => {
                 <div className="flex items-center gap-2 text-red-700">
                   <FaExclamationTriangle className="text-lg" />
                   <div>
-                    <div className="font-semibold">Security Notice</div>
+                    <div className="font-semibold">{t('securityNoticeTitle')}</div>
                     <div className="text-sm">
-                      This video is protected. Recording, downloading, or screen capture is prohibited and may result in disciplinary action.
+                      {t('securityNoticeMessage')}
                     </div>
                   </div>
                 </div>
@@ -2749,11 +3447,11 @@ useEffect(() => {
                 <div className="bg-black rounded-lg overflow-hidden aspect-video relative">
                   {/* Student Identification Overlay */}
                   <div className="absolute top-4 left-4 z-10 bg-black bg-opacity-70 text-white px-3 py-2 rounded-lg text-sm font-mono">
-                    <div>Student ID: {getUserData()?.userid || 'Unknown'}</div>
-                    <div>Name: {getUserData()?.firstName || getUserData()?.fullName || getUserData()?.name || 'Ba'} {getUserData()?.lastName || 'Rathnayake'}</div>
-                    <div>Class: {selectedClassForVideo.className}</div>
-                    <div>Time: {new Date().toLocaleString()}</div>
-                    <div>Video Start: {formatTimeMMSS(getVideoStartTime(selectedClassForVideo))}</div>
+                    <div>{t('studentIdLabel')} {getUserData()?.userid || 'Unknown'}</div>
+                    <div>{t('nameLabel')} {getUserData()?.firstName || getUserData()?.fullName || getUserData()?.name || 'Ba'} {getUserData()?.lastName || 'Rathnayake'}</div>
+                    <div>{t('classLabel')} {selectedClassForVideo.className}</div>
+                    <div>{t('timeLabel')} {new Date().toLocaleString()}</div>
+                    <div>{t('videoStartLabel')} {formatTimeMMSS(getVideoStartTime(selectedClassForVideo))}</div>
                   </div>
                   
                   {/* Continuous Watermark - Student ID */}
@@ -2785,7 +3483,7 @@ useEffect(() => {
                   
                   {/* Anti-Cheat Overlay */}
                   <div className="absolute top-4 right-4 z-10 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">
-                    TCMS SECURED
+                    {t('tcmsSecuredBadge')}
                   </div>
                   
                   {/* Maximize Window Button */}
@@ -2808,8 +3506,8 @@ useEffect(() => {
                           videoContainer.style.zIndex = '9999';
                           videoContainer.style.backgroundColor = 'black';
                           videoContainer.style.borderRadius = '0';
-                          e.target.innerHTML = '⛶ Exit Maximize';
-                          e.target.title = 'Click to exit maximize mode (or press ESC)';
+                          e.target.innerHTML = t('exitMaximizeText');
+                          e.target.title = t('clickToExitMaximize');
                         } else {
                           // Exit maximize
                           videoContainer.classList.remove('maximized');
@@ -2821,21 +3519,21 @@ useEffect(() => {
                           videoContainer.style.zIndex = '';
                           videoContainer.style.backgroundColor = '';
                           videoContainer.style.borderRadius = '';
-                          e.target.innerHTML = '⛶ Maximize Window';
-                          e.target.title = 'Click to maximize video window';
+                          e.target.innerHTML = t('maximizeWindowText');
+                          e.target.title = t('clickToMaximize');
                         }
                       }}
                       className="bg-black bg-opacity-70 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-opacity-90 transition-all maximize-button"
                       title="Click to maximize video window"
                     >
-                      ⛶ Maximize Window
+                      {t('maximizeWindowText')}
                     </button>
                   </div>
                   
                   {/* Countdown Timer */}
                   {videoTimeRemaining !== null && (
                     <div className="absolute bottom-4 right-4 z-10 bg-yellow-600 text-white px-3 py-2 rounded-lg text-sm font-bold">
-                      ⏰ {Math.floor(videoTimeRemaining / 60)}:{(videoTimeRemaining % 60).toString().padStart(2, '0')} remaining
+                      ⏰ {t('remainingTimeTemplate', { minutes: Math.floor(videoTimeRemaining / 60), seconds: (videoTimeRemaining % 60).toString().padStart(2, '0') })}
                     </div>
                   )}
                   
@@ -2868,7 +3566,7 @@ useEffect(() => {
                         const videoContainer = e.target.parentElement;
                         const playMessage = document.createElement('div');
                         playMessage.className = 'absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center text-white text-lg font-bold cursor-pointer';
-                        playMessage.innerHTML = 'Click to Start Video';
+                        playMessage.innerHTML = t('clickToStartVideoText');
                         playMessage.onclick = () => {
                           e.target.play();
                           playMessage.remove();
@@ -2909,53 +3607,53 @@ useEffect(() => {
                 {/* Video Information */}
                 <div className="mt-6 space-y-4">
                   <div className="bg-gray-50 p-4 rounded-lg">
-                    <h3 className="font-semibold text-lg mb-2">Class Information</h3>
+                    <h3 className="font-semibold text-lg mb-2">{t('classInformationHeader')}</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                      <div><strong>Class:</strong> {selectedClassForVideo.className}</div>
-                      <div><strong>Subject:</strong> {selectedClassForVideo.subject}</div>
-                      <div><strong>Teacher:</strong> {selectedClassForVideo.teacher}</div>
-                      <div><strong>Stream:</strong> {selectedClassForVideo.stream}</div>
-                      <div><strong>Schedule:</strong> {selectedClassForVideo.schedule?.day} {selectedClassForVideo.schedule?.startTime}-{selectedClassForVideo.schedule?.endTime}</div>
-                      <div><strong>Delivery Method:</strong> {getDeliveryMethodInfo(selectedClassForVideo.deliveryMethod).text}</div>
+                      <div><strong>{t('classLabel') || 'Class:'}</strong> {selectedClassForVideo.className}</div>
+                      <div><strong>{t('subjectLabel') || 'Subject:'}</strong> {selectedClassForVideo.subject}</div>
+                      <div><strong>{t('teacherLabel') || 'Teacher:'}</strong> {selectedClassForVideo.teacher}</div>
+                      <div><strong>{t('streamLabel') || 'Stream:'}</strong> {selectedClassForVideo.stream}</div>
+                      <div><strong>{t('scheduleLabel') || 'Schedule:'}</strong> {selectedClassForVideo.schedule?.day} {selectedClassForVideo.schedule?.startTime}-{selectedClassForVideo.schedule?.endTime}</div>
+                      <div><strong>{t('deliveryLabel') || 'Delivery Method:'}</strong> {getDeliveryMethodInfo(selectedClassForVideo.deliveryMethod).text}</div>
                     </div>
                   </div>
                   
                   <div className="bg-blue-50 p-4 rounded-lg">
-                    <h3 className="font-semibold text-lg mb-2">Security & Access Information</h3>
+                    <h3 className="font-semibold text-lg mb-2">{t('securityAccessHeader')}</h3>
                     <ul className="text-sm space-y-2 text-gray-700">
-                      <li>• Video access is restricted to scheduled class time only</li>
-                      <li>• Your student ID and name are displayed on the video for security</li>
-                      <li>• Recording, downloading, or screen capture is strictly prohibited</li>
-                      <li>• Video plays like a live stream - no pause, seek, or speed controls</li>
-                      <li>• Video automatically starts and plays at normal speed with audio</li>
-                      <li>• Use maximize window button for better viewing experience</li>
-                      <li>• Violations may result in immediate suspension of video access</li>
-                      <li>• Video will automatically stop when class time ends</li>
+                      <li>• {t('videoAccess_restricted')}</li>
+                      <li>• {t('videoAccess_displayIdName')}</li>
+                      <li>• {t('videoAccess_prohibitedRecording')}</li>
+                      <li>• {t('videoAccess_noControls')}</li>
+                      <li>• {t('videoAccess_autoplayAudio')}</li>
+                      <li>• {t('videoAccess_useMaximize')}</li>
+                      <li>• {t('videoAccess_violationsSuspend')}</li>
+                      <li>• {t('videoAccess_autoStop')}</li>
                     </ul>
                   </div>
                   
                   <div className="bg-green-50 p-4 rounded-lg">
-                    <h3 className="font-semibold text-lg mb-2">Video Timing Information</h3>
+                    <h3 className="font-semibold text-lg mb-2">{t('videoTimingHeader')}</h3>
                     <div className="text-sm space-y-2 text-gray-700">
                       <div className="flex items-center gap-2">
                         <FaClock className="text-green-600" />
-                        <span><strong>Class Schedule:</strong> {selectedClassForVideo.schedule?.day} {selectedClassForVideo.schedule?.startTime}-{selectedClassForVideo.schedule?.endTime}</span>
+                        <span><strong>{t('classScheduleLabel') || 'Class Schedule:'}</strong> {selectedClassForVideo.schedule?.day} {selectedClassForVideo.schedule?.startTime}-{selectedClassForVideo.schedule?.endTime}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <FaVideo className="text-green-600" />
-                        <span><strong>Video Start Time:</strong> {formatTimeMMSS(getVideoStartTime(selectedClassForVideo))} (based on when you joined)</span>
+                        <span><strong>{t('videoStartTimeLabel') || 'Video Start Time:'}</strong> {formatTimeMMSS(getVideoStartTime(selectedClassForVideo))} {t('videoStartBasedOnJoined')}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <FaPlay className="text-green-600" />
-                        <span><strong>Playback:</strong> Auto-play at normal speed (1x) - no controls available</span>
+                        <span><strong>{t('playbackLabel') || 'Playback:'}</strong> {t('playbackExplanation')}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <FaExpand className="text-green-600" />
-                        <span><strong>Maximize Window:</strong> Click maximize button for better viewing</span>
+                        <span><strong>{t('maximizeWindowLabel') || 'Maximize Window:'}</strong> {t('maximizeWindowTip')}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <FaInfoCircle className="text-blue-600" />
-                        <span><strong>Note:</strong> Video plays like a live stream from when you joined the class session</span>
+                        <span><strong>{t('noteLabel') || 'Note:'}</strong> {t('noteVideoPlaysFromJoin')}</span>
                       </div>
                     </div>
                   </div>
@@ -2999,14 +3697,14 @@ useEffect(() => {
                   msOverflowStyle: 'none', /* Internet Explorer 10+ */
                   WebkitScrollbar: { display: 'none' } /* Safari and Chrome */
                 }}>
-                  {[
-                    { id: 'overview', label: 'Overview', icon: <FaInfoCircle /> },
-                    { id: 'schedule', label: 'Schedule', icon: <FaCalendar /> },
-                    { id: 'payments', label: 'Payments', icon: <FaMoneyBill /> },
-                    { id: 'materials', label: 'Materials', icon: <FaFileAlt /> },
-                    { id: 'recordings', label: 'Recordings', icon: <FaVideo /> },
-                    { id: 'attendance', label: 'Attendance', icon: <FaCheckCircle /> },
-                    { id: 'payment-tracking', label: 'Payment Tracking', icon: <FaShieldAlt /> }
+                    {[
+                    { id: 'overview', labelKey: 'overviewTab', icon: <FaInfoCircle /> },
+                    { id: 'schedule', labelKey: 'scheduleTab', icon: <FaCalendar /> },
+                    { id: 'payments', labelKey: 'paymentsTab', icon: <FaMoneyBill /> },
+                    { id: 'materials', labelKey: 'materialsTab', icon: <FaFileAlt /> },
+                    { id: 'recordings', labelKey: 'recordingsTab', icon: <FaVideo /> },
+                    { id: 'attendance', labelKey: 'attendanceTab', icon: <FaCheckCircle /> },
+                    { id: 'payment-tracking', labelKey: 'paymentTrackingTab', icon: <FaShieldAlt /> }
                   ].map(tab => (
                     <button
                       key={tab.id}
@@ -3017,7 +3715,7 @@ useEffect(() => {
                           : 'border-transparent text-gray-500 hover:text-gray-700'
                       }`}
                     >
-                      {tab.icon} {tab.label}
+                      {tab.icon} {t(tab.labelKey || tab.label)}
                     </button>
                   ))}
                 </div>
@@ -3034,13 +3732,13 @@ useEffect(() => {
                          <>
                            {!paymentInfo.canAccess && (
                              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                               <div className="flex items-center gap-3">
+                                 <div className="flex items-center gap-3">
                                  <FaExclamationTriangle className="text-red-600 text-xl" />
                                  <div>
-                                   <div className="font-semibold text-red-700 text-lg">Access Restricted</div>
+                                   <div className="font-semibold text-red-700 text-lg">{t('accessRestricted')}</div>
                                    <div className="text-red-600">{paymentInfo.message}</div>
                                    <div className="text-sm text-red-500 mt-1">
-                                     Please make payment to restore access to this class.
+                                     {t('pleaseMakePaymentToRestoreAccess')}
                                    </div>
                                  </div>
                                </div>
@@ -3049,13 +3747,13 @@ useEffect(() => {
                            
                            {paymentInfo.status === 'free-period' && (
                              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-                               <div className="flex items-center gap-3">
+                                 <div className="flex items-center gap-3">
                                  <FaCheckCircle className="text-green-600 text-xl" />
                                  <div>
-                                   <div className="font-semibold text-green-700 text-lg">Free Access Granted</div>
+                                   <div className="font-semibold text-green-700 text-lg">{t('freeAccessGranted')}</div>
                                    <div className="text-green-600">{paymentInfo.message}</div>
                                    <div className="text-sm text-green-500 mt-1">
-                                     You can access this class during the free period.
+                                     {t('freeAccessNote')}
                                    </div>
                                  </div>
                                </div>
@@ -3069,24 +3767,24 @@ useEffect(() => {
                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                        <div className="bg-blue-50 p-4 rounded-lg">
                          <div className="flex items-center gap-2 text-blue-600 mb-2">
-                           <FaCalendar /> <span className="font-semibold">Next Class</span>
+                           <FaCalendar /> <span className="font-semibold">{t('nextClassLabel')}</span>
                          </div>
                          <p className="text-lg font-bold">
                            {selectedClassForDetails.schedule?.frequency === 'no-schedule' ? 
-                             'No Schedule' :
+                             t('noScheduleText') :
                              `${formatDay(selectedClassForDetails.schedule?.day)} ${formatTime(selectedClassForDetails.schedule?.startTime)}`
                            }
                          </p>
                        </div>
                        <div className="bg-green-50 p-4 rounded-lg">
                          <div className="flex items-center gap-2 text-green-600 mb-2">
-                           <FaMoneyBill /> <span className="font-semibold">Payment Status</span>
+                           <FaMoneyBill /> <span className="font-semibold">{t('paymentStatusLabel')}</span>
                          </div>
                          <p className="text-lg font-bold">{getPaymentTrackingInfo(selectedClassForDetails).message}</p>
                        </div>
                        <div className="bg-purple-50 p-4 rounded-lg">
                          <div className="flex items-center gap-2 text-purple-600 mb-2">
-                           <FaUsers /> <span className="font-semibold">Class Status</span>
+                           <FaUsers /> <span className="font-semibold">{t('classStatusLabel')}</span>
                          </div>
                          <p className="text-lg font-bold">{getClassStatusInfo(selectedClassForDetails.status).text}</p>
                        </div>
@@ -3094,22 +3792,22 @@ useEffect(() => {
 
                     {/* Class Information */}
                     <div className="bg-gray-50 p-6 rounded-lg">
-                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <FaBook /> Class Information
+                        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <FaBook /> {t('classInformationHeader1')}
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><strong>Stream:</strong> {selectedClassForDetails.stream}</div>
-                        <div><strong>Course Type:</strong> {getCourseTypeInfo(selectedClassForDetails.courseType).text}</div>
-                        <div><strong>Delivery Method:</strong> {getDeliveryMethodInfo(selectedClassForDetails.deliveryMethod).text}</div>
+                        <div><strong>{t('streamLabel') || 'Stream:'}</strong> {selectedClassForDetails.stream}</div>
+                        <div><strong>{t('courseTypeLabel') || 'Course Type:'}</strong> {getCourseTypeInfo(selectedClassForDetails.courseType).text}</div>
+                        <div><strong>{t('deliveryLabel') || 'Delivery Method:'}</strong> {getDeliveryMethodInfo(selectedClassForDetails.deliveryMethod).text}</div>
                         {selectedClassForDetails.zoomLink && (selectedClassForDetails.deliveryMethod === 'online' || selectedClassForDetails.deliveryMethod === 'hybrid1' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && !selectedClassForDetails.videoUrl && (
-                          <div><strong>Zoom Link:</strong> <span className="text-blue-600">Available</span></div>
+                          <div><strong>{t('zoomLinkLabel')}</strong> <span className="text-blue-600">{t('availableLabel')}</span></div>
                         )}
                         {selectedClassForDetails.videoUrl && (selectedClassForDetails.deliveryMethod === 'hybrid2' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && (
-                          <div><strong>Recorded Video:</strong> <span className="text-green-600">Available</span></div>
+                          <div><strong>{t('recordedVideoLabel')}</strong> <span className="text-green-600">{t('availableLabel')}</span></div>
                         )}
-                        <div><strong>Students:</strong> {selectedClassForDetails.currentStudents || 0}/{selectedClassForDetails.maxStudents}</div>
-                        <div><strong>Fee:</strong> LKR {selectedClassForDetails.fee?.toLocaleString()}</div>
-                        <div><strong>Purchase Date:</strong> {new Date(selectedClassForDetails.purchaseDate).toLocaleDateString()}</div>
+                        <div><strong>{t('studentsLabel')}</strong> {selectedClassForDetails.currentStudents || 0}/{selectedClassForDetails.maxStudents}</div>
+                        <div><strong>{t('feeLabel')}</strong> LKR {selectedClassForDetails.fee?.toLocaleString()}</div>
+                        <div><strong>{t('purchaseDateLabel')}</strong> {new Date(selectedClassForDetails.purchaseDate).toLocaleDateString()}</div>
                       </div>
                     </div>
 
@@ -3117,25 +3815,25 @@ useEffect(() => {
                     {selectedClassForDetails.videoUrl && (selectedClassForDetails.deliveryMethod === 'hybrid2' || selectedClassForDetails.deliveryMethod === 'hybrid3' || selectedClassForDetails.deliveryMethod === 'hybrid4') && (
                       <div className="bg-green-50 p-4 rounded-lg border border-green-200 mb-4">
                         <h3 className="font-semibold text-lg mb-2 flex items-center gap-2">
-                          <FaVideo className="text-green-600" /> Recorded Video Information
+                          <FaVideo className="text-green-600" /> {t('recordedVideoInformation')}
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                          <div><strong>Video Status:</strong> <span className="text-green-600">Available</span></div>
-                          <div><strong>Access Time:</strong> {selectedClassForDetails.schedule?.day} {selectedClassForDetails.schedule?.startTime}-{selectedClassForDetails.schedule?.endTime}</div>
-                          <div><strong>Current Status:</strong> {isClassCurrentlyScheduled(selectedClassForDetails) ? <span className="text-green-600">🕐 Available Now</span> : <span className="text-gray-600">Not Available Yet</span>}</div>
-                          <div><strong>Next Available:</strong> {getClassTimeStatus(selectedClassForDetails) || 'Not scheduled for today'}</div>
+                          <div><strong>{t('videoStatusLabel') || t('recordedVideoAvailableLabel') }:</strong> <span className="text-green-600">{t('availableLabel')}</span></div>
+                          <div><strong>{t('classScheduleLabelShort')}</strong> {selectedClassForDetails.schedule?.day} {selectedClassForDetails.schedule?.startTime}-{selectedClassForDetails.schedule?.endTime}</div>
+                          <div><strong>{t('currentStatusLabel') || t('noteLabelShort')}:</strong> {isClassCurrentlyScheduled(selectedClassForDetails) ? <span className="text-green-600">🕐 {t('availableLabel')}</span> : <span className="text-gray-600">{t('notAvailableLabel')}</span>}</div>
+                          <div><strong>{t('nextAvailableLabel') || t('noteLabelShort')}:</strong> {getClassTimeStatus(selectedClassForDetails) || t('notScheduledForToday')}</div>
                         </div>
                         <div className="mt-3 p-3 bg-white rounded border border-green-200">
                           <div className="text-sm text-gray-700">
                             <strong>Video Access Rules:</strong>
                             <ul className="mt-1 space-y-1">
-                              <li>• Video is only accessible during scheduled class time</li>
-                              <li>• Video starts from when you join the class session</li>
-                              <li>• Video plays like a live stream - no pause, seek, or speed controls</li>
-                              <li>• Video automatically starts and plays at normal speed with audio</li>
-                              <li>• Use maximize window button for better viewing experience</li>
-                              <li>• Recording or downloading is strictly prohibited</li>
-                              <li>• Video automatically stops when class time ends</li>
+                              <li>• {t('videoAccess_restricted')}</li>
+                              <li>• {t('videoAccess_startsFromJoin') || t('videoStartBasedOnJoined')}</li>
+                              <li>• {t('videoAccess_noControls')}</li>
+                              <li>• {t('videoAccess_autoplayAudio')}</li>
+                              <li>• {t('videoAccess_useMaximize')}</li>
+                              <li>• {t('videoAccess_prohibitedRecording')}</li>
+                              <li>• {t('videoAccess_autoStop')}</li>
                             </ul>
                           </div>
                         </div>
@@ -3145,7 +3843,7 @@ useEffect(() => {
                                          {/* Quick Actions */}
                      <div className="bg-blue-50 p-6 rounded-lg">
                        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                         <FaPlay /> Quick Actions
+                         <FaPlay /> {t('quickActionsHeader')}
                        </h3>
                        <div className="flex flex-wrap gap-2">
                          {(() => {
@@ -3157,7 +3855,7 @@ useEffect(() => {
                                  <div className="w-full mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                                    <div className="flex items-center gap-2 text-red-700">
                                      <FaExclamationTriangle />
-                                     <span className="font-semibold">Access Restricted</span>
+                                     <span className="font-semibold">{t('accessRestricted')}</span>
                                    </div>
                                    <p className="text-sm text-red-600 mt-1">{paymentInfo.message}</p>
                                  </div>
@@ -3173,7 +3871,7 @@ useEffect(() => {
                                    }}
                                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
                                  >
-                                   <FaVideo /> Join Class
+                                  <FaVideo /> {t('joinClassLabel')}
                                  </button>
                                )}
                                
@@ -3182,9 +3880,9 @@ useEffect(() => {
                                  <div className="w-full mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                                    <div className="flex items-center gap-2 text-green-700">
                                      <FaVideo />
-                                     <span className="font-semibold">Recorded Video Available</span>
+                                     <span className="font-semibold">{t('recordedVideoAvailableLabel')}</span>
                                    </div>
-                                   <p className="text-sm text-green-600 mt-1">Live zoom sessions are disabled when recorded video is available. Use the video player for the best learning experience.</p>
+                                   <p className="text-sm text-green-600 mt-1">{t('recordedVideoNote')}</p>
                                  </div>
                                )}
                                
@@ -3209,18 +3907,18 @@ useEffect(() => {
                                    }
                                  >
                                    <FaVideo /> 
-                                   {!isClassCurrentlyScheduled(selectedClassForDetails) ? 'Not Available' : '🕐 Watch Now'}
+                                   {!isClassCurrentlyScheduled(selectedClassForDetails) ? t('notAvailableLabel') : t('watchNowLabel')}
                                  </button>
                                )}
                                
                                {/* Make Payment Button - Only if access is restricted */}
                                {!paymentInfo.canAccess && (
-                                 <button
-                                   onClick={() => handleMakePayment(selectedClassForDetails)}
-                                   className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2"
-                                 >
-                                   <FaMoneyBill /> Make Payment
-                                 </button>
+                                <button
+                                  onClick={() => handleMakePayment(selectedClassForDetails)}
+                                  className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2"
+                                >
+                                  <FaMoneyBill /> {t('makePaymentLabel')}
+                                </button>
                                )}
                                
                                {/* Always Available Actions */}
@@ -3228,30 +3926,30 @@ useEffect(() => {
                                  onClick={() => setDetailsActiveTab('schedule')}
                                  className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 flex items-center gap-2"
                                >
-                                 <FaCalendar /> View Schedule
+                                 <FaCalendar /> {t('viewScheduleLabel')}
                                </button>
                                <button
                                  onClick={() => setDetailsActiveTab('payments')}
                                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
                                >
-                                 <FaMoneyBill /> Payment Details
+                                 <FaMoneyBill /> {t('paymentDetailsLabel')}
                                </button>
                                <button
                                  onClick={() => setDetailsActiveTab('payment-tracking')}
                                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
                                >
-                                 <FaShieldAlt /> Payment Tracking
+                                 <FaShieldAlt /> {t('paymentTrackingLabelShort')}
                                </button>
                                
                                {/* Additional Actions */}
                                {selectedClassForDetails.hasTutes && (
                                  <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
-                                   <FaBook /> Access Tutes
+                                   <FaBook /> {t('accessTutesLabel')}
                                  </button>
                                )}
                                {selectedClassForDetails.hasExams && (
                                  <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2">
-                                   <FaGraduationCap /> Access Exams
+                                   <FaGraduationCap /> {t('accessExamsLabel')}
                                  </button>
                                )}
                              </>
@@ -3266,16 +3964,16 @@ useEffect(() => {
                   <div className="space-y-6">
                     <div className="bg-blue-50 p-6 rounded-lg">
                       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <FaCalendar /> Class Schedule
+                        <FaCalendar /> {t('classScheduleHeader')}
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><strong>Day:</strong> {formatDay(selectedClassForDetails.schedule?.day)}</div>
-                        <div><strong>Time:</strong> {formatTime(selectedClassForDetails.schedule?.startTime)} - {formatTime(selectedClassForDetails.schedule?.endTime)}</div>
-                        <div><strong>Frequency:</strong> {selectedClassForDetails.schedule?.frequency}</div>
-                        <div><strong>Duration:</strong> {selectedClassForDetails.startDate && selectedClassForDetails.endDate ? 
-                          `${new Date(selectedClassForDetails.startDate).toLocaleDateString()} to ${new Date(selectedClassForDetails.endDate).toLocaleDateString()}` : 'Not specified'}</div> 
+                        <div><strong>{t('dayLabel')}</strong> {formatDay(selectedClassForDetails.schedule?.day)}</div>
+                        <div><strong>{t('timeLabel')}</strong> {formatTime(selectedClassForDetails.schedule?.startTime)} - {formatTime(selectedClassForDetails.schedule?.endTime)}</div>
+                        <div><strong>{t('frequencyLabel')}</strong> {selectedClassForDetails.schedule?.frequency}</div>
+                        <div><strong>{t('durationLabel')}</strong> {selectedClassForDetails.startDate && selectedClassForDetails.endDate ? 
+                          `${new Date(selectedClassForDetails.startDate).toLocaleDateString()} to ${new Date(selectedClassForDetails.endDate).toLocaleDateString()}` : t('notSpecified') || 'Not specified'}</div> 
                         <div>
-                          <strong>Extra Class Hall:</strong>
+                          <strong>{t('extraClassHallLabel')}</strong>
                           {hallBookings.length > 0 ? (
                             hallBookings.map((h, idx) => (
 
@@ -3289,7 +3987,7 @@ useEffect(() => {
                               </span>
                             ))
                           ) : (
-                            <span className="text-gray-500">No hall booked</span>
+                            <span className="text-gray-500">{t('noHallBooked')}</span>
                           )}
                         </div>              
                       </div>
@@ -3319,15 +4017,15 @@ useEffect(() => {
                       return (
                       <div className="bg-blue-50 p-6 rounded-lg border-2 border-blue-200">
                         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                          <FaMoneyBill /> Price Breakdown & Adjustments
+                          <FaMoneyBill /> {t('priceBreakdownHeader')}
                         </h3>
                         <div className="space-y-3">
                           {/* Base Price */}
                           <div className="bg-white p-3 rounded-lg">
                             <div className="flex justify-between items-center">
                               <div>
-                                <div className="font-semibold">Base Class Fee</div>
-                                <div className="text-xs text-gray-600">Original monthly class fee</div>
+                                <div className="font-semibold">{t('baseClassFeeLabel')}</div>
+                                <div className="text-xs text-gray-600">{t('baseClassFeeNote')}</div>
                               </div>
                               <span className="font-bold text-gray-700">LKR {parseInt(basePrice).toLocaleString()}</span>
                             </div>
@@ -3340,16 +4038,16 @@ useEffect(() => {
                                 <div className="flex-1">
                                   <div className="font-semibold text-green-800 flex items-center gap-2">
                                     <FaCheckCircle className="text-green-600" />
-                                    Total Discount Applied
+                                    {t('totalDiscountAppliedLabel')}
                                   </div>
                                   <div className="text-xs text-green-700 mt-1">
-                                    <strong>Reason:</strong> Special discounts applied during enrollment. This may include:
+                                    <strong>{t('discountReasonLabel')}</strong> {t('discountsAppliedNote') || ' Special discounts applied during enrollment. This may include:'}
                                     <ul className="list-disc ml-4 mt-1">
-                                      <li>Early enrollment discount</li>
-                                      <li>Theory student discount (if enrolled in related theory class)</li>
-                                      <li>Promotional offers or campaigns</li>
-                                      <li>Multi-class enrollment benefits</li>
-                                      <li>Student loyalty rewards</li>
+                                      <li>{t('discount_earlyEnrollment')}</li>
+                                      <li>{t('discount_theoryStudent')}</li>
+                                      <li>{t('discount_promo')}</li>
+                                      <li>{t('discount_multiClass')}</li>
+                                      <li>{t('discount_loyalty')}</li>
                                     </ul>
                                   </div>
                                 </div>
@@ -3479,20 +4177,19 @@ useEffect(() => {
                           </div>
 
                           {/* Savings Summary - Show if there's any discount */}
-                          {hasDiscount && (
-                            <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-300">
-                              <div className="flex items-center gap-2">
-                                <FaStar className="text-yellow-600" />
-                                <div>
-                                  <div className="font-semibold text-yellow-800">You Saved:</div>
-                                  <div className="text-sm text-yellow-700">
-                                    Total discount of LKR {Math.abs(priceDifference).toLocaleString()} 
-                                    {' '}({Math.round((Math.abs(priceDifference) / basePrice) * 100)}% off base price)
+                              {hasDiscount && (
+                                <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-300">
+                                  <div className="flex items-center gap-2">
+                                    <FaStar className="text-yellow-600" />
+                                    <div>
+                                      <div className="font-semibold text-yellow-800">{t('youSavedLabel')}</div>
+                                      <div className="text-sm text-yellow-700">
+                                        {t('savingsText', { amount: Math.abs(priceDifference).toLocaleString(), percent: Math.round((Math.abs(priceDifference) / basePrice) * 100) })}
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            </div>
-                          )}
+                              )}
                         </div>
                       </div>
                       );
@@ -3501,24 +4198,24 @@ useEffect(() => {
                     {/* Payment Information Section */}
                     <div className="bg-green-50 p-6 rounded-lg">
                       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <FaMoneyBill /> Payment Information
+                        <FaMoneyBill /> {t('paymentInformationHeader')}
                       </h3>
                       {(() => {
                         const paymentInfo = getPaymentTrackingInfo(selectedClassForDetails);
                         return (
                           <>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div><strong>Status:</strong> {paymentInfo.message}</div>
-                              <div><strong>Method:</strong> {selectedClassForDetails.paymentMethod}</div>
-                              <div><strong>Next Payment:</strong> {paymentInfo.nextPaymentDate?.toLocaleDateString() || 'Not set'}</div>
-                              <div><strong>Amount:</strong> LKR {selectedClassForDetails.purchasePrice ? parseInt(selectedClassForDetails.purchasePrice).toLocaleString() : selectedClassForDetails.fee?.toLocaleString()}</div>
-                              {paymentInfo.status !== 'no-tracking' && (
-                                <>
-                                  <div><strong>Free Days:</strong> {paymentInfo.freeDays} days</div>
-                                  <div><strong>Current Day:</strong> {paymentInfo.currentDay} of month</div>
-                                </>
-                              )}
-                            </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div><strong>{t('paymentStatusLabel')}:</strong> {paymentInfo.message}</div>
+                                <div><strong>{t('paymentMethodLabel') || 'Method:'}</strong> {selectedClassForDetails.paymentMethod}</div>
+                                <div><strong>{t('nextPaymentLabel')}:</strong> {paymentInfo.nextPaymentDate?.toLocaleDateString() || t('notSet')}</div>
+                                <div><strong>{t('amountLabel') || 'Amount:'}</strong> LKR {selectedClassForDetails.purchasePrice ? parseInt(selectedClassForDetails.purchasePrice).toLocaleString() : selectedClassForDetails.fee?.toLocaleString()}</div>
+                                {paymentInfo.status !== 'no-tracking' && (
+                                  <>
+                                    <div><strong>{t('freeDaysLabel') || 'Free Days:'}</strong> {paymentInfo.freeDays} {t('daysLabel') || 'days'}</div>
+                                    <div><strong>{t('currentDayLabel') || 'Current Day:'}</strong> {paymentInfo.currentDay} {t('ofMonth') || 'of month'}</div>
+                                  </>
+                                )}
+                              </div>
                             
                             {paymentInfo.status !== 'no-tracking' && (
                               <div className={`mt-4 p-4 rounded-lg ${
@@ -3529,24 +4226,24 @@ useEffect(() => {
                                 }`}>
                                   {paymentInfo.canAccess ? <FaCheckCircle /> : <FaExclamationTriangle />}
                                   <div>
-                                    <div className="font-semibold">
-                                      {paymentInfo.canAccess ? 'Access Granted' : 'Access Restricted'}
-                                    </div>
-                                    <div className="text-sm">
+                                      <div className="font-semibold">
+                                        {paymentInfo.canAccess ? t('accessGrantedText') || 'Access Granted' : t('accessRestrictedText') || 'Access Restricted'}
+                                      </div>
+                                      <div className="text-sm">
                                       {paymentInfo.status === 'free-period' && (
-                                        <span>You have {paymentInfo.daysRemaining} days of free access remaining this month.</span>
+                                        <span>{t('freePeriodMessage', { days: paymentInfo.daysRemaining })}</span>
                                       )}
                                       {paymentInfo.status === 'paid' && (
-                                        <span>Payment completed. Full access granted.</span>
+                                        <span>{t('paidAccessMessage') || 'Payment completed. Full access granted.'}</span>
                                       )}
                                       {paymentInfo.status === 'pending' && (
-                                        <span>Payment is pending. Please complete payment to access class.</span>
+                                        <span>{t('pendingPaymentMessage') || 'Payment is pending. Please complete payment to access class.'}</span>
                                       )}
                                       {paymentInfo.status === 'overdue' && (
-                                        <span>Payment is overdue. Please make payment immediately to restore access.</span>
+                                        <span>{t('overduePaymentMessage') || 'Payment is overdue. Please make payment immediately to restore access.'}</span>
                                       )}
                                       {paymentInfo.status === 'unpaid' && (
-                                        <span>Payment required. Please make payment to access class.</span>
+                                        <span>{t('unpaidPaymentMessage') || 'Payment required. Please make payment to access class.'}</span>
                                       )}
                                     </div>
                                   </div>
@@ -3561,7 +4258,7 @@ useEffect(() => {
                     {/* Payment History Section */}
                     <div className="bg-gray-50 p-6 rounded-lg">
                       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <FaHistory /> Payment History
+                        <FaHistory /> {t('paymentHistoryHeader')}
                       </h3>
                       {selectedClassForDetails.paymentHistory && selectedClassForDetails.paymentHistory.length > 0 ? (
                         <div className="space-y-3">
@@ -3569,12 +4266,12 @@ useEffect(() => {
                             <div key={index} className="bg-white p-4 rounded-lg border">
                               <div className="flex justify-between items-start">
                                 <div>
-                                  <div className="font-semibold">Payment #{index + 1}</div>
+                                  <div className="font-semibold">{t('paymentNumber', { number: index + 1 })}</div>
                                   <div className="text-sm text-gray-600">
                                     {payment.date ? new Date(payment.date).toLocaleDateString() : 'No date'} 
                                   </div>
                                   {payment.invoiceId && (
-                                    <div className="text-xs text-gray-500">Invoice: {payment.invoiceId}</div>
+                                    <div className="text-xs text-gray-500">{t('invoiceLabel')} {payment.invoiceId}</div>
                                   )}
                                 </div>
                                 <div className="text-right">
@@ -3589,12 +4286,12 @@ useEffect(() => {
                                 </div>
                               </div>
                               <div className="mt-2 text-sm text-gray-600">
-                                Method: {payment.payment_method ? (
-                                  payment.payment_method === 'online' ? 'Online Payment' : 
-                                         payment.payment_method === 'cash' ? 'Cash Payment' : 
-                                         payment.payment_method === 'test' ? 'Test Payment' :
+                                <div><strong>{t('paymentMethodLabel') || 'Method:'}</strong> {payment.payment_method ? (
+                                  payment.payment_method === 'online' ? t('onlinePayment') : 
+                                         payment.payment_method === 'cash' ? t('cashPayment') : 
+                                         payment.payment_method === 'test' ? t('testPayment') :
                                   payment.payment_method
-                                ) : 'Not specified'}
+                                ) : t('notSpecified')}</div>
                               </div>
                             </div>
                           ))}
@@ -3602,7 +4299,7 @@ useEffect(() => {
                       ) : (
                         <div className="text-center py-8 text-gray-500">
                           <FaHistory className="text-4xl mx-auto mb-4 text-gray-300" />
-                          <p>No payment history available.</p>
+                          <p>{t('noPaymentHistoryAvailable')}</p>
                         </div>
                       )}
                     </div>
@@ -3613,7 +4310,7 @@ useEffect(() => {
                   <div className="space-y-6">
                     <div className="bg-blue-50 p-6 rounded-lg">
                       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <FaShieldAlt /> Payment Tracking System
+                        <FaShieldAlt /> {t('paymentTrackingSystemHeader')}
                       </h3>
                       {(() => {
                         const paymentInfo = getPaymentTrackingInfo(selectedClassForDetails);
@@ -3622,8 +4319,8 @@ useEffect(() => {
                             {paymentInfo.status === 'no-tracking' ? (
                               <div className="text-center py-8">
                                 <FaShieldAlt className="text-4xl mx-auto mb-4 text-gray-400" />
-                                <p className="text-gray-600">No payment tracking enabled for this class.</p>
-                                <p className="text-sm text-gray-500 mt-2">You have unlimited access to this class.</p>
+                                <p className="text-gray-600">{t('noPaymentTrackingEnabled')}</p>
+                                <p className="text-sm text-gray-500 mt-2">{t('unlimitedAccessMessage')}</p>
                               </div>
                             ) : (
                               <div className="space-y-4">
@@ -3637,7 +4334,7 @@ useEffect(() => {
                                     {paymentInfo.canAccess ? <FaCheckCircle size={24} /> : <FaExclamationTriangle size={24} />}
                                     <div>
                                       <div className="font-bold text-lg">
-                                        {paymentInfo.canAccess ? 'Access Granted' : 'Access Restricted'}
+                                        {paymentInfo.canAccess ? t('accessGrantedText') : t('accessRestrictedText')}
                                       </div>
                                       <div className="text-sm">{paymentInfo.message}</div>
                                     </div>
@@ -3647,13 +4344,13 @@ useEffect(() => {
                                 {/* Free Days Progress */}
                                 {paymentInfo.status === 'free-period' && (
                                   <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                                    <div className="flex items-center gap-2 text-yellow-700 mb-2">
-                                      <FaCalendar /> <span className="font-semibold">Free Days Progress</span>
+                                      <div className="flex items-center gap-2 text-yellow-700 mb-2">
+                                      <FaCalendar /> <span className="font-semibold">{t('freeDaysProgressHeader')}</span>
                                     </div>
                                     <div className="space-y-2">
                                       <div className="flex justify-between text-sm">
-                                        <span>Current Day: {paymentInfo.currentDay}</span>
-                                        <span>Free Days: {paymentInfo.freeDays}</span>
+                                        <span>{t('currentDayLabel') || 'Current Day:'} {paymentInfo.currentDay}</span>
+                                        <span>{t('freeDaysLabel') || 'Free Days:'} {paymentInfo.freeDays}</span>
                                       </div>
                                       <div className="w-full bg-gray-200 rounded-full h-2">
                                         <div 
@@ -3662,7 +4359,7 @@ useEffect(() => {
                                         ></div>
                                       </div>
                                       <div className="text-xs text-yellow-600">
-                                        {paymentInfo.daysRemaining} days of free access remaining
+                                        {t('freePeriodMessage', { days: paymentInfo.daysRemaining })}
                                       </div>
                                     </div>
                                   </div>
@@ -3670,26 +4367,22 @@ useEffect(() => {
 
                                 {/* Payment Tracking Rules */}
                                 <div className="bg-gray-50 p-4 rounded-lg">
-                                  <div className="font-semibold mb-2">Payment Tracking Rules:</div>
+                                  <div className="font-semibold mb-2">{t('paymentTrackingRulesHeader')}</div>
                                   <ul className="text-sm text-gray-600 space-y-1">
-                                    <li>• First {paymentInfo.freeDays} days of each month: Free access</li>
-                                    <li>• After {paymentInfo.freeDays} days: Payment required for access</li>
-                                    <li>• Payment status determines ongoing access</li>
-                                    <li>• Access is automatically restored upon payment</li>
+                                    <li>{t('paymentTrackingRule_first', { freeDays: paymentInfo.freeDays })}</li>
+                                    <li>{t('paymentTrackingRule_after', { freeDays: paymentInfo.freeDays })}</li>
+                                    <li>{t('paymentTrackingRule_status')}</li>
+                                    <li>{t('paymentTrackingRule_restore')}</li>
                                   </ul>
                                 </div>
 
                                 {/* Next Actions */}
                                 <div className="bg-blue-50 p-4 rounded-lg">
-                                  <div className="font-semibold mb-2 text-blue-700">Next Actions:</div>
+                                  <div className="font-semibold mb-2 text-blue-700">{t('nextActionsHeader')}</div>
                                   {paymentInfo.canAccess ? (
-                                    <div className="text-sm text-blue-600">
-                                      ✅ You can currently access this class. Continue learning!
-                                    </div>
+                                    <div className="text-sm text-blue-600">{t('nextAction_canAccess')}</div>
                                   ) : (
-                                    <div className="text-sm text-blue-600">
-                                      💳 Please make payment to restore access to this class.
-                                    </div>
+                                    <div className="text-sm text-blue-600">{t('pleaseMakePaymentToRestoreAccess')}</div>
                                   )}
                                 </div>
                               </div>
@@ -3705,12 +4398,12 @@ useEffect(() => {
                   <div className="space-y-6">
                     <div className="bg-purple-50 p-6 rounded-lg">
                       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <FaCheckCircle /> Attendance Record
+                        <FaCheckCircle /> {t('attendanceRecordHeader')}
                       </h3>
                       {(() => {
                         const classAttendance = attendanceData[selectedClassForDetails.id] || [];
                         
-                        if (classAttendance.length > 0) {
+                          if (classAttendance.length > 0) {
                           return (
                             <div className="space-y-2 max-h-96 overflow-y-auto">
                               {classAttendance.map((record, index) => (
@@ -3718,8 +4411,8 @@ useEffect(() => {
                                   <div className="flex-1">
                                     <div className="font-medium">{new Date(record.attendance_date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
                                     <div className="text-sm text-gray-500">
-                                      {record.join_time && `Join: ${new Date(record.join_time).toLocaleTimeString()}`}
-                                      {record.source && ` • Source: ${record.source}`}
+                                      {record.join_time && `${t('joinLabel')} ${new Date(record.join_time).toLocaleTimeString()}`}
+                                      {record.source && ` • ${t('sourceLabel')} ${record.source}`}
                                     </div>
                                   </div>
                                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${
@@ -3727,7 +4420,7 @@ useEffect(() => {
                                       ? 'bg-green-100 text-green-700' 
                                       : 'bg-red-100 text-red-700'
                                   }`}>
-                                    {record.attendance_status === 'present' ? '✓ Present' : '✗ Absent'}
+                                    {record.attendance_status === 'present' ? `✓ ${t('presentLabel')}` : `✗ ${t('absentLabel')}`}
                                   </span>
                                 </div>
                               ))}
@@ -3738,8 +4431,8 @@ useEffect(() => {
                         return (
                           <div className="text-center py-8">
                             <FaCheckCircle className="mx-auto text-gray-400 text-4xl mb-2" />
-                            <p className="text-gray-500">No attendance records available.</p>
-                            <p className="text-sm text-gray-400 mt-1">Attendance will appear here once you join classes.</p>
+                            <p className="text-gray-500">{t('noAttendanceRecords')}</p>
+                            <p className="text-sm text-gray-400 mt-1">{t('attendanceWillAppearNote')}</p>
                           </div>
                         );
                       })()}
@@ -3754,16 +4447,16 @@ useEffect(() => {
                         <FaFileAlt /> Course Materials
                       </h3>
                       
-                      {loadingMaterials ? (
+                        {loadingMaterials ? (
                         <div className="text-center py-8">
                           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                          <p className="mt-2 text-gray-600">Loading materials...</p>
+                          <p className="mt-2 text-gray-600">{t('loadingMaterialsText')}</p>
                         </div>
                       ) : materials.length === 0 ? (
                         <div className="text-center py-8">
                           <FaFileAlt className="mx-auto text-gray-400 text-4xl mb-2" />
-                          <p className="text-gray-500">No materials available yet.</p>
-                          <p className="text-sm text-gray-400 mt-1">Your teacher will upload course materials here.</p>
+                          <p className="text-gray-500">{t('noMaterials')}</p>
+                          <p className="text-sm text-gray-400 mt-1">{t('materialsUploadsNote')}</p>
                         </div>
                       ) : (
                         <div className="space-y-4">
@@ -3780,13 +4473,13 @@ useEffect(() => {
                                           {material.category}
                                         </span>
                                       )}
-                                      PDF • {(material.file_size / (1024 * 1024)).toFixed(2)} MB
+                                      {t('categoryLabel', {})} PDF • {t('sizeLabel')} {(material.file_size / (1024 * 1024)).toFixed(2)} MB
                                       {material.download_count > 0 && (
-                                        <span className="ml-2">• {material.download_count} downloads</span>
+                                        <span className="ml-2">• {material.download_count} {t('downloadsLabel') || 'downloads'}</span>
                                       )}
                                     </div>
                                     <div className="text-xs text-gray-400 mt-1">
-                                      Uploaded {material.upload_date ? new Date(material.upload_date).toLocaleDateString() : 'Unknown'}
+                                      {t('uploadedLabel')} {material.upload_date ? new Date(material.upload_date).toLocaleDateString() : t('notSpecified')}
                                     </div>
                                   </div>
                                 </div>
@@ -3798,11 +4491,11 @@ useEffect(() => {
                                   {isDownloading ? (
                                     <>
                                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                      Downloading...
+                                      {t('downloadInProgressMessage')}
                                     </>
                                   ) : (
                                     <>
-                                      <FaDownload /> Download
+                                      <FaDownload /> {t('downloadLabel')}
                                     </>
                                   )}
                                 </button>
@@ -3819,7 +4512,7 @@ useEffect(() => {
                   <div className="space-y-6">
                     <div className="bg-red-50 p-6 rounded-lg">
                       <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <FaVideo /> Class Recordings
+                        <FaVideo /> {t('recordingsTab')}
                       </h3>
                       
                       {/* Security Notice */}
@@ -3827,11 +4520,9 @@ useEffect(() => {
                         <div className="flex items-start">
                           <FaShieldAlt className="text-yellow-600 mt-1 mr-3 flex-shrink-0" />
                           <div>
-                            <h4 className="font-semibold text-yellow-800 mb-1">🔒 Protected Content Notice</h4>
+                            <h4 className="font-semibold text-yellow-800 mb-1">{t('protectedContentNoticeHeader')}</h4>
                             <p className="text-sm text-yellow-700">
-                              All videos are watermarked with your <strong>Student ID ({getUserData()?.userid})</strong> and name. 
-                              Unauthorized sharing, recording, or distribution is <strong>strictly prohibited</strong> and will be tracked.
-                              Your viewing activity is logged for security purposes.
+                              {t('protectedContentNotice', { userid: getUserData()?.userid || '' })}
                             </p>
                           </div>
                         </div>
@@ -3841,13 +4532,13 @@ useEffect(() => {
                         {loadingRecordings ? (
                           <div className="text-center py-8">
                             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
-                            <p className="mt-2 text-gray-600">Loading recordings...</p>
+                            <p className="mt-2 text-gray-600">{t('loadingRecordingsText')}</p>
                           </div>
                         ) : recordings.length === 0 ? (
                           <div className="text-center py-8 bg-white rounded-lg border">
                             <FaVideo className="mx-auto text-4xl text-gray-400 mb-2" />
-                            <p className="text-gray-600">No recordings available yet</p>
-                            <p className="text-sm text-gray-400 mt-1">Your teacher hasn't uploaded any recordings for this class</p>
+                            <p className="text-gray-600">{t('noRecordingsAvailable')}</p>
+                            <p className="text-sm text-gray-400 mt-1">{t('teacherHasNotUploadedRecordings')}</p>
                           </div>
                         ) : (
                           recordings.map((recording) => (
@@ -3862,11 +4553,11 @@ useEffect(() => {
                                     <div className="text-sm text-gray-500 mt-1">
                                       {recording.duration && (
                                         <>
-                                          Duration: {Math.floor(recording.duration / 60)}:{(recording.duration % 60).toString().padStart(2, '0')} min
-                                          {' • '}
+                        {t('durationLabel')} {Math.floor(recording.duration / 60)}:{(recording.duration % 60).toString().padStart(2, '0')} min
+                          {' • '}
                                         </>
                                       )}
-                                      Uploaded: {new Date(recording.upload_date).toLocaleDateString()}
+                                      {t('uploadedLabel')} {new Date(recording.upload_date).toLocaleDateString()}
                                       {recording.category && (
                                         <>
                                           {' • '}
@@ -3881,14 +4572,14 @@ useEffect(() => {
                                     )}
                                     <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
                                       <span className="flex items-center gap-1">
-                                        <FaEye /> {recording.view_count || 0} views
+                                        <FaEye /> {recording.view_count || 0} {t('viewsLabel')}
                                       </span>
                                       <span className="flex items-center gap-1">
-                                        <FaDownload /> {recording.download_count || 0} downloads
+                                        <FaDownload /> {recording.download_count || 0} {t('downloadsLabel')}
                                       </span>
                                       {recording.file_size && (
                                         <span>
-                                          Size: {(recording.file_size / (1024 * 1024)).toFixed(2)} MB
+                                          {t('sizeLabel')} {(recording.file_size / (1024 * 1024)).toFixed(2)} MB
                                         </span>
                                       )}
                                     </div>
@@ -3899,7 +4590,7 @@ useEffect(() => {
                                     onClick={() => handleWatchRecording(recording)}
                                     className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2 whitespace-nowrap"
                                   >
-                                    <FaPlay /> Watch
+                                    <FaPlay /> {t('watchLabel')}
                                   </button>
                                   
                                 </div>
@@ -3910,14 +4601,14 @@ useEffect(() => {
                       </div>
                       
                       <div className="mt-6 bg-blue-50 p-4 rounded-lg">
-                        <h4 className="font-semibold mb-2">Recording Features:</h4>
-                        <ul className="text-sm text-gray-600 space-y-1">
-                          <li>• HD quality video recordings</li>
-                          <li>• Playback speed control (0.5x to 2x)</li>
-                          <li>• Searchable transcripts</li>
-                          <li>• Bookmark important moments</li>
-                          <li>• Download for offline viewing</li>
-                        </ul>
+                        <h4 className="font-semibold mb-2">{t('recordingFeaturesHeader')}</h4>
+                          <ul className="text-sm text-gray-600 space-y-1">
+                            <li>• {t('rec_feat_hd')}</li>
+                            <li>• {t('rec_feat_playback')}</li>
+                            <li>• {t('rec_feat_transcripts')}</li>
+                            <li>• {t('rec_feat_bookmark')}</li>
+                            <li>• {t('rec_feat_offline')}</li>
+                          </ul>
                       </div>
                     </div>
                   </div>
@@ -3947,7 +4638,7 @@ useEffect(() => {
                 <button
                   onClick={() => setIsMaximized(!isMaximized)}
                   className="text-gray-500 hover:text-gray-700 p-2 hover:bg-gray-200 rounded"
-                  title={isMaximized ? "Restore" : "Maximize"}
+                  title={isMaximized ? t('restoreLabel') || 'Restore' : t('maximizeLabel') || 'Maximize'}
                 >
                   {isMaximized ? (
                     // Restore icon
@@ -3968,7 +4659,7 @@ useEffect(() => {
                     setIsMaximized(false);
                   }}
                   className="text-gray-500 hover:text-gray-700 text-2xl font-bold p-2 hover:bg-gray-200 rounded"
-                  title="Close"
+                  title={t('closeLabel')}
                 >
                   ×
                 </button>
@@ -4063,27 +4754,30 @@ useEffect(() => {
                 
                 {/* Moving watermark with Student ID */}
                 <div className="video-watermark-moving">
-                  🎓 ID: {getUserData()?.userid || 'Unknown'} | {getUserData()?.fullname || getUserData()?.fullName || getUserData()?.name || getUserData()?.firstName || getUserData()?.username || 'Student'}
+                  {t('videoWatermarkMoving', {
+                    userid: getUserData()?.userid || 'Unknown',
+                    fullname: getUserData()?.fullname || getUserData()?.fullName || getUserData()?.name || getUserData()?.firstName || getUserData()?.username || 'Student'
+                  })}
                 </div>
                 
                 {/* Top-left corner watermark */}
                 <div className="video-watermark-corner" style={{ top: '10px', left: '10px' }}>
-                  TCMS - Student ID: {getUserData()?.userid}
+                  {t('videoWatermarkCornerTopLeft', { userid: getUserData()?.userid || '' })}
                 </div>
                 
                 {/* Top-right corner watermark */}
                 <div className="video-watermark-corner" style={{ top: '10px', right: '10px' }}>
-                  {getUserData()?.fullname || getUserData()?.fullName || getUserData()?.name || getUserData()?.firstName || getUserData()?.username || 'Student'}
+                  {t('videoWatermarkTopRight', { fullname: getUserData()?.fullname || getUserData()?.fullName || getUserData()?.name || getUserData()?.firstName || getUserData()?.username || 'Student' })}
                 </div>
                 
                 {/* Bottom-left corner watermark */}
                 <div className="video-watermark-corner" style={{ bottom: '50px', left: '10px' }}>
-                  © TCMS {new Date().getFullYear()}
+                  {t('videoWatermarkBottomLeft', { year: new Date().getFullYear() })}
                 </div>
                 
                 {/* Bottom-right corner watermark */}
                 <div className="video-watermark-corner" style={{ bottom: '50px', right: '10px' }}>
-                  {new Date().toLocaleDateString()}
+                  {t('videoWatermarkBottomRight', { date: new Date().toLocaleDateString() })}
                 </div>
                 
                 {/* Large center diagonal watermark - Student ID */}
@@ -4093,7 +4787,7 @@ useEffect(() => {
                   opacity: '0.2',
                   top: '40%'
                 }}>
-                  {getUserData()?.userid || 'STUDENT'}
+                  {t('videoWatermarkCenterLarge', { userid: getUserData()?.userid || 'STUDENT' })}
                 </div>
                 
                 {/* Secondary center watermark - TCMS */}
@@ -4102,7 +4796,7 @@ useEffect(() => {
                   opacity: '0.15',
                   top: '55%'
                 }}>
-                  TCMS PROTECTED
+                  {t('videoWatermarkCenterSecondary')}
                 </div>
                 
                 <video
@@ -4119,30 +4813,30 @@ useEffect(() => {
                   )}
                   style={{ objectFit: isMaximized ? 'contain' : 'initial' }}
                 >
-                  Your browser does not support the video tag.
+                  {t('videoFallbackText')}
                 </video>
               </div>
               <div className={`${isMaximized ? 'p-4' : ''} mt-4 grid grid-cols-2 gap-4 text-sm`}>
                 <div className="bg-gray-50 p-3 rounded">
-                  <span className="text-gray-600">Category:</span>
-                  <span className="ml-2 font-semibold">{selectedRecording.category || 'N/A'}</span>
+                  <span className="text-gray-600">{t('categoryLabel')}</span>
+                  <span className="ml-2 font-semibold">{selectedRecording.category || t('notSet')}</span>
                 </div>
                 <div className="bg-gray-50 p-3 rounded">
-                  <span className="text-gray-600">Duration:</span>
+                  <span className="text-gray-600">{t('durationLabel')}</span>
                   <span className="ml-2 font-semibold">
                     {selectedRecording.duration 
                       ? `${Math.floor(selectedRecording.duration / 60)}:${(selectedRecording.duration % 60).toString().padStart(2, '0')}`
-                      : 'N/A'}
+                      : t('notSet')}
                   </span>
                 </div>
                 <div className="bg-gray-50 p-3 rounded">
-                  <span className="text-gray-600">Uploaded:</span>
+                  <span className="text-gray-600">{t('uploadedLabel')}</span>
                   <span className="ml-2 font-semibold">
                     {new Date(selectedRecording.upload_date).toLocaleDateString()}
                   </span>
                 </div>
                 <div className="bg-gray-50 p-3 rounded">
-                  <span className="text-gray-600">Views:</span>
+                  <span className="text-gray-600">{t('viewsLabel')}</span>
                   <span className="ml-2 font-semibold">{selectedRecording.view_count || 0}</span>
                 </div>
               </div>

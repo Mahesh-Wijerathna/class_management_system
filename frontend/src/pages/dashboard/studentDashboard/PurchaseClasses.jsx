@@ -20,6 +20,88 @@ const PurchaseClasses = ({ onLogout }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [studentProfile, setStudentProfile] = useState(null);
   const navigate = useNavigate();
+  // Language (en / si) support - per-file translations and helper
+  const [appLang, setAppLang] = useState(localStorage.getItem('appLang') || 'en');
+
+  const translations = {
+    en: {
+      loadingClasses: 'Loading classes...',
+      refresh: 'Refresh',
+      refreshing: 'Refreshing...',
+      purchasedClassesTitle: 'Purchased Classes',
+      availableClassesTitle: 'Available Classes',
+      tab_all: 'All Classes',
+      tab_purchased: 'Purchased Classes',
+      tab_online: 'Online',
+      tab_physical: 'Physical',
+      tab_hybrid: 'Hybrid',
+      tab_theory: 'Theory',
+      tab_revision: 'Revision',
+      searchPlaceholder_all: 'Search by class name, teacher, subject, or stream...',
+      searchPlaceholder_purchased: 'Search your purchased classes...',
+      errorLoadingClasses: '⚠️ Error Loading Classes',
+      noClassesAvailable: 'No classes available for purchase.',
+      noClassesFound: 'No {tab} classes found.',
+      zoomAvailable: 'Zoom Available',
+      recordedVideoAvailable: 'Recorded Video Available',
+      paymentTrackingInfo: 'Payment Tracking',
+      studentCardLabel: 'Student Card',
+      cardValidPrefix: '✓',
+      cardNotValidPrefix: '✗',
+      purchase_owned_text: 'Already Purchased',
+      purchase_discount_text: 'Discount Available (Theory Student)',
+      purchase_available_text: 'Available for Purchase',
+  noScheduleText: 'No Schedule',
+  scheduleNotSet: 'Schedule not set',
+      btn_view: 'View in My Classes',
+      btn_buy_with_discount: 'Buy with Discount',
+      btn_buy_now: 'Buy Now'
+    },
+    si: {
+      loadingClasses: 'පන්ති පූරණය වෙමින් පවති...',
+      refresh: 'නැවත පූරණය කරන්න',
+      refreshing: 'පිටු නැවත පූරණය...',
+      purchasedClassesTitle: 'මිලදීගත් පන්ති',
+      availableClassesTitle: 'ලබාගත හැකි පන්ති',
+      tab_all: 'සියලු පන්ති',
+      tab_purchased: 'මිලදීගත් පන්ති',
+      tab_online: 'ඔන්ලයින්',
+      tab_physical: 'භෞතික',
+      tab_hybrid: 'සන්‍යෝජිත',
+      tab_theory: 'තර්ක',
+      tab_revision: 'සංශෝධන',
+      searchPlaceholder_all: 'පන්ති නාමය, ගුරුවරයා, විෂය හෝ ප්‍රවාහය අනුව සෙවීම...',
+      searchPlaceholder_purchased: 'ඔබ මිලදීගත් පන්ති සෙවීම...',
+      errorLoadingClasses: '⚠️ පන්ති උඩුගත කිරීමේ දෝෂයක්',
+      noClassesAvailable: 'මිලදී ගැනීමට පන්ති නොමැත.',
+      noClassesFound: '{tab} පන්තියන් සොයා ගත නොහැකි විය.',
+      zoomAvailable: 'Zoom ලබා ගත හැක',
+      recordedVideoAvailable: 'සටහන් වීඩියෝ ලබා ගත හැක',
+      paymentTrackingInfo: 'ගෙවීම් නිරීක්ෂණය',
+      studentCardLabel: 'ශිෂ්‍ය කාඩ්',
+      cardValidPrefix: '✓',
+      cardNotValidPrefix: '✗',
+      purchase_owned_text: 'දැනටමත් මිලදීගෙන ඇත',
+      purchase_discount_text: 'වට්ටම් ඇත (තර්ක ශිෂ්‍යයින් සඳහා)',
+      purchase_available_text: 'මිලදී ගැනීමට ලබා ගත හැක',
+  noScheduleText: 'කාල සටහන නොමැත',
+  scheduleNotSet: 'කාලසටහන සකසා නැත',
+      btn_view: 'මගේ පන්ති බලන්න',
+      btn_buy_with_discount: 'වට්ටම සමඟ මිලදී ගන්න',
+      btn_buy_now: 'දැන් මිලදී ගන්න'
+    }
+  };
+
+  const t = (key, vars = {}) => {
+    const text = (translations[appLang] && translations[appLang][key]) || (translations.en && translations.en[key]) || key;
+    return Object.keys(vars).reduce((acc, k) => acc.replace(new RegExp(`\{${k}\}`, 'g'), vars[k]), text);
+  };
+
+  useEffect(() => {
+    localStorage.setItem('appLang', appLang);
+    // allow other tabs to react
+    window.dispatchEvent(new CustomEvent('appLangChanged', { detail: appLang }));
+  }, [appLang]);
 
   // Helper function to fetch student profile from backend
   const fetchStudentProfile = async (userid) => {
@@ -418,7 +500,7 @@ const PurchaseClasses = ({ onLogout }) => {
           <div className="flex items-center justify-center min-h-[50vh]">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <div className="text-gray-500 text-sm sm:text-base">Loading classes...</div>
+              <div className="text-gray-500 text-sm sm:text-base">{t('loadingClasses')}</div>
             </div>
           </div>
         </div>
@@ -432,7 +514,7 @@ const PurchaseClasses = ({ onLogout }) => {
         <div className="p-2 sm:p-4 lg:p-6">
           <div className="flex items-center justify-center min-h-[50vh]">
             <div className="text-center">
-              <div className="text-red-500 text-sm sm:text-base mb-2">⚠️ Error Loading Classes</div>
+              <div className="text-red-500 text-sm sm:text-base mb-2">{t('errorLoadingClasses')}</div>
               <div className="text-gray-600 text-xs sm:text-sm">{error}</div>
             </div>
           </div>
@@ -450,7 +532,7 @@ const PurchaseClasses = ({ onLogout }) => {
       <div className="p-2 sm:p-4 lg:p-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3">
           <h1 className="text-lg sm:text-xl font-bold text-gray-800">
-            {selectedTab === 'purchased' ? 'Purchased Classes' : 'Available Classes'}
+            {selectedTab === 'purchased' ? t('purchasedClassesTitle') : t('availableClassesTitle')}
           </h1>
           <button
             onClick={handleRefresh}
@@ -458,7 +540,7 @@ const PurchaseClasses = ({ onLogout }) => {
             className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm"
           >
             <FaSync className={`${refreshing ? 'animate-spin' : ''} h-4 w-4`} />
-            <span className="hidden sm:inline">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+            <span className="hidden sm:inline">{refreshing ? t('refreshing') : t('refresh')}</span>
             <span className="sm:hidden">{refreshing ? '...' : '↻'}</span>
           </button>
         </div>
@@ -475,7 +557,7 @@ const PurchaseClasses = ({ onLogout }) => {
               `}
               onClick={() => setSelectedTab(tab.key)}
             >
-              {tab.label}
+              {t('tab_' + tab.key) || tab.label}
             </button>
           ))}
         </div>
@@ -483,10 +565,7 @@ const PurchaseClasses = ({ onLogout }) => {
         <div className="flex justify-center mb-4 sm:mb-6">
           <input
             type="text"
-            placeholder={selectedTab === 'purchased' ? 
-              "Search your purchased classes..." : 
-              "Search by class name, teacher, subject, or stream..."
-            }
+            placeholder={selectedTab === 'purchased' ? t('searchPlaceholder_purchased') : t('searchPlaceholder_all')}
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 sm:px-4 py-2 w-full max-w-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200"
@@ -500,10 +579,10 @@ const PurchaseClasses = ({ onLogout }) => {
               const courseTypeInfo = getCourseTypeInfo(cls.courseType);
               const purchaseStatus = getPurchaseStatus(cls);
               const scheduleText = cls.schedule && cls.schedule.frequency === 'no-schedule' ? 
-                'No Schedule' :
+                t('noScheduleText') :
                 cls.schedule && cls.schedule.day && cls.schedule.startTime && cls.schedule.endTime ?
                 `${formatDay(cls.schedule.day)} ${formatTime(cls.schedule.startTime)}-${formatTime(cls.schedule.endTime)}` : 
-                'Schedule not set';
+                t('scheduleNotSet') || 'Schedule not set';
 
               // Calculate fee with discount for revision classes
               let displayFee = Number(cls.fee) || 0;
@@ -574,13 +653,13 @@ const PurchaseClasses = ({ onLogout }) => {
                       {cls.zoomLink && (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid1' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') && (
                         <div className="flex items-center gap-1 text-blue-600">
                           <FaVideo />
-                          <span className="text-xs">Zoom Available</span>
+                          <span className="text-xs">{t('zoomAvailable')}</span>
                         </div>
                       )}
                       {cls.videoUrl && (cls.deliveryMethod === 'hybrid2' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') && (
                         <div className="flex items-center gap-1 text-green-600">
                           <FaVideo />
-                          <span className="text-xs">Recorded Video Available</span>
+                          <span className="text-xs">{t('recordedVideoAvailable')}</span>
                         </div>
                       )}
                       {(cls.paymentTracking && (cls.paymentTracking.enabled || cls.paymentTracking === true)) && (
@@ -603,7 +682,7 @@ const PurchaseClasses = ({ onLogout }) => {
                         <div className="mt-2 p-2 rounded border">
                           <div className="flex items-center gap-2 mb-1">
                             <FaTicketAlt className="text-blue-500" />
-                            <span className="text-xs font-semibold">Student Card</span>
+                            <span className="text-xs font-semibold">{t('studentCardLabel')}</span>
                           </div>
                           <div className="flex items-center gap-2 mb-1">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${cls.cardInfo.color}`}>
@@ -615,11 +694,11 @@ const PurchaseClasses = ({ onLogout }) => {
                           </div>
                           {cls.cardValidity && cls.cardValidity.isValid ? (
                             <div className="text-xs text-green-600">
-                              ✓ {cls.cardValidity.reason}
+                              {t('cardValidPrefix')} {cls.cardValidity.reason}
                             </div>
                           ) : (
                             <div className="text-xs text-red-600">
-                              ✗ {cls.cardValidity?.reason || 'Card not valid'}
+                              {t('cardNotValidPrefix')} {cls.cardValidity?.reason || 'Card not valid'}
                             </div>
                           )}
                           {cls.studentCard.reason && (
@@ -637,7 +716,7 @@ const PurchaseClasses = ({ onLogout }) => {
                       <div className="flex items-center gap-1 mt-2 p-2 bg-gray-50 rounded">
                         <span className={purchaseStatus.color}>{purchaseStatus.icon}</span>
                         <span className={`text-xs font-semibold ${purchaseStatus.color}`}>
-                          {purchaseStatus.text}
+                          {purchaseStatus.status === 'owned' ? t('purchase_owned_text') : purchaseStatus.status === 'discount_available' ? t('purchase_discount_text') : t('purchase_available_text')}
                         </span>
                       </div>
                       {cls.description && (
@@ -647,7 +726,7 @@ const PurchaseClasses = ({ onLogout }) => {
                       )}
                     </div>
                   }
-                  buttonText={purchaseStatus.buttonText}
+                  buttonText={purchaseStatus.status === 'owned' ? t('btn_view') : purchaseStatus.status === 'discount_available' ? t('btn_buy_with_discount') : t('btn_buy_now')}
                   onButtonClick={() => handleButtonAction(cls, purchaseStatus.buttonAction)}
                   buttonClassName={
                     purchaseStatus.status === 'owned' 
