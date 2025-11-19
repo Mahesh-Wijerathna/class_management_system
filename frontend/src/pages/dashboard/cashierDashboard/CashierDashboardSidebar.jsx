@@ -14,6 +14,7 @@ import {
   FaTruck,
   FaSdCard
 } from 'react-icons/fa';
+import { filterSidebarByPermissions } from '../../../utils/permissionChecker';
 
 // Sidebar sections for the cashier dashboard
 const cashierSidebarSections = [
@@ -55,4 +56,5 @@ const cashierSidebarSections = [
 
 ];
 
-export default cashierSidebarSections;
+
+export default CashierDashboardSidebar;

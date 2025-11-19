@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import teacherSidebarSections from '././TeacherDashboardSidebar';
 import { getTeacherDashboardAnalytics, getAttendanceHeatmapData } from '../../../api/teacherDashboard';
+import { getClassesByTeacher } from '../../../api/classes';
+import axios from 'axios';
 import AttendanceHeatmap from '../../../components/AttendanceHeatmap';
 import { LineChart, Line, AreaChart, Area, PieChart, Pie, Cell, BarChart, Bar, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { 
@@ -27,6 +30,7 @@ import {
 } from 'react-icons/fa';
 
 const TeacherDashboard = ({ onLogout }) => {
+  const location = useLocation();
   const navigate = useNavigate();
   const [analytics, setAnalytics] = useState(null);
   const [attendanceHeatmap, setAttendanceHeatmap] = useState(null);
@@ -36,6 +40,12 @@ const TeacherDashboard = ({ onLogout }) => {
   const [teacherSharePercentage, setTeacherSharePercentage] = useState(100);
   const [teacherName, setTeacherName] = useState('Teacher');
   const [teacherId, setTeacherId] = useState('');
+  const [teacherRevenue, setTeacherRevenue] = useState(null); // { thisMonth, lastMonth }
+  const [teacherRevenueData, setTeacherRevenueData] = useState(null); // array for charts
+  const [teacherRevenueVsClassesData, setTeacherRevenueVsClassesData] = useState(null);
+  // Permissions state (used to filter sidebar and guard UI)
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const [permissions, setPermissions] = useState([]);
 
   // Get teacher name and ID from sessionStorage on mount
   useEffect(() => {
@@ -68,9 +78,68 @@ const TeacherDashboard = ({ onLogout }) => {
     }
   }, []);
 
+  // Fetch teacher permissions from RBAC API
+  const fetchPermissions = async (teacherId) => {
+    if (!teacherId) return;
+    
+    try {
+      setPermissionsLoading(true);
+      const response = await fetch(`http://localhost:8094/users/${teacherId}/permissions`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Teacher permissions:', data);
+        setPermissions(data.permissions || []);
+      } else {
+        console.error('❌ Failed to fetch permissions:', response.status);
+        setPermissions([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching permissions:', error);
+      setPermissions([]);
+    } finally {
+      setPermissionsLoading(false);
+    }
+  };
+
+  // Filter sidebar items based on permissions
+  const getFilteredSidebarItems = () => {
+    if (permissionsLoading || permissions.length === 0) {
+      return teacherSidebarSections; // Show all items while loading or if no permissions
+    }
+
+    return teacherSidebarSections.map(section => ({
+      ...section,
+      items: section.items.filter(item => {
+        // If item has requiredPermissions, check if user has any of them
+        if (item.requiredPermissions && item.requiredPermissions.length > 0) {
+          return item.requiredPermissions.some(perm => permissions.some(p => p.name === perm));
+        }
+        // If no requiredPermissions, show the item (like Dashboard)
+        return true;
+      })
+    })).filter(section => section.items.length > 0); // Remove empty sections
+  };
+
+  useEffect(() => {
+    if (teacherId) {
+      fetchPermissions(teacherId);
+    }
+  }, [teacherId]);
+
   useEffect(() => {
     loadDashboardData();
   }, []);
+
+  // When teacherId is known, compute teacher revenue
+  useEffect(() => {
+    if (teacherId) loadTeacherRevenue(teacherId);
+  }, [teacherId]);
 
   const loadDashboardData = async () => {
     try {
@@ -102,14 +171,105 @@ const TeacherDashboard = ({ onLogout }) => {
   const handleRefresh = async () => {
     setRefreshing(true);
     await loadDashboardData();
+    // recompute teacher revenue after refresh
+    if (teacherId) await loadTeacherRevenue(teacherId);
     setRefreshing(false);
+  };
+
+  // Compute teacher-specific revenue by querying classes for this teacher and global payments
+  const loadTeacherRevenue = async (tid) => {
+    if (!tid) return;
+    try {
+      // Fetch classes for this teacher
+      const classesResp = await getClassesByTeacher(tid);
+  const classIds = (classesResp.success && Array.isArray(classesResp.data)) ? classesResp.data.map(c => String(c.id)) : [];
+
+      // Fetch all payments from payment backend (same endpoint used elsewhere)
+      const paymentsResp = await axios.get('http://localhost:8090/routes.php/get_all_payments');
+      const payments = (paymentsResp.data && paymentsResp.data.success && Array.isArray(paymentsResp.data.data)) ? paymentsResp.data.data : [];
+
+      const now = new Date();
+      const thisMonth = now.getMonth() + 1;
+      const thisYear = now.getFullYear();
+      const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastMonth = lastMonthDate.getMonth() + 1;
+      const lastYear = lastMonthDate.getFullYear();
+
+      let thisMonthTotal = 0;
+      let lastMonthTotal = 0;
+
+      for (const p of payments) {
+  // Only consider payments for classes that belong to this teacher
+  if (!p.class_id) continue;
+  if (!classIds.includes(String(p.class_id))) continue;
+        const amount = parseFloat(p.amount || 0) || 0;
+        const pd = p.date ? new Date(p.date) : null;
+        if (!pd) continue;
+        const pm = pd.getMonth() + 1;
+        const py = pd.getFullYear();
+        if (pm === thisMonth && py === thisYear) thisMonthTotal += amount;
+        if (pm === lastMonth && py === lastYear) lastMonthTotal += amount;
+      }
+
+      setTeacherRevenue({ thisMonth: thisMonthTotal, lastMonth: lastMonthTotal });
+      // Build timeseries for the last 12 months
+      const months = [];
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const label = d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+        months.push({ label, month: d.getMonth() + 1, year: d.getFullYear() });
+      }
+
+      const timeseries = months.map(m => ({ month: m.label, totalRevenue: 0 }));
+
+      // Map class id -> short name if available
+      const classMap = {};
+      if (classesResp.success && Array.isArray(classesResp.data)) {
+        classesResp.data.forEach(c => { classMap[String(c.id)] = c.classShortName || c.shortName || c.name || String(c.id); });
+      }
+
+      // For revenue vs classes: accumulate per (month, classShortName)
+      const rvAccum = {}; // key = `${month}|${className}` => sum
+
+      for (const p of payments) {
+        if (!p.class_id) continue;
+        if (!classIds.includes(String(p.class_id))) continue;
+        const amount = parseFloat(p.amount || 0) || 0;
+        const pd = p.date ? new Date(p.date) : null;
+        if (!pd) continue;
+        const pm = pd.getMonth() + 1;
+        const py = pd.getFullYear();
+        const monthLabel = new Date(py, pm - 1, 1).toLocaleString('en-US', { month: 'short', year: 'numeric' });
+
+        // Add to timeseries
+        const idx = timeseries.findIndex(t => t.month === monthLabel);
+        if (idx !== -1) timeseries[idx].totalRevenue += amount;
+
+        // Add to per-class accumulation
+        const className = classMap[String(p.class_id)] || String(p.class_id);
+        const key = `${monthLabel}|${className}`;
+        rvAccum[key] = (rvAccum[key] || 0) + amount;
+      }
+
+      // Convert rvAccum to array of { month, classShortName, revenue }
+      const rvArray = Object.keys(rvAccum).map(k => {
+        const [monthLabel, className] = k.split('|');
+        return { month: monthLabel, classShortName: className, revenue: rvAccum[k] };
+      });
+
+      setTeacherRevenueData(timeseries);
+      setTeacherRevenueVsClassesData(rvArray);
+    } catch (err) {
+      console.error('Error loading teacher revenue:', err);
+      setTeacherRevenue(null);
+    }
   };
 
   if (loading) {
     return (
       <DashboardLayout
         userRole="Teacher"
-        sidebarItems={teacherSidebarSections}
+        sidebarItems={getFilteredSidebarItems()}
         onLogout={onLogout}
       >
         <div className="flex items-center justify-center h-screen">
@@ -126,7 +286,7 @@ const TeacherDashboard = ({ onLogout }) => {
     return (
       <DashboardLayout
         userRole="Teacher"
-        sidebarItems={teacherSidebarSections}
+        sidebarItems={getFilteredSidebarItems()}
         onLogout={onLogout}
       >
         <div className="p-6">
@@ -156,20 +316,87 @@ const TeacherDashboard = ({ onLogout }) => {
   console.log('📊 Dashboard - Top Performers Data:', topPerformers);
   console.log('📊 Top Performers Count:', topPerformers?.length || 0);
 
+  // If the logged-in user is a teacher_staff and they have no permitted sidebar items,
+  // render a minimal dashboard showing only their name and id. Also honor the
+  // `minimalView` navigation state (set when landing after login) so staff who
+  // just logged in always see the minimal view first.
+  const shouldShowMinimalForStaff = (() => {
+    try {
+      // Read stored user (session first, then fallback)
+      let userStr = sessionStorage.getItem('userData');
+      if (!userStr) userStr = localStorage.getItem('user');
+      if (!userStr) return false;
+      const user = JSON.parse(userStr);
+      if (!user || user.role !== 'teacher_staff') return false;
+      // If navigation flagged minimalView (from login), honor it immediately
+      if (location && location.state && location.state.minimalView) return true;
+      const perms = user.permissions || {};
+
+      // Iterate canonical sidebar and check for any item with an explicit requiredPermission
+      // that the user actually has. If none found, we will show the minimal view.
+      for (const section of teacherSidebarSections) {
+        if (!section.items) continue;
+        for (const item of section.items) {
+          const required = item.requiredPermission;
+          if (required && typeof required === 'string') {
+            if (perms[required]) return false; // user has at least one permitted item
+          }
+        }
+      }
+
+      // No permitted items found for this teacher_staff
+      return true;
+    } catch (err) {
+      console.error('Error determining minimal staff view:', err);
+      return false;
+    }
+  })();
+
+  if (shouldShowMinimalForStaff) {
+    return (
+      <DashboardLayout
+        userRole="Teacher"
+        sidebarItems={teacherSidebarSections}
+        onLogout={onLogout}
+      >
+        <div className="min-h-screen flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-white shadow rounded-lg p-6 text-center">
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Teacher Staff Profile</h2>
+            <p className="text-gray-600 mb-4">Welcome back...</p>
+            <div className="bg-gray-50 border border-gray-100 rounded-md p-4 text-left">
+              <p className="text-sm text-gray-500">Name</p>
+              <p className="font-medium text-gray-900 mb-3">{teacherName}</p>
+              {teacherId && (
+                <>
+                  <p className="text-sm text-gray-500">ID</p>
+                  <p className="font-medium text-gray-900">{teacherId}</p>
+                </>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mt-4">If you believe this is incorrect, please contact your administrator to request access.</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   // Calculate teacher share based on percentage
   const calculateTeacherShare = (amount) => {
     return (amount * teacherSharePercentage) / 100;
   };
 
+  // Determine which revenue datasets to display (teacher-specific when available)
+  const displayRevenueData = (teacherRevenueData && Array.isArray(teacherRevenueData) && teacherRevenueData.length > 0) ? teacherRevenueData : revenueData;
+  const displayRevenueVsClassesData = (teacherRevenueVsClassesData && Array.isArray(teacherRevenueVsClassesData) && teacherRevenueVsClassesData.length > 0) ? teacherRevenueVsClassesData : revenueVsClassesData;
+
   // Transform revenue vs classes data for grouped bar chart
-  const transformRevenueVsClassesData = () => {
-    if (!revenueVsClassesData || revenueVsClassesData.length === 0) return { chartData: [], classNames: [] };
-    
+  const transformRevenueVsClassesData = (data) => {
+    if (!data || data.length === 0) return { chartData: [], classNames: [] };
     // Group data by month
     const monthGroups = {};
     const uniqueClasses = new Set();
     
-    revenueVsClassesData.forEach(item => {
+    data.forEach(item => {
       if (!monthGroups[item.month]) {
         monthGroups[item.month] = { month: item.month };
       }
@@ -184,7 +411,7 @@ const TeacherDashboard = ({ onLogout }) => {
     return { chartData, classNames };
   };
 
-  const { chartData: classRevenueChartData, classNames: uniqueClassNames } = transformRevenueVsClassesData();
+  const { chartData: classRevenueChartData, classNames: uniqueClassNames } = transformRevenueVsClassesData(displayRevenueVsClassesData);
 
   // Generate colors for each class
   const generateClassColors = (count) => {
@@ -201,7 +428,7 @@ const TeacherDashboard = ({ onLogout }) => {
   return (
     <DashboardLayout
       userRole="Teacher"
-      sidebarItems={teacherSidebarSections}
+      sidebarItems={getFilteredSidebarItems()}
       onLogout={onLogout}
     >
       <div className="space-y-6 p-4 sm:p-6 bg-gray-50 min-h-screen">
@@ -316,11 +543,11 @@ const TeacherDashboard = ({ onLogout }) => {
               </div>
               <div className="text-right">
                 <p className="text-xs sm:text-sm opacity-90">This Month</p>
-                <h3 className="text-lg sm:text-xl lg:text-2xl font-bold">Rs. {calculateTeacherShare(metrics.thisMonthRevenue).toLocaleString()}</h3>
+                <h3 className="text-lg sm:text-xl lg:text-2xl font-bold">Rs. {calculateTeacherShare((teacherRevenue && typeof teacherRevenue.thisMonth === 'number') ? teacherRevenue.thisMonth : metrics.thisMonthRevenue).toLocaleString()}</h3>
               </div>
             </div>
             <div className="flex items-center text-xs sm:text-sm opacity-90">
-              <span className="truncate">Total: Rs. {metrics.thisMonthRevenue.toLocaleString()}</span>
+              <span className="truncate">Total: Rs. {((teacherRevenue && typeof teacherRevenue.thisMonth === 'number') ? teacherRevenue.thisMonth : metrics.thisMonthRevenue).toLocaleString()}</span>
             </div>
           </div>
 
@@ -332,11 +559,11 @@ const TeacherDashboard = ({ onLogout }) => {
               </div>
               <div className="text-right">
                 <p className="text-xs sm:text-sm opacity-90">Last Month</p>
-                <h3 className="text-lg sm:text-xl lg:text-2xl font-bold">Rs. {calculateTeacherShare(metrics.lastMonthRevenue).toLocaleString()}</h3>
+                <h3 className="text-lg sm:text-xl lg:text-2xl font-bold">Rs. {calculateTeacherShare((teacherRevenue && typeof teacherRevenue.lastMonth === 'number') ? teacherRevenue.lastMonth : metrics.lastMonthRevenue).toLocaleString()}</h3>
               </div>
             </div>
             <div className="flex items-center text-xs sm:text-sm opacity-90">
-              <span className="truncate">Total: Rs. {metrics.lastMonthRevenue.toLocaleString()}</span>
+              <span className="truncate">Total: Rs. {((teacherRevenue && typeof teacherRevenue.lastMonth === 'number') ? teacherRevenue.lastMonth : metrics.lastMonthRevenue).toLocaleString()}</span>
             </div>
           </div>
 
@@ -358,7 +585,7 @@ const TeacherDashboard = ({ onLogout }) => {
           </div>
         </div>
 
-        {/* Quick Actions - Moved up for easy access */}
+        {/* Quick Actions - Moved up for easy access
         <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
           <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 sm:mb-6">Quick Actions</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -385,7 +612,7 @@ const TeacherDashboard = ({ onLogout }) => {
               <span className="text-xs sm:text-sm font-medium text-orange-900 text-center">View Payments</span>
             </button>
           </div>
-        </div>
+        </div> */}
 
         {/* Today's Focus: Schedule & Payment Status */}
         <div>
@@ -497,7 +724,7 @@ const TeacherDashboard = ({ onLogout }) => {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={revenueData}>
+            <LineChart data={displayRevenueData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="month" stroke="#6b7280" />
               <YAxis stroke="#6b7280" />

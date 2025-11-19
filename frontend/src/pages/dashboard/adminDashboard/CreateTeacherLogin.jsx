@@ -83,15 +83,35 @@ const CreateTeacherLogin = () => {
           type: response.whatsapp_sent ? 'success' : 'warning'
         });
       } else {
-        setAlertBox({
-          open: true,
-          message: response.message || 'Failed to create teacher account',
-          onConfirm: () => {
-            setAlertBox(a => ({ ...a, open: false }));
-          },
-          confirmText: 'OK',
-          type: 'error'
-        });
+        // If backend reports an existing Teacher ID, show an informative modal
+        const backendMessage = response.message || 'Failed to create teacher account';
+        if (backendMessage.toLowerCase().includes('teacher id already exists')) {
+          // If backend returned the conflicting ID, show it explicitly
+          const existingId = response.existingId || null;
+          const infoMessage = existingId
+            ? `Teacher ID ${existingId} already exists. Please check the teacher list or try again.`
+            : 'Teacher ID already exists. It looks like a generated ID collided with an existing record. Please check the teacher list or try again.';
+
+          setAlertBox({
+            open: true,
+            message: infoMessage,
+            onConfirm: () => {
+              setAlertBox(a => ({ ...a, open: false }));
+            },
+            confirmText: 'OK',
+            type: 'info'
+          });
+        } else {
+          setAlertBox({
+            open: true,
+            message: backendMessage,
+            onConfirm: () => {
+              setAlertBox(a => ({ ...a, open: false }));
+            },
+            confirmText: 'OK',
+            type: 'error'
+          });
+        }
       }
     } catch (error) {
       setAlertBox({

@@ -46,6 +46,23 @@ CREATE TABLE IF NOT EXISTS teacher_halls (
     FOREIGN KEY (teacherId) REFERENCES teachers(teacherId) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci; 
 
+-- Teacher staff table: staff accounts created by a teacher to help with their work
+CREATE TABLE IF NOT EXISTS teacher_staff (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  staffId VARCHAR(12) UNIQUE NOT NULL,
+  teacherId VARCHAR(10) NOT NULL,
+  name VARCHAR(200) NOT NULL,
+  email VARCHAR(255) DEFAULT NULL,
+  phone VARCHAR(15) DEFAULT NULL,
+  password VARCHAR(255) NOT NULL,
+  permissions JSON DEFAULT NULL,
+  status ENUM('active','inactive') DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_teacherId (teacherId),
+  FOREIGN KEY (teacherId) REFERENCES teachers(teacherId) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 CREATE TABLE IF NOT EXISTS hall_bookings (
   id INT AUTO_INCREMENT PRIMARY KEY,

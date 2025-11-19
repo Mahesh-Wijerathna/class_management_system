@@ -58,9 +58,11 @@ import Html5BarcodeScanner from "../../../components/Html5BarcodeScanner";
 
 import DashboardLayout from "../../../components/layout/DashboardLayout";
 
-import cashierSidebarSections from "./CashierDashboardSidebar";
+import CashierDashboardSidebar from "./CashierDashboardSidebar";
 
 import AttendanceCalendar from "../../../components/AttendanceCalendar";
+
+import { getCurrentUserPermissions } from '../../../utils/permissionChecker';
 
 // Add CSS animation for toast notification
 
@@ -7588,6 +7590,10 @@ export default function CashierDashboard() {
   const [cashDrawerLoading, setCashDrawerLoading] = useState(false);
   const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
 
+  // Permissions state
+  const [permissions, setPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+
   // Track cashier opening time (first login of the day)
 
   useEffect(() => {
@@ -7619,6 +7625,24 @@ export default function CashierDashboard() {
       setOpeningTime(currentTime);
     }
   }, []);
+
+  // Fetch permissions
+  useEffect(() => {
+    const fetchPermissions = async () => {
+      try {
+        const perms = await getCurrentUserPermissions(user?.userid);
+        setPermissions(perms);
+      } catch (error) {
+        console.error('Failed to fetch permissions:', error);
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    if (user?.userid) {
+      fetchPermissions();
+    }
+  }, [user?.userid]);
 
   // Load cashier KPIs from backend database
   // Note: Data is fetched from database (not localStorage), so it persists throughout the day
@@ -11746,7 +11770,7 @@ export default function CashierDashboard() {
   return (
     <DashboardLayout
       userRole="Cashier"
-      sidebarItems={cashierSidebarSections}
+      sidebarItems={CashierDashboardSidebar(permissions)}
       onLogout={handleLogout}
       customTitle="TCMS"
       customSubtitle={`Cashier Dashboard - ${user?.name || "Cashier"}`}
