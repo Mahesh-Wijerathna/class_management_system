@@ -103,6 +103,27 @@ const PurchaseClasses = ({ onLogout }) => {
     window.dispatchEvent(new CustomEvent('appLangChanged', { detail: appLang }));
   }, [appLang]);
 
+  // Listen for language changes from Navbar or other tabs
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (!e) return;
+      if (e.key === 'appLang') setAppLang(e.newValue || 'en');
+    };
+
+    const onAppLangChanged = (e) => {
+      const newLang = e?.detail || localStorage.getItem('appLang');
+      if (newLang) setAppLang(newLang);
+    };
+
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('appLangChanged', onAppLangChanged);
+
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('appLangChanged', onAppLangChanged);
+    };
+  }, []);
+
   // Helper function to fetch student profile from backend
   const fetchStudentProfile = async (userid) => {
     try {
