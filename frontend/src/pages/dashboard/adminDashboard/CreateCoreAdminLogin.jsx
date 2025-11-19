@@ -121,13 +121,15 @@ const CreateCoreAdminLogin = () => {
       <h2 className="text-2xl font-bold mb-6 text-center">Create Core Admin</h2>
       <BasicForm
         initialValues={{
+          firstName: '',
+          lastName: '',
           password: '',
-          name: '',
           email: '',
           phone: '',
         }}
         validationSchema={Yup.object().shape({
-          name: Yup.string().min(2, "Name must be at least 2 characters").required("Name is required"),
+          firstName: Yup.string().min(2, "First name must be at least 2 characters").required("First name is required"),
+          lastName: Yup.string().optional(),
           password: Yup.string()
             .matches(passwordRegex, 'Password must be at least 8 characters, include uppercase, lowercase, number, and special character')
             .required('Password is required'),
@@ -141,7 +143,14 @@ const CreateCoreAdminLogin = () => {
               headers: {
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ ...values, role: 'admin' }),
+              body: JSON.stringify({
+                email: values.email,
+                firstName: values.firstName,
+                lastName: values.lastName,
+                password: values.password,
+                phone: values.phone,
+                role: 'admin'
+              }),
             });
             const data = await response.json();
             console.log('Response:', data);
@@ -191,14 +200,25 @@ const CreateCoreAdminLogin = () => {
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <CustomTextField
-                id="additional-name"
-                name="name"
+                id="firstName"
+                name="firstName"
                 type="text"
-                label="Name *"
-                value={values.name}
+                label="First Name *"
+                value={values.firstName}
                 onChange={handleChange}
-                error={errors.name}
-                touched={touched.name}
+                error={errors.firstName}
+                touched={touched.firstName}
+                icon={FaUser}
+              />
+              <CustomTextField
+                id="lastName"
+                name="lastName"
+                type="text"
+                label="Last Name"
+                value={values.lastName}
+                onChange={handleChange}
+                error={errors.lastName}
+                touched={touched.lastName}
                 icon={FaUser}
               />
               <CustomTextField
