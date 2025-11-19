@@ -7,6 +7,7 @@ const recordingsApi = axios.create({
   timeout: 60000, // 60 seconds for large file uploads
   headers: {
     'Accept': 'application/json',
+    'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
   },
   withCredentials: false,
 });
@@ -130,6 +131,21 @@ export const getStreamingUrl = (recordingId, studentId, studentName) => {
  * @param {string} studentName - The student name
  * @returns {Promise<Blob>} - Promise with blob data
  */
+// export const downloadRecording = async (recordingId, studentId, studentName) => {
+//   try {
+//     const baseUrl = process.env.REACT_APP_TEACHER_API_BASE_URL || 'http://localhost:8088';
+//     const url = `${baseUrl}/recordings.php?download=${recordingId}&student_id=${studentId}&student_name=${encodeURIComponent(studentName)}`;
+    
+//     const response = await axios.get(url, {
+//       responseType: 'blob',
+//       timeout: 600000, // 10 minutes for watermarking + download
+//     });
+    
+//     return response.data;
+//   } catch (error) {
+//     throw handleApiError(error);
+//   }
+// };
 export const downloadRecording = async (recordingId, studentId, studentName) => {
   try {
     const baseUrl = process.env.REACT_APP_TEACHER_API_BASE_URL || 'http://localhost:8088';
@@ -138,6 +154,10 @@ export const downloadRecording = async (recordingId, studentId, studentName) => 
     const response = await axios.get(url, {
       responseType: 'blob',
       timeout: 600000, // 10 minutes for watermarking + download
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
+        'Content-Type': 'application/json'
+      }
     });
     
     return response.data;

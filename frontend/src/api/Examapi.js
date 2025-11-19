@@ -1,20 +1,18 @@
-import axios from 'axios';
+import api from './axiosConfig';
 
-// const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/exam.php/api';
-
+// Determine API base (can be overridden by env)
 const API_BASE_URL =
   (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_BASE_URL) ||
   (typeof window !== 'undefined' && window.__ENV && window.__ENV.API_BASE_URL) ||
   // last-resort hardcoded default
   'http://localhost:8088/exam.php/api';
 
+// Ensure the configured axios instance uses the exam base URL.
+// axiosConfig already adds a request interceptor that injects the
+// Authorization header from storage, so we reuse that instance and
+// only adjust its baseURL for this API module.
+api.defaults.baseURL = API_BASE_URL;
 
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
 
 export const examAPI = {
   getAll: () => api.get('/exams'),

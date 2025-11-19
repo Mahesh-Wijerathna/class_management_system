@@ -5,6 +5,10 @@ import { getStudentEnrollments, updateEnrollment, dropEnrollment } from '../../.
 import { getStudentPayments } from '../../../api/payments';
 import { getAllClasses } from '../../../api/classes';
 import { FaUser, FaGraduationCap, FaMoneyBill, FaCalendar, FaPhone, FaEnvelope, FaSchool, FaMapMarkerAlt, FaSync, FaSearch, FaFilter, FaTimes, FaEdit, FaTrash, FaDownload, FaPrint, FaSave, FaCheck, FaExclamationTriangle, FaPlus, FaPauseCircle, FaExclamationCircle, FaBook, FaEye, FaList, FaTicketAlt, FaHome } from 'react-icons/fa';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
+import { getUserPermissions } from '../../../api/rbac';
+import { getUserData } from '../../../api/apiUtils';
+import DashboardLayout from '../../../components/layout/DashboardLayout';
 
 const StudentsPurchasedClasses = ({ onLogout }) => {
     const [students, setStudents] = useState([]);
@@ -12,6 +16,8 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
   const [studentDetails, setStudentDetails] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState(() => AdminDashboardSidebar([]));
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [streamFilter, setStreamFilter] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
@@ -82,6 +88,35 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
   useEffect(() => {
     // This effect will trigger re-render when currentAmount changes
   }, [currentAmount]);
+
+
+  // Load RBAC permissions for sidebar filtering
+  useEffect(() => {
+    const loadPermissions = async () => {
+      try {
+        setPermissionsLoading(true);
+        const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+        let userId = null;
+        if (userData) {
+          try { const parsed = JSON.parse(userData); userId = parsed.userid || parsed.id || userId; } catch (e) { }
+        } else {
+          const user = getUserData();
+          if (user) userId = user.userid || user.id || userId;
+        }
+
+        const resp = await getUserPermissions(userId);
+        const perms = Array.isArray(resp) ? resp : (resp?.permissions || resp?.data || []);
+        setFilteredSidebarSections(AdminDashboardSidebar(perms));
+      } catch (err) {
+        console.error('Failed to load permissions for StudentsPurchasedClasses sidebar', err);
+        setFilteredSidebarSections(AdminDashboardSidebar([]));
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    loadPermissions();
+  }, []);
 
 
 
@@ -895,6 +930,7 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('authToken') || sessionStorage.getItem('authToken')}`
         },
         body: JSON.stringify(paymentData)
       });
@@ -910,6 +946,7 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('authToken') || sessionStorage.getItem('authToken')}`
           },
               body: JSON.stringify({
                 transactionId: result.data.transactionId,
@@ -1317,7 +1354,10 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
       // Create payment record
       const paymentResponse = await fetch('http://localhost:8090/routes.php/create_payment', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('authToken') || sessionStorage.getItem('authToken')}`
+        },
         body: JSON.stringify({
           studentId: selectedStudent.studentId,
           classId: enrollment.class_id,
@@ -3030,7 +3070,8 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
   );
 
   return (
-    <div className="max-w-7xl mx-auto p-6">
+    <DashboardLayout userRole="Administrator" sidebarItems={permissionsLoading ? AdminDashboardSidebar([]) : filteredSidebarSections} >
+      <div className="max-w-7xl mx-auto p-6">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Student Details & Purchased Classes</h1>
         <p className="text-gray-600">Comprehensive overview of all students, their enrollments, and payment history</p>
@@ -3454,7 +3495,8 @@ const StudentsPurchasedClasses = ({ onLogout }) => {
            </div>
         </div>
       )}
-    </div>
+      </div>
+    </DashboardLayout>
   );
 };
 

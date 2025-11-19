@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import adminSidebarSections from './AdminDashboardSidebar';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
+import { getUserPermissions } from '../../../api/rbac';
+import { getUserData } from '../../../api/apiUtils';
 import BasicTable from '../../../components/BasicTable';
 import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
@@ -48,6 +50,41 @@ const StudentCardManagement = () => {
   const [editingCard, setEditingCard] = useState(null);
   const [formValues, setFormValues] = useState(initialValues);
   const [alertBox, setAlertBox] = useState({ open: false, message: '', onConfirm: null, onCancel: null, confirmText: 'OK', cancelText: 'Cancel', type: 'info' });
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+
+  // Load permissions
+  useEffect(() => {
+    const fetchUserPermissions = async () => {
+      try {
+        const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+        let userId = null;
+        if (userData) {
+          try {
+            const parsed = JSON.parse(userData);
+            userId = parsed.userid || parsed.id || userId;
+          } catch (err) {
+            console.error('Error parsing stored userData:', err);
+          }
+        } else {
+          const user = getUserData();
+          if (user) userId = user.userid || user.id || userId;
+        }
+
+        const userPermsResp = await getUserPermissions(userId);
+        const perms = Array.isArray(userPermsResp) ? userPermsResp : (userPermsResp?.permissions || userPermsResp?.data || []);
+        const filteredSections = AdminDashboardSidebar(perms);
+        setFilteredSidebarSections(filteredSections);
+      } catch (error) {
+        console.error('Failed to fetch user permissions:', error);
+        setFilteredSidebarSections(AdminDashboardSidebar([]));
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    fetchUserPermissions();
+  }, []);
 
   // Load data from localStorage
   useEffect(() => {
@@ -258,7 +295,14 @@ const StudentCardManagement = () => {
   ];
 
   return (
-    <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
+    <>
+      {permissionsLoading ? (
+        <div className="flex justify-center items-center min-h-screen">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-3 text-gray-600">Loading permissions...</span>
+        </div>
+      ) : (
+        <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
       <div className="p-6 bg-white rounded-lg shadow">
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -494,6 +538,8 @@ const StudentCardManagement = () => {
         <BasicAlertBox {...alertBox} />
       </div>
     </DashboardLayout>
+      )}
+    </>
   );
 };
 

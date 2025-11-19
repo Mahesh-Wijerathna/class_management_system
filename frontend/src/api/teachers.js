@@ -11,6 +11,18 @@ const teacherApi = axios.create({
   withCredentials: false,
 });
 
+// Add request interceptor to dynamically set Authorization header
+teacherApi.interceptors.request.use((config) => {
+  // Get token from appropriate storage
+  const usePersistentStorage = sessionStorage.getItem('usePersistentStorage');
+  const storage = usePersistentStorage === 'true' ? localStorage : sessionStorage;
+  const token = storage.getItem('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Auth API for centralized authentication
 const authApi = axios.create({
   baseURL: process.env.REACT_APP_AUTH_API_BASE_URL || 'http://localhost:8081',
@@ -20,6 +32,18 @@ const authApi = axios.create({
     'Accept': 'application/json',
   },
   withCredentials: false,
+});
+
+// Add request interceptor to dynamically set Authorization header
+authApi.interceptors.request.use((config) => {
+  // Get token from appropriate storage
+  const usePersistentStorage = sessionStorage.getItem('usePersistentStorage');
+  const storage = usePersistentStorage === 'true' ? localStorage : sessionStorage;
+  const token = storage.getItem('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 const teacherApiGet = async (endpoint) => {

@@ -7,6 +7,7 @@ const materialsApi = axios.create({
   timeout: 30000, // 30 seconds for large file uploads
   headers: {
     'Accept': 'application/json',
+    'Authorization': `Bearer ${localStorage.getItem('authToken')}` || `Bearer ${sessionStorage.getItem('authToken')}`,
   },
   withCredentials: false,
 });

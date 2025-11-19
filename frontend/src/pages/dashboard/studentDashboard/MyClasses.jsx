@@ -7,7 +7,7 @@ import SecureZoomMeeting from '../../../components/SecureZoomMeeting';
 import { getStudentCard, getCardTypeInfo, getCardStatus, isCardValid } from '../../../utils/cardUtils';
 import { getStudentEnrollments, markAttendance, requestForgetCard, requestLatePayment, convertEnrollmentToMyClass, getPaymentHistoryForClass } from '../../../api/enrollments';
 import { trackZoomAttendance, trackJoinButtonClick, getStudentAttendance } from '../../../api/attendance';
-import { getUserData } from '../../../api/apiUtils';
+import { getUserData, getAuthToken } from '../../../api/apiUtils';
 import { getMaterialsByClass, downloadMaterial } from '../../../api/materials';
 import { getRecordingsByClass, downloadRecording, getStreamingUrl } from '../../../api/recordings';
 import { FaCalendar, FaClock, FaMoneyBill, FaCheckCircle, FaExclamationTriangle, FaTimesCircle, FaEye, FaCreditCard, FaMapMarkerAlt, FaVideo, FaUsers, FaFileAlt, FaDownload, FaPlay, FaHistory, FaQrcode, FaBarcode, FaBell, FaBook, FaGraduationCap, FaUserClock, FaExclamationCircle, FaInfoCircle, FaStar, FaCalendarAlt, FaUserGraduate, FaChartLine, FaShieldAlt, FaSearch, FaCog, FaSync, FaTicketAlt, FaCalendarWeek, FaTasks, FaFilePdf, FaFileWord, FaFilePowerpoint, FaUpload, FaRedo, FaPauseCircle, FaExpand, FaUser } from 'react-icons/fa';
@@ -120,7 +120,18 @@ useEffect(() => {
     const classId = selectedClassForDetails.id;
     
     // Fetch actual enrollment count for this class
-    fetch(`http://localhost:8087/routes.php/get_enrollments_by_class?classId=${classId}`)
+    const token = getAuthToken();
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    
+    fetch(`http://localhost:8087/routes.php/get_enrollments_by_class?classId=${classId}`, {
+      headers: headers
+    })
       .then(res => res.json())
       .then(data => {
         if (data.success && data.data) {
@@ -137,7 +148,18 @@ useEffect(() => {
       });
     
     // Load hall bookings
-    fetch(`http://localhost:8088/hallbook.php?list=1`)
+    const hallToken = getAuthToken();
+    const hallHeaders = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+    if (hallToken) {
+      hallHeaders.Authorization = `Bearer ${hallToken}`;
+    }
+    
+    fetch(`http://localhost:8088/hallbook.php?list=1`, {
+      headers: hallHeaders
+    })
       .then(res => res.json())
       .then(data => {
         if (data.success && Array.isArray(data.halls)) {

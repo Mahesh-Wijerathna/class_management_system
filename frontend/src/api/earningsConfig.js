@@ -2,17 +2,38 @@
 // API service for class earnings configuration
 
 import axios from 'axios';
+import { getAuthToken } from './apiUtils';
 
-const API_BASE_URL = 'http://localhost:8090/routes.php';
+const earningsApi = axios.create({
+  baseURL: 'http://localhost:8090/routes.php',
+});
+
+earningsApi.interceptors.request.use((config) => {
+  const token = getAuthToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 /**
  * Get earnings configuration for a specific class
  * @param {number} classId - The class ID
  * @returns {Promise} - Promise resolving to earnings config data
  */
+// export const getClassEarningsConfig = async (classId) => {
+//   try {
+//     const response = await axios.get(`${API_BASE_URL}/earnings-config/${classId}`);
+//     return response.data;
+//   } catch (error) {
+//     console.error('Error fetching class earnings config:', error);
+//     throw error;
+//   }
+// };
+
 export const getClassEarningsConfig = async (classId) => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/earnings-config/${classId}`);
+    const response = await earningsApi.get(`/earnings-config/${classId}`);
     return response.data;
   } catch (error) {
     console.error('Error fetching class earnings config:', error);
@@ -24,9 +45,18 @@ export const getClassEarningsConfig = async (classId) => {
  * Get all earnings configurations for all classes
  * @returns {Promise} - Promise resolving to all earnings configs
  */
+// export const getAllEarningsConfigs = async () => {
+//   try {
+//     const response = await axios.get(`${API_BASE_URL}/earnings-config`);
+//     return response.data;
+//   } catch (error) {
+//     console.error('Error fetching all earnings configs:', error);
+//     throw error;
+//   }
+// };
 export const getAllEarningsConfigs = async () => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/earnings-config`);
+    const response = await earningsApi.get('/earnings-config');
     return response.data;
   } catch (error) {
     console.error('Error fetching all earnings configs:', error);
@@ -40,9 +70,18 @@ export const getAllEarningsConfigs = async () => {
  * @param {object} config - The earnings configuration object
  * @returns {Promise} - Promise resolving to save result
  */
+// export const saveClassEarningsConfig = async (classId, config) => {
+//   try {
+//     const response = await axios.post(`${API_BASE_URL}/earnings-config/${classId}`, config);
+//     return response.data;
+//   } catch (error) {
+//     console.error('Error saving class earnings config:', error);
+//     throw error;
+//   }
+// };
 export const saveClassEarningsConfig = async (classId, config) => {
   try {
-    const response = await axios.post(`${API_BASE_URL}/earnings-config/${classId}`, config);
+    const response = await earningsApi.post(`/earnings-config/${classId}`, config);
     return response.data;
   } catch (error) {
     console.error('Error saving class earnings config:', error);

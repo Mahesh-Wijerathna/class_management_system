@@ -1,4 +1,5 @@
 import { handleApiError } from './apiUtils';
+import { getAuthToken } from './apiUtils';
 import axios from 'axios';
 
 const paymentApi = axios.create({
@@ -10,6 +11,20 @@ const paymentApi = axios.create({
   },
   withCredentials: false,
 });
+
+// Add request interceptor to dynamically set Authorization header
+paymentApi.interceptors.request.use(
+  (config) => {
+    const token = getAuthToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 // Payment API functions
 export const createPayment = async (paymentData) => {

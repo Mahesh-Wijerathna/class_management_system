@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import * as Yup from 'yup';
 import { FaUser, FaLock, FaPhone, FaIdCard } from 'react-icons/fa';
 // import { Formik } from 'formik';
-import DashboardLayout from '../../../components/layout/DashboardLayout';
-import adminSidebarSections from './AdminDashboardSidebar';
 import CustomButton from '../../../components/CustomButton';
 import { FaEdit, FaTrash, FaEnvelope,   FaBook } from 'react-icons/fa';
 import BasicTable from '../../../components/BasicTable';
@@ -276,7 +274,7 @@ const TeacherInfo = () => {
   // Note: Teachers are now loaded from database, not localStorage
 
       return (
-        <div className="p-6 bg-white rounded-lg shadow">
+      <div className="p-6 bg-white rounded-lg shadow">
          <div className="flex justify-between items-center mb-4">
            <div>
              <h1 className="text-2xl font-bold">Teachers Information</h1>

@@ -20,9 +20,20 @@ const getStorage = () => {
   // Helper function to fetch student profile from backend
   const fetchStudentProfile = async (userid) => {
     try {
-      const response = await axios.get(`http://localhost:8086/routes.php/get_with_id/${userid}`, {
-        timeout: 5000
-      });
+      // Read token from preferred storage with fallbacks
+      const preferredStorage = getStorage();
+      const token = preferredStorage.getItem('authToken') || localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+
+      const config = {
+        timeout: 5000,
+        headers: {}
+      };
+
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await axios.get(`http://localhost:8086/routes.php/get_with_id/${userid}`, config);
       if (response.data && !response.data.error) {
         return response.data;
       } else {

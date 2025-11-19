@@ -22,6 +22,73 @@ if ($mysqli->connect_errno) {
 }
 
 $controller = new UserController($mysqli);
+// GLOBAL AUTHENTICATION MIDDLEWARE
+// Require authentication for certain endpoints
+$requiredAuthPaths = [
+    '/routes.php/logout',
+    '/routes.php/test',
+    '/routes.php/barcode/save',
+    '/routes.php/barcodes',
+    '/routes.php/get_student_by_id',
+    '/routes.php/users',
+    '/routes.php/student/profile',
+    '/routes.php/change-password',
+    '/routes.php/next-cashier-id',
+    '/routes.php/cashier',
+    '/routes.php/cashiers',
+    '/routes.php/teacher',
+    '/routes.php/teachers',
+    '/routes.php/track-student-login',
+    '/routes.php/track-concurrent-session',
+    '/routes.php/end-concurrent-session',
+    '/routes.php/suspicious-activities',
+    '/routes.php/concurrent-violations',
+    '/routes.php/block-student',
+    '/routes.php/unblock-student',
+    '/routes.php/monitoring-statistics',
+    '/routes.php/detect-cheating',
+    '/routes.php/monitoring-report',
+    '/routes.php/detect-multiple-device-login',
+    '/routes.php/send-welcome-whatsapp'
+];
+$currentUser = null; // Store authenticated user data globally
+$globalToken = null; // Store token globally for use in route handlers
+
+if (in_array($path, $requiredAuthPaths) || 
+    preg_match('#^/routes.php/barcode/([A-Za-z0-9]+)$#', $path) || 
+    preg_match('#^/routes.php/user/([A-Za-z0-9]+)$#', $path) || 
+    preg_match('#^/routes.php/cashier/([A-Za-z0-9]+)$#', $path) || 
+    preg_match('#^/routes.php/cashier/([A-Za-z0-9]+)/delete$#', $path) || 
+    preg_match('#^/routes.php/teacher/(?!login|login-email|forgot-password-otp)([A-Za-z0-9]+)$#', $path) || 
+    preg_match('#^/routes.php/student-monitoring/([A-Za-z0-9]+)$#', $path) || 
+    preg_match('#^/routes.php/student-blocked/([A-Za-z0-9]+)$#', $path) || 
+    preg_match('#^/routes.php/student-block-history/([A-Za-z0-9]+)$#', $path) || 
+    preg_match('#^/routes.php/check-concurrent-logins/([A-Za-z0-9]+)$#', $path) || 
+    preg_match('#^/routes.php/student-devices/([A-Za-z0-9]+)$#', $path) || 
+    preg_match('#^/routes.php/session-valid/([A-Za-z0-9]+)$#', $path)) {
+    // Use getallheaders() to reliably get the Authorization header
+    $headers = getallheaders();
+    $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+    
+    if (empty($authHeader) || !preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Missing or invalid authorization token']);
+        exit;
+    }
+    $globalToken = $matches[1];
+
+    // Validate token directly using the controller method (no HTTP call needed)
+    $validationResult = json_decode($controller->validateToken($globalToken), true);
+    
+    if (!$validationResult || !$validationResult['success']) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Invalid or expired token']);
+        exit;
+    }
+
+    // Store user data from token for use in controllers
+    $currentUser = $validationResult['data']; // e.g., ['userid' => 'S001', 'role' => 'student']
+}
 
 // Root path test
 if ($method === 'GET' && ($path === '/' || $path === '/index.php')) {
@@ -74,31 +141,9 @@ if ($method === 'POST' && $path === '/routes.php/user') {
         if ($user->createUser($data['role'], $data['password'])) {
             $userid = $user->userid;
             
-            // Sync user to RBAC system (non-blocking)
-            $rbacSyncData = [
-                'userid' => $userid,
-                'role' => 'student',
-                'firstName' => $data['firstName'],
-                'lastName' => $data['lastName'],
-                'email' => $data['email'] ?? ''
-            ];
+            // Students don't need RBAC sync - they use direct authentication only
             
-            // Call RBAC backend to create user (don't block on failure)
-            $rbacResponse = @file_get_contents('http://rbac-backend:80/users', false, stream_context_create([
-                'http' => [
-                    'method' => 'POST',
-                    'header' => 'Content-Type: application/json',
-                    'content' => json_encode($rbacSyncData)
-                ]
-            ]));
-            
-            $rbacSyncSuccess = false;
-            if ($rbacResponse !== false) {
-                $rbacResult = json_decode($rbacResponse, true);
-                $rbacSyncSuccess = isset($rbacResult['success']) && $rbacResult['success'];
-            }
-            
-            // Then register student data in student backend
+            // Register student data in student backend
             $studentRegistrationData = [
                 'userid' => $userid,
                 'password' => $data['password'],
@@ -126,6 +171,25 @@ if ($method === 'POST' && $path === '/routes.php/user') {
     if ($user->createUser($data['role'], $data['password'])) {
         $userid = $user->userid;
         
+        // For admin and cashier roles, update with additional information
+        if (in_array($data['role'], ['admin', 'cashier'])) {
+            $updateStmt = $mysqli->prepare("
+                UPDATE users 
+                SET name = ?, email = ?, phone = ? 
+                WHERE userid = ?
+            ");
+            $name = $data['firstName'] . ' ' . ($data['lastName'] ?? '');
+            $email = $data['email'] ?? '';
+            $phone = $data['phone'] ?? '';
+            $updateStmt->bind_param("ssss", $name, $email, $phone, $userid);
+            $updateStmt->execute();
+            $updateStmt->close();
+        }
+        
+        // Generate a service token for RBAC system calls (using current global token if available)
+        // Note: RBAC user creation endpoints should be made public, or we need admin token
+        $serviceToken = $globalToken ?? null; // Use current user's token if they're creating another user
+        
         // Sync user to RBAC system (non-blocking) for admin and other roles
         $rbacSyncData = [
             'userid' => $userid,
@@ -135,12 +199,19 @@ if ($method === 'POST' && $path === '/routes.php/user') {
             'email' => $data['email'] ?? 'admin@example.com'
         ];
         
+        // Prepare headers for RBAC API calls
+        $rbacHeaders = "Content-Type: application/json";
+        if ($serviceToken) {
+            $rbacHeaders .= "\r\nAuthorization: Bearer {$serviceToken}";
+        }
+        
         // Call RBAC backend to create user (don't block on failure)
-        $rbacResponse = @file_get_contents('http://rbac-backend:80/users', false, stream_context_create([
+        $rbacResponse = @file_get_contents('http://host.docker.internal:8094/users', false, stream_context_create([
             'http' => [
                 'method' => 'POST',
-                'header' => 'Content-Type: application/json',
-                'content' => json_encode($rbacSyncData)
+                'header' => $rbacHeaders,
+                'content' => json_encode($rbacSyncData),
+                'ignore_errors' => true
             ]
         ]));
         
@@ -153,20 +224,22 @@ if ($method === 'POST' && $path === '/routes.php/user') {
             if ($rbacSyncSuccess) {
                 if ($data['role'] === 'admin') {
                     // Assign admin role (ID: 1)
-                    $roleAssignResponse = @file_get_contents("http://rbac-backend:80/users/{$userid}/roles/1", false, stream_context_create([
+                    $roleAssignResponse = @file_get_contents("http://host.docker.internal:8094/users/{$userid}/roles/1", false, stream_context_create([
                         'http' => [
                             'method' => 'POST',
-                            'header' => 'Content-Type: application/json',
-                            'content' => json_encode([])
+                            'header' => $rbacHeaders,
+                            'content' => json_encode([]),
+                            'ignore_errors' => true
                         ]
                     ]));
                 } elseif ($data['role'] === 'cashier') {
                     // Assign cashier role (ID: 5)
-                    $roleAssignResponse = @file_get_contents("http://rbac-backend:80/users/{$userid}/roles/5", false, stream_context_create([
+                    $roleAssignResponse = @file_get_contents("http://host.docker.internal:8094/users/{$userid}/roles/5", false, stream_context_create([
                         'http' => [
                             'method' => 'POST',
-                            'header' => 'Content-Type: application/json',
-                            'content' => json_encode([])
+                            'header' => $rbacHeaders,
+                            'content' => json_encode([]),
+                            'ignore_errors' => true
                         ]
                     ]));
                 }
@@ -572,12 +645,19 @@ if ($method === 'POST' && $path === '/routes.php/teacher') {
             'email' => $data['email']
         ];
         
+        // Prepare headers for RBAC API calls
+        $rbacHeaders = "Content-Type: application/json";
+        if ($globalToken) {
+            $rbacHeaders .= "\r\nAuthorization: Bearer {$globalToken}";
+        }
+        
         // Call RBAC backend to create user (handle conflicts)
-        $rbacResponse = @file_get_contents('http://rbac-backend:80/users', false, stream_context_create([
+        $rbacResponse = @file_get_contents('http://host.docker.internal:8094/users', false, stream_context_create([
             'http' => [
                 'method' => 'POST',
-                'header' => 'Content-Type: application/json',
-                'content' => json_encode($rbacSyncData)
+                'header' => $rbacHeaders,
+                'content' => json_encode($rbacSyncData),
+                'ignore_errors' => true
             ]
         ]));
         
@@ -592,11 +672,12 @@ if ($method === 'POST' && $path === '/routes.php/teacher') {
         
         // If RBAC sync was successful (or user already exists), automatically assign teacher role
         if ($rbacSyncSuccess) {
-            $roleAssignResponse = @file_get_contents("http://rbac-backend:80/users/{$teacherId}/roles/4", false, stream_context_create([
+            $roleAssignResponse = @file_get_contents("http://host.docker.internal:8094/users/{$teacherId}/roles/4", false, stream_context_create([
                 'http' => [
                     'method' => 'POST',
-                    'header' => 'Content-Type: application/json',
-                    'content' => json_encode([])
+                    'header' => $rbacHeaders,
+                    'content' => json_encode([]),
+                    'ignore_errors' => true
                 ]
             ]));
         }

@@ -78,11 +78,79 @@ $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 // Remove base path if needed
 $path = str_replace('/attendance-backend', '', $path);
 
+// GLOBAL AUTHENTICATION MIDDLEWARE
+// Require authentication for certain endpoints
+$requiredAuthPaths = [
+    '/mark-attendance',
+    '/settings',
+    '/session',
+    '/track-join-click',
+    '/record-video-attendance'
+    // Add more protected endpoints here one by one for easier debugging
+];
+
+$currentUser = null; // Store authenticated user data globally
+$globalToken = null; // Store token globally for use in route handlers
+
+// Check if current request requires authentication
+$requiresAuth = false;
+if (in_array($path, $requiredAuthPaths) ||
+    preg_match('/^\/attendance\/(\d+)$/', $path) ||
+    preg_match('/^\/student-details\/([^\/]+)$/', $path) ||
+    preg_match('/^\/is-enrolled\/([^\/]+)\/([^\/]+)$/', $path) ||
+    preg_match('/^\/student-attendance\/([^\/]+)$/', $path) ||
+    preg_match('/^\/zoom-sessions\/(\d+)$/', $path) ||
+    preg_match('/^\/meeting-participants\/([^\/]+)$/', $path) ||
+    preg_match('/^\/session\/([^\/]+)$/', $path) ||
+    preg_match('/^\/real-time-attendance\/(\d+)$/', $path) ||
+    preg_match('/^\/join-clicks$/', $path) ||
+    preg_match('/^\/export-attendance$/', $path) ||
+    preg_match('/^\/attendance-analytics$/', $path) ||
+    preg_match('/^\/monthly-attendance$/', $path) ||
+    preg_match('/^\/attendance-summary$/', $path)) {
+    $requiresAuth = true;
+}
+
+if ($requiresAuth) {
+    // Use getallheaders() to reliably get the Authorization header
+    $headers = getallheaders();
+    $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+
+    if (empty($authHeader) || !preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+        http_response_code(401);
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type, Authorization');
+        echo json_encode(['success' => false, 'message' => 'Missing or invalid authorization token']);
+        exit;
+    }
+    $globalToken = $matches[1];
+
+    // Validate the token with the auth backend
+    $tokenValidation = file_get_contents('http://host.docker.internal:8081/routes.php/validate_token', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => 'Content-Type: application/json',
+            'content' => json_encode(['token' => $globalToken])
+        ]
+    ]));
+    $validationResult = json_decode($tokenValidation, true);
+    if (!$validationResult || !$validationResult['success']) {
+        http_response_code(401);
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type, Authorization');
+        echo json_encode(['success' => false, 'message' => 'Invalid or expired token']);
+        exit;
+    }
+
+    // Store user data from token for use in controllers
+    $currentUser = $validationResult['data']; // e.g., ['userid' => 'A001', 'role' => 'admin']
+}
+
 // Initialize controllers
 $zoomWebhookController = new ZoomWebhookController($mysqli, $classConn, $authConn);
-$attendanceController = new AttendanceController($mysqli, $classConn, $authConn);
-
-// Route handling
+$attendanceController = new AttendanceController($mysqli, $classConn, $authConn);// Route handling
 try {
     // Zoom Webhook Endpoint
     if ($method === 'POST' && $path === '/zoom-webhook') {

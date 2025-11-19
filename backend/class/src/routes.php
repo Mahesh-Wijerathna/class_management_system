@@ -23,6 +23,67 @@ $method = $_SERVER['REQUEST_METHOD'];
 $scriptName = $_SERVER['SCRIPT_NAME']; // e.g., /routes.php
 $path = str_replace($scriptName, '', parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
 
+// GLOBAL AUTHENTICATION MIDDLEWARE
+// Require authentication for certain endpoints
+$requiredAuthPaths = [
+    '/create_class',
+    '/get_all_classes',
+    '/get_enrollments_by_class',
+    '/update_class',
+    '/create_enrollment',
+    '/update_enrollment',
+    '/delete_enrollment',
+    '/delete_student_enrollments',
+    '/mark_attendance',
+    '/request_forget_card',
+    '/request_late_payment',
+    '/synchronize_payment_status',
+    '/update_enrollment_payment',
+    '/late_pay/issue',
+    '/late_pay/cleanup',
+    '/late_pay/expire',
+    '/entry_permit/issue',
+    '/get_classes_by_teacher'
+];
+
+$currentUser = null; // Store authenticated user data globally
+$globalToken = null; // Store token globally for use in route handlers
+
+if (in_array($path, $requiredAuthPaths) ||
+    preg_match('/^\/update_class\/\d+$/', $path) ||
+    preg_match('/^\/delete_class\/\d+$/', $path) ||
+    preg_match('/^\/update_enrollment\/\d+$/', $path) ||
+    preg_match('/^\/delete_enrollment\/\d+$/', $path)) {
+    // Use getallheaders() to reliably get the Authorization header
+    $headers = getallheaders();
+    $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+    
+    if (empty($authHeader) || !preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Missing or invalid authorization token']);
+        exit;
+    }
+    $globalToken = $matches[1];
+
+    // Validate the token with the auth backend
+    $tokenValidation = file_get_contents('http://host.docker.internal:8081/routes.php/validate_token', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => 'Content-Type: application/json',
+            'content' => json_encode(['token' => $globalToken])
+        ]
+    ]));
+    $validationResult = json_decode($tokenValidation, true);
+    if (!$validationResult || !$validationResult['success']) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Invalid or expired token']);
+        exit;
+    }
+
+    // Store user data from token for use in controllers
+    $currentUser = $validationResult['data']; // e.g., ['userid' => 'A001', 'role' => 'admin']
+}
+
 // DB connection
 $mysqli = new mysqli(
     getenv('DB_HOST'),

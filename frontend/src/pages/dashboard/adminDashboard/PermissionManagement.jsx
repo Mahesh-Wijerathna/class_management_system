@@ -9,13 +9,12 @@ import BasicForm from '../../../components/BasicForm';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomSelectField from '../../../components/CustomSelectField';
 import BasicButton from '../../../components/CustomButton';
-import { permissionApi } from '../../../utils/permissions';
-import { getCurrentUserPermissions } from '../../../utils/permissionChecker';
+import { getUserPermissions, createPermission, getAllPermissions, updatePermission, deletePermission } from '../../../api/rbac';
 import { getUserData } from '../../../api/apiUtils';
 
 const columns = [
   { key: 'id', label: 'ID' },
-  { key: 'name', label: 'Permission Name' },
+  { key: 'display_name', label: 'Name' },
   { key: 'target_user_role', label: 'Target User Role' },
   { key: 'description', label: 'Description' },
   { key: 'created_at', label: 'Created At' },
@@ -40,8 +39,7 @@ const PermissionManagement = () => {
   const [selectedPermission, setSelectedPermission] = useState(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [permissionToDelete, setPermissionToDelete] = useState(null);
-  const [userPermissions, setUserPermissions] = useState([]);
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
 
   // Fetch permissions on component mount
   useEffect(() => {
@@ -51,24 +49,40 @@ const PermissionManagement = () => {
 
   const fetchUserPermissions = async () => {
     try {
-      setPermissionsLoading(true);
-      const user = getUserData();
-      if (user?.userid) {
-        const perms = await getCurrentUserPermissions(user.userid);
-        setUserPermissions(perms);
+      // Try stored userData in session/local storage first (keeps parity with AllClasses.jsx)
+      const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+      let userId = null;
+
+      if (userData) {
+        try {
+          const parsed = JSON.parse(userData);
+          userId = parsed.userid || parsed.id || userId;
+        } catch (err) {
+          console.error('Error parsing stored userData:', err);
+        }
+      } else {
+        const user = getUserData();
+        if (user) userId = user.userid || user.id || userId;
       }
+
+      // Fetch permissions for resolved user id
+      const userPermsResp = await getUserPermissions(userId);
+      const perms = Array.isArray(userPermsResp) ? userPermsResp : (userPermsResp?.permissions || userPermsResp?.data || []);
+
+      const filteredSections = AdminDashboardSidebar(perms);
+      setFilteredSidebarSections(filteredSections);
     } catch (error) {
       console.error('Failed to fetch user permissions:', error);
-    } finally {
-      setPermissionsLoading(false);
+      // Fallback: show all sections if permission loading fails
+      setFilteredSidebarSections(AdminDashboardSidebar([]));
     }
   };
 
   const fetchPermissions = async () => {
     try {
       setLoading(true);
-      const permissions = await permissionApi.getAllPermissions();
-      setPermissions(permissions);
+      const response = await getAllPermissions();
+      setPermissions(response.permissions || response.data || response);
     } catch (error) {
       console.error('Error fetching permissions:', error);
       setAlertMessage('Failed to load permissions. Please try again.');
@@ -102,7 +116,7 @@ const PermissionManagement = () => {
     try {
       setSubmitting(true);
 
-      await permissionApi.deletePermission(permissionToDelete.id);
+      await deletePermission(permissionToDelete.id);
 
       setAlertMessage('Permission deleted successfully!');
       setAlertType('success');
@@ -129,15 +143,16 @@ const PermissionManagement = () => {
 
       const permissionData = {
         name: values.name,
+        display_name: values.display_name,
         target_user_role: values.target_user_role,
         description: values.description,
       };
 
       if (isEditMode) {
-        await permissionApi.updatePermission(selectedPermission.id, permissionData);
+        await updatePermission(selectedPermission.id, permissionData);
         setAlertMessage('Permission updated successfully!');
       } else {
-        await permissionApi.createPermission(permissionData);
+        await createPermission(permissionData);
         setAlertMessage('Permission created successfully!');
       }
 
@@ -173,7 +188,7 @@ const PermissionManagement = () => {
   };
 
   return (
-    <DashboardLayout sidebarItems={AdminDashboardSidebar(userPermissions)}>
+    <DashboardLayout sidebarItems={filteredSidebarSections}>
       <div className="w-full max-w-25xl bg-white rounded-lg shadow p-4 mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -200,6 +215,7 @@ const PermissionManagement = () => {
             columns={columns}
             data={permissions.map(permission => ({
               ...permission,
+              display_name: permission.display_name || permission.name,
               target_user_role: permission.target_userrole || permission.target_user_role,
               created_at: formatDate(permission.created_at),
             }))}
@@ -210,7 +226,7 @@ const PermissionManagement = () => {
                   title="View Details"
                   onClick={() => {
                     // For now, just show an alert with details
-                    alert(`Permission Details:\n\nID: ${row.id}\nName: ${row.name}\nTarget Role: ${row.target_user_role}\nDescription: ${row.description}\nCreated: ${row.created_at}`);
+                    alert(`Permission Details:\n\nID: ${row.id}\nName: ${row.name}\nDisplay Name: ${row.display_name}\nTarget Role: ${row.target_user_role}\nDescription: ${row.description}\nCreated: ${row.created_at}`);
                   }}
                 >
                   <FaEye />
@@ -268,6 +284,7 @@ const PermissionManagement = () => {
               <BasicForm
                 initialValues={{
                   name: isEditMode ? selectedPermission?.name || '' : '',
+                  display_name: isEditMode ? selectedPermission?.display_name || '' : '',
                   target_user_role: isEditMode ? selectedPermission?.target_user_role || '' : '',
                   description: isEditMode ? selectedPermission?.description || '' : '',
                 }}
@@ -283,6 +300,16 @@ const PermissionManagement = () => {
                       value={values.name}
                       onChange={handleChange}
                       placeholder="e.g., manage_users"
+                      required
+                    />
+
+                    <CustomTextField
+                      id="display_name"
+                      name="display_name"
+                      label="Display Name"
+                      value={values.display_name}
+                      onChange={handleChange}
+                      placeholder="e.g., Manage Users"
                       required
                     />
 

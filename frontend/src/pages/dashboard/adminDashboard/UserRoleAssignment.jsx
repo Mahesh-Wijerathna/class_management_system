@@ -4,9 +4,7 @@ import AdminDashboardSidebar from './AdminDashboardSidebar';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 import BasicButton from '../../../components/CustomButton';
 import BasicCheckbox from '../../../components/BasicCheckbox';
-import { userApi } from '../../../utils/users';
-import { roleApi } from '../../../utils/roles';
-import { getCurrentUserPermissions } from '../../../utils/permissionChecker';
+import { getUserPermissions, getAllRoles, getUserById, getUserRoles, assignRoleToUser, revokeRoleFromUser } from '../../../api/rbac';
 import { getUserData } from '../../../api/apiUtils';
 import { FaUserMinus } from 'react-icons/fa';
 
@@ -23,8 +21,7 @@ const UserRoleAssignment = () => {
   const [selectedRolesToAssign, setSelectedRolesToAssign] = useState([]);
   const [searchUserId, setSearchUserId] = useState('');
   const [searchingUser, setSearchingUser] = useState(false);
-  const [userPermissions, setUserPermissions] = useState([]);
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
 
   // Fetch roles on component mount
   useEffect(() => {
@@ -34,23 +31,38 @@ const UserRoleAssignment = () => {
 
   const fetchUserPermissions = async () => {
     try {
-      setPermissionsLoading(true);
-      const user = getUserData();
-      if (user?.userid) {
-        const perms = await getCurrentUserPermissions(user.userid);
-        setUserPermissions(perms);
+      // Resolve user id from common storage locations to match other pages
+      const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+      let userId = null; // sensible default admin id used elsewhere
+
+      if (userData) {
+        try {
+          const parsed = JSON.parse(userData);
+          userId = parsed.userid || parsed.id || userId;
+        } catch (err) {
+          console.error('Error parsing stored userData:', err);
+        }
+      } else {
+        const user = getUserData();
+        if (user) userId = user.userid || user.id || userId;
       }
+
+      const userPermsResp = await getUserPermissions(userId);
+      const perms = Array.isArray(userPermsResp) ? userPermsResp : (userPermsResp?.permissions || userPermsResp?.data || []);
+
+      const filteredSections = AdminDashboardSidebar(perms);
+      setFilteredSidebarSections(filteredSections);
     } catch (error) {
       console.error('Failed to fetch user permissions:', error);
-    } finally {
-      setPermissionsLoading(false);
+      // Fallback: show all sections if permission loading fails
+      setFilteredSidebarSections(AdminDashboardSidebar([]));
     }
   };
 
   const fetchRoles = async () => {
     try {
-      const roles = await roleApi.getAllRoles();
-      setRoles(roles);
+      const response = await getAllRoles();
+      setRoles(response.roles || response.data || response);
     } catch (error) {
       console.error('Error fetching roles:', error);
     }
@@ -66,16 +78,26 @@ const UserRoleAssignment = () => {
 
     try {
       setSearchingUser(true);
-      const user = await userApi.getUserById(searchUserId.trim());
+      const response = await getUserById(searchUserId.trim());
+      const user = response.user;
       setSelectedUser(user);
       setUserFormOpen(true);
 
       // Fetch user's current roles
-      const userRoles = await userApi.getUserRoles(searchUserId.trim());
-      setUserRoles(userRoles);
+      const userRolesResponse = await getUserRoles(searchUserId.trim());
+      const userRolesData = userRolesResponse.roles || userRolesResponse.data || userRolesResponse;
+      // Add is_inherent flag (false for assigned RBAC roles)
+      const processedRoles = userRolesData.map(role => ({
+        ...role,
+        role_id: role.role_id,
+        role_name: role.display_name || role.role_name,
+        role_description: role.role_description,
+        is_inherent: false
+      }));
+      setUserRoles(processedRoles);
 
       // Determine available roles (not already assigned as RBAC roles)
-      const assignedRbacRoles = userRoles.filter(role => !role.is_inherent);
+      const assignedRbacRoles = userRolesData.filter(role => !role.is_inherent);
       const assignedRoleIds = assignedRbacRoles.map(role => role.role_id);
       const available = roles.filter(role => !assignedRoleIds.includes(role.id));
       setAvailableRoles(available);
@@ -99,7 +121,7 @@ const UserRoleAssignment = () => {
 
       // Assign each selected role
       for (const roleId of selectedRolesToAssign) {
-        await userApi.assignRoleToUser(selectedUser.userid, roleId);
+        await assignRoleToUser(selectedUser.userid, roleId);
       }
 
       setAlertMessage(`Successfully assigned ${selectedRolesToAssign.length} role(s) to ${selectedUser.firstName} ${selectedUser.lastName}!`);
@@ -107,8 +129,16 @@ const UserRoleAssignment = () => {
       setAlertOpen(true);
 
       // Refresh user roles
-      const updatedRoles = await userApi.getUserRoles(selectedUser.userid);
-      setUserRoles(updatedRoles);
+      const updatedRolesResponse = await getUserRoles(selectedUser.userid);
+      const updatedRoles = updatedRolesResponse.roles || updatedRolesResponse.data || updatedRolesResponse;
+      const processedUpdatedRoles = updatedRoles.map(role => ({
+        ...role,
+        role_id: role.role_id,
+        role_name: role.display_name || role.role_name,
+        role_description: role.role_description,
+        is_inherent: false
+      }));
+      setUserRoles(processedUpdatedRoles);
 
       // Update available roles (exclude already assigned RBAC roles)
       const assignedRbacRoles = updatedRoles.filter(role => !role.is_inherent);
@@ -133,15 +163,23 @@ const UserRoleAssignment = () => {
     try {
       setSubmitting(true);
 
-      await userApi.revokeRoleFromUser(selectedUser.userid, roleId);
+      await revokeRoleFromUser(selectedUser.userid, roleId);
 
       setAlertMessage('Role revoked successfully!');
       setAlertType('success');
       setAlertOpen(true);
 
       // Refresh user roles
-      const updatedRoles = await userApi.getUserRoles(selectedUser.userid);
-      setUserRoles(updatedRoles);
+      const updatedRolesResponse = await getUserRoles(selectedUser.userid);
+      const updatedRoles = updatedRolesResponse.roles || updatedRolesResponse.data || updatedRolesResponse;
+      const processedUpdatedRoles = updatedRoles.map(role => ({
+        ...role,
+        role_id: role.role_id,
+        role_name: role.display_name || role.role_name,
+        role_description: role.role_description,
+        is_inherent: false
+      }));
+      setUserRoles(processedUpdatedRoles);
 
       // Update available roles (exclude already assigned RBAC roles)
       const assignedRbacRoles = updatedRoles.filter(role => !role.is_inherent);
@@ -180,7 +218,7 @@ const UserRoleAssignment = () => {
   };
 
   return (
-    <DashboardLayout sidebarItems={AdminDashboardSidebar(userPermissions)}>
+    <DashboardLayout sidebarItems={filteredSidebarSections}>
       <div className="w-full max-w-4xl bg-white rounded-lg shadow p-6 mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-800">User Role Assignment</h1>
@@ -280,7 +318,7 @@ const UserRoleAssignment = () => {
                 {/* Current Roles */}
                 <div>
                   <h3 className="text-lg font-semibold mb-3 text-gray-800">Current Roles</h3>
-                  {userRoles.length > 0 ? (
+                  {Array.isArray(userRoles) && userRoles.length > 0 ? (
                     <div className="space-y-2 max-h-60 overflow-y-auto">
                       {userRoles.map(role => (
                         <div key={role.id || role.role_name} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -351,7 +389,7 @@ const UserRoleAssignment = () => {
                               htmlFor={`role-${role.id}`}
                               className="text-sm font-medium text-gray-700 cursor-pointer block"
                             >
-                              {role.name}
+                              {role.display_name || role.name}
                             </label>
                             <p className="text-xs text-gray-500">{role.description}</p>
                           </div>

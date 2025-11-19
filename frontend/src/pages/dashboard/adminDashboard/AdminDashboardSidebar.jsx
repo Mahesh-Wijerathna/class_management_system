@@ -110,7 +110,19 @@ const adminSidebarSections = [
   
 ];
 
-const AdminDashboardSidebar = (permissions = []) => {
+// const AdminDashboardSidebar = (permissions = []) => {
+//   // Filter sidebar sections based on user permissions
+//   const filteredSections = filterSidebarByPermissions(adminSidebarSections, permissions);
+//   return filteredSections;
+// };
+
+//new
+const AdminDashboardSidebar = (permissionsData = []) => {
+  // Extract permissions array from response object or use as-is if already an array
+  const permissions = Array.isArray(permissionsData) 
+    ? permissionsData 
+    : (permissionsData?.permissions || []);
+  
   // Filter sidebar sections based on user permissions
   const filteredSections = filterSidebarByPermissions(adminSidebarSections, permissions);
   return filteredSections;

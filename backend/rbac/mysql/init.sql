@@ -2,6 +2,7 @@
 CREATE TABLE IF NOT EXISTS permissions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL UNIQUE,
+    display_name VARCHAR(255),
     target_userrole ENUM('student', 'teacher', 'admin', 'cashier', 'teacher_assistant') NOT NULL,
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -25,7 +26,8 @@ CREATE TABLE IF NOT EXISTS users (
 -- Create roles table for RBAC
 CREATE TABLE IF NOT EXISTS roles (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL ,
+    display_name VARCHAR(100) UNIQUE,
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -68,7 +70,7 @@ CREATE TABLE IF NOT EXISTS user_roles (
 
 -- Insert sample users
 INSERT INTO users (userid, firstName, lastName, email, role) VALUES
-('A002', 'System', 'Administrator', 'admin@system.com', 'admin')
+('A001', 'System', 'Administrator', 'admin@system.com', 'admin')
 ON DUPLICATE KEY UPDATE
     firstName = VALUES(firstName),
     lastName = VALUES(lastName),
@@ -76,85 +78,91 @@ ON DUPLICATE KEY UPDATE
     role = VALUES(role);
 
 -- Insert sample permissions
-INSERT IGNORE INTO permissions (name, target_userrole, description) VALUES
-('dashboard_overview.dashboard_overview', 'admin', 'Can view dashboard overview'),
-('core_admin_management.create_core_admin', 'admin', 'Can create core admin users'),
-('core_admin_management.core_admin_info', 'admin', 'Can view core admin information'),
-('cashier_management.create_cashier', 'admin', 'Can create cashier users'),
-('cashier_management.cashier_info', 'admin', 'Can view cashier information'),
-('teacher_management.create_teacher', 'admin', 'Can create teacher users'),
-('teacher_management.teacher_info', 'admin', 'Can view teacher information'),
-('student_management.student_enrollment', 'admin', 'Can manage student enrollment'),
-('student_management.student_cards', 'admin', 'Can manage student cards'),
-('student_management.attendance_management', 'admin', 'Can manage student attendance'),
-('student_management.purchased_classes', 'admin', 'Can view purchased classes'),
-('class_and_schedule.create_class', 'admin', 'Can create classes'),
-('class_and_schedule.all_classes', 'admin', 'Can view all classes'),
-('class_and_schedule.class_payments', 'admin', 'Can manage class payments'),
-('class_and_schedule.class_enrollments', 'admin', 'Can manage class enrollments'),
-('class_and_schedule.class_halls', 'admin', 'Can manage class halls'),
-('finance_and_reports.financial_records', 'admin', 'Can view financial records'),
-('finance_and_reports.generate_reports', 'admin', 'Can generate reports'),
-('finance_and_reports.student_all_payments', 'admin', 'Can view all student payments'),
-('delivery_management.speed_post_deliveries', 'admin', 'Can manage speed post deliveries'),
-('user_roles.all_roles', 'admin', 'Can view all roles'),
-('user_roles.permission_management', 'admin', 'Can manage permissions'),
-('user_roles.manage_roles', 'admin', 'Can manage roles'),
-('user_roles.assign_roles', 'admin', 'Can assign roles to users'),
-('communication.announcements', 'admin', 'Can manage announcements'),
-('communication.messages', 'admin', 'Can manage messages'),
-('security_and_monitoring.student_monitoring', 'admin', 'Can monitor students'),
-('system_management.system_settings', 'admin', 'Can manage system settings'),
-('system_management.access_all_data', 'admin', 'Can access all system data'),
-('system_management.notifications', 'admin', 'Can manage notifications'),
-('system_management.backup_and_restore', 'admin', 'Can perform backup and restore operations'),
-('payment_processing.process_payment', 'cashier', 'Can process payments'),
-('payment_processing.payment_history', 'cashier', 'Can view payment history'),
-('student_management.student_records', 'cashier', 'Can view student records'),
-('student_management.student_payments', 'cashier', 'Can view student payments'),
-('financial_records.daily_transactions', 'cashier', 'Can view daily transactions'),
-('financial_records.monthly_reports', 'cashier', 'Can generate monthly reports'),
-('financial_records.revenue_summary', 'cashier', 'Can view revenue summary'),
-('reports_and_analytics.financial_reports', 'cashier', 'Can generate financial reports'),
-('reports_and_analytics.payment_analytics', 'cashier', 'Can view payment analytics'),
-('reports_and_analytics.print_receipts', 'cashier', 'Can print receipts'),
-('schedule_and_calendar.payment_schedule', 'cashier', 'Can view payment schedule'),
-('schedule_and_calendar.due_dates', 'cashier', 'Can view due dates'),
-('settings_and_profile.my_profile', 'cashier', 'Can view own profile'),
-('settings_and_profile.settings', 'cashier', 'Can manage own settings'),
-('settings_and_profile.notifications', 'cashier', 'Can manage notifications'),
-('student.enrollment', 'student', 'Can enroll in classes'),
+INSERT IGNORE INTO permissions (name, display_name, target_userrole, description) VALUES
+('dashboard_overview.dashboard_overview', 'Dashboard Overview', 'admin', 'Can view dashboard overview'),
+('core_admin_management.create_core_admin', 'Create Core Admin', 'admin', 'Can create core admin users'),
+('core_admin_management.core_admin_info', 'Core Admin Information', 'admin', 'Can view core admin information'),
+('cashier_management.create_cashier', 'Create Cashier', 'admin', 'Can create cashier users'),
+('cashier_management.cashier_info', 'Cashier Information', 'admin', 'Can view cashier information'),
+('teacher_management.create_teacher', 'Create Teacher', 'admin', 'Can create teacher users'),
+('teacher_management.teacher_info', 'Teacher Information', 'admin', 'Can view teacher information'),
+('student_management.student_enrollment', 'Student Enrollment', 'admin', 'Can manage student enrollment'),
+('student_management.student_cards', 'Student Cards', 'admin', 'Can manage student cards'),
+('student_management.attendance_management', 'Attendance Management', 'admin', 'Can manage student attendance'),
+('student_management.purchased_classes', 'Purchased Classes', 'admin', 'Can view purchased classes'),
+('class_and_schedule.create_class', 'Create Class', 'admin', 'Can create classes'),
+('class_and_schedule.all_classes', 'All Classes', 'admin', 'Can view all classes'),
+('class_and_schedule.class_payments', 'Class Payments', 'admin', 'Can manage class payments'),
+('class_and_schedule.class_enrollments', 'Class Enrollments', 'admin', 'Can manage class enrollments'),
+('class_and_schedule.class_halls', 'Class Halls', 'admin', 'Can manage class halls'),
+('finance_and_reports.financial_records', 'Financial Records', 'admin', 'Can view financial records'),
+('finance_and_reports.generate_reports', 'Generate Reports', 'admin', 'Can generate reports'),
+('finance_and_reports.student_all_payments', 'All Student Payments', 'admin', 'Can view all student payments'),
+('delivery_management.speed_post_deliveries', 'Speed Post Deliveries', 'admin', 'Can manage speed post deliveries'),
+('user_roles.all_roles', 'All Roles', 'admin', 'Can view all roles'),
+('user_roles.permission_management', 'Permission Management', 'admin', 'Can manage permissions'),
+('user_roles.manage_roles', 'Manage Roles', 'admin', 'Can manage roles'),
+('user_roles.assign_roles', 'Assign Roles', 'admin', 'Can assign roles to users'),
+('communication.announcements', 'Announcements', 'admin', 'Can manage announcements'),
+('communication.messages', 'Messages', 'admin', 'Can manage messages'),
+('security_and_monitoring.student_monitoring', 'Student Monitoring', 'admin', 'Can monitor students'),
+('system_management.system_settings', 'System Settings', 'admin', 'Can manage system settings'),
+('system_management.access_all_data', 'Access All Data', 'admin', 'Can access all system data'),
+('system_management.notifications', 'Notifications', 'admin', 'Can manage notifications'),
+('system_management.backup_and_restore', 'Backup and Restore', 'admin', 'Can perform backup and restore operations'),
 
 
-('dashboard_overview.dashboard_overview', 'teacher', 'Can view dashboard overview'),
-('class_schedules.my_classes', 'teacher', 'Can view and manage own classes'),
-('class_schedules.class_session_schedules', 'teacher', 'Can view class session schedules'),
-('class_schedules.hall_availability', 'teacher', 'Can view hall availability'),
-('class_schedules.class_enrollments', 'teacher', 'Can manage class enrollments'),
-('class_schedules.class_payments', 'teacher', 'Can manage class payments'),
-('attendance.attendance_management', 'teacher', 'Can manage attendance'),
-('attendance.student_attendance_overview', 'teacher', 'Can view student attendance overview'),
-('student_performance.view_performance', 'teacher', 'Can view student performance'),
-('student_performance.relevant_student_data', 'teacher', 'Can view relevant student data'),
-('student_performance.fees_report', 'teacher', 'Can view fees report'),
-('financial_records.payment_days', 'teacher', 'Can view payment days'),
-('financial_records.monthly_daily_records', 'teacher', 'Can view monthly and daily financial records'),
-('class_materials.create_folders_and_links', 'teacher', 'Can create folders and links for class materials'),
-('class_materials.manage_materials', 'teacher', 'Can manage class materials'),
-('class_materials.upload_assignments', 'teacher', 'Can upload assignments'),
-('exams.exam_dashboard', 'teacher', 'Can access exam dashboard'),
-('communication.announcements', 'teacher', 'Can manage announcements'),
-('communication.message_students', 'teacher', 'Can message students'),
-('reports.generate_reports', 'teacher', 'Can generate reports'),
-('teacher_staff.create_and_manage_staff', 'teacher', 'Can create and manage teacher staff');
+-- ('payment_processing.process_payment', 'cashier', 'Can process payments'),
+-- ('payment_processing.payment_history', 'cashier', 'Can view payment history'),
+-- ('student_management.student_records', 'cashier', 'Can view student records'),
+-- ('student_management.student_payments', 'cashier', 'Can view student payments'),
+-- ('financial_records.daily_transactions', 'cashier', 'Can view daily transactions'),
+-- ('financial_records.monthly_reports', 'cashier', 'Can generate monthly reports'),
+-- ('financial_records.revenue_summary', 'cashier', 'Can view revenue summary'),
+-- ('reports_and_analytics.financial_reports', 'cashier', 'Can generate financial reports'),
+-- ('reports_and_analytics.payment_analytics', 'cashier', 'Can view payment analytics'),
+-- ('reports_and_analytics.print_receipts', 'cashier', 'Can print receipts'),
+-- ('schedule_and_calendar.payment_schedule', 'cashier', 'Can view payment schedule'),
+-- ('schedule_and_calendar.due_dates', 'cashier', 'Can view due dates'),
+-- ('settings_and_profile.my_profile', 'cashier', 'Can view own profile'),
+-- ('settings_and_profile.settings', 'cashier', 'Can manage own settings'),
+-- ('settings_and_profile.notifications', 'cashier', 'Can manage notifications'),
+('student.enrollment', 'Student Enrollment', 'student', 'Can enroll in classes'),
+('dashboard_overview.cashier_dashboard', 'Cashier Dashboard', 'cashier', 'Can view cashier dashboard'),
+('student_tracking.late_payments', 'Late Payments', 'cashier', 'Can track late payments'),
+('student_tracking.forget_id_card_students', 'Issue Temporary ID Cards', 'cashier', 'Can issue temporary ID cards'),
+
+
+
+('dashboard_overview.dashboard_overview', 'Dashboard Overview', 'teacher', 'Can view dashboard overview'),
+('class_schedules.my_classes', 'My Classes', 'teacher', 'Can view and manage own classes'),
+('class_schedules.class_session_schedules', 'Class Session Schedules', 'teacher', 'Can view class session schedules'),
+('class_schedules.hall_availability', 'Hall Availability', 'teacher', 'Can view hall availability'),
+('class_schedules.class_enrollments', 'Class Enrollments', 'teacher', 'Can manage class enrollments'),
+('class_schedules.class_payments', 'Class Payments', 'teacher', 'Can manage class payments'),
+('attendance.attendance_management', 'Attendance Management', 'teacher', 'Can manage attendance'),
+('attendance.student_attendance_overview', 'Student Attendance Overview', 'teacher', 'Can view student attendance overview'),
+('student_performance.view_performance', 'View Performance', 'teacher', 'Can view student performance'),
+('student_performance.relevant_student_data', 'Relevant Student Data', 'teacher', 'Can view relevant student data'),
+('student_performance.fees_report', 'Fees Report', 'teacher', 'Can view fees report'),
+('financial_records.payment_days', 'Payment Days', 'teacher', 'Can view payment days'),
+('financial_records.monthly_daily_records', 'Monthly Daily Records', 'teacher', 'Can view monthly and daily financial records'),
+('class_materials.create_folders_and_links', 'Create Folders and Links', 'teacher', 'Can create folders and links for class materials'),
+('class_materials.manage_materials', 'Manage Materials', 'teacher', 'Can manage class materials'),
+('class_materials.upload_assignments', 'Upload Assignments', 'teacher', 'Can upload assignments'),
+('exams.exam_dashboard', 'Exam Dashboard', 'teacher', 'Can access exam dashboard'),
+('communication.announcements', 'Announcements', 'teacher', 'Can manage announcements'),
+('communication.message_students', 'Message Students', 'teacher', 'Can message students'),
+('reports.generate_reports', 'Generate Reports', 'teacher', 'Can generate reports'),
+('teacher_staff.create_and_manage_staff', 'Create and Manage Staff', 'teacher', 'Can create and manage teacher staff');
 
 -- Insert sample roles
-INSERT IGNORE INTO roles (name, description) VALUES
-('admin', 'System administrator with full access'),
-('content_manager', 'Can manage website content'),
-('student', 'Basic student permissions'),
-('teacher', 'Basic teacher permissions'),
-('cashier', 'Basic cashier permissions for payment processing');
+INSERT IGNORE INTO roles (name, display_name, description) VALUES
+('admin', 'Administrator', 'System administrator with full access'),
+('content_manager', 'Content Manager', 'Can manage website content'),
+('student', 'Student', 'Basic student permissions'),
+('teacher', 'Teacher', 'Basic teacher permissions'),
+('cashier', 'Cashier', 'Basic cashier permissions for payment processing');
 
 -- Insert sample role permissions
 INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES
@@ -166,16 +174,19 @@ INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES
 -- Content manager gets some permissions (role_id = 2)
 (2, 22), -- permission_management
 -- Student gets enrollment (role_id = 3)
-(3, 47), -- student.enrollment
+((SELECT id FROM roles WHERE name = 'student'), (SELECT id FROM permissions WHERE name = 'student.enrollment')),
 -- Teacher gets class management (role_id = 4) targeted for teacher role
-(4, 48), (4, 50), (4, 51), (4, 52), (4, 53), (4, 54), (4, 55), (4, 56), (4, 57), (4, 58), (4, 59), (4, 60), (4, 61), (4, 62), (4, 63),
--- Cashier gets all cashier permissions (role_id = 5)
-(5, 32), (5, 33), (5, 34), (5, 35), (5, 36), (5, 37), (5, 38), (5, 39), (5, 40),
-(5, 41), (5, 42), (5, 43), (5, 44), (5, 45), (5, 46), (5, 49);
+(4, 48), (4, 50), (4, 51), (4, 52), (4, 53), (4, 54), (4, 55), (4, 56), (4, 57), (4, 58), (4, 59), (4, 60), (4, 61), (4, 62), (4, 63);
 
--- Assign roles to users
--- NOTE: Roles are now assigned automatically when users are created via the auth system sync
--- This ensures proper RBAC integration without hardcoded assignments
+-- Assign cashier targeted permissions to cashier role
+INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES
+((SELECT id FROM roles WHERE name = 'cashier'), (SELECT id FROM permissions WHERE name = 'dashboard_overview.cashier_dashboard')),
+((SELECT id FROM roles WHERE name = 'cashier'), (SELECT id FROM permissions WHERE name = 'student_tracking.late_payments')),
+((SELECT id FROM roles WHERE name = 'cashier'), (SELECT id FROM permissions WHERE name = 'student_tracking.forget_id_card_students'));
+
+
+
+-- Assign teacher targeted permissions to teacher role
 
 
 

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import adminSidebarSections from './AdminDashboardSidebar';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
+import { getUserPermissions } from '../../../api/rbac';
+import { getUserData, getAuthToken } from '../../../api/apiUtils';
 import CustomButton from '../../../components/CustomButton';
 import {
   FaTrash, FaEdit, FaChalkboardTeacher, FaBook, FaUserGraduate, FaCalendarAlt, FaClock
@@ -24,6 +26,10 @@ const ClassHalls = () => {
   const [editingHall, setEditingHall] = useState(null);
   const [availabilityResult, setAvailabilityResult] = useState(null);
   const [classOptions, setClassOptions] = useState([]);
+  // Sidebar permissions state
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
 
   // Fetch halls and teachers on mount
   useEffect(() => {
@@ -31,6 +37,43 @@ const ClassHalls = () => {
     fetchTeachers();
     fetchClasses();
     fetchRequests();
+  }, []);
+
+  // Load user permissions and compute filtered sidebar
+  useEffect(() => {
+    const loadUserPermissions = async () => {
+      try {
+        setPermissionsLoading(true);
+        const stored = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+        let userId;
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            userId = parsed.userid || parsed.userId || parsed.id;
+          } catch (e) {
+            console.error('Failed to parse stored userData', e);
+          }
+        }
+
+        if (!userId) {
+          const user = getUserData();
+          userId = user?.userid || user?.userId || user?.id;
+        }
+
+       
+
+        const perms = await getUserPermissions(userId);
+        setUserPermissions(perms || []);
+        setFilteredSidebarSections(AdminDashboardSidebar(perms || []));
+      } catch (err) {
+        console.error('Failed to load user permissions for sidebar', err);
+        setFilteredSidebarSections(AdminDashboardSidebar([]));
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    loadUserPermissions();
   }, []);
 
 useEffect(() => {
@@ -55,7 +98,13 @@ const fetchClasses = async () => {
 
 const fetchHalls = async () => {
   try {
-    const res = await fetch(`${HALLBOOK_API}?list=1`);
+    const token = getAuthToken();
+    const res = await fetch(`${HALLBOOK_API}?list=1`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
     const data = await res.json();
     if (data.success) {
       // Build classId to name map
@@ -96,7 +145,13 @@ const fetchHalls = async () => {
 
   const fetchTeachers = async () => {
   try {
-    const res = await fetch(TEACHERS_API);
+    const token = getAuthToken();
+    const res = await fetch(TEACHERS_API, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
     const data = await res.json();
     if (data.success && Array.isArray(data.data)) {
       setTeacherOptions(data.data.map(t => ({
@@ -143,9 +198,13 @@ const fetchHalls = async () => {
         start_time: values.startTime,
         end_time: values.endTime
       };
+      const token = getAuthToken();
       const res = await fetch(HALLBOOK_API, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
@@ -232,8 +291,14 @@ const fetchHalls = async () => {
     e.preventDefault();
     setAvailabilityResult(null);
     try {
+      const token = getAuthToken();
       const url = `${HALLBOOK_API}?date=${checkForm.date}&start_time=${checkForm.startTime}&end_time=${checkForm.endTime}`;
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
       const data = await res.json();
       setAvailabilityResult(data);
       
@@ -295,7 +360,7 @@ const fetchHalls = async () => {
   };
 
   return (
-    <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
+    <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
 
       <div className="p-6 bg-white rounded-lg shadow">
         <BasicAlertBox {...alertBox} />

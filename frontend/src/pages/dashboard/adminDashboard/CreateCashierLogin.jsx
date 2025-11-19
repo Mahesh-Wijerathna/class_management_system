@@ -1,10 +1,8 @@
 import React from 'react';
 import BasicAlertBox from '../../../components/BasicAlertBox';
-import DashboardLayout from '../../../components/layout/DashboardLayout';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomButton from '../../../components/CustomButton';
 import BasicForm from '../../../components/BasicForm';
-import adminSidebarSections from './AdminDashboardSidebar';
 import { useNavigate } from 'react-router-dom';
 import * as Yup from 'yup';
 import { FaUser, FaLock, FaPhone, FaIdCard, FaEnvelope } from 'react-icons/fa';
@@ -31,6 +29,7 @@ const initialValues = {
 
 const CreateCashierLogin = () => {
   const navigate = useNavigate();
+
   const [submitCount, setSubmitCount] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
   const [alertBox, setAlertBox] = React.useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
@@ -115,7 +114,7 @@ const CreateCashierLogin = () => {
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto bg-white p-8 rounded-lg shadow mt-10">
+      <div className="w-full max-w-5xl mx-auto bg-white p-8 rounded-lg shadow mt-10">
       <BasicAlertBox
         open={alertBox.open}
         message={alertBox.message}
@@ -222,7 +221,7 @@ const CreateCashierLogin = () => {
           </>
         )}
       </BasicForm>
-    </div>
+      </div>
   );
 };
 

@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import adminSidebarSections from './AdminDashboardSidebar';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
+import { getUserPermissions } from '../../../api/rbac';
+import { getUserData } from '../../../api/apiUtils';
 import BasicTable from '../../../components/BasicTable';
 import CustomButton from '../../../components/CustomButton';
 
@@ -31,6 +33,10 @@ const ClassStudents = () => {
   const { classId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  // Sidebar permissions state
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
   const enrollments = getEnrollments();
   const students = getStudents();
   const className = location.state && location.state.className ? location.state.className : '';
@@ -49,8 +55,42 @@ const ClassStudents = () => {
     }
   } catch {}
 
+  useEffect(() => {
+    const loadUserPermissions = async () => {
+      try {
+        setPermissionsLoading(true);
+        const stored = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+        let userId;
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            userId = parsed.userid || parsed.userId || parsed.id;
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        if (!userId) {
+          const user = getUserData();
+          userId = user?.userid || user?.userId || user?.id;
+        }
+
+        const perms = await getUserPermissions(userId);
+        setUserPermissions(perms || []);
+        setFilteredSidebarSections(AdminDashboardSidebar(perms || []));
+      } catch (err) {
+        console.error('Failed to load user permissions for sidebar', err);
+        setFilteredSidebarSections(AdminDashboardSidebar([]));
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    loadUserPermissions();
+  }, []);
+
   return (
-    <DashboardLayout userRole="Administrator" sidebarItems={adminSidebarSections}>
+    <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
       <div className="flex flex-col md:flex-row gap-6">
         {/* Left summary/details panel */}
         <div className="md:w-1/4 w-full bg-white rounded-lg shadow p-4">

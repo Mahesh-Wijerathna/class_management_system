@@ -36,6 +36,9 @@ import {
   FaExchangeAlt
 } from 'react-icons/fa';
 
+// new 
+import { getUserPermissions } from '../../../api/rbac';
+
 const AdminDashboard = () => {
   const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
   const [analytics, setAnalytics] = useState(null);
@@ -111,7 +114,7 @@ const AdminDashboard = () => {
 
         // Get current user ID from stored user data
         const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
-        let userId = 'A002'; // Default admin user from database
+        let userId = null; // Default admin user from database
 
         if (userData) {
           try {
@@ -125,7 +128,7 @@ const AdminDashboard = () => {
         console.log('Fetching permissions for user:', userId);
 
         // Get user permissions
-        const userPermissions = await getCurrentUserPermissions(userId);
+        const userPermissions = await getUserPermissions(userId);
 
         console.log('User permissions:', userPermissions);
 

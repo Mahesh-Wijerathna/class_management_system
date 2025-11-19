@@ -70,10 +70,19 @@ const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen, isLocked =
   };
 
   const toggleSidebar = () => {
+    console.log('🔄 Toggle sidebar clicked!');
+    console.log('  Current state:', isOpen);
+    console.log('  External control:', externalIsOpen !== undefined);
+    console.log('  Is locked:', isLocked);
+    
     const newState = !isOpen;
+    console.log('  New state will be:', newState);
+    
     if (externalIsOpen !== undefined) {
+      console.log('  Using external control via onToggle');
       onToggle(newState);
     } else {
+      console.log('  Using internal state');
       setInternalIsOpen(newState);
       onToggle(newState);
     }
@@ -208,7 +217,7 @@ const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen, isLocked =
             ${isMobile && !isOpen ? '-translate-x-full' : 'translate-x-0'}
             ${isMobile ? 'lg:translate-x-0' : ''}
             ${isMobile ? 'w-62' : ''}
-            ${isLocked ? 'blur-sm pointer-events-none select-none' : ''}`}
+            ${isLocked ? 'blur-sm select-none' : ''}`}
           style={{
             background: 'rgba(255, 255, 255, 0.03)',
             backdropFilter: 'blur(40px) saturate(250%) contrast(130%) brightness(110%)',
@@ -223,10 +232,10 @@ const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen, isLocked =
                  backdropFilter: 'blur(25px) saturate(200%) contrast(120%)',
                  boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 0, 0, 0.05)'
                }}>
-            {/* Enhanced Glassmorphism Close button */}
+            {/* Enhanced Glassmorphism Close button - Always clickable */}
             <button
               onClick={toggleSidebar}
-              className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-xl shadow-lg hover:scale-110 transition-all duration-200 active:scale-95"
+              className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-xl shadow-lg hover:scale-110 transition-all duration-200 active:scale-95 pointer-events-auto"
               style={{ 
                 zIndex: 2,
                 background: 'rgba(255, 255, 255, 0.15)',
@@ -282,7 +291,7 @@ const Sidebar = ({ items, onToggle, isMobile, isOpen: externalIsOpen, isLocked =
           
 
           {/* Enhanced Navigation */}
-          <nav className="p-4">
+          <nav className={`p-4 ${isLocked ? 'pointer-events-none' : ''}`}>
             {filteredItems.map((section, sectionIdx) => (
               <div key={sectionIdx} className="mb-6 animate-fadeInUp" style={{ animationDelay: `${sectionIdx * 150}ms` }}>
                 {isOpen && (

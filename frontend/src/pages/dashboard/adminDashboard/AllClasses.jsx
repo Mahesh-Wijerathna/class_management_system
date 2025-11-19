@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import BasicTable from '../../../components/BasicTable';
 import { getAllClasses } from '../../../api/classes';
 import { getClassEnrollments } from '../../../api/enrollments';
 import { getAllStudents } from '../../../api/students';
 import axios from 'axios';
-import { FaUser, FaGraduationCap, FaMoneyBill, FaCalendar, FaPhone, FaEnvelope, FaSchool, FaMapMarkerAlt, FaSync, FaSearch, FaFilter, FaTimes, FaEdit, FaTrash, FaDownload, FaPrint, FaSave, FaCheck, FaExclamationTriangle, FaPlus, FaUsers, FaBook, FaClock, FaVideo, FaChalkboardTeacher } from 'react-icons/fa';
+import { FaUser, FaGraduationCap, FaMoneyBill, FaCalendar, FaPhone, FaEnvelope, FaSync, FaSearch, FaTimes, FaExclamationTriangle, FaUsers, FaBook, FaVideo, FaChalkboardTeacher } from 'react-icons/fa';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import adminSidebarSections from './AdminDashboardSidebar';
+import AdminDashboardSidebar from './AdminDashboardSidebar';
+import { getUserPermissions } from '../../../api/rbac';
+
+
 
 const AllClasses = ({ onLogout }) => {
   const [classes, setClasses] = useState([]);
@@ -30,8 +33,11 @@ const AllClasses = ({ onLogout }) => {
   const [studentsData, setStudentsData] = useState({});
   const [enrollmentSearchTerm, setEnrollmentSearchTerm] = useState('');
 
+  // Sidebar permissions state
+  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
+
   // Load all classes and their enrollments
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -66,7 +72,7 @@ const AllClasses = ({ onLogout }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Load detailed information for each class
   const loadClassDetails = async (classesList) => {
@@ -81,9 +87,14 @@ const AllClasses = ({ onLogout }) => {
         // Load payment data for this class from payment backend
         let classPayments = [];
         try {
-          const paymentsResponse = await axios.get(`http://localhost:8090/routes.php/get_all_payments`);
+          //const paymentsResponse = await axios.get(`http://localhost:8090/routes.php/get_all_payments`);
+          const paymentsResponse = await axios.get(`http://localhost:8090/routes.php/get_all_payments`, {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('authToken') || sessionStorage.getItem('authToken')}`
+            }
+          });
           if (paymentsResponse.data.success && paymentsResponse.data.data) {
-            classPayments = paymentsResponse.data.data.filter(payment => payment.class_id == classItem.id);
+            classPayments = paymentsResponse.data.data.filter(payment => payment.class_id === classItem.id);
             console.log(`Class ${classItem.id} (${classItem.className}) - Enrollments: ${enrollments.length}, Payments: ${classPayments.length}`);
             console.log(`Class ${classItem.id} payments:`, classPayments);
           }
@@ -208,6 +219,49 @@ const AllClasses = ({ onLogout }) => {
   // Load data on component mount
   useEffect(() => {
     loadData();
+  }, [loadData]);
+
+  // Load user permissions and filter sidebar
+  useEffect(() => {
+    const loadUserPermissions = async () => {
+      try {
+        // Get current user ID from stored user data
+        const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+        let userId = null; // Default admin user from database
+
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+            userId = user.userid || userId;
+          } catch (error) {
+            console.error('Error parsing user data:', error);
+          }
+        }
+
+        console.log('Fetching permissions for user:', userId);
+
+        // Get user permissions
+        const userPermissions = await getUserPermissions(userId);
+
+        console.log('User permissions:', userPermissions);
+
+        // Filter sidebar sections based on permissions
+        const filteredSections = AdminDashboardSidebar(userPermissions);
+
+        console.log('Filtered sidebar sections:', filteredSections);
+
+        setFilteredSidebarSections(filteredSections);
+      } catch (error) {
+        console.error('Failed to load user permissions:', error);
+        setError(error.message);
+
+        // Fallback: show all sections if permission loading fails
+        console.log('Using fallback: showing all sidebar sections');
+        setFilteredSidebarSections(AdminDashboardSidebar([]));
+      }
+    };
+
+    loadUserPermissions();
   }, []);
 
 
@@ -618,7 +672,7 @@ const AllClasses = ({ onLogout }) => {
   return (
     <DashboardLayout
       userRole="Administrator"
-      sidebarItems={adminSidebarSections}
+      sidebarItems={filteredSidebarSections}
     >
       <div className="w-full max-w-7xl mx-auto bg-white p-8 rounded-lg shadow">
       {/* Header */}
@@ -1228,7 +1282,7 @@ const AllClasses = ({ onLogout }) => {
                 
                 // Get payments for this student and class from the payment data
                 const studentPayments = selectedClass.payments?.filter(payment => 
-                  payment.user_id === enrollment.student_id && payment.class_id == selectedClass.classId
+                  payment.user_id === enrollment.student_id && payment.class_id === selectedClass.classId
                 ) || [];
                 
                 studentPayments.forEach(payment => {

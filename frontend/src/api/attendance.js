@@ -1,4 +1,5 @@
 import api from './axiosConfig';
+import { getAuthToken } from './apiUtils';
 
 // Base URL for attendance backend
 const ATTENDANCE_BASE_URL = process.env.REACT_APP_ATTENDANCE_BACKEND_URL || 'http://localhost:8092';
@@ -235,6 +236,7 @@ export const trackZoomAttendance = async (userData, classData) => {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`
       },
       body: JSON.stringify(attendanceData)
     });
@@ -262,6 +264,7 @@ export const getMonthlyAttendance = async (classId, year, month) => {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`
       },
     });
     
@@ -287,6 +290,7 @@ export const trackJoinButtonClick = async (classId, studentId, clickData = {}) =
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`
       },
       body: JSON.stringify({
         classId,
@@ -322,6 +326,7 @@ export const getJoinButtonClicks = async (classId, studentId, startDate, endDate
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`
       },
     });
     

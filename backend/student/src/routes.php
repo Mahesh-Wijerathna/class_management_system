@@ -32,6 +32,87 @@ if ($mysqli->connect_errno) {
 $controller = new StudentController($mysqli);
 
 // Router test
+// GLOBAL AUTHENTICATION MIDDLEWARE (JWT)
+// Configure which paths require JWT authentication. You can add exact paths
+// to `$requiredAuthPaths` or regex patterns to `$requiredAuthPatterns`.
+$currentUser = null; // will hold authenticated user info
+$globalToken = null; // will hold bearer token
+
+// Add exact paths (full request path) that MUST be authenticated
+$requiredAuthPaths = [
+    // Exact paths that require authentication. Add paths here as needed.
+    '/routes.php/get_enrollments_by_student',
+    '/routes.php/getAllStudents',
+    // Other examples:
+    // '/routes.php/getAllStudents',
+    // '/routes.php/update-student',
+];
+
+// Add regex patterns for paths that must be authenticated
+$requiredAuthPatterns = [
+    // Examples (uncomment or add as needed):
+    // '#^/routes.php/get_with_id/([A-Za-z0-9]+)$#',
+    // '#^/routes.php/update-student/([A-Za-z0-9]+)$#',
+    // '#^/routes.php/student-monitoring#',
+    // '#^/routes.php/track-#',
+    // '#^/routes.php/generate-barcode#',
+    // '#^/routes.php/delete-student#'
+        '#^/routes.php/get_enrollments_by_student/$#',
+        '#^/routes.php/get_with_id/([A-Za-z0-9]+)$#'
+];
+
+// Always allow registration and the test route without auth
+$isUserCreation = ($method === 'POST' && $path === '/routes.php/register-student');
+$isTestRoute = ($method === 'GET' && $path === '/routes.php/test');
+
+// Determine whether this request needs authentication
+$needsAuth = false;
+if (!$isUserCreation && !$isTestRoute) {
+    if (in_array($path, $requiredAuthPaths, true)) {
+        $needsAuth = true;
+    } else {
+        foreach ($requiredAuthPatterns as $pattern) {
+            if (preg_match($pattern, $path)) {
+                $needsAuth = true;
+                break;
+            }
+        }
+    }
+}
+
+if ($needsAuth) {
+    $headers = getallheaders();
+    $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+
+    if (empty($authHeader) || !preg_match('/Bearer\\s+(.*)$/i', $authHeader, $matches)) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Missing or invalid authorization token']);
+        exit;
+    }
+
+    $globalToken = $matches[1];
+
+    // Validate token with auth backend service
+    $tokenValidation = @file_get_contents('http://host.docker.internal:8081/routes.php/validate_token', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => 'Content-Type: application/json',
+            'content' => json_encode(['token' => $globalToken])
+        ]
+    ]));
+
+    $validationResult = json_decode($tokenValidation, true);
+    if (!$validationResult || !$validationResult['success']) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Invalid or expired token']);
+        exit;
+    }
+
+    // Store user data from token for use in route handlers
+    $currentUser = $validationResult['data'];
+}
+
+// Router test
 if ($method === 'GET' && $path === '/routes.php/test') {
     echo json_encode([
         'success' => true,

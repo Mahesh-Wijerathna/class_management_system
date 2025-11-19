@@ -272,6 +272,7 @@ const PhysicalEnrollmentQuickAccess = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('authToken') || sessionStorage.getItem('authToken')}`
         },
         body: JSON.stringify({
           studentId: selectedStudent.studentId,

@@ -16,7 +16,8 @@
     Request Body:
         {
             "name": "string",
-            "target_userrole": "string",
+            "display_name": "string",
+            "target_user_role": "string",
             "description": "string"
         }
 
@@ -27,6 +28,7 @@
         body:
         {
             "name": "manage_users",
+            "display_name": "Manage Users",
             "target_userrole": "admin",
             "description": "Permission to manage user accounts"
         }
@@ -36,6 +38,7 @@
             {
                 "id": 1,
                 "name": "manage_users",
+                "display_name": "Manage Users",
                 "target_userrole": "admin",
                 "description": "Permission to manage user accounts",
                 "created_at": "2025-11-07T10:00:00Z"
@@ -61,6 +64,7 @@
     Request Body:
         {
             "name": "string",
+            "display_name": "string",
             "target_userrole": "string",
             "description": "string"
         }
@@ -72,6 +76,7 @@
         body:
         {
             "name": "manage_users_updated",
+            "display_name": "Manage Users (Updated)",
             "target_userrole": "admin",
             "description": "Updated permission to manage user accounts"
         }
@@ -84,6 +89,7 @@
                 "permission": {
                     "id": 1,
                     "name": "manage_users_updated",
+                    "display_name": "Manage Users (Updated)",
                     "target_userrole": "admin",
                     "description": "Updated permission to manage user accounts",
                     "created_at": "2025-11-07T10:00:00Z"
@@ -141,6 +147,7 @@
     Request Body:
         {
             "name": "string",
+            "display_name": "string",
             "description": "string",
             "permission_ids": [1, 2, 3]
         }
@@ -152,6 +159,7 @@
         body:
         {
             "name": "content_manager",
+            "display_name": "Content Manager",
             "description": "Role for managing website content",
             "permission_ids": [1, 2, 3]
         }
@@ -164,12 +172,14 @@
                 "role": {
                     "id": 1,
                     "name": "content_manager",
+                    "display_name": "Content Manager",
                     "description": "Role for managing website content",
                     "created_at": "2025-11-07T10:00:00Z",
                     "permissions": [
                         {
                             "id": 1,
                             "name": "manage_users",
+                            "display_name": "Manage Users",
                             "target_userrole": "admin",
                             "description": "Permission to manage user accounts"
                         }
@@ -207,12 +217,14 @@
                     {
                         "id": 1,
                         "name": "content_manager",
+                        "display_name": "Content Manager",
                         "description": "Role for managing website content",
                         "created_at": "2025-11-07T10:00:00Z",
                         "permissions": [
                             {
                                 "id": 1,
                                 "name": "manage_users",
+                                "display_name": "Manage Users",
                                 "target_userrole": "admin",
                                 "description": "Permission to manage user accounts"
                             }
@@ -248,12 +260,14 @@
                 "role": {
                     "id": 1,
                     "name": "content_manager",
+                    "display_name": "Content Manager",
                     "description": "Role for managing website content",
                     "created_at": "2025-11-07T10:00:00Z",
                     "permissions": [
                         {
                             "id": 1,
                             "name": "manage_users",
+                            "display_name": "Manage Users",
                             "target_userrole": "admin",
                             "description": "Permission to manage user accounts"
                         }
@@ -280,6 +294,7 @@
     Request Body:
         {
             "name": "string",
+            "display_name": "string",
             "description": "string",
             "permission_ids": [1, 2, 3]
         }
@@ -291,6 +306,7 @@
         body:
         {
             "name": "content_manager_updated",
+            "display_name": "Content Manager (Updated)",
             "description": "Updated role for managing website content",
             "permission_ids": [1, 2, 4, 5]
         }
@@ -303,18 +319,21 @@
                 "role": {
                     "id": 1,
                     "name": "content_manager_updated",
+                    "display_name": "Content Manager (Updated)",
                     "description": "Updated role for managing website content",
                     "created_at": "2025-11-07T10:00:00Z",
                     "permissions": [
                         {
                             "id": 1,
                             "name": "manage_users",
+                            "display_name": "Manage Users",
                             "target_userrole": "admin",
                             "description": "Permission to manage user accounts"
                         },
                         {
                             "id": 2,
                             "name": "manage_content",
+                            "display_name": "Manage Content",
                             "target_userrole": "admin",
                             "description": "Permission to manage content"
                         }
@@ -438,6 +457,7 @@
                     {
                         "id": 1,
                         "name": "manage_users",
+                        "display_name": "Manage Users",
                         "target_userrole": "admin",
                         "description": "Permission to manage user accounts",
                         "assigned_at": "2025-11-07T10:00:00Z"
@@ -445,6 +465,7 @@
                     {
                         "id": 2,
                         "name": "manage_content",
+                        "display_name": "Manage Content",
                         "target_userrole": "admin",
                         "description": "Permission to manage content",
                         "assigned_at": "2025-11-07T10:15:00Z"
@@ -718,12 +739,14 @@
                     {
                         "id": 1,
                         "name": "user_roles.permissions",
+                        "display_name": "Manage Permissions",
                         "target_userrole": "admin",
                         "description": "Permission to manage permissions"
                     },
                     {
                         "id": 2,
                         "name": "user_roles.all_roles",
+                        "display_name": "View All Roles",
                         "target_userrole": "admin",
                         "description": "Permission to view all roles"
                     }
@@ -759,18 +782,21 @@
                     {
                         "id": 1,
                         "name": "view_student_dashboard",
+                        "display_name": "View Student Dashboard",
                         "target_userrole": "student",
                         "description": "Permission to view student dashboard"
                     },
                     {
                         "id": 2,
                         "name": "enroll_course",
+                        "display_name": "Enroll in Course",
                         "target_userrole": "student",
                         "description": "Permission to enroll in courses"
                     },
                     {
                         "id": 5,
                         "name": "manage_content",
+                        "display_name": "Manage Content",
                         "target_userrole": "content_manager",
                         "description": "Permission to manage website content"
                     }

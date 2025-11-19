@@ -6,9 +6,21 @@ const classApi = axios.create({
   timeout: 15000, // Increased timeout to 15 seconds
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json',
+    'Accept': 'application/json'
   },
   withCredentials: false,
+});
+
+// Add request interceptor to dynamically set Authorization header
+classApi.interceptors.request.use((config) => {
+  // Get token from appropriate storage
+  const usePersistentStorage = sessionStorage.getItem('usePersistentStorage');
+  const storage = usePersistentStorage === 'true' ? localStorage : sessionStorage;
+  const token = storage.getItem('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 const classApiGet = async (endpoint) => {

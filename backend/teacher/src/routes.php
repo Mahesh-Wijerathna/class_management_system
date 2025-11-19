@@ -17,13 +17,75 @@ require_once 'TeacherController.php';
 // Set content type to JSON
 header('Content-Type: application/json');
 
+// GLOBAL AUTHENTICATION MIDDLEWARE
+// Require authentication for certain endpoints
+$requiredAuthPaths = [
+    '/get_all_teachers',
+    '/get_active_teachers',
+    '/get_next_teacher_id',
+    '/create_teacher',
+    '/update_teacher',
+    '/delete_teacher',
+    '/get_teacher_by_id',
+    '/get_teacher_for_edit',
+    '/get_teachers_by_stream',
+    '/change_password',
+    '/login',
+    '/login_with_teacher_id',
+    '/teacher/staff/login',
+    '/hallbook.php'
+];
+
+$currentUser = null; // Store authenticated user data globally
+$globalToken = null; // Store token globally for use in route handlers
+
+$method = $_SERVER['REQUEST_METHOD'];
+$path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$path = str_replace('/routes.php', '', $path);
+
+// Skip authentication for certain endpoints
+$isPublicEndpoint = ($method === 'GET' && preg_match('/^\/check_phone_exists/', $path));
+
+if (!$isPublicEndpoint && (
+    in_array($path, $requiredAuthPaths) ||
+    preg_match('#^/teacher/([A-Za-z0-9_\-]+)/staff$#', $path) ||
+    preg_match('#^/teacher/([A-Za-z0-9_\-]+)/staff/([A-Za-z0-9_\-]+)$#', $path) ||
+    preg_match('#^/teacher/staff/([A-Za-z0-9_\-]+)$#', $path) ||
+    preg_match('#^/staff/([A-Za-z0-9_\-]+)$#', $path) ||
+    preg_match('/^\/update_teacher\/(.+)$/', $path) ||
+    preg_match('/^\/delete_teacher\/(.+)$/', $path))) {
+    // Use getallheaders() to reliably get the Authorization header
+    $headers = getallheaders();
+    $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+
+    if (empty($authHeader) || !preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Missing or invalid authorization token']);
+        exit;
+    }
+    $globalToken = $matches[1];
+
+    // Validate the token with the auth backend
+    $tokenValidation = file_get_contents('http://host.docker.internal:8081/routes.php/validate_token', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => 'Content-Type: application/json',
+            'content' => json_encode(['token' => $globalToken])
+        ]
+    ]));
+    $validationResult = json_decode($tokenValidation, true);
+    if (!$validationResult || !$validationResult['success']) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Invalid or expired token']);
+        exit;
+    }
+
+    // Store user data from token for use in controllers
+    $currentUser = $validationResult['data']; // e.g., ['userid' => 'T001', 'role' => 'teacher']
+}
+
 try {
     $controller = new TeacherController();
-    
-    // Get request method and path
-    $method = $_SERVER['REQUEST_METHOD'];
-    $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-    $path = str_replace('/routes.php', '', $path);
     
     // Route handling
     switch ($method) {

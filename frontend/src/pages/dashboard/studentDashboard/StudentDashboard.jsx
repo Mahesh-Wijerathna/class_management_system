@@ -49,9 +49,20 @@ const getStorage = () => {
 const fetchStudentProfile = async (userid) => {
   try {
     console.log('Fetching student profile for:', userid);
-    const response = await axios.get(`http://localhost:8086/routes.php/get_with_id/${userid}`, {
-      timeout: 5000
-    });
+    // Try to read auth token from the preferred storage, with fallbacks
+    
+    const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+
+    const config = {
+      timeout: 5000,
+      headers: {}
+    };
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await axios.get(`http://localhost:8086/routes.php/get_with_id/${userid}`, config);
     
     console.log('Student profile response:', response.data);
     

@@ -38,50 +38,6 @@ CREATE TABLE IF NOT EXISTS payment_history (
 );
 
 -- Financial records table (updated to match PaymentController expectations)
-CashierDashboard.jsx:9343 Starting cash drawer session with user: {userid: 'C001', role: 'cashier', name: 'Bawantha', email: 'bawantharathnayake25@gmail.com', phone: '0710901846', …}
-CashierDashboard.jsx:9344 User ID: C001
-CashierDashboard.jsx:9345 User Name: Bawantha
-CashierDashboard.jsx:9346 User Role: cashier
-CashierDashboard.jsx:9356 Request body: {cashier_id: 'C001', cashier_name: 'Bawantha', opening_balance: 120}
-cashierdashboard:1 Access to fetch at 'http://localhost:8083/api/session/start' from origin 'http://localhost:3000' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.
-CashierDashboard.jsx:9358  POST http://localhost:8083/api/session/start net::ERR_FAILED
-startCashDrawerSession @ CashierDashboard.jsx:9358
-handleSubmit @ CashierDashboard.jsx:4675
-executeDispatch @ react-dom-client.development.js:16368
-runWithFiberInDEV @ react-dom-client.development.js:1518
-processDispatchQueue @ react-dom-client.development.js:16417
-(anonymous) @ react-dom-client.development.js:17016
-batchedUpdates$1 @ react-dom-client.development.js:3262
-dispatchEventForPluginEventSystem @ react-dom-client.development.js:16572
-dispatchEvent @ react-dom-client.development.js:20657
-dispatchDiscreteEvent @ react-dom-client.development.js:20625
-CashierDashboard.jsx:9401 Error starting cash drawer session: TypeError: Failed to fetch
-    at startCashDrawerSession (CashierDashboard.jsx:9358:1)
-    at handleSubmit (CashierDashboard.jsx:4675:1)
-    at executeDispatch (react-dom-client.development.js:16368:1)
-    at runWithFiberInDEV (react-dom-client.development.js:1518:1)
-    at processDispatchQueue (react-dom-client.development.js:16417:1)
-    at react-dom-client.development.js:17016:1
-    at batchedUpdates$1 (react-dom-client.development.js:3262:1)
-    at dispatchEventForPluginEventSystem (react-dom-client.development.js:16572:1)
-    at dispatchEvent (react-dom-client.development.js:20657:1)
-    at dispatchDiscreteEvent (react-dom-client.development.js:20625:1)
-startCashDrawerSession @ CashierDashboard.jsx:9401
-await in startCashDrawerSession
-handleSubmit @ CashierDashboard.jsx:4675
-executeDispatch @ react-dom-client.development.js:16368
-runWithFiberInDEV @ react-dom-client.development.js:1518
-processDispatchQueue @ react-dom-client.development.js:16417
-(anonymous) @ react-dom-client.development.js:17016
-batchedUpdates$1 @ react-dom-client.development.js:3262
-dispatchEventForPluginEventSystem @ react-dom-client.development.js:16572
-dispatchEvent @ react-dom-client.development.js:20657
-dispatchDiscreteEvent @ react-dom-client.development.js:20625
-CashierDashboard.jsx:8092 💰 Cash Drawer Calculation:
-CashierDashboard.jsx:8093   - Starting Float: 0
-CashierDashboard.jsx:8094   - Cash Collected Today: 1000
-CashierDashboard.jsx:8095   - Total Drawer Balance: 1000
-CashierDashboard.jsx:8096   - Cash Drawer Session: null
 CREATE TABLE IF NOT EXISTS financial_records (
     id INT AUTO_INCREMENT PRIMARY KEY,
     transaction_id VARCHAR(100) UNIQUE NOT NULL,
@@ -98,10 +54,56 @@ CREATE TABLE IF NOT EXISTS financial_records (
     payment_method VARCHAR(50),
     reference_number VARCHAR(100),
     notes TEXT,
+    delivery_status ENUM('pending', 'processing', 'delivered') DEFAULT 'pending',
     created_by VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_transaction_id (transaction_id),
     INDEX idx_user_id (user_id),
     INDEX idx_class_id (class_id),
-    INDEX idx_status (status)
+    INDEX idx_status (status),
+    INDEX idx_delivery_status (delivery_status)
 );
+-- Class Earnings Configuration Table
+-- Stores per-class earnings configuration including teacher dashboard access and revenue split settings
+CREATE TABLE IF NOT EXISTS class_earnings_config (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    class_id INT NOT NULL,
+    show_detailed_view BOOLEAN DEFAULT FALSE,
+    earnings_mode BOOLEAN DEFAULT FALSE,
+    enable_teacher_dashboard BOOLEAN DEFAULT FALSE,
+    hall_rent_percentage DECIMAL(5,2) DEFAULT 30.00,
+    payhere_percentage DECIMAL(5,2) DEFAULT 3.00,
+    other_expenses JSON DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_class (class_id),
+    INDEX idx_class_id (class_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Stores per-class earnings configuration including teacher dashboard access and revenue split settings';
+
+-- Student purchases for study packs
+CREATE TABLE IF NOT EXISTS student_purchases (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id varchar(50) NOT NULL,
+    study_pack_id INT NOT NULL,
+    purchase_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    payment_status ENUM('pending','completed','failed') DEFAULT 'pending',
+    transaction_id VARCHAR(100),
+    person_name VARCHAR(100) NOT NULL,
+    person_role VARCHAR(50) NOT NULL,
+    class_name VARCHAR(100) NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_student_id (student_id),
+    INDEX idx_study_pack_id (study_pack_id),
+    INDEX idx_transaction_id (transaction_id),
+    INDEX idx_payment_status (payment_status),
+    -- Enforce uniqueness at the database level to avoid race-condition duplicates
+    UNIQUE KEY uniq_transaction_id (transaction_id),
+    UNIQUE KEY uniq_student_pack_completed (student_id, study_pack_id, payment_status)
+);
+
+-- Recommended constraints (apply manually if not already present):
+-- ALTER TABLE student_purchases ADD UNIQUE KEY uniq_transaction_id (transaction_id);
+-- ALTER TABLE student_purchases ADD UNIQUE KEY uniq_student_pack_completed (student_id, study_pack_id, payment_status);
+-- Note: The code now enforces idempotency checks; adding these constraints will give hard guarantees.

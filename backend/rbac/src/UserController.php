@@ -131,6 +131,7 @@ class UserController {
                 return [
                     'id' => $role['id'],
                     'name' => $role['name'],
+                    'display_name' => $role['display_name'],
                     'description' => $role['description'],
                     'assigned_at' => $role['assigned_at']
                 ];

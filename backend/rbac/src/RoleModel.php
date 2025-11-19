@@ -7,14 +7,14 @@ class RoleModel {
         $this->conn = $db;
     }
 
-    public function createRole($name, $description, $permissionIds = []) {
+    public function createRole($name, $displayName, $description, $permissionIds = []) {
         // Start transaction
         $this->conn->begin_transaction();
 
         try {
             // Insert role
-            $stmt = $this->conn->prepare("INSERT INTO roles (name, description) VALUES (?, ?)");
-            $stmt->bind_param("ss", $name, $description);
+            $stmt = $this->conn->prepare("INSERT INTO roles (name, display_name, description) VALUES (?, ?, ?)");
+            $stmt->bind_param("sss", $name, $displayName, $description);
 
             if (!$stmt->execute()) {
                 throw new Exception("Failed to create role");
@@ -47,9 +47,10 @@ class RoleModel {
 
     public function getRoleById($id) {
         $stmt = $this->conn->prepare("
-            SELECT r.id, r.name, r.description, r.created_at,
+            SELECT r.id, r.name, r.display_name, r.description, r.created_at,
                    GROUP_CONCAT(p.id) as permission_ids,
-                   GROUP_CONCAT(p.name) as permission_names
+                   GROUP_CONCAT(p.name) as permission_names,
+                   GROUP_CONCAT(p.display_name) as permission_display_names
             FROM roles r
             LEFT JOIN role_permissions rp ON r.id = rp.role_id
             LEFT JOIN permissions p ON rp.permission_id = p.id
@@ -67,17 +68,19 @@ class RoleModel {
             if ($role['permission_ids']) {
                 $permissionIds = explode(',', $role['permission_ids']);
                 $permissionNames = explode(',', $role['permission_names']);
+                $permissionDisplayNames = explode(',', $role['permission_display_names']);
 
                 for ($i = 0; $i < count($permissionIds); $i++) {
                     $role['permissions'][] = [
                         'id' => (int)$permissionIds[$i],
-                        'name' => $permissionNames[$i]
+                        'name' => $permissionNames[$i],
+                        'display_name' => $permissionDisplayNames[$i] ?? $permissionNames[$i]
                     ];
                 }
             }
 
             // Remove temporary fields
-            unset($role['permission_ids'], $role['permission_names']);
+            unset($role['permission_ids'], $role['permission_names'], $role['permission_display_names']);
         }
 
         return $role;
@@ -85,9 +88,10 @@ class RoleModel {
 
     public function getRoleByName($name) {
         $stmt = $this->conn->prepare("
-            SELECT r.id, r.name, r.description, r.created_at,
+            SELECT r.id, r.name, r.display_name, r.description, r.created_at,
                    GROUP_CONCAT(p.id) as permission_ids,
-                   GROUP_CONCAT(p.name) as permission_names
+                   GROUP_CONCAT(p.name) as permission_names,
+                   GROUP_CONCAT(p.display_name) as permission_display_names
             FROM roles r
             LEFT JOIN role_permissions rp ON r.id = rp.role_id
             LEFT JOIN permissions p ON rp.permission_id = p.id
@@ -105,17 +109,19 @@ class RoleModel {
             if ($role['permission_ids']) {
                 $permissionIds = explode(',', $role['permission_ids']);
                 $permissionNames = explode(',', $role['permission_names']);
+                $permissionDisplayNames = explode(',', $role['permission_display_names']);
 
                 for ($i = 0; $i < count($permissionIds); $i++) {
                     $role['permissions'][] = [
                         'id' => (int)$permissionIds[$i],
-                        'name' => $permissionNames[$i]
+                        'name' => $permissionNames[$i],
+                        'display_name' => $permissionDisplayNames[$i] ?? $permissionNames[$i]
                     ];
                 }
             }
 
             // Remove temporary fields
-            unset($role['permission_ids'], $role['permission_names']);
+            unset($role['permission_ids'], $role['permission_names'], $role['permission_display_names']);
         }
 
         return $role;
@@ -123,9 +129,10 @@ class RoleModel {
 
     public function getAllRoles() {
         $result = $this->conn->query("
-            SELECT r.id, r.name, r.description, r.created_at,
+            SELECT r.id, r.name, r.display_name, r.description, r.created_at,
                    GROUP_CONCAT(p.id) as permission_ids,
-                   GROUP_CONCAT(p.name) as permission_names
+                   GROUP_CONCAT(p.name) as permission_names,
+                   GROUP_CONCAT(p.display_name) as permission_display_names
             FROM roles r
             LEFT JOIN role_permissions rp ON r.id = rp.role_id
             LEFT JOIN permissions p ON rp.permission_id = p.id
@@ -140,17 +147,19 @@ class RoleModel {
             if ($row['permission_ids']) {
                 $permissionIds = explode(',', $row['permission_ids']);
                 $permissionNames = explode(',', $row['permission_names']);
+                $permissionDisplayNames = explode(',', $row['permission_display_names']);
 
                 for ($i = 0; $i < count($permissionIds); $i++) {
                     $row['permissions'][] = [
                         'id' => (int)$permissionIds[$i],
-                        'name' => $permissionNames[$i]
+                        'name' => $permissionNames[$i],
+                        'display_name' => $permissionDisplayNames[$i] ?? $permissionNames[$i]
                     ];
                 }
             }
 
             // Remove temporary fields
-            unset($row['permission_ids'], $row['permission_names']);
+            unset($row['permission_ids'], $row['permission_names'], $row['permission_display_names']);
             $roles[] = $row;
         }
 
@@ -165,14 +174,22 @@ class RoleModel {
         return $result->num_rows > 0;
     }
 
-    public function updateRole($id, $name, $description, $permissionIds = []) {
+    public function displayNameExists($displayName) {
+        $stmt = $this->conn->prepare("SELECT id FROM roles WHERE display_name = ?");
+        $stmt->bind_param("s", $displayName);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result->num_rows > 0;
+    }
+
+    public function updateRole($id, $name, $displayName, $description, $permissionIds = []) {
         // Start transaction
         $this->conn->begin_transaction();
 
         try {
             // Update role
-            $stmt = $this->conn->prepare("UPDATE roles SET name = ?, description = ? WHERE id = ?");
-            $stmt->bind_param("ssi", $name, $description, $id);
+            $stmt = $this->conn->prepare("UPDATE roles SET name = ?, display_name = ?, description = ? WHERE id = ?");
+            $stmt->bind_param("sssi", $name, $displayName, $description, $id);
 
             if (!$stmt->execute()) {
                 throw new Exception("Failed to update role");
@@ -239,7 +256,7 @@ class RoleModel {
 
     public function getRolePermissions($roleId) {
         $stmt = $this->conn->prepare("
-            SELECT p.id, p.name, p.target_userrole, p.description, rp.assigned_at
+            SELECT p.id, p.name, p.display_name, p.target_userrole, p.description, rp.assigned_at
             FROM permissions p
             INNER JOIN role_permissions rp ON p.id = rp.permission_id
             WHERE rp.role_id = ?
