@@ -198,9 +198,13 @@ const fetchHalls = async () => {
         start_time: values.startTime,
         end_time: values.endTime
       };
+      const token = getAuthToken();
       const res = await fetch(HALLBOOK_API, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
@@ -287,8 +291,14 @@ const fetchHalls = async () => {
     e.preventDefault();
     setAvailabilityResult(null);
     try {
+      const token = getAuthToken();
       const url = `${HALLBOOK_API}?date=${checkForm.date}&start_time=${checkForm.startTime}&end_time=${checkForm.endTime}`;
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
       const data = await res.json();
       setAvailabilityResult(data);
       
