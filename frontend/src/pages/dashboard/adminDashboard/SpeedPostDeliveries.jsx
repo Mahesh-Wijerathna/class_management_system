@@ -548,26 +548,40 @@ const SpeedPostDeliveries = ({ onLogout }) => {
               <div className="text-xl font-bold text-purple-600">LKR {stats.totalRevenue.toLocaleString()}</div>
             </div>
           </div>
+        </div>
 
-          {/* Search and Filter */}
-          <div className="bg-white p-4 rounded-lg shadow mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="relative">
-                <FaSearch className="absolute left-3 top-3 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search by name, ID, class, mobile, address..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
+        {/* Main Content with Sidebar */}
+        <div className="flex h-full">
+          {/* Filter Sidebar */}
+          <div className="w-80 bg-white shadow-lg border-r border-gray-200 p-6 sticky top-0 h-screen overflow-y-auto">
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2 mb-4">
+                <FaFilter className="text-blue-600" />
+                Filters
+              </h2>
+              
+              {/* Search Input */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                <div className="relative">
+                  <FaSearch className="absolute left-3 top-3 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by name, ID, class, mobile, address..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <FaFilter className="text-gray-600" />
+              
+              {/* Status Filter */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Status</label>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">All Status</option>
                   <option value="pending">Pending</option>
@@ -577,134 +591,137 @@ const SpeedPostDeliveries = ({ onLogout }) => {
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center gap-2">
-            <FaExclamationTriangle />
-            {error}
-          </div>
-        )}
+          {/* Main Content */}
+          <div className="flex-1 p-6 overflow-y-auto">
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 flex items-center gap-2">
+                <FaExclamationTriangle />
+                {error}
+              </div>
+            )}
 
-        {/* Deliveries List */}
-        <BasicTable
-          columns={[
-            {
-              key: 'transaction',
-              label: 'Transaction',
-              render: (delivery) => (
-                <div>
-                  <div className="text-sm font-mono text-gray-900">{delivery.transactionId}</div>
-                  <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
-                    <FaCalendar size={10} />
-                    {new Date(delivery.paymentDate).toLocaleDateString()}
-                  </div>
-                </div>
-              )
-            },
-            {
-              key: 'student',
-              label: 'Student Details',
-              render: (delivery) => (
-                <div>
-                  <div className="text-sm font-semibold text-gray-900 flex items-center gap-1">
-                    <FaUser size={12} className="text-blue-600" />
-                    {delivery.studentName}
-                  </div>
-                  <div className="text-xs text-gray-600">ID: {delivery.studentId}</div>
-                  <div className="text-xs text-gray-600 flex items-center gap-1 mt-1">
-                    <FaPhone size={10} />
-                    {delivery.mobile}
-                  </div>
-                  {delivery.email && (
-                    <div className="text-xs text-gray-600 flex items-center gap-1">
-                      <FaEnvelope size={10} />
-                      {delivery.email}
+            {/* Deliveries List */}
+            <BasicTable
+              columns={[
+                {
+                  key: 'transaction',
+                  label: 'Transaction',
+                  render: (delivery) => (
+                    <div>
+                      <div className="text-sm font-mono text-gray-900">{delivery.transactionId}</div>
+                      <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+                        <FaCalendar size={10} />
+                        {new Date(delivery.paymentDate).toLocaleDateString()}
+                      </div>
                     </div>
-                  )}
-                </div>
-              )
-            },
-            {
-              key: 'address',
-              label: 'Delivery Address',
-              render: (delivery) => (
-                <div className="flex items-start gap-2">
-                  <FaMapMarkerAlt className="text-red-600 mt-1" size={12} />
-                  <div>
-                    <div className="text-sm text-gray-900 max-w-xs">{delivery.address || 'Not provided'}</div>
-                    <div className="text-xs text-gray-600 font-semibold">{delivery.district || 'Not specified'}</div>
-                  </div>
-                </div>
-              )
-            },
-            {
-              key: 'className',
-              label: 'Class',
-              render: (delivery) => (
-                <div className="text-sm font-medium text-gray-900 flex items-center gap-1">
-                  <FaBook size={12} className="text-purple-600" />
-                  {delivery.className}
-                </div>
-              )
-            },
-            {
-              key: 'tuteMedium',
-              label: 'Medium',
-              render: (delivery) => (
-                <div className="text-sm font-medium text-blue-700">
-                  {delivery.tuteMedium || 'Not specified'}
-                </div>
-              )
-            },
-            {
-              key: 'speedPostFee',
-              label: 'Fee',
-              render: (delivery) => (
-                <div className="text-sm font-bold text-green-600">
-                  LKR {delivery.speedPostFee?.toLocaleString()}
-                </div>
-              )
-            },
-            {
-              key: 'paymentDate',
-              label: 'Date',
-              render: (delivery) => (
-                <div className="text-sm text-gray-700">
-                  {new Date(delivery.paymentDate).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric'
-                  })}
-                </div>
-              )
-            },
-            {
-              key: 'deliveryStatus',
-              label: 'Status',
-              render: (delivery) => getStatusBadge(delivery.deliveryStatus)
-            }
-          ]}
-          data={filteredDeliveries}
-          actions={(delivery) => (
-            <select
-              value={delivery.deliveryStatus}
-              onChange={(e) => updateDeliveryStatus(delivery.transactionId, e.target.value)}
-              className="text-sm px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="pending">Pending</option>
-              <option value="processing">Processing</option>
-              <option value="delivered">Delivered</option>
-            </select>
-          )}
-          loading={loading}
-          emptyMessage={
-            searchTerm || statusFilter !== 'all' 
-              ? 'No deliveries match your search criteria.' 
-              : 'No students have selected speed post delivery yet.'
-          }
-        />
+                  )
+                },
+                {
+                  key: 'student',
+                  label: 'Student Details',
+                  render: (delivery) => (
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900 flex items-center gap-1">
+                        <FaUser size={12} className="text-blue-600" />
+                        {delivery.studentName}
+                      </div>
+                      <div className="text-xs text-gray-600">ID: {delivery.studentId}</div>
+                      <div className="text-xs text-gray-600 flex items-center gap-1 mt-1">
+                        <FaPhone size={10} />
+                        {delivery.mobile}
+                      </div>
+                      {delivery.email && (
+                        <div className="text-xs text-gray-600 flex items-center gap-1">
+                          <FaEnvelope size={10} />
+                          {delivery.email}
+                        </div>
+                      )}
+                    </div>
+                  )
+                },
+                {
+                  key: 'address',
+                  label: 'Delivery Address',
+                  render: (delivery) => (
+                    <div className="flex items-start gap-2">
+                      <FaMapMarkerAlt className="text-red-600 mt-1" size={12} />
+                      <div>
+                        <div className="text-sm text-gray-900 max-w-xs">{delivery.address || 'Not provided'}</div>
+                        <div className="text-xs text-gray-600 font-semibold">{delivery.district || 'Not specified'}</div>
+                      </div>
+                    </div>
+                  )
+                },
+                {
+                  key: 'className',
+                  label: 'Class',
+                  render: (delivery) => (
+                    <div className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                      <FaBook size={12} className="text-purple-600" />
+                      {delivery.className}
+                    </div>
+                  )
+                },
+                {
+                  key: 'tuteMedium',
+                  label: 'Medium',
+                  render: (delivery) => (
+                    <div className="text-sm font-medium text-blue-700">
+                      {delivery.tuteMedium || 'Not specified'}
+                    </div>
+                  )
+                },
+                {
+                  key: 'speedPostFee',
+                  label: 'Fee',
+                  render: (delivery) => (
+                    <div className="text-sm font-bold text-green-600">
+                      LKR {delivery.speedPostFee?.toLocaleString()}
+                    </div>
+                  )
+                },
+                {
+                  key: 'paymentDate',
+                  label: 'Date',
+                  render: (delivery) => (
+                    <div className="text-sm text-gray-700">
+                      {new Date(delivery.paymentDate).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
+                    </div>
+                  )
+                },
+                {
+                  key: 'deliveryStatus',
+                  label: 'Status',
+                  render: (delivery) => getStatusBadge(delivery.deliveryStatus)
+                }
+              ]}
+              data={filteredDeliveries}
+              actions={(delivery) => (
+                <select
+                  value={delivery.deliveryStatus}
+                  onChange={(e) => updateDeliveryStatus(delivery.transactionId, e.target.value)}
+                  className="text-sm px-2 py-1 border rounded focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="processing">Processing</option>
+                  <option value="delivered">Delivered</option>
+                </select>
+              )}
+              loading={loading}
+              emptyMessage={
+                searchTerm || statusFilter !== 'all' 
+                  ? 'No deliveries match your search criteria.' 
+                  : 'No students have selected speed post delivery yet.'
+              }
+            />
+          </div>
+        </div>
       </div>
     </DashboardLayout>
   );
