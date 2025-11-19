@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import AdminDashboardSidebar from './AdminDashboardSidebar';
+import AdminDashboardSidebar, { adminSidebarSections } from './AdminDashboardSidebar';
 import { getUserPermissions } from '../../../api/rbac';
+import { cashierSidebarSections } from '../cashierDashboard/CashierDashboardSidebar';
+import { getUserData, logout as authLogout } from '../../../api/apiUtils';
 import { 
   FaUsers, FaVideo, FaQrcode, FaChartBar, FaDownload, 
-  FaCalendarAlt, FaClock, FaCheckCircle, FaTimesCircle, 
-  FaExclamationTriangle, FaSearch, FaFilter, FaSync,
-  FaEye, FaEdit, FaTrash, FaFileExport, FaCog, FaBell,
-  FaUserGraduate, FaChalkboardTeacher, FaBook, FaMoneyBill, FaTimes, FaGraduationCap
+  FaCalendarAlt, FaCheckCircle, FaTimesCircle, 
+  FaExclamationTriangle, FaSearch, FaSync,
+  FaFileExport, FaCog,
+  FaChalkboardTeacher, FaBook, FaTimes, FaGraduationCap
 } from 'react-icons/fa';
 import BasicTable from '../../../components/BasicTable';
 import BasicAlertBox from '../../../components/BasicAlertBox';
@@ -26,13 +28,13 @@ const AttendanceManagement = ({ onLogout }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [alertBox, setAlertBox] = useState({ open: false, message: '', type: 'info', title: '' });
+  const [user, setUser] = useState(null);
   
   // Data states
   const [classes, setClasses] = useState([]);
   const [attendanceData, setAttendanceData] = useState([]);
   const [analytics, setAnalytics] = useState({});
   const [overviewCounts, setOverviewCounts] = useState(null);
-  const [selectedClass, setSelectedClass] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   
   // Filter states
@@ -60,23 +62,16 @@ const AttendanceManagement = ({ onLogout }) => {
   
   // Auto-refresh state
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState(30000); // 30 seconds
-  const [lastRefresh, setLastRefresh] = useState(Date.now()); // Force re-calculations
+  const [refreshInterval] = useState(30000); // 30 seconds
+  const [, setLastRefresh] = useState(Date.now()); // Force re-calculations
   const [refreshingClass, setRefreshingClass] = useState(null); // Track which class is being refreshed
   // Sidebar permissions state
-  const [userPermissions, setUserPermissions] = useState([]);
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
-
-  useEffect(() => {
-    loadInitialData();
-  }, []);
 
   // Load user permissions and compute filtered sidebar
   useEffect(() => {
     const loadUserPermissions = async () => {
       try {
-        setPermissionsLoading(true);
         const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
         let userId = null;
         if (userData) {
@@ -89,50 +84,33 @@ const AttendanceManagement = ({ onLogout }) => {
         }
 
         const perms = await getUserPermissions(userId);
-        setUserPermissions(perms || []);
         setFilteredSidebarSections(AdminDashboardSidebar(perms || []));
       } catch (err) {
         console.error('Failed to load user permissions for sidebar', err);
         setFilteredSidebarSections(AdminDashboardSidebar([]));
-      } finally {
-        setPermissionsLoading(false);
       }
     };
 
     loadUserPermissions();
   }, []);
-
-  // Auto-refresh effect
   useEffect(() => {
-    let interval;
-    if (autoRefresh) {
-      interval = setInterval(() => {
-        loadAllAttendanceData();
-        loadAttendanceAnalytics();
-      }, refreshInterval);
-    }
-    
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, [autoRefresh, refreshInterval]);
-
-  // Listen for global attendance updates (e.g., barcode scanner) and refresh immediately
-  useEffect(() => {
-    const handler = (e) => {
-      // e.detail may contain studentId, classes, results
-      loadAllAttendanceData();
-      loadAttendanceAnalytics();
-      setAlertBox({ open: true, title: 'Attendance Updated', message: 'Attendance data refreshed', type: 'success' });
-    };
     try {
-      window.addEventListener('attendance:updated', handler);
-    } catch (e) {}
-    return () => { try { window.removeEventListener('attendance:updated', handler); } catch (e) {} };
+      const u = getUserData();
+      setUser(u);
+    } catch (err) {
+      setUser(null);
+    }
   }, []);
 
+  const handleLogout = async () => {
+    try {
+      await authLogout();
+    } catch (err) {
+      // ignore
+    }
+    window.location.href = '/login';
+  };
+  // Auto-refresh effect
   // Helper to derive YYYY-MM-DD date string from a record. Prefer attendance_date, fallback to join_time.
   const getRecordDateStr = (record) => {
     if (!record) return null;
@@ -147,7 +125,48 @@ const AttendanceManagement = ({ onLogout }) => {
     return null;
   };
 
-  const loadInitialData = async () => {
+  const loadAllAttendanceData = useCallback(async () => {
+    try {
+      // Load attendance analytics for today to power the overview (daily counts)
+      const today = new Date().toISOString().split('T')[0];
+      const analyticsRes = await getAttendanceAnalytics(null, today, today);
+      if (analyticsRes && analyticsRes.analytics && Array.isArray(analyticsRes.analytics.student_attendance)) {
+        const sa = analyticsRes.analytics.student_attendance || [];
+        setAttendanceData(sa);
+        setLastRefresh(Date.now()); // Force component recalculation
+
+        // compute overview counts based on today's attendance records (count each class record separately)
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todaySa = sa.filter(r => getRecordDateStr(r) === todayStr);
+        const totalTodayRecords = todaySa.length;
+        const presentTodayCount = todaySa.filter(r => String(r.attendance_status).toLowerCase() === 'present').length;
+        const lateTodayCount = todaySa.filter(r => String(r.attendance_status).toLowerCase() === 'late').length;
+        const absentTodayCount = todaySa.filter(r => String(r.attendance_status).toLowerCase() === 'absent').length;
+        const barcodeTodayCount = todaySa.filter(r => {
+          const s = String(r.source || '').toLowerCase();
+          return s.includes('barcode') || s.includes('image');
+        }).length;
+        const zoomTodayCount = todaySa.filter(r => String(r.source || '').toLowerCase().includes('zoom')).length;
+        const recordedVideoTodayCount = todaySa.filter(r => String(r.source || '').toLowerCase().includes('recorded')).length;
+        setOverviewCounts({ totalTodayRecords, presentToday: presentTodayCount, lateToday: lateTodayCount, absentToday: absentTodayCount, barcodeToday: barcodeTodayCount, zoomToday: zoomTodayCount, recordedVideoToday: recordedVideoTodayCount });
+      }
+    } catch (error) {
+      console.error('Error loading attendance data:', error);
+    }
+  }, []);
+
+  const loadAttendanceAnalytics = useCallback(async () => {
+    try {
+      const analyticsRes = await getAttendanceAnalytics();
+      if (analyticsRes.success) {
+        setAnalytics(analyticsRes.analytics || {});
+      }
+    } catch (error) {
+      console.error('Error loading analytics:', error);
+    }
+  }, []);
+
+  const loadInitialData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -176,72 +195,46 @@ const AttendanceManagement = ({ onLogout }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadAttendanceAnalytics, loadAllAttendanceData]);
 
-  const loadAllAttendanceData = async () => {
-    try {
-      // Load attendance analytics for today to power the overview (daily counts)
-      const today = new Date().toISOString().split('T')[0];
-      const analyticsRes = await getAttendanceAnalytics(null, today, today);
-      if (analyticsRes && analyticsRes.analytics && Array.isArray(analyticsRes.analytics.student_attendance)) {
-        const sa = analyticsRes.analytics.student_attendance || [];
-        setAttendanceData(sa);
-        setLastRefresh(Date.now()); // Force component recalculation
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
 
-        // compute overview counts based on today's attendance records (count each class record separately)
-        const todayStr = new Date().toISOString().split('T')[0];
-        const todaySa = sa.filter(r => getRecordDateStr(r) === todayStr);
-        const totalTodayRecords = todaySa.length;
-        const presentTodayCount = todaySa.filter(r => String(r.attendance_status).toLowerCase() === 'present').length;
-        const lateTodayCount = todaySa.filter(r => String(r.attendance_status).toLowerCase() === 'late').length;
-        const absentTodayCount = todaySa.filter(r => String(r.attendance_status).toLowerCase() === 'absent').length;
-        const barcodeTodayCount = todaySa.filter(r => {
-          const s = String(r.source || '').toLowerCase();
-          return s.includes('barcode') || s.includes('image');
-        }).length;
-        const zoomTodayCount = todaySa.filter(r => String(r.source || '').toLowerCase().includes('zoom')).length;
-        const recordedVideoTodayCount = todaySa.filter(r => String(r.source || '').toLowerCase().includes('recorded')).length;
-        setOverviewCounts({ totalTodayRecords, presentToday: presentTodayCount, lateToday: lateTodayCount, absentToday: absentTodayCount, barcodeToday: barcodeTodayCount, zoomToday: zoomTodayCount, recordedVideoToday: recordedVideoTodayCount });
-      }
-    } catch (error) {
-      console.error('Error loading attendance data:', error);
+  // Auto-refresh effect
+  useEffect(() => {
+    let interval;
+    if (autoRefresh) {
+      interval = setInterval(() => {
+        loadAllAttendanceData();
+        loadAttendanceAnalytics();
+      }, refreshInterval);
     }
-  };
-
-  const loadAttendanceAnalytics = async () => {
-    try {
-      const analyticsRes = await getAttendanceAnalytics();
-      if (analyticsRes.success) {
-        setAnalytics(analyticsRes.analytics || {});
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval);
       }
-    } catch (error) {
-      console.error('Error loading analytics:', error);
-    }
-  };
+    };
+  }, [autoRefresh, refreshInterval, loadAllAttendanceData, loadAttendanceAnalytics]);
 
-  const loadClassAttendance = async (classId) => {
+  // Listen for global attendance updates (e.g., barcode scanner) and refresh immediately
+  useEffect(() => {
+    const handler = (e) => {
+      // e.detail may contain studentId, classes, results
+      loadAllAttendanceData();
+      loadAttendanceAnalytics();
+      setAlertBox({ open: true, title: 'Attendance Updated', message: 'Attendance data refreshed', type: 'success' });
+    };
     try {
-      setLoading(true);
-      const response = await getClassAttendance(classId);
-      if (response.success) {
-        setAttendanceData(response.data || []);
-        setSelectedClass(classId);
-      }
-    } catch (error) {
-      setAlertBox({
-        open: true,
-        title: 'Error',
-        message: 'Failed to load attendance data',
-        type: 'danger'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+      window.addEventListener('attendance:updated', handler);
+    } catch (e) {}
+    return () => { try { window.removeEventListener('attendance:updated', handler); } catch (e) {} };
+  }, [loadAllAttendanceData, loadAttendanceAnalytics]);
 
   const handleExportReport = async (format = 'json', classId = null) => {
     try {
-      const targetClassId = classId || selectedClass;
+      const targetClassId = classId ?? null;
       await exportAttendanceReport(targetClassId, format);
       setAlertBox({
         open: true,
@@ -316,11 +309,13 @@ const AttendanceManagement = ({ onLogout }) => {
   };
 
   // Refresh attendance data when filters change
+  const classCount = classes.length;
+
   useEffect(() => {
-    if (classes.length > 0) {
+    if (classCount > 0) {
       loadAllAttendanceData();
     }
-  }, [dateFilter, monthFilter, yearFilter, streamFilter, deliveryFilter]);
+  }, [classCount, dateFilter, monthFilter, yearFilter, streamFilter, deliveryFilter, loadAllAttendanceData]);
 
   const handleResetToPreviousMonth = () => {
     // Get current month filter or use current month
@@ -685,11 +680,6 @@ const AttendanceManagement = ({ onLogout }) => {
   }).length || 0;
 
   // Helper functions
-
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-LK');
-  };
 
   const formatTime = (timeString) => {
     if (!timeString) return 'N/A';
@@ -1396,9 +1386,23 @@ const AttendanceManagement = ({ onLogout }) => {
     }
   };
 
+  const layoutProps = user?.role === 'cashier'
+    ? {
+        userRole: 'Cashier',
+        sidebarItems: cashierSidebarSections,
+        onLogout: handleLogout,
+        customTitle: 'TCMS',
+        customSubtitle: `Cashier Dashboard - ${user?.name || 'Cashier'}`
+      }
+    : {
+        userRole: 'Administrator',
+        sidebarItems: filteredSidebarSections.length ? filteredSidebarSections : adminSidebarSections,
+        onLogout
+      };
+
   if (loading) {
     return (
-      <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
+      <DashboardLayout {...layoutProps}>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -1411,7 +1415,7 @@ const AttendanceManagement = ({ onLogout }) => {
 
   if (error) {
     return (
-      <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
+      <DashboardLayout {...layoutProps}>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <FaExclamationTriangle className="text-red-500 text-4xl mx-auto mb-4" />
@@ -1429,7 +1433,7 @@ const AttendanceManagement = ({ onLogout }) => {
   }
 
   return (
-    <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
+    <DashboardLayout {...layoutProps}>
       <div className="w-full max-w-7xl mx-auto bg-white p-8 rounded-lg shadow">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">

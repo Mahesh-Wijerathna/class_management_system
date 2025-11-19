@@ -5,12 +5,14 @@ import { getClassEnrollments } from '../../../api/enrollments';
 import { getAllStudents } from '../../../api/students';
 import axios from 'axios';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import AdminDashboardSidebar from './AdminDashboardSidebar';
+import AdminDashboardSidebar, { adminSidebarSections } from './AdminDashboardSidebar';
+import { cashierSidebarSections } from '../cashierDashboard/CashierDashboardSidebar';
 import { getUserPermissions } from '../../../api/rbac';
-import { getUserData } from '../../../api/apiUtils';
+import { getUserData, logout as authLogout } from '../../../api/apiUtils';
 import BasicTable from '../../../components/BasicTable';
 
 const ClassEnrollments = () => {
+  const [user, setUser] = useState(null);
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -26,7 +28,6 @@ const ClassEnrollments = () => {
   const [totalEnrollments, setTotalEnrollments] = useState(0);
   const [enrollmentStatusFilter, setEnrollmentStatusFilter] = useState('');
   // Sidebar permissions state
-  const [userPermissions, setUserPermissions] = useState([]);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
 
@@ -36,6 +37,10 @@ const ClassEnrollments = () => {
   }, []);
 
   // Load user permissions and compute filtered sidebar sections
+  useEffect(() => {
+    setUser(getUserData());
+  }, []);
+
   useEffect(() => {
     const loadUserPermissions = async () => {
       try {
@@ -52,14 +57,11 @@ const ClassEnrollments = () => {
         }
 
         if (!userId) {
-          const user = getUserData();
-          userId = user?.userid || user?.userId || user?.id;
+          const fallbackUser = getUserData();
+          userId = fallbackUser?.userid || fallbackUser?.userId || fallbackUser?.id;
         }
 
-        
-
         const perms = await getUserPermissions(userId);
-        setUserPermissions(perms || []);
         setFilteredSidebarSections(AdminDashboardSidebar(perms || []));
       } catch (err) {
         console.error('Failed to load user permissions for sidebar', err);
@@ -71,6 +73,30 @@ const ClassEnrollments = () => {
 
     loadUserPermissions();
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      await authLogout();
+    } catch (e) {
+      console.error('Logout failed', e);
+    }
+    window.location.href = '/login';
+  };
+
+  const isCashier = user?.role === 'cashier';
+  const layoutProps = isCashier
+    ? {
+        userRole: 'Cashier',
+        sidebarItems: cashierSidebarSections,
+        onLogout: handleLogout,
+        customTitle: 'TCMS',
+        customSubtitle: `Cashier Dashboard - ${user?.name || 'Cashier'}`
+      }
+    : {
+        userRole: 'Administrator',
+        sidebarItems: filteredSidebarSections.length ? filteredSidebarSections : adminSidebarSections,
+        onLogout: handleLogout
+      };
 
   const loadData = async () => {
     try {
@@ -506,9 +532,18 @@ const ClassEnrollments = () => {
     );
   };
 
+  if (!isCashier && permissionsLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-600">Loading permissions...</span>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
+      <DashboardLayout {...layoutProps}>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -521,7 +556,7 @@ const ClassEnrollments = () => {
 
   if (error) {
     return (
-      <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
+      <DashboardLayout {...layoutProps}>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <FaExclamationTriangle className="text-red-500 text-4xl mx-auto mb-4" />
@@ -539,7 +574,7 @@ const ClassEnrollments = () => {
   }
 
   return (
-    <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
+    <DashboardLayout {...layoutProps}>
       <div className="w-full max-w-7xl mx-auto bg-white p-8 rounded-lg shadow">
         {/* Header */}
         <div className="mb-6">

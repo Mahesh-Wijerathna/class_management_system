@@ -72,18 +72,18 @@ services:
     networks:
       - cashier-network
 
-  # cashier-phpmyadmin:
-  #   image: phpmyadmin/phpmyadmin
-  #   container_name: cashier-phpmyadmin
-  #   environment:
-  #     PMA_HOST: cashier-mysql
-  #     PMA_PORT: 3306
-  #   ports:
-  #     - "8091:80"
-  #   depends_on:
-  #     - cashier-mysql
-  #   networks:
-  #     - cashier-network
+  cashier-phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: cashier-phpmyadmin
+    environment:
+      PMA_HOST: cashier-mysql
+      PMA_PORT: 3306
+    ports:
+      - "8091:80"
+    depends_on:
+      - cashier-mysql
+    networks:
+      - cashier-network
 
   cashier-backend:
     build:
@@ -329,6 +329,7 @@ services:
       - payment_mysql_data:/var/lib/mysql
     networks:
       - payment-network
+      - cashier-network
 
   payment-backend:
     build:
@@ -352,6 +353,7 @@ services:
       - payment-network
       - class-network
       - student-network
+      - cashier-network
 
   # RBAC services
   rbac-mysql:

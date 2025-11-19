@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import BasicTable from '../../../components/BasicTable';
-import AdminDashboardSidebar from './AdminDashboardSidebar';
+import AdminDashboardSidebar, { adminSidebarSections } from './AdminDashboardSidebar';
+import { cashierSidebarSections } from '../cashierDashboard/CashierDashboardSidebar';
 import { getUserPermissions } from '../../../api/rbac';
+import { getUserData, logout as authLogout } from '../../../api/apiUtils';
 import { FaTruck, FaSearch, FaFilter, FaCheckCircle, FaClock, FaMapMarkerAlt, FaUser, FaPhone, FaEnvelope, FaBook, FaCalendar, FaDownload, FaPrint, FaExclamationTriangle, FaSync } from 'react-icons/fa';
 import axios from 'axios';
 
@@ -10,11 +12,12 @@ const SpeedPostDeliveries = ({ onLogout }) => {
   const [deliveries, setDeliveries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [user, setUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // all, pending, processing, delivered
   const [refreshing, setRefreshing] = useState(false);
 
-  // Sidebar permissions state
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
 
   // Fetch speed post deliveries from payment backend
@@ -363,49 +366,58 @@ const SpeedPostDeliveries = ({ onLogout }) => {
     fetchDeliveries();
   }, []);
 
-  // Load user permissions and filter sidebar
+  useEffect(() => {
+    try {
+      const u = getUserData();
+      setUser(u);
+    } catch (err) {
+      setUser(null);
+    }
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await authLogout();
+    } catch (err) {
+      // ignore logout errors
+    }
+    window.location.href = '/login';
+  };
+
   useEffect(() => {
     const loadUserPermissions = async () => {
       try {
-        // Get current user ID from stored user data
-        const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
-        let userId = null; // Default admin user from database
+        setPermissionsLoading(true);
+        const stored = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+        let userId = null;
 
-        if (userData) {
+        if (stored) {
           try {
-            const user = JSON.parse(userData);
-            userId = user.userid || userId;
+            const user = JSON.parse(stored);
+            userId = user.userid || user.userId || user.id;
           } catch (error) {
             console.error('Error parsing user data:', error);
           }
         }
 
-        console.log('Fetching permissions for user:', userId);
+        if (!userId) {
+          const fallbackUser = getUserData();
+          userId = fallbackUser?.userid || fallbackUser?.userId || fallbackUser?.id;
+        }
 
-        // Get user permissions
         const userPermissions = await getUserPermissions(userId);
-
-        console.log('User permissions:', userPermissions);
-
-        // Filter sidebar sections based on permissions
-        const filteredSections = AdminDashboardSidebar(userPermissions);
-
-        console.log('Filtered sidebar sections:', filteredSections);
-
+        const filteredSections = AdminDashboardSidebar(userPermissions || []);
         setFilteredSidebarSections(filteredSections);
       } catch (error) {
         console.error('Failed to load user permissions:', error);
-        setError(error.message);
-
-        // Fallback: show all sections if permission loading fails
-        console.log('Using fallback: showing all sidebar sections');
         setFilteredSidebarSections(AdminDashboardSidebar([]));
+      } finally {
+        setPermissionsLoading(false);
       }
     };
 
     loadUserPermissions();
   }, []);
-
   // Filter deliveries based on search and status
   const getFilteredDeliveries = () => {
     return deliveries.filter(delivery => {
@@ -473,9 +485,34 @@ const SpeedPostDeliveries = ({ onLogout }) => {
     totalRevenue: deliveries.reduce((sum, d) => sum + (d.speedPostFee || 0), 0)
   };
 
+  const resolvedLogout = onLogout || handleLogout;
+  const isCashier = user?.role === 'cashier';
+  const layoutProps = isCashier
+    ? {
+        userRole: 'Cashier',
+        sidebarItems: cashierSidebarSections,
+        onLogout: resolvedLogout,
+        customTitle: 'TCMS',
+        customSubtitle: `Cashier Dashboard - ${user?.name || 'Cashier'}`
+      }
+    : {
+        userRole: 'Administrator',
+        sidebarItems: filteredSidebarSections.length ? filteredSidebarSections : adminSidebarSections,
+        onLogout: resolvedLogout
+      };
+
+  if (!isCashier && permissionsLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-600">Loading permissions...</span>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <DashboardLayout sidebarItems={filteredSidebarSections} onLogout={onLogout}>
+      <DashboardLayout {...layoutProps}>
         <div className="flex justify-center items-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -487,7 +524,7 @@ const SpeedPostDeliveries = ({ onLogout }) => {
   }
 
   return (
-    <DashboardLayout sidebarItems={filteredSidebarSections} onLogout={onLogout}>
+    <DashboardLayout {...layoutProps}>
       <div className="p-6">
         {/* Header */}
         <div className="mb-6">

@@ -320,4 +320,71 @@ class StudentModel {
         $stmt->bind_param("s", $userid);
         return $stmt->execute();
     }
+
+    // -------------------------------
+    // Student cards (free/half/full) methods
+    // -------------------------------
+    public function getStudentCards($studentId) {
+        $stmt = $this->conn->prepare("SELECT id, card_id, student_id, class_id, card_type, reason, valid_from, valid_until, is_active, created_at, updated_at FROM student_cards WHERE student_id = ? ORDER BY created_at DESC");
+        $stmt->bind_param("s", $studentId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result->fetch_all(MYSQLI_ASSOC);
+    }
+
+    public function createStudentCard($studentId, $data) {
+        $cardId = $data['card_id'] ?? uniqid('card_');
+        $cardType = $data['card_type'] ?? ($data['type'] ?? 'half');
+        $classId = isset($data['class_id']) ? $data['class_id'] : null;
+        $reason = $data['reason'] ?? null;
+        $validFrom = $data['valid_from'] ?? ($data['validFrom'] ?? null);
+        $validUntil = $data['valid_until'] ?? ($data['validUntil'] ?? null);
+        $isActive = isset($data['is_active']) ? intval($data['is_active']) : 1;
+
+        $stmt = $this->conn->prepare("INSERT INTO student_cards (card_id, student_id, class_id, card_type, reason, valid_from, valid_until, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("ssissssi", $cardId, $studentId, $classId, $cardType, $reason, $validFrom, $validUntil, $isActive);
+        if ($stmt->execute()) {
+            return ['success' => true, 'id' => $this->conn->insert_id];
+        } else {
+            return ['success' => false, 'error' => $stmt->error];
+        }
+    }
+
+    public function updateStudentCard($cardId, $data) {
+        $fields = [];
+        $types = '';
+        $values = [];
+
+        if (isset($data['card_type'])) { $fields[] = 'card_type = ?'; $types .= 's'; $values[] = $data['card_type']; }
+        if (isset($data['reason'])) { $fields[] = 'reason = ?'; $types .= 's'; $values[] = $data['reason']; }
+        if (isset($data['valid_from'])) { $fields[] = 'valid_from = ?'; $types .= 's'; $values[] = $data['valid_from']; }
+        if (isset($data['valid_until'])) { $fields[] = 'valid_until = ?'; $types .= 's'; $values[] = $data['valid_until']; }
+        if (isset($data['is_active'])) { $fields[] = 'is_active = ?'; $types .= 'i'; $values[] = intval($data['is_active']); }
+
+        if (empty($fields)) {
+            return ['success' => false, 'message' => 'No fields to update'];
+        }
+
+        $sql = "UPDATE student_cards SET " . implode(', ', $fields) . " WHERE id = ?";
+        $types .= 'i';
+        $values[] = intval($cardId);
+
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bind_param($types, ...$values);
+        if ($stmt->execute()) {
+            return ['success' => true, 'affected' => $stmt->affected_rows];
+        } else {
+            return ['success' => false, 'error' => $stmt->error];
+        }
+    }
+
+    public function deleteStudentCard($cardId) {
+        $stmt = $this->conn->prepare("DELETE FROM student_cards WHERE id = ?");
+        $stmt->bind_param('i', $cardId);
+        if ($stmt->execute()) {
+            return ['success' => true];
+        } else {
+            return ['success' => false, 'error' => $stmt->error];
+        }
+    }
 } 

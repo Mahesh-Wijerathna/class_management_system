@@ -1,4 +1,4 @@
-﻿﻿import React, {
+﻿﻿﻿import React, {
   useEffect,
   useMemo,
   useRef,
@@ -48,6 +48,7 @@ import {
 } from "../../../api/payments";
 
 import { getActiveClasses } from "../../../api/classes";
+import { sessionAPI } from '../../../api/cashier';
 
 import { getStudentAttendance } from "../../../api/attendance";
 
@@ -57,9 +58,11 @@ import Html5BarcodeScanner from "../../../components/Html5BarcodeScanner";
 
 import DashboardLayout from "../../../components/layout/DashboardLayout";
 
-import { useCashierSidebar } from "./CashierDashboardSidebar";
+import CashierDashboardSidebar from "./CashierDashboardSidebar";
 
 import AttendanceCalendar from "../../../components/AttendanceCalendar";
+
+import { getCurrentUserPermissions } from '../../../utils/permissionChecker';
 
 // Add CSS animation for toast notification
 
@@ -157,6 +160,28 @@ const InfoItem = ({ label, value }) => (
     </span>
   </div>
 );
+
+// Module-level helper: Human-friendly labels for delivery methods (cashier UI only)
+const formatDeliveryMethodLabel = (deliveryMethod) => {
+  const method = (deliveryMethod || "").toString().toLowerCase().trim();
+
+  switch (method) {
+    case "hybrid1":
+      return "Hybrid1 (Physical + Online)";
+    case "hybrid2":
+      return "Hybrid2 (Physical + Recorded)";
+    case "hybrid4":
+      return "Hybrid4 (Physical + Online + Recorded)";
+    case "physical":
+      return "Physical Only";
+    case "online":
+      return "Online Only";
+    case "hybrid3":
+      return "Hybrid3 (Online + Recorded)";
+    default:
+      return deliveryMethod || "N/A";
+  }
+};
 
 // Student Details Modal - Full information popup
 
@@ -1341,39 +1366,52 @@ const DayEndReportModal = ({
   mode = "summary",
   transactions = [],
   perClass = [],
+  cardSummary = {},
   cashDrawerSession = null,
   isSessionReport = false,
   isCashedOut = false,
+  dayEndReportMeta = null,
 }) => {
   const [isGenerating, setIsGenerating] = React.useState(false);
   
-  const reportTitle = isSessionReport ? "Session End Report" : "Day End Report";
-  const reportSubtitle = isSessionReport 
+  // Title variations:
+  // - For session reports we keep existing titles
+  // - For day reports use explicit wording based on `mode` (summary vs full)
+  const reportTitle = isSessionReport
+    ? "Session End Report"
+    : (mode === "summary" ? "SUMMARY DAY END REPORT" : "FULL DAY END REPORT");
+
+  const reportSubtitle = isSessionReport
     ? (mode === "summary" ? "Session Summary" : "Session Full Report")
-    : (mode === "summary" ? "Summary" : "Full Report");
+    : (mode === "summary" ? "Summary Day End Report" : "Full Day End Report");
 
   // Aggregate transactions by class for full report
 
   const aggregatedByClass = React.useMemo(() => {
     if (!Array.isArray(transactions)) return [];
-
-    // If server returned perClass aggregates, prefer those (they're more reliable)
-
+    // If server returned perClass aggregates (either via prop or embedded report_data), prefer those
+    let serverPerClass = [];
     if (Array.isArray(perClass) && perClass.length > 0) {
-      return perClass.map((p) => ({
+      serverPerClass = perClass;
+    } else if (dayEndReportMeta && dayEndReportMeta.report_data) {
+      try {
+        const rd = typeof dayEndReportMeta.report_data === 'string' ? JSON.parse(dayEndReportMeta.report_data) : dayEndReportMeta.report_data;
+        if (Array.isArray(rd.per_class) && rd.per_class.length > 0) serverPerClass = rd.per_class;
+      } catch (e) {
+        // ignore parse errors
+      }
+    }
+
+    if (serverPerClass.length > 0) {
+      return serverPerClass.map((p) => ({
         className: p.class_name || p.className || "Unspecified",
-
         teacher: p.teacher || p.teacher_name || p.teacherName || "-",
-
         fullCards: Number(p.full_count || p.fullCount || 0),
-
         halfCards: Number(p.half_count || 0),
-
         freeCards: Number(p.free_count || 0),
-
-        totalAmount: Number(p.total_amount || 0),
-
-        txCount: Number(p.tx_count || 0),
+        totalAmount: Number(p.total_amount || p.totalAmount || 0),
+        admissionFee: Number(p.admission_fee || p.admissionFee || 0),
+        txCount: Number(p.tx_count ?? p.transactions ?? 0),
       }));
     }
 
@@ -1397,6 +1435,7 @@ const DayEndReportModal = ({
 
           totalAmount: 0,
 
+          admissionFee: 0,
           txCount: 0,
         };
       }
@@ -1421,6 +1460,11 @@ const DayEndReportModal = ({
         // count this as one transaction for the class
         map[cls].txCount += 1;
         map[cls].totalAmount += amt;
+
+        // Track admission fee separately when payment type is admission_fee
+        if (ptype === "admission_fee") {
+          map[cls].admissionFee += amt;
+        }
 
         // Only analyze card type for class_payment (admission fees don't use cards)
         if (ptype === "class_payment") {
@@ -1452,30 +1496,36 @@ const DayEndReportModal = ({
   }, [transactions]);
 
   // Overall totals for summary (full/half/free counts and amounts)
-
   const aggregatedTotals = React.useMemo(() => {
+    // If server provided a `card_summary`, prefer that authoritative summary
+    if (cardSummary && Object.keys(cardSummary).length > 0) {
+      return {
+        fullCount: Number(cardSummary.full_count || cardSummary.fullCount || 0),
+        fullAmount: Number(cardSummary.full_amount || cardSummary.fullAmount || 0),
+        halfCount: Number(cardSummary.half_count || cardSummary.halfCount || 0),
+        halfAmount: Number(cardSummary.half_amount || cardSummary.halfAmount || 0),
+        freeCount: Number(cardSummary.free_count || cardSummary.freeCount || 0),
+        freeAmount: Number(cardSummary.free_amount || cardSummary.freeAmount || 0),
+        totalUniqueTransactions:
+          Number(cardSummary.full_count || 0) +
+          Number(cardSummary.half_count || 0) +
+          Number(cardSummary.free_count || 0),
+      };
+    }
+
     const totals = {
       fullCount: 0,
-
       fullAmount: 0,
-
       halfCount: 0,
-
       halfAmount: 0,
-
       freeCount: 0,
-
       freeAmount: 0,
-
       totalUniqueTransactions: 0, // Count unique transactions with class payments
     };
 
     if (!Array.isArray(transactions)) return totals;
 
-    console.log(
-      "📊 Processing transactions for day-end report:",
-      transactions.length
-    );
+    console.log("📊 Processing transactions for day-end report:", transactions.length);
 
     // Track unique transaction IDs for class payments
     const uniqueTransactionIds = new Set();
@@ -1483,16 +1533,9 @@ const DayEndReportModal = ({
     transactions.forEach((t) => {
       const amt = Number(t.amount || 0);
 
-      const ptype = (
-        t.payment_type ||
-        t.paymentType ||
-        t.category ||
-        ""
-      ).toLowerCase();
+      const ptype = (t.payment_type || t.paymentType || t.category || "").toLowerCase();
 
-      const cardType = (t.card_type || t.cardType || "")
-        .toString()
-        .toLowerCase();
+      const cardType = (t.card_type || t.cardType || "").toString().toLowerCase();
 
       const notes = (t.notes || t.description || t.note || "").toString();
 
@@ -1565,6 +1608,19 @@ const DayEndReportModal = ({
     return totals;
   }, [transactions]);
 
+  // Prefer server-provided day-end totals when available
+  const totalCollections = Number(dayEndReportMeta?.total_collections ?? kpis.total_collections ?? kpis.totalToday ?? kpis.total_collected ?? 0);
+  const totalReceipts = Number(dayEndReportMeta?.total_receipts ?? kpis.total_receipts ?? kpis.receipts ?? 0);
+
+  // If this modal was opened with a saved report, prefer embedded report_data.sessions
+  const _reportData = dayEndReportMeta && dayEndReportMeta.report_data
+    ? (typeof dayEndReportMeta.report_data === 'string' ? JSON.parse(dayEndReportMeta.report_data) : dayEndReportMeta.report_data)
+    : {};
+
+  const embeddedSessions = Array.isArray(_reportData.sessions) && _reportData.sessions.length > 0
+    ? _reportData.sessions
+    : transactions;
+
   const today = new Date();
 
   const dateStr = today.toLocaleDateString("en-US", {
@@ -1587,23 +1643,127 @@ const DayEndReportModal = ({
 
   // Session-specific timing for Session End reports
   const sessionOpeningTime = isSessionReport && cashDrawerSession?.startTime
-    ? new Date(cashDrawerSession.startTime).toLocaleTimeString("en-US", {
+    ? new Date(cashDrawerSession.startTime).toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      }) : null;
+
+      // Admission fees total for this day/report.
+      // Prefer authoritative value from saved `dayEndReportMeta.report_data` when available,
+      // otherwise sum `perClass` admission_fee or fall back to summing admission_fee
+      // transactions from `transactions` (which should already be day-scoped when passed in).
+      const admissionFeesTotal = React.useMemo(() => {
+        // 1) Saved report data may contain a pre-computed admission_fees_total
+        if (dayEndReportMeta && dayEndReportMeta.report_data) {
+          try {
+            const rd = typeof dayEndReportMeta.report_data === 'string'
+              ? JSON.parse(dayEndReportMeta.report_data)
+              : dayEndReportMeta.report_data;
+  
+            if (rd && (rd.admission_fees_total !== undefined || rd.admissionFeesTotal !== undefined)) {
+              return Number(rd.admission_fees_total ?? rd.admissionFeesTotal ?? 0);
+            }
+  
+            // If per_class exists inside saved report_data, sum their admission_fee
+            if (Array.isArray(rd.per_class) && rd.per_class.length > 0) {
+                  const sumByField = rd.per_class.reduce((s, p) => s + (Number(p.admission_fee ?? p.admissionFee ?? 0) || 0), 0);
+                  if (sumByField > 0) return sumByField;
+
+                  // Fallback: some saved reports put admission amounts as a class row named "Admission Fee"
+                  const sumByName = rd.per_class.reduce((s, p) => {
+                    const name = (p.class_name || p.className || '').toString().toLowerCase();
+                    if (name.includes('admission')) return s + (Number(p.total_amount || 0) || 0);
+                    return s;
+                  }, 0);
+                  if (sumByName > 0) return sumByName;
+            }
+          } catch (e) {
+            // ignore parse errors
+          }
+        }
+  
+        // 2) If server returned perClass for the day via prop, sum admission_fee there
+        if (Array.isArray(perClass) && perClass.length > 0) {
+          const sumByField = perClass.reduce((s, p) => s + (Number(p.admission_fee ?? p.admissionFee ?? 0) || 0), 0);
+          if (sumByField > 0) return sumByField;
+
+          const sumByName = perClass.reduce((s, p) => {
+            const name = (p.class_name || p.className || '').toString().toLowerCase();
+            if (name.includes('admission')) return s + (Number(p.total_amount || 0) || 0);
+            return s;
+          }, 0);
+          if (sumByName > 0) return sumByName;
+        }
+  
+        // 3) Fallback: sum admission_fee transactions from the provided transactions array
+        if (Array.isArray(transactions) && transactions.length > 0) {
+          return transactions.reduce((s, t) => {
+            const ptype = (t.payment_type || t.paymentType || '').toString().toLowerCase();
+            const status = (t.status || '').toString().toLowerCase();
+            if (ptype === 'admission_fee' && status === 'paid') return s + (Number(t.amount || 0) || 0);
+            return s;
+          }, 0);
+        }
+  
+        // As a last resort, prefer a KPI value if available
+        return Number(kpis?.admissionFeesTotal ?? 0) || 0;
+      }, [dayEndReportMeta, perClass, transactions]);
+    
+
+  // Show closing date/time only when session has an explicit end time; otherwise show '-'
+  const sessionClosingTime = isSessionReport && cashDrawerSession && cashDrawerSession.endTime
+    ? new Date(cashDrawerSession.endTime).toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
         hour: "2-digit",
         minute: "2-digit",
         hour12: true,
       })
     : null;
 
-  const sessionClosingTime = isSessionReport && cashDrawerSession
-    ? (isCashedOut ? timeStr : "-") // Show time only if cashed out, otherwise "-"
-    : null;
-
+  // Only show session status for session reports; hide for day-end reports
   const sessionStatus = isSessionReport
     ? (isCashedOut ? "Session Completed" : "Ongoing Session")
-    : "Day End Completed";
+    : null;
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     setIsGenerating(true);
+
+    // Save Session End Full reports to database before printing
+    if (isSessionReport && mode === "full" && cashDrawerSession) {
+      try {
+        const reportData = {
+          card_summary: {
+            full_count: aggregatedTotals.fullCount || 0,
+            half_count: aggregatedTotals.halfCount || 0,
+            free_count: aggregatedTotals.freeCount || 0,
+            full_amount: aggregatedTotals.fullAmount || 0,
+            half_amount: aggregatedTotals.halfAmount || 0,
+            free_amount: aggregatedTotals.freeAmount || 0,
+          },
+          per_class: perClass || [],
+          transactions: transactions || [],
+        };
+
+        const { sessionAPI } = await import('../../../api/cashier');
+        await sessionAPI.saveSessionReport(
+          cashDrawerSession.id,
+          reportData,
+          'full',
+          isCashedOut  // is_final = true if cashed out
+        );
+        
+        console.log('✅ Session End report saved to database');
+      } catch (error) {
+        console.error('Failed to save session report:', error);
+        // Don't block printing if save fails
+      }
+    }
 
     setTimeout(() => {
       const printWindow = window.open("", "_blank", "width=1000,height=700");
@@ -1617,9 +1777,9 @@ const DayEndReportModal = ({
       }
 
       // Extract values for template literals
-      const openingBalance = Number(cashDrawerSession?.startingFloat || 0);
+      const openingBalance = Number(dayEndReportMeta?.opening_balance ?? cashDrawerSession?.startingFloat ?? 0);
       const totalCollected = Number(
-        kpis.total_collected || kpis.totalToday || 0
+        dayEndReportMeta?.total_collections ?? kpis.total_collections ?? kpis.totalToday ?? kpis.total_collected ?? 0
       );
       const drawerBalance = Number(kpis.cash_collected || kpis.drawer || 0);
       const expectedClosing = openingBalance + totalCollected;
@@ -1629,32 +1789,25 @@ const DayEndReportModal = ({
       let reportHTML = "";
 
       if (mode === "full") {
-        // Build full report with per-class aggregation table
+        // Build full report with per-class items (THERMAL RECEIPT FORMAT)
 
-        const rows = aggregatedByClass
+        const classItems = aggregatedByClass
           .map(
             (r) => `
-
-          <tr>
-
-            <td>${r.className || "-"}</td>
-
-            <td>${r.teacher || "-"}</td>
-
-            <td style="text-align:center">${r.fullCards || 0}</td>
-
-            <td style="text-align:center">${r.halfCards || 0}</td>
-
-            <td style="text-align:center">${r.freeCards || 0}</td>
-
-            <td style="text-align:right">LKR ${Number(
+          <div class="item">
+            <div class="item-header">${r.className || "-"}</div>
+            <div class="item-detail"><span>Teacher:</span><span>${r.teacher || "-"}</span></div>
+            <div class="item-detail"><span>Full Cards:</span><span>${r.fullCards || 0}</span></div>
+            <div class="item-detail"><span>Half Cards:</span><span>${r.halfCards || 0}</span></div>
+            <div class="item-detail"><span>Free Cards:</span><span>${r.freeCards || 0}</span></div>
+            <div class="item-detail"><span>Admission Fee:</span><span>LKR ${Number(
+              r.admissionFee || r.admission_fee || 0
+            ).toLocaleString()}</span></div>
+            <div class="item-detail"><span>Amount:</span><span>LKR ${Number(
               r.totalAmount || 0
-            ).toLocaleString()}</td>
-
-            <td style="text-align:center">${r.txCount || 0}</td>
-
-          </tr>
-
+            ).toLocaleString()}</span></div>
+            <div class="item-detail"><span>Transactions:</span><span>${r.txCount || 0}</span></div>
+          </div>
         `
           )
           .join("");
@@ -1670,327 +1823,357 @@ const DayEndReportModal = ({
             : Number(kpis.total_collected || kpis.totalToday || 0);
 
         reportHTML = `
-
           <!doctype html>
-
           <html>
-
           <head>
-
             <meta charset="utf-8" />
-
-            <title>Full Day End Report - ${dateStr}</title>
-
+            <title>${reportTitle} - ${dateStr}</title>
             <style>
-
-              body{font-family:Arial,sans-serif;padding:20px}
-
-              h1{color:#059669}
-
-              table{width:100%;border-collapse:collapse;margin-top:20px}
-
-              th,td{border:1px solid #e6e6e6;padding:8px;text-align:left}
-
-              th{background:#f8fafc}
-
-              .right{text-align:right}
-
-              .summary-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:15px;margin:20px 0;padding:15px;background:#f8fafc;border-radius:8px}
-
-              .summary-card{padding:15px;background:#fff;border:1px solid #e2e8f0;border-radius:8px}
-
-              .summary-card .label{font-size:12px;color:#64748b;margin-bottom:5px}
-
-              .summary-card .value{font-size:24px;font-weight:bold;color:#1e293b}
-
-              .summary-card .value.success{color:#059669}
-
-              .summary-card .value.warning{color:#f97316}
-
-              .card-breakdown{display:grid;grid-template-columns:repeat(2,1fr);gap:15px;margin:20px 0}
-
-              .card-breakdown .card{padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px}
-
-              .card-breakdown .card .label{font-size:11px;color:#64748b;margin-bottom:4px}
-
-              .card-breakdown .card .value{font-size:20px;font-weight:bold}
-
-              .card-breakdown .card .amount{font-size:11px;color:#64748b;margin-top:4px}
-
+              @media print { @page { margin: 0; } body { margin: 0.5cm; } }
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body {
+                font-family: 'Courier New', monospace;
+                padding: 10px;
+                max-width: 80mm;
+                margin: 0 auto;
+              }
+              .receipt {
+                border: 2px dashed #333;
+                padding: 15px;
+              }
+              .header {
+                text-align: center;
+                border-bottom: 2px solid #333;
+                padding-bottom: 10px;
+                margin-bottom: 15px;
+              }
+              .header .logo {
+                font-size: 24px;
+                font-weight: bold;
+                margin-bottom: 5px;
+              }
+              .header .subtitle {
+                font-size: 11px;
+                color: #666;
+                margin-top: 5px;
+              }
+              .section {
+                margin-bottom: 15px;
+                padding-bottom: 10px;
+                border-bottom: 1px dashed #999;
+              }
+              .section:last-child {
+                border-bottom: none;
+              }
+              .row {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 6px;
+                font-size: 11px;
+              }
+              .row .label {
+                font-weight: bold;
+                color: #333;
+              }
+              .row .value {
+                text-align: right;
+                color: #000;
+              }
+              .summary-box {
+                background: #f5f5f5;
+                padding: 10px;
+                margin: 15px 0;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+              }
+              .summary-row {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 5px;
+                font-size: 12px;
+                font-weight: bold;
+              }
+              .summary-row .label {
+                color: #333;
+              }
+              .summary-row .value {
+                color: #059669;
+              }
+              .item-list {
+                margin: 15px 0;
+              }
+              .item {
+                border-bottom: 1px dotted #ccc;
+                padding: 8px 0;
+              }
+              .item:last-child {
+                border-bottom: none;
+              }
+              .item-header {
+                font-size: 12px;
+                font-weight: bold;
+                margin-bottom: 5px;
+                color: #000;
+              }
+              .item-detail {
+                display: flex;
+                justify-content: space-between;
+                font-size: 10px;
+                margin-bottom: 3px;
+                color: #333;
+              }
+              .item-detail span:first-child {
+                color: #666;
+              }
+              .footer {
+                text-align: center;
+                margin-top: 20px;
+                padding-top: 15px;
+                border-top: 2px solid #333;
+                font-size: 10px;
+              }
+              .thank-you {
+                font-size: 13px;
+                font-weight: bold;
+                margin-bottom: 8px;
+              }
+              .grand-total {
+                background: #333;
+                color: #fff;
+                padding: 8px;
+                margin: 10px 0;
+                border-radius: 4px;
+                text-align: center;
+                font-size: 13px;
+                font-weight: bold;
+              }
             </style>
-
           </head>
-
           <body>
-
-            <h1>TCMS - Full Day End Report</h1>
-
-            <div><strong>Date:</strong> ${dateStr}</div>
-
-            <div><strong>Generated:</strong> ${timeStr}</div>
-
-            <div><strong>Cashier:</strong> ${
-              getUserData()?.name || "Cashier"
-            }</div>
-
-
-
-            <h2 style="margin-top:30px;font-size:18px;color:#1e293b;border-bottom:2px solid #e2e8f0;padding-bottom:8px">Financial Summary</h2>
-
-            <div class="summary-grid">
-
-              <div class="summary-card">
-
-                <div class="label">Opening Balance</div>
-
-              <div class="summary-card">
-
-                <div class="label">Today's Collections (Net)</div>
-
-                <div class="value success">LKR ${totalCollected.toLocaleString()}</div>
-
+            <div class="receipt">
+              <div class="header">
+                <div class="logo">🎓 TCMS</div>
+                <div class="subtitle">${reportTitle} - Full Report</div>
               </div>
 
-              <div class="summary-card">
-
-                <div class="label">Expected Closing Balance</div>
-
-                <div class="value">LKR ${expectedClosing.toLocaleString()}</div>
-
-                <div style="font-size:11px;color:#64748b;margin-top:4px">Opening + Collections</div>
-
+              <div class="section">
+                <div class="row"><span class="label">Date:</span><span class="value">${dateStr}</span></div>
+                <div class="row"><span class="label">Generated:</span><span class="value">${timeStr}</span></div>
+                <div class="row"><span class="label">Cashier:</span><span class="value">${
+                  getUserData()?.name || "Cashier"
+                }</span></div>
+                <div class="row"><span class="label">Opening:</span><span class="value">${isSessionReport ? (sessionOpeningTime || "-") : (openingTime || "-")}</span></div>
+                <div class="row"><span class="label">Closing:</span><span class="value">${isSessionReport ? (sessionClosingTime || "-") : timeStr}</span></div>
               </div>
 
-              <div class="summary-card">
-
-                <div class="label">Cash Drawer Balance</div>
-
-                <div class="value">LKR ${drawerBalance.toLocaleString()}</div>
-
-                <div style="font-size:11px;color:#64748b;margin-top:4px">Current Total</div>
-
+              <div class="summary-box">
+                ${!isSessionReport ? `
+                  <div class="summary-row"><span class="label">Day's Collections (Net):</span><span class="value">LKR ${totalCollected.toLocaleString()}</span></div>
+                  <div class="summary-row"><span class="label">Receipts Issued:</span><span class="value">${dayEndReportMeta?.total_receipts ?? kpis.total_receipts ?? kpis.receipts ?? 0}</span></div>
+                ` : `
+                  <div class="summary-row"><span class="label">Opening Balance:</span><span class="value">LKR ${openingBalance.toLocaleString()}</span></div>
+                  <div class="summary-row"><span class="label">Collections:</span><span class="value">LKR ${totalCollected.toLocaleString()}</span></div>
+                  <div class="summary-row"><span class="label">Expected Close:</span><span class="value">LKR ${expectedClosing.toLocaleString()}</span></div>
+                  <div class="summary-row"><span class="label">Cash Drawer:</span><span class="value">LKR ${drawerBalance.toLocaleString()}</span></div>
+                  ${isSessionReport && cashDrawerSession ? `<div class="summary-row"><span class="label">Cash Out:</span><span class="value">LKR ${Number(cashDrawerSession.cash_out_amount || 0).toLocaleString()}</span></div>` : ''}
+                  <div class="summary-row"><span class="label">Receipts:</span><span class="value">${kpis.total_receipts || kpis.receipts || 0}</span></div>
+                `}
               </div>
 
-              <div class="summary-card">
-
-                <div class="label">Receipts Issued</div>
-
-                <div class="value">${
-                  kpis.total_receipts || kpis.receipts || 0
-                }</div>
-
-              </div>
-
-              {/* Pending Payments removed from Full Day HTML report */}
-
-            </div>
-
-
-
-            <h2 style="margin-top:20px;font-size:18px;color:#1e293b;border-bottom:2px solid #e2e8f0;padding-bottom:8px">Card Issuance Breakdown</h2>
-
-            <div class="card-breakdown">
-
-              <div class="card">
-
-                <div class="label">Full Cards Issued (count)</div>
-
-                <div class="value">${aggregatedTotals.fullCount || 0}</div>
-
-                <div class="amount">Amount: LKR ${Number(
+              <div class="section">
+                <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; text-align: center;">Card Breakdown</div>
+                <div class="row"><span class="label">Full Cards:</span><span class="value">${aggregatedTotals.fullCount || 0} (LKR ${Number(
                   aggregatedTotals.fullAmount || 0
-                ).toLocaleString()}</div>
-
-              </div>
-
-              <div class="card">
-
-                <div class="label">Half Cards Issued (count)</div>
-
-                <div class="value">${aggregatedTotals.halfCount || 0}</div>
-
-                <div class="amount">Amount: LKR ${Number(
+                ).toLocaleString()})</span></div>
+                <div class="row"><span class="label">Half Cards:</span><span class="value">${aggregatedTotals.halfCount || 0} (LKR ${Number(
                   aggregatedTotals.halfAmount || 0
-                ).toLocaleString()}</div>
-
-              </div>
-
-              <div class="card">
-
-                <div class="label">Free Cards Issued</div>
-
-                <div class="value">${aggregatedTotals.freeCount || 0}</div>
-
-                <div class="amount">Amount: LKR ${Number(
+                ).toLocaleString()})</span></div>
+                <div class="row"><span class="label">Free Cards:</span><span class="value">${aggregatedTotals.freeCount || 0} (LKR ${Number(
                   aggregatedTotals.freeAmount || 0
-                ).toLocaleString()}</div>
-
-              </div>
-
-              <div class="card">
-
-                <div class="label">Total Transactions</div>
-
-                <div class="value">${
+                ).toLocaleString()})</span></div>
+                <div class="row"><span class="label">Total Txns:</span><span class="value">${
                   aggregatedTotals.totalUniqueTransactions > 0
                     ? aggregatedTotals.totalUniqueTransactions
                     : kpis.total_receipts || 0
-                }</div>
-
-                <div class="amount">Total Collected: LKR ${Number(
-                  totalCollected
-                ).toLocaleString()}</div>
-
+                }</span></div>
               </div>
 
+              <div style="font-size: 12px; font-weight: bold; margin: 15px 0 8px; text-align: center; border-bottom: 1px solid #333; padding-bottom: 5px;">Collections by Class</div>
+              <div class="item-list">
+                ${classItems}
+              </div>
+
+              <div class="grand-total">
+                GRAND TOTAL: LKR ${Number(totalCollected).toLocaleString()}
+              </div>
+
+              <div class="footer">
+                <div class="thank-you">Thank You!</div>
+                <div>TCMS - Tuition Management</div>
+                <div style="margin-top: 5px;">Computer-generated report</div>
+                <div style="margin-top: 3px;">Requires authorization</div>
+              </div>
             </div>
-
-
-
-            <h2 style="margin-top:30px;font-size:18px;color:#1e293b;border-bottom:2px solid #e2e8f0;padding-bottom:8px">Collections by Class</h2>
-
-            <table>
-
-              <thead>
-
-                <tr>
-
-                  <th>Class Name</th>
-
-                  <th>Teacher</th>
-
-                  <th style="width:120px;text-align:center">Full Cards Issued</th>
-
-                  <th style="width:120px;text-align:center">Half Cards Issued</th>
-
-                  <th style="width:120px;text-align:center">Free Cards Issued</th>
-
-                  <th style="text-align:right">Total Amount Collected</th>
-
-                  <th style="width:120px;text-align:center">Transactions</th>
-
-                </tr>
-
-              </thead>
-
-              <tbody>
-
-                ${rows}
-
-                <tr>
-
-                  <td colspan="5" style="text-align:right;font-weight:bold">Grand Total</td>
-
-                  <td style="text-align:right;font-weight:bold">LKR ${Number(
-                    totalCollected
-                  ).toLocaleString()}</td>
-
-                  <td></td>
-
-                </tr>
-
-              </tbody>
-
-            </table>
-
-
-
-            <div style="margin-top:30px;text-align:center;font-size:12px;color:#666">Generated by TCMS - Full Day End Report</div>
-
-            <script>window.print();</script>
-
+            <script>window.onload = function() { setTimeout(function() { window.print(); }, 250); };</script>
           </body>
-
           </html>
-
         `;
       } else {
-        // Summary mode - existing report (kept largely same)
+        // Summary mode - THERMAL RECEIPT FORMAT
 
         reportHTML = `
-
           <!DOCTYPE html>
-
           <html>
-
           <head>
-
-            <title>Day End Report - ${dateStr}</title>
-
+            <title>${reportTitle} - ${dateStr}</title>
             <style>
-
-              @media print { @page { margin: 0.5in; } body { margin: 0; } .no-print { display: none; } }
-
-              * { margin:0; padding:0; box-sizing:border-box }
-
-              body { font-family: Arial, sans-serif; padding:20px }
-
-              .report-container { max-width:800px; margin:0 auto }
-
-              .header { text-align:center; border-bottom:3px solid #059669; padding-bottom:20px; margin-bottom:30px }
-
-              .header h1 { font-size:28px; color:#059669 }
-
-              .meta-info { display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:30px; padding:15px; background:#f1f5f9; border-radius:8px }
-
-              .summary-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:15px}
-
-              .card{padding:15px;border:2px solid #e2e8f0;border-radius:8px;background:#fff}
-
+              @media print { @page { margin: 0; } body { margin: 0.5cm; } }
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body {
+                font-family: 'Courier New', monospace;
+                padding: 10px;
+                max-width: 80mm;
+                margin: 0 auto;
+              }
+              .receipt {
+                border: 2px dashed #333;
+                padding: 15px;
+              }
+              .header {
+                text-align: center;
+                border-bottom: 2px solid #333;
+                padding-bottom: 10px;
+                margin-bottom: 15px;
+              }
+              .header .logo {
+                font-size: 24px;
+                font-weight: bold;
+                margin-bottom: 5px;
+              }
+              .header .subtitle {
+                font-size: 11px;
+                color: #666;
+                margin-top: 5px;
+              }
+              .section {
+                margin-bottom: 15px;
+                padding-bottom: 10px;
+                border-bottom: 1px dashed #999;
+              }
+              .section:last-child {
+                border-bottom: none;
+              }
+              .row {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 6px;
+                font-size: 11px;
+              }
+              .row .label {
+                font-weight: bold;
+                color: #333;
+              }
+              .row .value {
+                text-align: right;
+                color: #000;
+              }
+              .summary-box {
+                background: #f5f5f5;
+                padding: 10px;
+                margin: 15px 0;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+              }
+              .summary-row {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 5px;
+                font-size: 12px;
+                font-weight: bold;
+              }
+              .summary-row .label {
+                color: #333;
+              }
+              .summary-row .value {
+                color: #059669;
+              }
+              .footer {
+                text-align: center;
+                margin-top: 20px;
+                padding-top: 15px;
+                border-top: 2px solid #333;
+                font-size: 10px;
+              }
+              .thank-you {
+                font-size: 13px;
+                font-weight: bold;
+                margin-bottom: 8px;
+              }
             </style>
-
           </head>
-
           <body>
+            <div class="receipt">
+              <div class="header">
+                <div class="logo">🎓 TCMS</div>
+                <div class="subtitle">${reportSubtitle}</div>
+              </div>
 
-            <div class="report-container">
-
-              <div class="header"><h1>TCMS</h1><div>Day End Report</div></div>
-
-              <div class="meta-info">
-
-                <div><strong>Date:</strong> ${dateStr}</div>
-
-                <div><strong>Generated:</strong> ${timeStr}</div>
-
-                <div><strong>Cashier:</strong> ${
+              <div class="section">
+                <div class="row"><span class="label">Date:</span><span class="value">${dateStr}</span></div>
+                <div class="row"><span class="label">Generated:</span><span class="value">${timeStr}</span></div>
+                <div class="row"><span class="label">Cashier:</span><span class="value">${
                   getUserData()?.name || "Cashier"
-                }</div>
-
-                <div><strong>Report Type:</strong> Daily Summary</div>
-
+                }</span></div>
+                <div class="row"><span class="label">Opening:</span><span class="value">${isSessionReport ? (sessionOpeningTime || "-") : (openingTime || "-")}</span></div>
+                <div class="row"><span class="label">Closing:</span><span class="value">${isSessionReport ? (sessionClosingTime || "-") : timeStr}</span></div>
               </div>
 
-              <div class="summary-grid">
-
-                <div class="card"><div><strong>Opening Balance</strong></div><div>LKR ${openingBalance.toLocaleString()}</div></div>
-
-                <div class="card"><div><strong>Today's Collections (Net)</strong></div><div>LKR ${totalCollected.toLocaleString()}</div></div>
-
-                <div class="card"><div><strong>Expected Closing Balance</strong></div><div>LKR ${expectedClosing.toLocaleString()}</div></div>
-
-                <div class="card"><div><strong>Cash Drawer Balance</strong></div><div>LKR ${drawerBalance.toLocaleString()}</div></div>
-
-                <div class="card"><div><strong>Receipts Issued</strong></div><div>${
-                  kpis.receipts || 0
-                }</div></div>
-
+              <div class="summary-box">
+                ${!isSessionReport ? `
+                  <div class="summary-row"><span class="label">Day's Collections (Net):</span><span class="value">LKR ${totalCollected.toLocaleString()}</span></div>
+                  <div class="summary-row"><span class="label">Receipts Issued:</span><span class="value">${dayEndReportMeta?.total_receipts ?? kpis.total_receipts ?? kpis.receipts ?? 0}</span></div>
+                ` : `
+                  <div class="summary-row"><span class="label">Opening Balance:</span><span class="value">LKR ${openingBalance.toLocaleString()}</span></div>
+                  <div class="summary-row"><span class="label">Collections:</span><span class="value">LKR ${totalCollected.toLocaleString()}</span></div>
+                  <div class="summary-row"><span class="label">Expected Close:</span><span class="value">LKR ${expectedClosing.toLocaleString()}</span></div>
+                  <div class="summary-row"><span class="label">Cash Drawer:</span><span class="value">LKR ${drawerBalance.toLocaleString()}</span></div>
+                  ${isSessionReport && cashDrawerSession ? `<div class="summary-row"><span class="label">Cash Out:</span><span class="value">LKR ${Number(cashDrawerSession.cash_out_amount || 0).toLocaleString()}</span></div>` : ''}
+                  <div class="summary-row"><span class="label">Receipts:</span><span class="value">${kpis.receipts || 0}</span></div>
+                `}
               </div>
 
-              <div style="margin-top:20px">Opening: ${
-                openingTime || "-"
-              } • Closing: ${timeStr}</div>
+              <div class="section">
+                <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; text-align: center;">Card Breakdown</div>
+                <div class="row"><span class="label">Full Cards:</span><span class="value">${aggregatedTotals.fullCount || 0} (LKR ${Number(
+                  aggregatedTotals.fullAmount || 0
+                ).toLocaleString()})</span></div>
+                <div class="row"><span class="label">Half Cards:</span><span class="value">${aggregatedTotals.halfCount || 0} (LKR ${Number(
+                  aggregatedTotals.halfAmount || 0
+                ).toLocaleString()})</span></div>
+                <div class="row"><span class="label">Free Cards:</span><span class="value">${aggregatedTotals.freeCount || 0}</span></div>
+                <div class="row"><span class="label">Total Txns:</span><span class="value">${
+                  aggregatedTotals.totalUniqueTransactions > 0
+                    ? aggregatedTotals.totalUniqueTransactions
+                    : kpis.total_receipts || 0
+                }</span></div>
+              </div>
 
-              <div style="margin-top:30px;text-align:center;color:#666;font-size:12px">Generated by TCMS</div>
+              ${isSessionReport ? `
+              <div class="section">
+                <div class="row"><span class="label">Status:</span><span class="value" style="${isSessionReport && !isCashedOut ? 'color: #f59e0b;' : 'color: #059669;'}">${sessionStatus}</span></div>
+              </div>
+              ` : ''}
 
+              <div class="footer">
+                <div class="thank-you">Thank You!</div>
+                <div>TCMS - Tuition Management</div>
+                <div style="margin-top: 5px;">Computer-generated report</div>
+                <div style="margin-top: 3px;">Requires authorization</div>
+              </div>
             </div>
-
-            <script>window.print();</script>
-
+            <script>window.onload = function() { setTimeout(function() { window.print(); }, 250); };</script>
           </body>
-
           </html>
-
         `;
       }
 
@@ -2357,74 +2540,109 @@ const DayEndReportModal = ({
                     <div className="section-title">Financial Summary</div>
 
                     <div className="summary-grid">
-                      <div className="summary-card">
-                        <div className="label">Opening Balance</div>
+                      {/* Show all cards for Session End Reports */}
+                      {isSessionReport && (
+                        <>
+                          <div className="summary-card">
+                            <div className="label">Opening Balance</div>
 
-                        <div className="value">
-                          LKR{" "}
-                          {Number(
-                            cashDrawerSession?.startingFloat || 0
-                          ).toLocaleString()}
-                        </div>
-                      </div>
-
-                      <div className="summary-card">
-                        <div className="label">Today's Collections (Net)</div>
-
-                        <div className="value success">
-                          LKR {Number(kpis.totalToday || 0).toLocaleString()}
-                        </div>
-                      </div>
-
-                      <div className="summary-card">
-                        <div className="label">Expected Closing Balance</div>
-
-                        <div className="value">
-                          LKR{" "}
-                          {Number(
-                            (cashDrawerSession?.startingFloat || 0) +
-                              (kpis.totalToday || 0)
-                          ).toLocaleString()}
-                        </div>
-
-                        <div className="text-xs text-slate-500 mt-1">
-                          Opening + Collections
-                        </div>
-                      </div>
-
-                      <div className="summary-card">
-                        <div className="label">Cash Drawer Balance</div>
-
-                        <div className="value">
-                          LKR {Number(kpis.drawer || 0).toLocaleString()}
-                        </div>
-
-                        <div className="text-xs text-slate-500 mt-1">
-                          Current Total
-                        </div>
-                      </div>
-
-                      {isSessionReport && cashDrawerSession && (
-                        <div className="summary-card">
-                          <div className="label">Cash Out Balance</div>
-
-                          <div className="value" style={{ color: '#10b981' }}>
-                            LKR {Number(cashDrawerSession.cash_out_amount || 0).toLocaleString()}
+                            <div className="value">
+                              LKR{" "}
+                              {Number(
+                                cashDrawerSession?.startingFloat || 0
+                              ).toLocaleString()}
+                            </div>
                           </div>
 
-                          <div className="text-xs text-slate-500 mt-1">
-                            Physical cash counted
+                      <div className="summary-card">
+                        <div className="label">{isSessionReport ? "Session's Collection" : "Day's Collection"} (Net)</div>
+
+                            <div className="value success">
+                              LKR {Number(kpis.totalToday || 0).toLocaleString()}
+                            </div>
                           </div>
-                        </div>
+
+                          <div className="summary-card">
+                            <div className="label">Expected Closing Balance</div>
+
+                            <div className="value">
+                              LKR{" "}
+                              {Number(
+                                (cashDrawerSession?.startingFloat || 0) +
+                                  (kpis.totalToday || 0)
+                              ).toLocaleString()}
+                            </div>
+
+                            <div className="text-xs text-slate-500 mt-1">
+                              Opening + Collections
+                            </div>
+                          </div>
+
+                          <div className="summary-card">
+                            <div className="label">Cash Drawer Balance</div>
+
+                            <div className="value">
+                              LKR {Number(kpis.drawer || 0).toLocaleString()}
+                            </div>
+
+                            <div className="text-xs text-slate-500 mt-1">
+                              Current Total
+                            </div>
+                          </div>
+
+                          {cashDrawerSession && (
+                            <div className="summary-card">
+                              <div className="label">Cash Out Balance</div>
+
+                              <div className="value" style={{ color: '#10b981' }}>
+                                LKR {Number(cashDrawerSession.cash_out_amount || 0).toLocaleString()}
+                              </div>
+
+                              <div className="text-xs text-slate-500 mt-1">
+                                Physical cash counted
+                              </div>
+                            </div>
+                          )}
+
+                           <div className="summary-card">
+                              <div className="label">Admission Fees</div>
+                              <div className="value" style={{ color: '#059669' }}>
+                                LKR {Number(kpis.admissionFeesTotal || 0).toLocaleString()}
+                              </div>
+                            </div>
+
+                          <div className="summary-card">
+                            <div className="label">Receipts Issued</div>
+
+                            <div className="value">{kpis.receipts || 0}</div>
+                          </div>
+                        </>
                       )}
 
-                      <div className="summary-card">
-                        <div className="label">Receipts Issued</div>
+                      {/* Show only Day's Collection and Receipts for Day End Reports */}
+                      {!isSessionReport && (
+                        <>
+                          <div className="summary-card">
+                            <div className="label">Day's Collection (Net)</div>
 
-                        <div className="value">{kpis.receipts || 0}</div>
-                      </div>
+                            <div className="value success">
+                              LKR {Number(totalCollections || 0).toLocaleString()}
+                            </div>
+                          </div>
 
-                      {/* Pending Payments removed from this section */}
+                          <div className="summary-card">
+                            <div className="label">Receipts Issued</div>
+
+                            <div className="value">{totalReceipts || 0}</div>
+                          </div>
+                          <div className="summary-card">
+                            <div className="label">Admission Fees</div>
+                            <div className="value" style={{ color: '#059669' }}>
+                              LKR {Number(admissionFeesTotal || 0).toLocaleString()}
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -2487,7 +2705,7 @@ const DayEndReportModal = ({
                         <div className="value">
                           {aggregatedTotals.totalUniqueTransactions > 0
                             ? aggregatedTotals.totalUniqueTransactions
-                            : kpis.total_receipts || 0}
+                            : (dayEndReportMeta?.total_receipts ?? kpis.total_receipts ?? 0)}
                         </div>
 
                         <div className="text-sm text-slate-500">
@@ -2497,9 +2715,7 @@ const DayEndReportModal = ({
                               (s, x) => s + (Number(x.totalAmount) || 0),
                               0
                             ) ||
-                              kpis.total_collected ||
-                              kpis.totalToday ||
-                              0
+                              (dayEndReportMeta?.total_collections ?? kpis.total_collected ?? kpis.totalToday ?? 0)
                           ).toLocaleString()}
                         </div>
                       </div>
@@ -2534,6 +2750,10 @@ const DayEndReportModal = ({
                             </th>
 
                             <th style={{ textAlign: "right" }}>
+                              Admission Fee
+                            </th>
+
+                            <th style={{ textAlign: "right" }}>
                               Total Amount Collected
                             </th>
 
@@ -2563,6 +2783,10 @@ const DayEndReportModal = ({
                               </td>
 
                               <td style={{ textAlign: "right" }}>
+                                LKR {Number(r.admissionFee || r.admission_fee || 0).toLocaleString()}
+                              </td>
+
+                              <td style={{ textAlign: "right" }}>
                                 LKR{" "}
                                 {Number(r.totalAmount || 0).toLocaleString()}
                               </td>
@@ -2581,11 +2805,19 @@ const DayEndReportModal = ({
                               Grand Total
                             </td>
 
+                            <td style={{ textAlign: "right", fontWeight: "bold" }}>
+                              LKR {Number(
+                                aggregatedByClass.reduce(
+                                  (s, x) => s + (Number(x.admissionFee || x.admission_fee || 0) || 0),
+                                  0
+                                )
+                              ).toLocaleString()}
+                            </td>
+
                             <td
                               style={{ textAlign: "right", fontWeight: "bold" }}
                             >
-                              LKR{" "}
-                              {Number(
+                              LKR {Number(
                                 aggregatedByClass.reduce(
                                   (s, x) => s + (Number(x.totalAmount) || 0),
                                   0
@@ -2605,83 +2837,115 @@ const DayEndReportModal = ({
                   <div className="section-title">Financial Summary</div>
 
                   <div className="summary-grid">
-                    <div className="summary-card">
-                      <div className="label">Opening Balance</div>
+                    {/* Show all cards for Session End Reports */}
+                    {isSessionReport && (
+                      <>
+                        <div className="summary-card">
+                          <div className="label">Opening Balance</div>
 
-                      <div className="value">
-                        LKR{" "}
-                        {Number(
-                          cashDrawerSession?.startingFloat || 0
-                        ).toLocaleString()}
-                      </div>
-                    </div>
-
-                    <div className="summary-card">
-                      <div className="label">Today's Collections (Net)</div>
-
-                      <div className="value success">
-                        LKR{" "}
-                        {Number(
-                          kpis.total_collected || kpis.totalToday || 0
-                        ).toLocaleString()}
-                      </div>
-                    </div>
-
-                    <div className="summary-card">
-                      <div className="label">Expected Closing Balance</div>
-
-                      <div className="value">
-                        LKR{" "}
-                        {Number(
-                          (cashDrawerSession?.startingFloat || 0) +
-                            (kpis.total_collected || kpis.totalToday || 0)
-                        ).toLocaleString()}
-                      </div>
-
-                      <div className="text-xs text-slate-500 mt-1">
-                        Opening + Collections
-                      </div>
-                    </div>
-
-                    <div className="summary-card">
-                      <div className="label">Cash Drawer Balance</div>
-
-                      <div className="value">
-                        LKR{" "}
-                        {Number(
-                          kpis.cash_collected || kpis.drawer || 0
-                        ).toLocaleString()}
-                      </div>
-
-                      <div className="text-xs text-slate-500 mt-1">
-                        Current Total
-                      </div>
-                    </div>
-
-                    {isSessionReport && cashDrawerSession && (
-                      <div className="summary-card">
-                        <div className="label">Cash Out Balance</div>
-
-                        <div className="value" style={{ color: '#10b981' }}>
-                          LKR{" "}
-                          {Number(
-                            cashDrawerSession.cash_out_amount || 0
-                          ).toLocaleString()}
+                          <div className="value">
+                            LKR{" "}
+                            {Number(
+                              cashDrawerSession?.startingFloat || 0
+                            ).toLocaleString()}
+                          </div>
                         </div>
 
-                        <div className="text-xs text-slate-500 mt-1">
-                          Physical cash counted
+                        <div className="summary-card">
+                          <div className="label">Session's Collection (Net)</div>
+
+                          <div className="value success">
+                            LKR{" "}
+                            {Number(
+                              kpis.total_collected || kpis.totalToday || 0
+                            ).toLocaleString()}
+                          </div>
                         </div>
-                      </div>
+
+                        <div className="summary-card">
+                          <div className="label">Expected Closing Balance</div>
+
+                          <div className="value">
+                            LKR{" "}
+                            {Number(
+                              (cashDrawerSession?.startingFloat || 0) +
+                                (kpis.total_collected || kpis.totalToday || 0)
+                            ).toLocaleString()}
+                          </div>
+
+                          <div className="text-xs text-slate-500 mt-1">
+                            Opening + Collections
+                          </div>
+                        </div>
+
+                        <div className="summary-card">
+                          <div className="label">Cash Drawer Balance</div>
+
+                          <div className="value">
+                            LKR{" "}
+                            {Number(
+                              kpis.cash_collected || kpis.drawer || 0
+                            ).toLocaleString()}
+                          </div>
+
+                          <div className="text-xs text-slate-500 mt-1">
+                            Current Total
+                          </div>
+                        </div>
+
+                        {cashDrawerSession && (
+                          <div className="summary-card">
+                            <div className="label">Cash Out Balance</div>
+
+                            <div className="value" style={{ color: '#10b981' }}>
+                              LKR{" "}
+                              {Number(
+                                cashDrawerSession.cash_out_amount || 0
+                              ).toLocaleString()}
+                            </div>
+
+                            <div className="text-xs text-slate-500 mt-1">
+                              Physical cash counted
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="summary-card">
+                          <div className="label">Receipts Issued</div>
+
+                          <div className="value">
+                            {kpis.total_receipts || kpis.receipts || 0}
+                          </div>
+                        </div>
+                      </>
                     )}
 
-                    <div className="summary-card">
-                      <div className="label">Receipts Issued</div>
+                    {/* Show only Day's Collection and Receipts for Day End Reports */}
+                    {!isSessionReport && (
+                      <>
+                        <div className="summary-card">
+                          <div className="label">Day's Collection (Net)</div>
 
-                      <div className="value">
-                        {kpis.total_receipts || kpis.receipts || 0}
-                      </div>
-                    </div>
+                          <div className="value success">
+                            LKR {Number(totalCollections || 0).toLocaleString()}
+                          </div>
+                        </div>
+
+                        <div className="summary-card">
+                          <div className="label">Receipts Issued</div>
+
+                          <div className="value">
+                            {totalReceipts || 0}
+                          </div>
+                        </div>
+                        <div className="summary-card">
+                          <div className="label">Admission Fees</div>
+                          <div className="value" style={{ color: '#059669' }}>
+                            LKR {Number(admissionFeesTotal || 0).toLocaleString()}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Full/Half/Free breakdown */}
@@ -2743,15 +3007,102 @@ const DayEndReportModal = ({
                         <div className="value">
                           {aggregatedTotals.totalUniqueTransactions > 0
                             ? aggregatedTotals.totalUniqueTransactions
-                            : kpis.total_receipts || 0}
+                            : (dayEndReportMeta?.total_receipts ?? kpis.total_receipts ?? 0)}
                         </div>
 
                         <div className="text-sm text-slate-500">
                           Total Collected: LKR{" "}
-                          {Number(kpis.total_collected || 0).toLocaleString()}
+                          {Number(dayEndReportMeta?.total_collections ?? kpis.total_collected ?? 0).toLocaleString()}
                         </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Session Details - Only for Day End Reports */}
+              {!isSessionReport && mode === "full" && (
+                <div className="section">
+                  <div className="section-title">Session Details</div>
+                  <div className="overflow-x-auto">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Session ID</th>
+                          <th>Started Date & Time</th>
+                          <th>Status</th>
+                          <th>Closed Date & Time</th>
+                          <th style={{ textAlign: "right" }}>Session's Collection (Net)</th>
+                          <th style={{ textAlign: "center" }}>Receipts Issued</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                                {Array.isArray(embeddedSessions) && embeddedSessions.length > 0 ? (
+                                  embeddedSessions.map((session, idx) => {
+                            const isOngoing = !session.session_end || session.session_end === null;
+                            const startDate = session.session_start 
+                              ? new Date(session.session_start)
+                              : null;
+                            const endDate = session.session_end 
+                              ? new Date(session.session_end)
+                              : null;
+                            
+                            return (
+                              <tr key={idx}>
+                                <td>{session.session_id || "-"}</td>
+                                <td>
+                                  {startDate 
+                                    ? `${startDate.toLocaleDateString("en-US", {
+                                        month: "short",
+                                        day: "numeric",
+                                        year: "numeric"
+                                      })} ${startDate.toLocaleTimeString("en-US", {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                        hour12: true,
+                                      })}`
+                                    : "-"}
+                                </td>
+                                <td>
+                                  <span style={{ 
+                                    color: isOngoing ? "#f59e0b" : "#059669",
+                                    fontWeight: "bold",
+                                    fontSize: "0.875rem"
+                                  }}>
+                                    {isOngoing ? "Ongoing" : "Closed"}
+                                  </span>
+                                </td>
+                                <td>
+                                  {endDate 
+                                    ? `${endDate.toLocaleDateString("en-US", {
+                                        month: "short",
+                                        day: "numeric",
+                                        year: "numeric"
+                                      })} ${endDate.toLocaleTimeString("en-US", {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                        hour12: true,
+                                      })}`
+                                    : "-"}
+                                </td>
+                                <td style={{ textAlign: "right", fontWeight: "500" }}>
+                                  LKR {Number(session.collections || session.collection || 0).toLocaleString()}
+                                </td>
+                                <td style={{ textAlign: "center" }}>
+                                  {session.receipts || session.tx_count || session.receipt_count || 0}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr>
+                            <td colSpan="6" style={{ textAlign: "center", color: "#94a3b8", padding: "20px" }}>
+                              No session details available
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
@@ -2763,21 +3114,25 @@ const DayEndReportModal = ({
 
                 <table className="table">
                   <tbody>
-                    <tr>
-                      <td>
-                        <strong>Opening Time:</strong>
-                      </td>
+                    {isSessionReport && (
+                      <>
+                        <tr>
+                          <td>
+                            <strong>Opening Time:</strong>
+                          </td>
 
-                      <td>{isSessionReport ? (sessionOpeningTime || "-") : (openingTime || "-")}</td>
-                    </tr>
+                          <td>{sessionOpeningTime || "-"}</td>
+                        </tr>
 
-                    <tr>
-                      <td>
-                        <strong>Closing Time:</strong>
-                      </td>
+                        <tr>
+                          <td>
+                            <strong>Closing Time:</strong>
+                          </td>
 
-                      <td>{isSessionReport ? (sessionClosingTime || "-") : timeStr}</td>
-                    </tr>
+                          <td>{sessionClosingTime || "-"}</td>
+                        </tr>
+                      </>
+                    )}
 
                     <tr>
                       <td>
@@ -2800,18 +3155,20 @@ const DayEndReportModal = ({
                       <td>Cash</td>
                     </tr>
 
-                    <tr>
-                      <td>
-                        <strong>Status:</strong>
-                      </td>
+                    {isSessionReport && (
+                      <tr>
+                        <td>
+                          <strong>Status:</strong>
+                        </td>
 
-                      <td style={{ 
-                        color: isSessionReport && !isCashedOut ? "#f59e0b" : "#059669", 
-                        fontWeight: "bold" 
-                      }}>
-                        {sessionStatus}
-                      </td>
-                    </tr>
+                        <td style={{ 
+                          color: isSessionReport && !isCashedOut ? "#f59e0b" : "#059669", 
+                          fontWeight: "bold" 
+                        }}>
+                          {sessionStatus}
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -2920,6 +3277,7 @@ const MonthEndReportModal = ({
           freeCards: 0,
           halfCards: 0,
           totalAmount: 0,
+          admissionFee: 0,
           txCount: 0,
         };
       }
@@ -2940,6 +3298,10 @@ const MonthEndReportModal = ({
         // count this as one transaction for the class
         map[cls].txCount += 1;
         map[cls].totalAmount += amt;
+
+        if (ptype === "admission_fee") {
+          map[cls].admissionFee += amt;
+        }
 
         // Only analyze card type for class_payment (admission fees don't use cards)
         if (ptype === "class_payment") {
@@ -3098,21 +3460,24 @@ const MonthEndReportModal = ({
       let reportHTML = "";
 
       if (mode === "full") {
-        // Build full report with per-class aggregation table
-        const rows = aggregatedByClass
+        // Build full report with per-class items (THERMAL RECEIPT FORMAT)
+        const classItems = aggregatedByClass
           .map(
             (r) => `
-          <tr>
-            <td>${r.className || "-"}</td>
-            <td>${r.teacher || "-"}</td>
-            <td style="text-align:center">${r.fullCards || 0}</td>
-            <td style="text-align:center">${r.halfCards || 0}</td>
-            <td style="text-align:center">${r.freeCards || 0}</td>
-            <td style="text-align:right">LKR ${Number(
+          <div class="item">
+            <div class="item-header">${r.className || "-"}</div>
+            <div class="item-detail"><span>Teacher:</span><span>${r.teacher || "-"}</span></div>
+            <div class="item-detail"><span>Full Cards:</span><span>${r.fullCards || 0}</span></div>
+            <div class="item-detail"><span>Half Cards:</span><span>${r.halfCards || 0}</span></div>
+            <div class="item-detail"><span>Free Cards:</span><span>${r.freeCards || 0}</span></div>
+            <div class="item-detail"><span>Admission Fee:</span><span>LKR ${Number(
+              r.admissionFee || r.admission_fee || 0
+            ).toLocaleString()}</span></div>
+            <div class="item-detail"><span>Amount:</span><span>LKR ${Number(
               r.totalAmount || 0
-            ).toLocaleString()}</td>
-            <td style="text-align:center">${r.txCount || 0}</td>
-          </tr>
+            ).toLocaleString()}</span></div>
+            <div class="item-detail"><span>Transactions:</span><span>${r.txCount || 0}</span></div>
+          </div>
         `
           )
           .join("");
@@ -3128,702 +3493,335 @@ const MonthEndReportModal = ({
           <head>
             <title>TCMS - Month End Report - ${monthStr}</title>
             <style>
-              @media print { @page { margin: 0.5in; } body { margin: 0; } .no-print { display: none; } }
-              * { margin:0; padding:0; box-sizing:border-box }
-              body { font-family:Arial,sans-serif; padding:20px; background:white }
-              h1 { font-size:28px; color:#059669; margin:0; text-align:center }
-              h2 { font-size:18px; color:#1e293b; border-bottom:2px solid #e2e8f0; padding-bottom:8px; margin-top:30px }
-              .meta-info { display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:30px; padding:15px; background:#f1f5f9; border-radius:8px }
-              .meta-item strong { color:#334155; margin-right:8px }
-              .summary-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:15px; margin:20px 0 }
-              .summary-card { padding:15px; background:#fff; border:1px solid #e2e8f0; border-radius:8px }
-              .summary-card .label { font-size:12px; color:#64748b; margin-bottom:5px }
-              .summary-card .value { font-size:24px; font-weight:bold; color:#1e293b }
-              .summary-card .value.success { color:#059669 }
-              .summary-card .value.warning { color:#f97316 }
-              .card-breakdown { display:grid; grid-template-columns:repeat(2,1fr); gap:15px; margin:20px 0 }
-              .card-breakdown .card { padding:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px }
-              .card-breakdown .card .label { font-size:11px; color:#64748b; margin-bottom:4px }
-              .card-breakdown .card .value { font-size:20px; font-weight:bold }
-              .card-breakdown .card .amount { font-size:11px; color:#64748b; margin-top:4px }
-              table { width:100%; border-collapse:collapse; margin-top:15px }
-              table th, table td { padding:10px; text-align:left; border-bottom:1px solid #e2e8f0 }
-              table th { background:#f8fafc; font-weight:600; color:#334155; font-size:13px }
-              table td { font-size:14px; color:#334155 }
+              @media print { @page { margin: 0; } body { margin: 0.5cm; } }
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body {
+                font-family: 'Courier New', monospace;
+                padding: 10px;
+                max-width: 80mm;
+                margin: 0 auto;
+              }
+              .receipt {
+                border: 2px dashed #333;
+                padding: 15px;
+              }
+              .header {
+                text-align: center;
+                border-bottom: 2px solid #333;
+                padding-bottom: 10px;
+                margin-bottom: 15px;
+              }
+              .header .logo {
+                font-size: 24px;
+                font-weight: bold;
+                margin-bottom: 5px;
+              }
+              .header .subtitle {
+                font-size: 11px;
+                color: #666;
+                margin-top: 5px;
+              }
+              .section {
+                margin-bottom: 15px;
+                padding-bottom: 10px;
+                border-bottom: 1px dashed #999;
+              }
+              .section:last-child {
+                border-bottom: none;
+              }
+              .row {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 6px;
+                font-size: 11px;
+              }
+              .row .label {
+                font-weight: bold;
+                color: #333;
+              }
+              .row .value {
+                text-align: right;
+                color: #000;
+              }
+              .summary-box {
+                background: #f5f5f5;
+                padding: 10px;
+                margin: 15px 0;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+              }
+              .summary-row {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 5px;
+                font-size: 12px;
+                font-weight: bold;
+              }
+              .summary-row .label {
+                color: #333;
+              }
+              .summary-row .value {
+                color: #059669;
+              }
+              .item-list {
+                margin: 15px 0;
+              }
+              .item {
+                border-bottom: 1px dotted #ccc;
+                padding: 8px 0;
+              }
+              .item:last-child {
+                border-bottom: none;
+              }
+              .item-header {
+                font-size: 12px;
+                font-weight: bold;
+                margin-bottom: 5px;
+                color: #000;
+              }
+              .item-detail {
+                display: flex;
+                justify-content: space-between;
+                font-size: 10px;
+                margin-bottom: 3px;
+                color: #333;
+              }
+              .item-detail span:first-child {
+                color: #666;
+              }
+              .footer {
+                text-align: center;
+                margin-top: 20px;
+                padding-top: 15px;
+                border-top: 2px solid #333;
+                font-size: 10px;
+              }
+              .thank-you {
+                font-size: 13px;
+                font-weight: bold;
+                margin-bottom: 8px;
+              }
+              .grand-total {
+                background: #333;
+                color: #fff;
+                padding: 8px;
+                margin: 10px 0;
+                border-radius: 4px;
+                text-align: center;
+                font-size: 13px;
+                font-weight: bold;
+              }
             </style>
           </head>
           <body>
-            <h1>TCMS - Month End Report</h1>
-            <div><strong>Month:</strong> ${monthStr}</div>
-            <div><strong>Period:</strong> ${periodStr}</div>
-            <div><strong>Generated:</strong> ${timeStr}</div>
-            <div><strong>Cashier:</strong> ${
-              getUserData()?.name || "Cashier"
-            }</div>
+            <div class="receipt">
+              <div class="header">
+                <div class="logo">🎓 TCMS</div>
+                <div class="subtitle">Month End Full Report</div>
+              </div>
 
-            <h2 style="margin-top:30px;font-size:18px;color:#1e293b;border-bottom:2px solid #e2e8f0;padding-bottom:8px">Financial Summary</h2>
-            <div class="summary-grid">
-              <div class="summary-card">
-                <div class="label">Month's Collections</div>
-                <div class="value success">LKR ${Number(
+              <div class="section">
+                <div class="row"><span class="label">Month:</span><span class="value">${monthStr}</span></div>
+                <div class="row"><span class="label">Period:</span><span class="value">${periodStr}</span></div>
+                <div class="row"><span class="label">Generated:</span><span class="value">${timeStr}</span></div>
+                <div class="row"><span class="label">Cashier:</span><span class="value">${
+                  getUserData()?.name || "Cashier"
+                }</span></div>
+              </div>
+
+              <div class="summary-box">
+                <div class="summary-row"><span class="label">Collections:</span><span class="value">LKR ${Number(
                   kpis.total_collected || 0
-                ).toLocaleString()}</div>
-              </div>
-              <div class="summary-card">
-                <div class="label">Receipts Issued</div>
-                <div class="value">${kpis.total_receipts || 0}</div>
-              </div>
-              <!-- Pending Payments removed from Month End HTML report -->
-              <div class="summary-card">
-                <div class="label">Cash Drawer Total</div>
-                <div class="value">LKR ${Number(
+                ).toLocaleString()}</span></div>
+                <div class="summary-row"><span class="label">Receipts:</span><span class="value">${kpis.total_receipts || 0}</span></div>
+                <div class="summary-row"><span class="label">Cash Drawer:</span><span class="value">LKR ${Number(
                   kpis.cash_collected || 0
-                ).toLocaleString()}</div>
+                ).toLocaleString()}</span></div>
               </div>
-            </div>
 
-            <h2 style="margin-top:20px;font-size:18px;color:#1e293b;border-bottom:2px solid #e2e8f0;padding-bottom:8px">Card Issuance Breakdown (Month)</h2>
-            <div class="card-breakdown">
-              <div class="card">
-                <div class="label">Full Cards Issued (count)</div>
-                <div class="value">${aggregatedTotals.fullCount || 0}</div>
-                <div class="amount">Amount: LKR ${Number(
+              <div class="section">
+                <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; text-align: center;">Card Breakdown (Month)</div>
+                <div class="row"><span class="label">Full Cards:</span><span class="value">${aggregatedTotals.fullCount || 0} (LKR ${Number(
                   aggregatedTotals.fullAmount || 0
-                ).toLocaleString()}</div>
-              </div>
-              <div class="card">
-                <div class="label">Half Cards Issued (count)</div>
-                <div class="value">${aggregatedTotals.halfCount || 0}</div>
-                <div class="amount">Amount: LKR ${Number(
+                ).toLocaleString()})</span></div>
+                <div class="row"><span class="label">Half Cards:</span><span class="value">${aggregatedTotals.halfCount || 0} (LKR ${Number(
                   aggregatedTotals.halfAmount || 0
-                ).toLocaleString()}</div>
-              </div>
-              <div class="card">
-                <div class="label">Free Cards Issued</div>
-                <div class="value">${aggregatedTotals.freeCount || 0}</div>
-                <div class="amount">Amount: LKR ${Number(
+                ).toLocaleString()})</span></div>
+                <div class="row"><span class="label">Free Cards:</span><span class="value">${aggregatedTotals.freeCount || 0} (LKR ${Number(
                   aggregatedTotals.freeAmount || 0
-                ).toLocaleString()}</div>
+                ).toLocaleString()})</span></div>
+                <div class="row"><span class="label">Total Txns:</span><span class="value">${kpis.total_receipts || 0}</span></div>
               </div>
-              <div class="card">
-                <div class="label">Total Transactions</div>
-                <div class="value">${kpis.total_receipts || 0}</div>
-                <div class="amount">Total Collected: LKR ${Number(
-                  kpis.total_collected || 0
-                ).toLocaleString()}</div>
+
+              <div style="font-size: 12px; font-weight: bold; margin: 15px 0 8px; text-align: center; border-bottom: 1px solid #333; padding-bottom: 5px;">Collections by Class</div>
+              <div class="item-list">
+                ${classItems}
+              </div>
+
+              <div class="grand-total">
+                GRAND TOTAL: LKR ${Number(totalCollected).toLocaleString()}
+              </div>
+
+              <div class="footer">
+                <div class="thank-you">Thank You!</div>
+                <div>TCMS - Tuition Management</div>
+                <div style="margin-top: 5px;">Computer-generated report</div>
+                <div style="margin-top: 3px;">Requires authorization</div>
               </div>
             </div>
-
-            <h2 style="margin-top:30px;font-size:18px;color:#1e293b;border-bottom:2px solid #e2e8f0;padding-bottom:8px">Month End - Collections by Class</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>Class Name</th>
-                  <th>Teacher</th>
-                  <th style="width:120px;text-align:center">Full Cards Issued</th>
-                  <th style="width:120px;text-align:center">Half Cards Issued</th>
-                  <th style="width:120px;text-align:center">Free Cards Issued</th>
-                  <th style="text-align:right">Total Amount Collected</th>
-                  <th style="width:120px;text-align:center">Transactions</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${rows}
-                <tr>
-                  <td colspan="5" style="text-align:right;font-weight:bold">Grand Total</td>
-                  <td style="text-align:right;font-weight:bold">LKR ${Number(
-                    totalCollected
-                  ).toLocaleString()}</td>
-                  <td></td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div style="margin-top:30px;text-align:center;font-size:12px;color:#666">Generated by TCMS - Month End Report</div>
-            <script>window.print();</script>
+            <script>window.onload = function() { setTimeout(function() { window.print(); }, 250); };</script>
           </body>
           </html>
         `;
       } else {
-        // Summary mode - existing report (kept largely same)
+        // Summary mode - THERMAL RECEIPT FORMAT
         reportHTML = `
-
-        <!DOCTYPE html>
-
-        <html>
-
-        <head>
-
-          <title>Month End Report - ${monthStr}</title>
-
-          <style>
-
-            @media print {
-
-              @page { margin: 0.5in; }
-
-              body { margin: 0; }
-
-              .no-print { display: none; }
-
-            }
-
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-
-            body {
-
-              font-family: Arial, sans-serif;
-
-              padding: 20px;
-
-              background: white;
-
-            }
-
-            .report-container {
-
-              max-width: 800px;
-
-              margin: 0 auto;
-
-            }
-
-            .header {
-
-              text-align: center;
-
-              border-bottom: 3px solid #059669;
-
-              padding-bottom: 20px;
-
-              margin-bottom: 30px;
-
-            }
-
-            .header-title {
-
-              display: flex;
-
-              align-items: center;
-
-              justify-content: center;
-
-              gap: 10px;
-
-              margin-bottom: 10px;
-
-            }
-
-            .logo-icon {
-
-              font-size: 36px;
-
-            }
-
-            .header h1 {
-
-              font-size: 28px;
-
-              color: #059669;
-
-              margin: 0;
-
-            }
-
-            .header .subtitle {
-
-              font-size: 14px;
-
-              color: #64748b;
-
-            }
-
-            .meta-info {
-
-              display: grid;
-
-              grid-template-columns: 1fr 1fr;
-
-              gap: 15px;
-
-              margin-bottom: 30px;
-
-              padding: 15px;
-
-              background: #f1f5f9;
-
-              border-radius: 8px;
-
-            }
-
-            .meta-item strong {
-
-              color: #334155;
-
-              margin-right: 8px;
-
-            }
-
-            .section {
-
-              margin-bottom: 30px;
-
-            }
-
-            .section-title {
-
-              font-size: 18px;
-
-              font-weight: bold;
-
-              color: #1e293b;
-
-              margin-bottom: 15px;
-
-              padding-bottom: 8px;
-
-              border-bottom: 2px solid #e2e8f0;
-
-            }
-
-            .summary-grid {
-
-              display: grid;
-
-              grid-template-columns: repeat(2, 1fr);
-
-              gap: 15px;
-
-              margin-bottom: 20px;
-
-            }
-
-            .summary-card {
-
-              padding: 15px;
-
-              border: 2px solid #e2e8f0;
-
-              border-radius: 8px;
-
-              background: #ffffff;
-
-            }
-
-            .summary-card .label {
-
-              font-size: 12px;
-
-              color: #64748b;
-
-              margin-bottom: 5px;
-
-            }
-
-            .summary-card .value {
-
-              font-size: 24px;
-
-              font-weight: bold;
-
-              color: #1e293b;
-
-            }
-
-            .summary-card .value.success {
-
-              color: #059669;
-
-            }
-
-            .summary-card .value.warning {
-
-              color: #ea580c;
-
-            }
-
-            .table {
-
-              width: 100%;
-
-              border-collapse: collapse;
-
-              margin-top: 15px;
-
-            }
-
-            .table th, .table td {
-
-              padding: 10px;
-
-              text-align: left;
-
-              border-bottom: 1px solid #e2e8f0;
-
-            }
-
-            .table th {
-
-              background: #f8fafc;
-
-              font-weight: 600;
-
-              color: #475569;
-
-              font-size: 13px;
-
-            }
-
-            .table td {
-
-              font-size: 14px;
-
-              color: #334155;
-
-            }
-
-            .footer {
-
-              margin-top: 40px;
-
-              padding-top: 20px;
-
-              border-top: 2px solid #e2e8f0;
-
-              text-align: center;
-
-              font-size: 12px;
-
-              color: #64748b;
-
-            }
-
-            .signature-section {
-
-              display: grid;
-
-              grid-template-columns: 1fr 1fr;
-
-              gap: 40px;
-
-              margin-top: 50px;
-
-            }
-
-            .signature-box {
-
-              text-align: center;
-
-            }
-
-            .signature-line {
-
-              border-top: 2px solid #000;
-
-              margin: 40px 20px 10px;
-
-            }
-
-            .signature-label {
-
-              font-size: 13px;
-
-              color: #475569;
-
-            }
-
-            .highlight {
-
-              background: #fef3c7;
-
-              padding: 15px;
-
-              border-left: 4px solid #f59e0b;
-
-              border-radius: 4px;
-
-              margin: 15px 0;
-
-            }
-
-            .status-success {
-
-              color: #059669;
-
-              font-weight: bold;
-
-            }
-
-          </style>
-
-        </head>
-
-        <body>
-
-          <div class="report-container">
-
-            <!-- Header -->
-
-            <div class="header">
-
-              <div class="header-title">
-
-                <span class="logo-icon">🎓</span>
-
-                <h1>TCMS</h1>
-
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Month End Report - ${monthStr}</title>
+            <style>
+              @media print { @page { margin: 0; } body { margin: 0.5cm; } }
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body {
+                font-family: 'Courier New', monospace;
+                padding: 10px;
+                max-width: 80mm;
+                margin: 0 auto;
+              }
+              .receipt {
+                border: 2px dashed #333;
+                padding: 15px;
+              }
+              .header {
+                text-align: center;
+                border-bottom: 2px solid #333;
+                padding-bottom: 10px;
+                margin-bottom: 15px;
+              }
+              .header .logo {
+                font-size: 24px;
+                font-weight: bold;
+                margin-bottom: 5px;
+              }
+              .header .subtitle {
+                font-size: 11px;
+                color: #666;
+                margin-top: 5px;
+              }
+              .section {
+                margin-bottom: 15px;
+                padding-bottom: 10px;
+                border-bottom: 1px dashed #999;
+              }
+              .section:last-child {
+                border-bottom: none;
+              }
+              .row {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 6px;
+                font-size: 11px;
+              }
+              .row .label {
+                font-weight: bold;
+                color: #333;
+              }
+              .row .value {
+                text-align: right;
+                color: #000;
+              }
+              .summary-box {
+                background: #f5f5f5;
+                padding: 10px;
+                margin: 15px 0;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+              }
+              .summary-row {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 5px;
+                font-size: 12px;
+                font-weight: bold;
+              }
+              .summary-row .label {
+                color: #333;
+              }
+              .summary-row .value {
+                color: #059669;
+              }
+              .footer {
+                text-align: center;
+                margin-top: 20px;
+                padding-top: 15px;
+                border-top: 2px solid #333;
+                font-size: 10px;
+              }
+              .thank-you {
+                font-size: 13px;
+                font-weight: bold;
+                margin-bottom: 8px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="receipt">
+              <div class="header">
+                <div class="logo">🎓 TCMS</div>
+                <div class="subtitle">Month End Summary</div>
               </div>
 
-              <div class="subtitle">Month End Report</div>
+              <div class="section">
+                <div class="row"><span class="label">Month:</span><span class="value">${monthStr}</span></div>
+                <div class="row"><span class="label">Period:</span><span class="value">${periodStr}</span></div>
+                <div class="row"><span class="label">Generated:</span><span class="value">${timeStr}</span></div>
+                <div class="row"><span class="label">Cashier:</span><span class="value">${getUserData()?.name || "Cashier"}</span></div>
+              </div>
 
+              <div class="summary-box">
+                <div class="summary-row"><span class="label">Collections:</span><span class="value">LKR ${Number(
+                  kpis.total_collected || 0
+                ).toLocaleString()}</span></div>
+                <div class="summary-row"><span class="label">Receipts:</span><span class="value">${kpis.total_receipts || 0}</span></div>
+                <div class="summary-row"><span class="label">Cash Drawer:</span><span class="value">LKR ${Number(
+                  kpis.cash_collected || 0
+                ).toLocaleString()}</span></div>
+              </div>
+
+              <div class="section">
+                <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px; text-align: center;">Card Breakdown (Month)</div>
+                <div class="row"><span class="label">Full Cards:</span><span class="value">${aggregatedTotals.fullCount || 0} (LKR ${Number(
+                  aggregatedTotals.fullAmount || 0
+                ).toLocaleString()})</span></div>
+                <div class="row"><span class="label">Half Cards:</span><span class="value">${aggregatedTotals.halfCount || 0} (LKR ${Number(
+                  aggregatedTotals.halfAmount || 0
+                ).toLocaleString()})</span></div>
+                <div class="row"><span class="label">Free Cards:</span><span class="value">${aggregatedTotals.freeCount || 0} (LKR ${Number(
+                  aggregatedTotals.freeAmount || 0
+                ).toLocaleString()})</span></div>
+                <div class="row"><span class="label">Total Txns:</span><span class="value">${
+                  aggregatedTotals.totalUniqueTransactions > 0
+                    ? aggregatedTotals.totalUniqueTransactions
+                    : kpis.total_receipts || 0
+                }</span></div>
+              </div>
+
+              <div class="section">
+                <div class="row"><span class="label">Status:</span><span class="value" style="color: #059669;">Month End Completed</span></div>
+              </div>
+
+              <div class="footer">
+                <div class="thank-you">Thank You!</div>
+                <div>TCMS - Tuition Management</div>
+                <div style="margin-top: 5px;">Computer-generated report</div>
+                <div style="margin-top: 3px;">Requires authorization</div>
+              </div>
             </div>
-
-
-
-            <!-- Meta Information -->
-
-            <div class="meta-info">
-
-              <div class="meta-item">
-
-                <strong>Month:</strong> ${monthStr}
-
-              </div>
-
-              <div class="meta-item">
-
-                <strong>Report Generated:</strong> ${dateStr}, ${timeStr}
-
-              </div>
-
-              <div class="meta-item">
-
-                <strong>Period:</strong> ${periodStr}
-
-              </div>
-
-              <div class="meta-item">
-
-                <strong>Cashier:</strong> ${getUserData()?.name || "Cashier"}
-
-              </div>
-
-            </div>
-
-
-
-            <!-- Financial Summary -->
-
-            <div class="section">
-
-              <div class="section-title">Monthly Financial Summary</div>
-
-              <div class="summary-grid">
-
-                <div class="summary-card">
-
-                  <div class="label">Total Monthly Collections</div>
-
-                  <div class="value success">LKR ${Number(
-                    kpis.total_collected || 0
-                  ).toLocaleString()}</div>
-
-                </div>
-
-                <div class="summary-card">
-
-                  <div class="label">Total Receipts Issued</div>
-
-                  <div class="value">${kpis.total_receipts || 0}</div>
-
-                </div>
-
-                <!-- Pending Payments removed from Month End HTML -->
-
-                <div class="summary-card">
-
-                  <div class="label">Total Cash Collected</div>
-
-                  <div class="value">LKR ${Number(
-                    kpis.cash_collected || 0
-                  ).toLocaleString()}</div>
-
-                </div>
-
-              </div>
-
-
-                </div>
-
-
-
-            <!-- Card Issuance Breakdown -->
-
-            <div class="section">
-
-              <div class="section-title">Card Issuance Breakdown (Month)</div>
-
-              <div class="summary-grid">
-
-                <div class="summary-card">
-
-                  <div class="label">Full Cards Issued (count)</div>
-
-                  <div class="value">${aggregatedTotals.fullCount || 0}</div>
-
-                  <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Amount: LKR ${Number(
-                    aggregatedTotals.fullAmount || 0
-                  ).toLocaleString()}</div>
-
-                </div>
-
-                <div class="summary-card">
-
-                  <div class="label">Half Cards Issued (count)</div>
-
-                  <div class="value">${aggregatedTotals.halfCount || 0}</div>
-
-                  <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Amount: LKR ${Number(
-                    aggregatedTotals.halfAmount || 0
-                  ).toLocaleString()}</div>
-
-            </div>
-
-                <div class="summary-card">
-
-                  <div class="label">Free Cards Issued</div>
-
-                  <div class="value">${aggregatedTotals.freeCount || 0}</div>
-
-                  <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Amount: LKR ${Number(
-                    aggregatedTotals.freeAmount || 0
-                  ).toLocaleString()}</div>
-
-                </div>
-
-                <div class="summary-card">
-
-                  <div class="label">Total Transactions</div>
-
-                  <div class="value">${kpis.total_receipts || 0}</div>
-
-                  <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Total Collected: LKR ${Number(
-                    kpis.total_collected || 0
-                  ).toLocaleString()}</div>
-
-                </div>
-
-              </div>
-
-            </div>
-
-
-
-            <!-- Summary Notes -->
-
-            <div class="section">
-
-              <div class="section-title">Summary & Notes</div>
-
-              <table class="table">
-
-                <tbody>
-
-                  <tr>
-
-                    <td><strong>Reporting Period:</strong></td>
-
-                    <td>${periodStr}</td>
-
-                  </tr>
-
-                  <tr>
-
-                    <td><strong>Report Date:</strong></td>
-
-                    <td>${dateStr}</td>
-
-                  </tr>
-
-                  <tr>
-
-                    <td><strong>Total Transactions:</strong></td>
-
-                    <td>${
-                      aggregatedTotals.totalUniqueTransactions > 0
-                        ? aggregatedTotals.totalUniqueTransactions
-                        : kpis.total_receipts || 0
-                    } receipts issued</td>
-
-                  </tr>
-
-                  <tr>
-
-                    <td><strong>Payment Methods:</strong></td>
-
-                    <td>Cash</td>
-
-                  </tr>
-
-                  <tr>
-
-                    <td><strong>Status:</strong></td>
-
-                    <td class="status-success">Month End Completed</td>
-
-                  </tr>
-
-                </tbody>
-
-              </table>
-
-            </div>
-
-
-
-            <!-- Signature Section -->
-
-            <div class="signature-section">
-
-              <div class="signature-box">
-
-                <div class="signature-line"></div>
-
-                <div class="signature-label">Cashier Signature</div>
-
-              </div>
-
-              <div class="signature-box">
-
-                <div class="signature-line"></div>
-
-                <div class="signature-label">Admin Signature</div>
-
-              </div>
-
-            </div>
-
-
-
-            <!-- Footer -->
-
-            <div class="footer">
-
-              <div>Generated by TCMS (Tuition Class Management System)</div>
-
-              <div>This is a computer-generated report and requires proper authorization.</div>
-
-            </div>
-
-          </div>
-
-          <script>window.print();</script>
-
-        </body>
-
-        </html>
-
-      `;
+            <script>window.onload = function() { setTimeout(function() { window.print(); }, 250); };</script>
+          </body>
+          </html>
+        `;
       }
 
       printWindow.document.write(reportHTML);
@@ -4287,6 +4285,9 @@ const MonthEndReportModal = ({
                               Free Cards Issued
                             </th>
                             <th style={{ textAlign: "right" }}>
+                              Admission Fee
+                            </th>
+                            <th style={{ textAlign: "right" }}>
                               Total Amount Collected
                             </th>
                             <th style={{ textAlign: "center" }}>
@@ -4309,6 +4310,9 @@ const MonthEndReportModal = ({
                                 {r.freeCards || 0}
                               </td>
                               <td style={{ textAlign: "right" }}>
+                                LKR {Number(r.admissionFee || r.admission_fee || 0).toLocaleString()}
+                              </td>
+                              <td style={{ textAlign: "right" }}>
                                 LKR{" "}
                                 {Number(r.totalAmount || 0).toLocaleString()}
                               </td>
@@ -4324,17 +4328,27 @@ const MonthEndReportModal = ({
                             >
                               Grand Total
                             </td>
+
+                            <td style={{ textAlign: "right", fontWeight: "bold" }}>
+                              LKR {Number(
+                                aggregatedByClass.reduce(
+                                  (s, x) => s + (Number(x.admissionFee || x.admission_fee || 0) || 0),
+                                  0
+                                )
+                              ).toLocaleString()}
+                            </td>
+
                             <td
                               style={{ textAlign: "right", fontWeight: "bold" }}
                             >
-                              LKR{" "}
-                              {Number(
+                              LKR {Number(
                                 aggregatedByClass.reduce(
                                   (s, x) => s + (Number(x.totalAmount) || 0),
                                   0
                                 )
                               ).toLocaleString()}
                             </td>
+
                             <td></td>
                           </tr>
                         </tbody>
@@ -6077,16 +6091,34 @@ const QuickEnrollmentModal = ({
   // Check if selected class requires physical attendance
 
   const requiresPhysicalAttendance = (deliveryMethod) => {
-    const method = (deliveryMethod || "").toLowerCase().trim();
+    const method = (deliveryMethod || "").toString().toLowerCase().trim();
 
-    return (
-      method === "physical" ||
-      method === "physical only" ||
-      method === "hybrid 1" ||
-      method === "hybrid 2" ||
-      method === "hybrid 4" ||
-      method.includes("physical")
-    );
+    // Exact match against canonical delivery method codes only
+    const allowed = new Set(["physical", "hybrid1", "hybrid2", "hybrid4"]);
+
+    return allowed.has(method);
+  };
+
+  // Human-friendly labels for delivery methods (cashier UI only)
+  const formatDeliveryMethodLabel = (deliveryMethod) => {
+    const method = (deliveryMethod || "").toString().toLowerCase().trim();
+
+    switch (method) {
+      case "hybrid1":
+        return "Hybrid1 (Physical + Online)";
+      case "hybrid2":
+        return "Hybrid2 (Physical + Recorded)";
+      case "hybrid4":
+        return "Hybrid4 (Physical + Online + Recorded)";
+      case "physical":
+        return "Physical";
+      case "online":
+        return "Online";
+      case "hybrid3":
+        return "Hybrid3 (Online + Recorded)";
+      default:
+        return deliveryMethod || "N/A";
+    }
   };
 
   const selectedClassNeedsAdmissionFee =
@@ -6118,25 +6150,54 @@ const QuickEnrollmentModal = ({
 
       const classes = response?.data || response || [];
 
+      // Normalize class objects to a consistent shape to avoid mixed-field bugs
+      const normalized = (classes || []).map((c) => {
+        const id = c.id || c.classId || c.class_id;
+
+        const className = c.className || c.class_name || c.name || c.title || "";
+
+        const subject = c.subject || c.course || c.subject_name || "";
+
+        const stream = c.stream || c.stream_name || c.streamType || "";
+
+        const teacher = c.teacher || c.teacherName || c.instructor || "";
+
+        const fee = c.fee || c.monthlyFee || c.monthly_fee || 0;
+
+        const deliveryMethod =
+          c.deliveryMethod || c.delivery_method || c.delivery || "physical";
+
+        const courseType = c.courseType || c.course_type || c.type || "theory";
+
+        return {
+          ...c,
+          id,
+          className,
+          class_name: className,
+          subject,
+          stream,
+          teacher,
+          fee,
+          deliveryMethod,
+          delivery_method: deliveryMethod,
+          courseType,
+          course_type: courseType,
+        };
+      });
+
       // Filter out classes the student is already enrolled in
+      const enrolledClassIds = studentEnrollments.map((enr) => enr.classId || enr.class_id);
 
-      const enrolledClassIds = studentEnrollments.map(
-        (enr) => enr.classId || enr.class_id
-      );
+      let filteredClasses = normalized.filter((cls) => !enrolledClassIds.includes(cls.id));
 
-      let filteredClasses = classes.filter(
-        (cls) => !enrolledClassIds.includes(cls.id)
-      );
+      // Filter by student's stream - flexible match (normalize strings)
+      const normalizeStream = (s) => (s || "").toString().toLowerCase().replace(/[^a-z0-9]/g, "");
 
-      // Filter by student's stream - only show classes matching student's stream
-
-      const studentStream = student.stream;
+      const studentStream = normalizeStream(student.stream);
 
       if (studentStream) {
         filteredClasses = filteredClasses.filter((cls) => {
-          const classStream = cls.stream;
-
-          // Match exactly if stream is specified
+          const classStream = normalizeStream(cls.stream);
 
           return classStream === studentStream;
         });
@@ -6757,19 +6818,20 @@ const QuickEnrollmentModal = ({
                               </div>
 
                               <div className="flex items-center gap-2 mt-2">
-                                <span
-                                  className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                    (cls.deliveryMethod ||
-                                      cls.delivery_method) === "online"
-                                      ? "bg-blue-100 text-blue-700"
-                                      : "bg-green-100 text-green-700"
-                                  }`}
-                                >
-                                  {(cls.deliveryMethod ||
-                                    cls.delivery_method) === "online"
-                                    ? "🌐 Online"
-                                    : "🏫 Physical"}
-                                </span>
+                                {(() => {
+                                  const dm = (cls.deliveryMethod || cls.delivery_method || "").toString();
+                                  const dmLower = dm.toLowerCase().trim();
+                                  const isOnline = dmLower === "online";
+                                  const isPhysical = requiresPhysicalAttendance(dmLower) || dmLower === "physical";
+                                  const tagClass = isOnline ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700";
+                                  const label = formatDeliveryMethodLabel(dmLower);
+
+                                  return (
+                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${tagClass}`}>
+                                      {isOnline ? "🌐 " + label : "🏫 " + label}
+                                    </span>
+                                  );
+                                })()}
 
                                 <span
                                   className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -7445,8 +7507,14 @@ const QuickEnrollmentModal = ({
 export default function CashierDashboard() {
   const user = useMemo(() => getUserData(), []);
 
-  // Get filtered sidebar sections based on user permissions
-  const { sidebarSections } = useCashierSidebar();
+  // Return local YYYY-MM-DD (avoids UTC issues from toISOString())
+  const getLocalDateISO = useCallback(() => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }, []);
 
   // Helper function to add cashier ID to payment payloads
 
@@ -7482,6 +7550,8 @@ export default function CashierDashboard() {
   const mainContentRef = useRef(null); // Ref for scrolling to main content area (student + cashier tools)
 
   const inactivityTimerRef = useRef(null);
+  const saveTimerRef = useRef(null);
+  const AUTOSAVE_DELAY = 5000; // ms
 
   const [loading, setLoading] = useState(false);
 
@@ -7503,6 +7573,7 @@ export default function CashierDashboard() {
     fullCardsIssued: 0,
     halfCardsIssued: 0,
     freeCardsIssued: 0,
+    admissionFeesTotal: 0,
   });
 
   const [recentStudents, setRecentStudents] = useState([]);
@@ -7518,6 +7589,10 @@ export default function CashierDashboard() {
   const [physicalCashCount, setPhysicalCashCount] = useState("");
   const [cashDrawerLoading, setCashDrawerLoading] = useState(false);
   const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
+
+  // Permissions state
+  const [permissions, setPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
 
   // Track cashier opening time (first login of the day)
 
@@ -7551,6 +7626,24 @@ export default function CashierDashboard() {
     }
   }, []);
 
+  // Fetch permissions
+  useEffect(() => {
+    const fetchPermissions = async () => {
+      try {
+        const perms = await getCurrentUserPermissions(user?.userid);
+        setPermissions(perms);
+      } catch (error) {
+        console.error('Failed to fetch permissions:', error);
+      } finally {
+        setPermissionsLoading(false);
+      }
+    };
+
+    if (user?.userid) {
+      fetchPermissions();
+    }
+  }, [user?.userid]);
+
   // Load cashier KPIs from backend database
   // Note: Data is fetched from database (not localStorage), so it persists throughout the day
   // Data will not reset on logout/login - only resets at midnight (new day)
@@ -7572,6 +7665,19 @@ export default function CashierDashboard() {
 
         if (response?.success && response?.data?.stats) {
           const stats = response.data.stats;
+
+          // Compute admission fees total: prefer server per-class aggregate, fallback to transactions or stats
+          const perClassData = response.data.perClass || response.data.per_class || [];
+          let admissionTotal = 0;
+          if (Array.isArray(perClassData) && perClassData.length > 0) {
+            admissionTotal = perClassData.reduce((s, p) => s + Number(p.admission_fee ?? p.admissionFee ?? 0), 0);
+          } else if (Array.isArray(response.data.transactions) && response.data.transactions.length > 0) {
+            admissionTotal = response.data.transactions
+              .filter((t) => ((t.payment_type || t.paymentType || '').toString().toLowerCase() === 'admission_fee'))
+              .reduce((s, t) => s + Number(t.amount || 0), 0);
+          } else {
+            admissionTotal = Number(stats.admission_fees_total || 0);
+          }
 
           // ACTIVE SESSION: Show real-time stats from THIS session only
           const cashCollected = Number(stats.cash_collected || 0);
@@ -7610,6 +7716,7 @@ export default function CashierDashboard() {
             fullCardsIssued: Number(stats.full_cards_issued || 0),
             halfCardsIssued: Number(stats.half_cards_issued || 0),
             freeCardsIssued: Number(stats.free_cards_issued || 0),
+            admissionFeesTotal: admissionTotal,
           });
         } else {
           // Stats API failed but session exists - show opening balance at least
@@ -7622,6 +7729,7 @@ export default function CashierDashboard() {
             fullCardsIssued: 0,
             halfCardsIssued: 0,
             freeCardsIssued: 0,
+            admissionFeesTotal: 0,
           });
         }
       } else {
@@ -7636,6 +7744,7 @@ export default function CashierDashboard() {
           fullCardsIssued: 0, // No cards in closed session
           halfCardsIssued: 0,
           freeCardsIssued: 0,
+          admissionFeesTotal: 0,
         });
       }
     } catch (error) {
@@ -7697,6 +7806,8 @@ export default function CashierDashboard() {
   const [dayEndTransactions, setDayEndTransactions] = useState([]);
 
   const [dayEndPerClass, setDayEndPerClass] = useState([]);
+  const [dayEndCardSummary, setDayEndCardSummary] = useState({});
+  const [dayEndReportMeta, setDayEndReportMeta] = useState(null);
 
   // Month End Report modal state
 
@@ -8798,11 +8909,18 @@ export default function CashierDashboard() {
         throw new Error(`Failed to start cash drawer session: ${errorText}`);
       }
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseErr) {
+        const text = await response.text();
+        console.error('Invalid JSON response from close-day endpoint:', text, parseErr);
+        throw new Error('Invalid JSON response from server: ' + (text || parseErr.message));
+      }
       console.log("Success result:", result);
 
       // Store session data locally
-      const sessionDate = new Date().toISOString().split('T')[0];
+      const sessionDate = getLocalDateISO();
       setCashDrawerSession({
         id: result.data.session.session_id,
         startingFloat: startingFloat,
@@ -8823,6 +8941,7 @@ export default function CashierDashboard() {
         fullCardsIssued: 0,
         halfCardsIssued: 0,
         freeCardsIssued: 0,
+        admissionFeesTotal: 0,
       });
 
       showToast("Cash drawer session started successfully. Reloading...", "success");
@@ -8976,6 +9095,70 @@ export default function CashierDashboard() {
   };
   
   // Step 3: Final submission
+
+  // Helper: build and save the current session report to the server
+  const saveCurrentSessionReport = async (isFinal = false) => {
+    try {
+      if (!cashDrawerSession) return null;
+      // Prefer server-provided report_data when available (most complete).
+      let reportData = { card_summary: {}, per_class: [], transactions: [] };
+      try {
+        if (dayEndReportMeta && dayEndReportMeta.report_data) {
+          const rd = typeof dayEndReportMeta.report_data === 'string' ? JSON.parse(dayEndReportMeta.report_data) : dayEndReportMeta.report_data;
+          reportData.card_summary = rd.card_summary || rd.cardSummary || {};
+          reportData.per_class = rd.per_class || rd.perClass || [];
+          reportData.transactions = rd.transactions || [];
+        } else {
+          // Fallback: build minimal card_summary from KPIs
+          reportData.card_summary = {
+            full_count: kpis.fullCardsIssued || 0,
+            half_count: kpis.halfCardsIssued || 0,
+            free_count: kpis.freeCardsIssued || 0,
+            full_amount: 0,
+            half_amount: 0,
+            free_amount: 0,
+          };
+          reportData.per_class = [];
+          reportData.transactions = [];
+        }
+      } catch (e) {
+        console.warn('Failed to build reportData from dayEndReportMeta, using KPIs fallback', e);
+        reportData = {
+          card_summary: {
+            full_count: kpis.fullCardsIssued || 0,
+            half_count: kpis.halfCardsIssued || 0,
+            free_count: kpis.freeCardsIssued || 0,
+            full_amount: 0,
+            half_amount: 0,
+            free_amount: 0,
+          },
+          per_class: [],
+          transactions: [],
+        };
+      }
+
+      // Non-blocking save when not final unless caller awaits
+      try {
+        await sessionAPI.saveSessionReport(
+          cashDrawerSession.id,
+          reportData,
+          'full',
+          Boolean(isFinal)
+        );
+
+        console.log(`✅ Session report ${isFinal ? 'final' : 'draft'} saved for session`, cashDrawerSession.id);
+      } catch (err) {
+        console.warn('⚠️ Failed to save session report (non-blocking):', err);
+        // Do not throw - saving must not block main flows
+      }
+
+      return reportData;
+    } catch (err) {
+      console.error('Error in saveCurrentSessionReport:', err);
+      return null;
+    }
+  };
+
   const submitCashOut = async () => {
     try {
       if (!reconciliationData) {
@@ -9072,6 +9255,14 @@ export default function CashierDashboard() {
       
       console.log('✅ Cash out complete - Reloading page to refresh data');
       
+      // Attempt to save a draft session report after cash-out (non-blocking)
+      try {
+        // intentionally not awaiting long - allow save to complete if quick
+        saveCurrentSessionReport(false).catch(() => {});
+      } catch (e) {
+        console.warn('Failed to trigger save after cash-out', e);
+      }
+
       // Reload page after brief delay to show toast message
       setTimeout(() => {
         window.location.reload();
@@ -9146,6 +9337,13 @@ export default function CashierDashboard() {
 
       const result = await response.json();
 
+      // Save final session report to server (blocking; best-effort)
+      try {
+        await saveCurrentSessionReport(true);
+      } catch (err) {
+        console.warn('⚠️ Failed to save final session report:', err);
+        // Proceed with closing session even if save failed
+      }
       // Clear session and reset all state for next session
       setCashDrawerSession(null);
       setIsCashedOut(false); // Reset cash-out flag for next session
@@ -9157,6 +9355,7 @@ export default function CashierDashboard() {
         fullCardsIssued: 0,
         halfCardsIssued: 0,
         freeCardsIssued: 0,
+        admissionFeesTotal: 0,
       });
 
       showToast(`Session closed successfully. Remaining balance: LKR ${closingBalance.toLocaleString()}`, 'success');
@@ -9199,7 +9398,7 @@ export default function CashierDashboard() {
       }
       
       try {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getLocalDateISO();
         console.log('🔍 Loading session for cashier:', user.userid, 'Date:', today);
         console.log('🔍 Full user object:', user);
         const response = await fetch(
@@ -9220,26 +9419,11 @@ export default function CashierDashboard() {
           const session = result.data.session;
           console.log('📊 Loaded active session from database:', session);
           
-          // Check if session is from today
+          // Check if session is from today or a previous day
           const sessionDate = session.session_date; // Format: YYYY-MM-DD
-          const todayDate = new Date().toISOString().split('T')[0];
+          const todayDate = getLocalDateISO();
           
-          if (sessionDate !== todayDate) {
-            console.warn('⚠️ Session is from a previous day:', sessionDate, '!== Today:', todayDate);
-            console.log('❌ Clearing old session - cashier must close previous day first');
-            
-            setCashDrawerSession(null);
-            
-            // Show warning to user
-            showToast(
-              `⚠️ You have an unclosed session from ${sessionDate}. Please contact manager to close previous day before starting new session.`,
-              'error'
-            );
-            setSessionCheckComplete(true);
-            return;
-          }
-          
-          // Map database session to app state format (only if from today)
+          // Map database session to app state format (works for both current and old sessions)
           const sessionData = {
             id: session.session_id,
             startingFloat: parseFloat(session.opening_balance || 0),
@@ -9249,6 +9433,15 @@ export default function CashierDashboard() {
             sessionDate: session.session_date,
             cash_out_amount: result.data.cash_out_amount, // Physical cash count from cash-out
           };
+          
+          // If session is from a previous day, show warning but STILL LOAD IT
+          if (sessionDate !== todayDate) {
+            console.warn('⚠️ Session is from a previous day:', sessionDate, '!== Today:', todayDate);
+            showToast(
+              `⚠️ You have an unclosed session from ${sessionDate}. Please close it before starting a new session.`,
+              'warning'
+            );
+          }
           
           console.log('✅ Session loaded successfully:', sessionData);
           setCashDrawerSession(sessionData);
@@ -9285,6 +9478,34 @@ export default function CashierDashboard() {
     cashDrawerSession?.id,
     cashDrawerSession?.startingFloat,
     loadCashierKPIs,
+  ]);
+
+  // Autosave draft report for ongoing sessions when KPIs or session data change
+  useEffect(() => {
+    if (!cashDrawerSession) return;
+
+    // Debounce autosave to avoid excessive calls
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      try {
+        // Save draft (non-final)
+        saveCurrentSessionReport(false).catch(() => {});
+      } catch (e) {
+        console.warn('Autosave failed', e);
+      }
+    }, AUTOSAVE_DELAY);
+
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [
+    cashDrawerSession?.id,
+    cashDrawerSession?.startingFloat,
+    kpis?.totalToday,
+    kpis?.drawer,
+    kpis?.fullCardsIssued,
+    kpis?.halfCardsIssued,
+    kpis?.freeCardsIssued,
   ]);
 
   useEffect(() => {
@@ -9460,28 +9681,18 @@ export default function CashierDashboard() {
   // Helper function to check if delivery method requires physical attendance
 
   const requiresPhysicalAttendance = (deliveryMethod) => {
-    const method = (deliveryMethod || "").toLowerCase().trim();
+    const method = (deliveryMethod || "").toString().toLowerCase().trim();
 
-    // Delivery methods that include physical attendance:
+    // Delivery methods that include physical attendance (canonical codes only):
+    // - physical
+    // - hybrid1
+    // - hybrid2
+    // - hybrid4
+    // NOT required for: online, hybrid3
 
-    // - physical (Physical Only)
+    const allowed = new Set(["physical", "hybrid1", "hybrid2", "hybrid4"]);
 
-    // - hybrid 1 (Physical + Online)
-
-    // - hybrid 2 (Physical + Recorded)
-
-    // - hybrid 4 (Physical + Online + Recorded)
-
-    // NOT required for: online, hybrid 3 (Online + Recorded only)
-
-    return (
-      method === "physical" ||
-      method === "physical only" ||
-      method === "hybrid 1" ||
-      method === "hybrid 2" ||
-      method === "hybrid 4" ||
-      method.includes("physical")
-    );
+    return allowed.has(method);
   };
 
   // Helper function to check if student needs to pay admission fee
@@ -9628,8 +9839,7 @@ export default function CashierDashboard() {
                   
                   if (permitDateStr) {
                     // Check if permit is for today (compare date strings without time)
-                    const today = new Date();
-                    const todayStr = today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+                    const todayStr = getLocalDateISO(); // Format: YYYY-MM-DD (local)
                     const permitDateOnly = permitDateStr.split(' ')[0]; // Remove time if present
                     
                     const isToday = (permitDateOnly === todayStr);
@@ -9678,8 +9888,7 @@ export default function CashierDashboard() {
                     
                     if (permissionDateStr) {
                       // Check if permission is for today (compare date strings without time)
-                      const today = new Date();
-                      const todayStr = today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+                      const todayStr = getLocalDateISO(); // Format: YYYY-MM-DD (local)
                       const permissionDateOnly = permissionDateStr.split(' ')[0]; // Remove time if present
                       
                       const isToday = (permissionDateOnly === todayStr);
@@ -10395,15 +10604,19 @@ export default function CashierDashboard() {
                                   </div>
 
                                   <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                                    <span
-                                      className={`px-2 py-0.5 rounded-full ${
-                                        enr.deliveryMethod === "online"
-                                          ? "bg-blue-100 text-blue-700"
-                                          : "bg-green-100 text-green-700"
-                                      }`}
-                                    >
-                                      {enr.deliveryMethod || "N/A"}
-                                    </span>
+                                    {(() => {
+                                      const dm = (enr.deliveryMethod || enr.delivery_method || "").toString();
+                                      const dmLower = dm.toLowerCase().trim();
+                                      const isOnline = dmLower === "online";
+                                      const tagClass = isOnline ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700";
+                                      const label = formatDeliveryMethodLabel(dmLower);
+
+                                      return (
+                                        <span className={`px-2 py-0.5 rounded-full ${tagClass}`}>
+                                          {label}
+                                        </span>
+                                      );
+                                    })()}
 
                                     <span
                                       className={`px-2 py-0.5 rounded-full ${
@@ -10991,8 +11204,7 @@ export default function CashierDashboard() {
                                       if (checkData.success && checkData.has_permission) {
                                         const permissionDateStr = checkData.permission_date || checkData.permission?.permission_date;
                                         if (permissionDateStr) {
-                                          const today = new Date();
-                                          const todayStr = today.toISOString().split('T')[0];
+                                          const todayStr = getLocalDateISO();
                                           const permissionDateOnly = permissionDateStr.split(' ')[0];
                                           hasPermissionToday = (permissionDateOnly === todayStr);
                                         }
@@ -11172,8 +11384,7 @@ export default function CashierDashboard() {
                                     if (checkData.success && checkData.has_permit) {
                                       const permitDateStr = checkData.permit_date || checkData.permit?.permit_date;
                                       if (permitDateStr) {
-                                        const today = new Date();
-                                        const todayStr = today.toISOString().split('T')[0];
+                                        const todayStr = getLocalDateISO();
                                         const permitDateOnly = permitDateStr.split(' ')[0];
                                         hasPermitToday = (permitDateOnly === todayStr);
                                       }
@@ -11559,7 +11770,7 @@ export default function CashierDashboard() {
   return (
     <DashboardLayout
       userRole="Cashier"
-      sidebarItems={sidebarSections}
+      sidebarItems={CashierDashboardSidebar(permissions)}
       onLogout={handleLogout}
       customTitle="TCMS"
       customSubtitle={`Cashier Dashboard - ${user?.name || "Cashier"}`}
@@ -11672,6 +11883,7 @@ export default function CashierDashboard() {
 
                   loadCashierKPIs();
                 }}
+                sessionId={cashDrawerSession?.id}
               />
             </div>
           ) : (
@@ -11679,17 +11891,17 @@ export default function CashierDashboard() {
               {/* Session Information Banner - Subtle Single Line */}
               {cashDrawerSession && (
                 <div className={`mb-4 rounded-lg px-4 py-2.5 border ${
-                  cashDrawerSession.sessionDate === new Date().toISOString().split('T')[0]
+                  cashDrawerSession.sessionDate === getLocalDateISO()
                     ? 'bg-green-50/50 border-green-200'
                     : 'bg-amber-50 border-amber-300'
                 }`}>
                   <div className="flex items-center justify-between">
                     <div className={`text-sm ${
-                      cashDrawerSession.sessionDate === new Date().toISOString().split('T')[0]
+                      cashDrawerSession.sessionDate === getLocalDateISO()
                         ? 'text-green-700'
                         : 'text-amber-700'
                     }`}>
-                      {cashDrawerSession.sessionDate === new Date().toISOString().split('T')[0]
+                      {cashDrawerSession.sessionDate === getLocalDateISO()
                         ? '✓ Active Session - Today'
                         : '⚠️ Active Session - Previous Day'} • Session Date: <strong>{cashDrawerSession.sessionDate}</strong> • Started: <strong>{new Date(cashDrawerSession.startTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}</strong> • Opening Balance: <strong>LKR {Number(cashDrawerSession.startingFloat).toLocaleString()}</strong>
                     </div>
@@ -11698,7 +11910,7 @@ export default function CashierDashboard() {
               )}
 
               {/* Glassy KPI Cards with refreshed colors and consistent sizing */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4 mb-6">
                 {/* Today's Collections */}
                 <div className="min-h-[96px] flex flex-col justify-between bg-gradient-to-br from-emerald-50/90 to-emerald-100/70 backdrop-blur-sm border border-emerald-200/60 rounded-2xl p-4 shadow-md hover:shadow-xl transition-all duration-200">
                   <div className="flex items-center gap-3">
@@ -11733,6 +11945,25 @@ export default function CashierDashboard() {
                   <div className="text-right">
                     <div className="text-lg font-bold text-sky-900">
                       LKR {Number(kpis.drawer).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Admission Fees */}
+                <div className="min-h-[96px] flex flex-col justify-between bg-gradient-to-br from-emerald-50/90 to-emerald-100/70 backdrop-blur-sm border border-emerald-200/60 rounded-2xl p-4 shadow-md hover:shadow-xl transition-all duration-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-emerald-200/80">
+                      <FaMoneyBill className="text-lg text-emerald-700" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-emerald-800">
+                        Admission Fees
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-emerald-900">
+                      LKR {Number(kpis.admissionFeesTotal || 0).toLocaleString()}
                     </div>
                   </div>
                 </div>
@@ -11834,11 +12065,13 @@ export default function CashierDashboard() {
                       onChange={(e) => setScanValue(e.target.value)}
                       placeholder="Scan Student ID barcode or enter manually..."
                       className="flex-1 border border-slate-300/50 rounded-xl px-4 py-3 text-lg focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 bg-white/80 backdrop-blur-sm shadow-sm"
+                      disabled={!cashDrawerSession || isCashedOut}
                     />
 
                     <button
                       type="submit"
-                      className="bg-gradient-to-br from-emerald-500/90 to-emerald-600/90 backdrop-blur-sm text-white px-6 py-3 rounded-xl font-semibold hover:from-emerald-600 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+                      className={`bg-gradient-to-br from-emerald-500/90 to-emerald-600/90 backdrop-blur-sm text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg ${(!cashDrawerSession || isCashedOut) ? 'opacity-60 cursor-not-allowed hover:shadow-none' : 'hover:shadow-xl hover:scale-105 hover:from-emerald-600 hover:to-emerald-700'}`}
+                      disabled={!cashDrawerSession || isCashedOut}
                     >
                       Load Student
                     </button>
@@ -11846,7 +12079,8 @@ export default function CashierDashboard() {
                     <button
                       type="button"
                       onClick={() => setShowScanner(true)}
-                      className="bg-gradient-to-br from-blue-500/90 to-blue-600/90 backdrop-blur-sm text-white px-4 py-3 rounded-xl font-semibold hover:from-blue-600 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+                      className={`bg-gradient-to-br from-blue-500/90 to-blue-600/90 backdrop-blur-sm text-white px-4 py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg ${(!cashDrawerSession || isCashedOut) ? 'opacity-60 cursor-not-allowed hover:shadow-none' : 'hover:from-blue-600 hover:to-blue-700 hover:shadow-xl hover:scale-105'}`}
+                      disabled={!cashDrawerSession || isCashedOut}
                     >
                       <FaCamera className="inline mr-2" />
                       Scanner
@@ -11929,7 +12163,7 @@ export default function CashierDashboard() {
                         >
                           <FaMoneyBill className="text-lg" />
                           {cashDrawerSession
-                            ? `Session Active ${cashDrawerSession.sessionDate === new Date().toISOString().split('T')[0] ? '(Today)' : `(${cashDrawerSession.sessionDate})`}`
+                            ? `Session Active ${cashDrawerSession.sessionDate === getLocalDateISO() ? '(Today)' : `(${cashDrawerSession.sessionDate})`}`
                             : "Start Cash Drawer"}
                         </button>
 
@@ -11980,29 +12214,139 @@ export default function CashierDashboard() {
                               setDayEndMode("summary");
                               setDayEndLoading(true);
                               const cashierId = user?.userid || "unknown";
-                              if (!cashDrawerSession) {
-                                alert('Please start a cash drawer session first to view day-end reports');
+                              const cashierName = user?.name || "Unknown";
+                              
+                              // Generate Day End Report for today (aggregates all sessions)
+                              const today = getLocalDateISO();
+                              
+                              const response = await fetch('http://localhost:8083/api/reports/day-end/generate', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  report_date: today,
+                                  cashier_id: cashierId,
+                                  cashier_name: cashierName,
+                                  report_type: 'summary'
+                                })
+                              });
+                              
+                              const result = await response.json();
+                              
+                              if (!result.success) {
+                                alert(result.message || 'Failed to generate day end report');
                                 return;
                               }
-                              const res = await getCashierStats(
-                                cashierId,
-                                "today",
-                                cashDrawerSession.id
-                              );
-                              const transactions =
-                                res?.data?.transactions || [];
-                              const perClass = res?.data?.perClass || [];
-                              setDayEndTransactions(transactions);
-                              setDayEndPerClass(perClass);
+                              
+                              // Extract data from generated report
+                              const report = result.data.report;
+                              const reportData = typeof report.report_data === 'string' 
+                                ? JSON.parse(report.report_data) 
+                                : report.report_data;
+
+                              // Populate sessions and card summary immediately
+                              setDayEndTransactions(reportData.sessions || []);
+                              setDayEndCardSummary(reportData.card_summary || {});
+                              setDayEndReportMeta(report || null);
+
+                              // Aggregate admission fees across all sessions by querying per-session stats
+                              try {
+                                const sessionList = Array.isArray(reportData.sessions) ? reportData.sessions : [];
+                                const admissionMap = {}; // key: class identifier (id or name) -> amount
+                                let admissionTotal = 0;
+
+                                for (const s of sessionList) {
+                                  const sid = s.session_id || s.sessionId || null;
+                                  if (!sid) continue;
+                                  // Use session-level cashier id when available (sessions for a day may belong to different cashiers)
+                                  const sessionCashierId = s.cashier_id || s.cashierId || cashierId;
+                                  try {
+                                    const sres = await getCashierStats(sessionCashierId, 'session', sid);
+                                    if (sres && sres.success && Array.isArray(sres.data.perClass)) {
+                                      for (const pc of sres.data.perClass) {
+                                        const key = pc.class_id ?? pc.class_name ?? pc.className ?? 'Unspecified';
+                                        const amt = Number(pc.admission_fee ?? pc.admission_fee ?? pc.admissionFee ?? 0) || 0;
+                                        if (!admissionMap[key]) admissionMap[key] = { ...pc, admission_fee: 0 };
+                                        admissionMap[key].admission_fee = (admissionMap[key].admission_fee || 0) + amt;
+                                        admissionTotal += amt;
+                                      }
+                                    }
+                                    // Also include session-level admission total if available in stats
+                                    if (sres && sres.success && sres.data && sres.data.stats && (sres.data.stats.admission_fees || sres.data.stats.admission_fees_total || sres.data.stats.admission_fees)) {
+                                      // some variants use admission_fees
+                                      const statsAmt = Number(sres.data.stats.admission_fees ?? sres.data.stats.admission_fees_total ?? 0) || 0;
+                                      // Note: this may double-count if perClass included same amounts; we prefer perClass summation
+                                    }
+                                  } catch (e) {
+                                    // ignore per-session fetch errors
+                                  }
+                                }
+
+                                // Merge admissionMap into reportData.per_class (overlay admission_fee)
+                                const basePerClass = reportData.per_class || [];
+                                const merged = basePerClass.map((pc) => {
+                                  const key = pc.class_id ?? pc.class_name ?? pc.className ?? 'Unspecified';
+                                  const extra = admissionMap[key];
+                                  if (extra) {
+                                    return { ...pc, admission_fee: Number(pc.admission_fee ?? pc.admissionFee ?? 0) + Number(extra.admission_fee || 0) };
+                                  }
+                                  return pc;
+                                });
+
+                                // Add any classes present only in admissionMap
+                                for (const k of Object.keys(admissionMap)) {
+                                  const exists = merged.find((m) => (m.class_id ?? m.class_name ?? m.className ?? 'Unspecified') === k);
+                                  if (!exists) merged.push({ class_id: admissionMap[k].class_id ?? null, class_name: admissionMap[k].class_name || admissionMap[k].className || 'Unspecified', teacher: admissionMap[k].teacher || '-', full_count: 0, half_count: 0, free_count: 0, total_amount: admissionMap[k].total_amount || 0, tx_count: admissionMap[k].tx_count || 0, admission_fee: admissionMap[k].admission_fee || 0 });
+                                }
+
+                                // Deduplicate merged per-class rows by class_id or normalized class_name
+                                const dedupe = (arr) => {
+                                  const map = {};
+                                  for (const pc of arr) {
+                                    const rawName = (pc.class_name || pc.className || '').toString();
+                                    const norm = rawName.trim().toLowerCase() || (pc.class_id ? String(pc.class_id) : 'unclassified');
+                                    const key = norm;
+                                    if (!map[key]) {
+                                      map[key] = {
+                                        class_id: pc.class_id ?? null,
+                                        class_name: (pc.class_name ?? pc.className ?? rawName) || 'Unspecified',
+                                        teacher: pc.teacher || pc.teacher_name || '-',
+                                        full_count: Number(pc.full_count || 0),
+                                        half_count: Number(pc.half_count || 0),
+                                        free_count: Number(pc.free_count || 0),
+                                        total_amount: Number(pc.total_amount || pc.totalAmount || 0),
+                                        tx_count: Number(pc.tx_count || pc.transactions || 0),
+                                        admission_fee: Number(pc.admission_fee || pc.admissionFee || 0)
+                                      };
+                                    } else {
+                                      map[key].full_count += Number(pc.full_count || 0);
+                                      map[key].half_count += Number(pc.half_count || 0);
+                                      map[key].free_count += Number(pc.free_count || 0);
+                                      map[key].total_amount += Number(pc.total_amount || pc.totalAmount || 0);
+                                      map[key].tx_count += Number(pc.tx_count || pc.transactions || 0);
+                                      map[key].admission_fee += Number(pc.admission_fee || pc.admissionFee || 0);
+                                      // combine teacher names uniquely
+                                      const existingTeachers = (map[key].teacher || '').toString().split(/,\s*/).filter(Boolean);
+                                      const newTeacher = pc.teacher || pc.teacher_name || '';
+                                      if (newTeacher && !existingTeachers.includes(newTeacher)) {
+                                        existingTeachers.push(newTeacher);
+                                        map[key].teacher = existingTeachers.join(', ');
+                                      }
+                                    }
+                                  }
+                                  return Object.values(map);
+                                };
+
+                                const deduped = dedupe(merged);
+                                setDayEndPerClass(deduped);
+                              } catch (e) {
+                                // if everything fails, fallback to saved per_class
+                                setDayEndPerClass(reportData.per_class || []);
+                              }
+
                               setShowDayEndReport(true);
                             } catch (e) {
-                              console.error(
-                                "Failed to load day-end transactions:",
-                                e
-                              );
-                              alert(
-                                "Failed to load summary day end report data"
-                              );
+                              console.error("Failed to generate day-end report:", e);
+                              alert("Failed to generate summary day end report");
                             } finally {
                               setDayEndLoading(false);
                             }
@@ -12025,27 +12369,129 @@ export default function CashierDashboard() {
                               setDayEndMode("full");
                               setDayEndLoading(true);
                               const cashierId = user?.userid || "unknown";
-                              if (!cashDrawerSession) {
-                                alert('Please start a cash drawer session first to view day-end reports');
+                              const cashierName = user?.name || "Unknown";
+                              
+                              // Generate Day End Report for today (aggregates all sessions)
+                              const today = getLocalDateISO();
+                              
+                              const response = await fetch('http://localhost:8083/api/reports/day-end/generate', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  report_date: today,
+                                  cashier_id: cashierId,
+                                  cashier_name: cashierName,
+                                  report_type: 'full'
+                                })
+                              });
+                              
+                              const result = await response.json();
+                              
+                              if (!result.success) {
+                                alert(result.message || 'Failed to generate day end report');
                                 return;
                               }
-                              const res = await getCashierStats(
-                                cashierId,
-                                "today",
-                                cashDrawerSession.id
-                              );
-                              const transactions =
-                                res?.data?.transactions || [];
-                              const perClass = res?.data?.perClass || [];
-                              setDayEndTransactions(transactions);
-                              setDayEndPerClass(perClass);
+                              
+                              // Extract data from generated report
+                              const report = result.data.report;
+                              const reportData = typeof report.report_data === 'string' 
+                                ? JSON.parse(report.report_data) 
+                                : report.report_data;
+                              
+                              // Populate sessions and card summary immediately
+                              setDayEndTransactions(reportData.sessions || []);
+                              setDayEndCardSummary(reportData.card_summary || {});
+                              setDayEndReportMeta(report || null);
+
+                              // Aggregate admission fees across all sessions by querying per-session stats
+                              try {
+                                const sessionList = Array.isArray(reportData.sessions) ? reportData.sessions : [];
+                                const admissionMap = {}; // key: class identifier (id or name) -> amount
+                                let admissionTotal = 0;
+
+                                for (const s of sessionList) {
+                                  const sid = s.session_id || s.sessionId || null;
+                                  if (!sid) continue;
+                                  try {
+                                    const sres = await getCashierStats(cashierId, 'session', sid);
+                                    if (sres && sres.success && Array.isArray(sres.data.perClass)) {
+                                      for (const pc of sres.data.perClass) {
+                                        const key = pc.class_id ?? pc.class_name ?? pc.className ?? 'Unspecified';
+                                        const amt = Number(pc.admission_fee ?? pc.admissionFee ?? 0) || 0;
+                                        if (!admissionMap[key]) admissionMap[key] = { ...pc, admission_fee: 0 };
+                                        admissionMap[key].admission_fee = (admissionMap[key].admission_fee || 0) + amt;
+                                        admissionTotal += amt;
+                                      }
+                                    }
+                                  } catch (e) {
+                                    // ignore per-session fetch errors
+                                  }
+                                }
+
+                                // Merge admissionMap into reportData.per_class (overlay admission_fee)
+                                const basePerClass = reportData.per_class || [];
+                                const merged = basePerClass.map((pc) => {
+                                  const key = pc.class_id ?? pc.class_name ?? pc.className ?? 'Unspecified';
+                                  const extra = admissionMap[key];
+                                  if (extra) {
+                                    return { ...pc, admission_fee: Number(pc.admission_fee ?? pc.admissionFee ?? 0) + Number(extra.admission_fee || 0) };
+                                  }
+                                  return pc;
+                                });
+
+                                // Add any classes present only in admissionMap
+                                for (const k of Object.keys(admissionMap)) {
+                                  const exists = merged.find((m) => (m.class_id ?? m.class_name ?? m.className ?? 'Unspecified') === k);
+                                  if (!exists) merged.push({ class_id: admissionMap[k].class_id ?? null, class_name: admissionMap[k].class_name || admissionMap[k].className || 'Unspecified', teacher: admissionMap[k].teacher || '-', full_count: 0, half_count: 0, free_count: 0, total_amount: admissionMap[k].total_amount || 0, tx_count: admissionMap[k].tx_count || 0, admission_fee: admissionMap[k].admission_fee || 0 });
+                                }
+
+                                const dedupe = (arr) => {
+                                  const map = {};
+                                  for (const pc of arr) {
+                                    const rawName = (pc.class_name || pc.className || '').toString();
+                                    const norm = rawName.trim().toLowerCase() || (pc.class_id ? String(pc.class_id) : 'unclassified');
+                                    const key = norm;
+                                    if (!map[key]) {
+                                      map[key] = {
+                                        class_id: pc.class_id ?? null,
+                                        class_name: (pc.class_name ?? pc.className ?? rawName) || 'Unspecified',
+                                        teacher: pc.teacher || pc.teacher_name || '-',
+                                        full_count: Number(pc.full_count || 0),
+                                        half_count: Number(pc.half_count || 0),
+                                        free_count: Number(pc.free_count || 0),
+                                        total_amount: Number(pc.total_amount || pc.totalAmount || 0),
+                                        tx_count: Number(pc.tx_count || pc.transactions || 0),
+                                        admission_fee: Number(pc.admission_fee || pc.admissionFee || 0)
+                                      };
+                                    } else {
+                                      map[key].full_count += Number(pc.full_count || 0);
+                                      map[key].half_count += Number(pc.half_count || 0);
+                                      map[key].free_count += Number(pc.free_count || 0);
+                                      map[key].total_amount += Number(pc.total_amount || pc.totalAmount || 0);
+                                      map[key].tx_count += Number(pc.tx_count || pc.transactions || 0);
+                                      map[key].admission_fee += Number(pc.admission_fee || pc.admissionFee || 0);
+                                      const existingTeachers = (map[key].teacher || '').toString().split(/,\s*/).filter(Boolean);
+                                      const newTeacher = pc.teacher || pc.teacher_name || '';
+                                      if (newTeacher && !existingTeachers.includes(newTeacher)) {
+                                        existingTeachers.push(newTeacher);
+                                        map[key].teacher = existingTeachers.join(', ');
+                                      }
+                                    }
+                                  }
+                                  return Object.values(map);
+                                };
+
+                                const deduped = dedupe(merged);
+                                setDayEndPerClass(deduped);
+                              } catch (e) {
+                                // if everything fails, fallback to saved per_class
+                                setDayEndPerClass(reportData.per_class || []);
+                              }
+
                               setShowDayEndReport(true);
                             } catch (e) {
-                              console.error(
-                                "Failed to load day-end transactions:",
-                                e
-                              );
-                              alert("Failed to load full day end report data");
+                              console.error("Failed to generate day-end report:", e);
+                              alert("Failed to generate full day end report");
                             } finally {
                               setDayEndLoading(false);
                             }
@@ -12179,9 +12625,16 @@ export default function CashierDashboard() {
                                 "session",
                                 cashDrawerSession.id
                               );
+                              
+                              console.log("📊 getCashierStats response for session:", cashDrawerSession.id, res);
+                              
                               const transactions =
                                 res?.data?.transactions || [];
                               const perClass = res?.data?.perClass || [];
+                              
+                              console.log("📊 Extracted transactions:", transactions.length, transactions);
+                              console.log("📊 Extracted perClass:", perClass.length, perClass);
+                              
                               setSessionEndTransactions(transactions);
                               setSessionEndPerClass(perClass);
                               setShowSessionEndReport(true);
@@ -12260,7 +12713,8 @@ export default function CashierDashboard() {
                       <div className="grid grid-cols-2 gap-3">
                         <button
                           onClick={() => setActiveTab("register")}
-                          className="bg-gradient-to-br from-amber-500/90 to-amber-600/90 backdrop-blur-sm text-white py-3 px-4 rounded-xl text-sm font-semibold hover:from-amber-600 hover:to-amber-700 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105"
+                          disabled={!cashDrawerSession || isCashedOut}
+                          className={`bg-gradient-to-br from-amber-500/90 to-amber-600/90 backdrop-blur-sm text-white py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg ${(!cashDrawerSession || isCashedOut) ? 'opacity-60 cursor-not-allowed hover:shadow-none' : 'hover:from-amber-600 hover:to-amber-700 hover:shadow-xl hover:scale-105'}`}
                         >
                           <FaUserPlus className="text-lg" />
                           Register Student
@@ -12275,10 +12729,10 @@ export default function CashierDashboard() {
                               );
                             }
                           }}
-                          disabled={!student}
-                          className={`py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl hover:scale-105 ${
-                            student
-                              ? "bg-gradient-to-br from-sky-500/90 to-sky-600/90 backdrop-blur-sm text-white hover:from-sky-600 hover:to-sky-700"
+                          disabled={!student || !cashDrawerSession || isCashedOut}
+                          className={`py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg ${
+                            student && cashDrawerSession && !isCashedOut
+                              ? "bg-gradient-to-br from-sky-500/90 to-sky-600/90 backdrop-blur-sm text-white hover:from-sky-600 hover:to-sky-700 hover:shadow-xl hover:scale-105"
                               : "bg-slate-300/80 text-slate-500 cursor-not-allowed"
                           }`}
                         >
@@ -12625,6 +13079,8 @@ export default function CashierDashboard() {
             mode={dayEndMode}
             transactions={dayEndTransactions}
             perClass={dayEndPerClass}
+            cardSummary={dayEndCardSummary}
+            dayEndReportMeta={dayEndReportMeta}
             cashDrawerSession={cashDrawerSession}
             isCashedOut={isCashedOut}
             onClose={() => {
@@ -12665,6 +13121,7 @@ export default function CashierDashboard() {
             mode={sessionEndMode}
             transactions={sessionEndTransactions}
             perClass={sessionEndPerClass}
+            dayEndReportMeta={dayEndReportMeta}
             cashDrawerSession={cashDrawerSession}
             isSessionReport={true}
             isCashedOut={isCashedOut}

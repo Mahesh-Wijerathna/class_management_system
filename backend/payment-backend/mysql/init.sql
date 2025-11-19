@@ -56,12 +56,14 @@ CREATE TABLE IF NOT EXISTS financial_records (
     notes TEXT,
     delivery_status ENUM('pending', 'processing', 'delivered') DEFAULT 'pending',
     created_by VARCHAR(50),
+    session_id INT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_transaction_id (transaction_id),
     INDEX idx_user_id (user_id),
     INDEX idx_class_id (class_id),
     INDEX idx_status (status),
     INDEX idx_delivery_status (delivery_status)
+    INDEX idx_session_id (session_id)
 );
 -- Class Earnings Configuration Table
 -- Stores per-class earnings configuration including teacher dashboard access and revenue split settings

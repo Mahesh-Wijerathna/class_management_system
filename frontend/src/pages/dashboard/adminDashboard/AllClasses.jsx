@@ -6,12 +6,14 @@ import { getAllStudents } from '../../../api/students';
 import axios from 'axios';
 import { FaUser, FaGraduationCap, FaMoneyBill, FaCalendar, FaPhone, FaEnvelope, FaSync, FaSearch, FaTimes, FaExclamationTriangle, FaUsers, FaBook, FaVideo, FaChalkboardTeacher } from 'react-icons/fa';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import AdminDashboardSidebar from './AdminDashboardSidebar';
+import AdminDashboardSidebar, { adminSidebarSections } from './AdminDashboardSidebar';
 import { getUserPermissions } from '../../../api/rbac';
 
-
+import { cashierSidebarSections } from '../cashierDashboard/CashierDashboardSidebar';
+import { getUserData, logout as authLogout } from '../../../api/apiUtils';
 
 const AllClasses = ({ onLogout }) => {
+  const [user, setUser] = useState(null);
   const [classes, setClasses] = useState([]);
   const [classDetails, setClassDetails] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -263,6 +265,24 @@ const AllClasses = ({ onLogout }) => {
 
     loadUserPermissions();
   }, []);
+
+  useEffect(() => {
+    try {
+      const u = getUserData();
+      setUser(u);
+    } catch (err) {
+      setUser(null);
+    }
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await authLogout();
+    } catch (err) {
+      // ignore
+    }
+    window.location.href = '/login';
+  };
 
 
 
@@ -623,6 +643,7 @@ const AllClasses = ({ onLogout }) => {
       }
     } catch (error) {
       console.error('Error loading enrollment data:', error);
+      showMessage('error', 'Failed to load enrollment data');
     }
   };
 
@@ -669,11 +690,22 @@ const AllClasses = ({ onLogout }) => {
     );
   }
 
+  const layoutProps = user?.role === 'cashier'
+    ? {
+        userRole: 'Cashier',
+        sidebarItems: cashierSidebarSections,
+        onLogout: handleLogout,
+        customTitle: 'TCMS',
+        customSubtitle: `Cashier Dashboard - ${user?.name || 'Cashier'}`
+      }
+    : {
+        userRole: 'Administrator',
+        sidebarItems: filteredSidebarSections.length ? filteredSidebarSections : adminSidebarSections,
+        onLogout
+      };
+
   return (
-    <DashboardLayout
-      userRole="Administrator"
-      sidebarItems={filteredSidebarSections}
-    >
+    <DashboardLayout {...layoutProps}>
       <div className="w-full max-w-7xl mx-auto bg-white p-8 rounded-lg shadow">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
@@ -871,8 +903,6 @@ const AllClasses = ({ onLogout }) => {
                   // Calculate revenue based on date filters
                   if (dateFilter || (monthFilter && yearFilter)) {
                     let filteredRevenue = 0;
-                    let filteredCashRevenue = 0;
-                    let filteredOnlineRevenue = 0;
                     
                     c.enrollments.forEach(enrollment => {
                       if (enrollment.payment_history_details) {
@@ -901,11 +931,7 @@ const AllClasses = ({ onLogout }) => {
                                 const amount = parseFloat(payment.amount || 0);
                                 filteredRevenue += amount;
                                 
-                                if (payment.payment_method?.toLowerCase() === 'cash') {
-                                  filteredCashRevenue += amount;
-                                } else if (payment.payment_method?.toLowerCase() === 'online' || payment.payment_method?.toLowerCase() === 'card') {
-                                  filteredOnlineRevenue += amount;
-                                }
+                                // No need to track payment method totals here; summary cards handle it separately
                               }
                             }
                           });

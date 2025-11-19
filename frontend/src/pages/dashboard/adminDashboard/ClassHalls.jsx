@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import AdminDashboardSidebar from './AdminDashboardSidebar';
+import AdminDashboardSidebar, { adminSidebarSections } from './AdminDashboardSidebar';
+import { cashierSidebarSections } from '../cashierDashboard/CashierDashboardSidebar';
 import { getUserPermissions } from '../../../api/rbac';
-import { getUserData, getAuthToken } from '../../../api/apiUtils';
+import { getUserData, getAuthToken, logout as authLogout } from '../../../api/apiUtils';
 import CustomButton from '../../../components/CustomButton';
 import {
   FaTrash, FaEdit, FaChalkboardTeacher, FaBook, FaUserGraduate, FaCalendarAlt, FaClock
@@ -19,6 +20,7 @@ const HALL_REQUESTS_API = "http://localhost:8088/hall_request.php";
 const CLASSES_API = "http://localhost:8087/routes.php/get_class_name_list";
 
 const ClassHalls = () => {
+  const [user, setUser] = useState(null);
   const [halls, setHalls] = useState([]);
   const [requests, setRequests] = useState([]);
   const [teacherOptions, setTeacherOptions] = useState([]);
@@ -26,8 +28,6 @@ const ClassHalls = () => {
   const [editingHall, setEditingHall] = useState(null);
   const [availabilityResult, setAvailabilityResult] = useState(null);
   const [classOptions, setClassOptions] = useState([]);
-  // Sidebar permissions state
-  const [userPermissions, setUserPermissions] = useState([]);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
 
@@ -39,7 +39,11 @@ const ClassHalls = () => {
     fetchRequests();
   }, []);
 
-  // Load user permissions and compute filtered sidebar
+  useEffect(() => {
+    const userData = getUserData();
+    setUser(userData);
+  }, []);
+
   useEffect(() => {
     const loadUserPermissions = async () => {
       try {
@@ -56,14 +60,11 @@ const ClassHalls = () => {
         }
 
         if (!userId) {
-          const user = getUserData();
-          userId = user?.userid || user?.userId || user?.id;
+          const fallbackUser = getUserData();
+          userId = fallbackUser?.userid || fallbackUser?.userId || fallbackUser?.id;
         }
 
-       
-
         const perms = await getUserPermissions(userId);
-        setUserPermissions(perms || []);
         setFilteredSidebarSections(AdminDashboardSidebar(perms || []));
       } catch (err) {
         console.error('Failed to load user permissions for sidebar', err);
@@ -76,6 +77,14 @@ const ClassHalls = () => {
     loadUserPermissions();
   }, []);
 
+  const handleLogout = async () => {
+    try {
+      await authLogout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+    window.location.href = '/login';
+  };
 useEffect(() => {
   if (availabilityResult) {
     const timer = setTimeout(() => setAvailabilityResult(null), 10000); 
@@ -349,9 +358,32 @@ const fetchHalls = async () => {
     }
   };
 
-  return (
-    <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
+  const isCashier = user?.role === 'cashier';
+  const layoutProps = isCashier
+    ? {
+        userRole: 'Cashier',
+        sidebarItems: cashierSidebarSections,
+        onLogout: handleLogout,
+        customTitle: 'TCMS',
+        customSubtitle: `Cashier Dashboard - ${user?.name || 'Cashier'}`
+      }
+    : {
+        userRole: 'Administrator',
+        sidebarItems: filteredSidebarSections.length ? filteredSidebarSections : adminSidebarSections,
+        onLogout: handleLogout
+      };
 
+  if (!isCashier && permissionsLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-600">Loading permissions...</span>
+      </div>
+    );
+  }
+
+  return (
+    <DashboardLayout {...layoutProps}>
       <div className="p-6 bg-white rounded-lg shadow">
         <BasicAlertBox {...alertBox} />
 

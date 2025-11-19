@@ -356,7 +356,16 @@ export const getStudentOutstandingPayments = async (studentId) => {
 // Get student cards
 export const getStudentCards = async (studentId) => {
   try {
-    return await apiGet(`/routes.php/students/${studentId}/cards`);
+    const studentBackendUrl = 'http://localhost:8086';
+    const response = await fetch(`${studentBackendUrl}/routes.php/students/${studentId}/cards`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
   } catch (error) {
     throw new Error(handleApiError(error, 'Failed to fetch student cards'));
   }
@@ -365,7 +374,17 @@ export const getStudentCards = async (studentId) => {
 // Create student card
 export const createStudentCard = async (studentId, cardData) => {
   try {
-    return await apiPost(`/routes.php/students/${studentId}/cards`, cardData);
+    const studentBackendUrl = 'http://localhost:8086';
+    const response = await fetch(`${studentBackendUrl}/routes.php/students/${studentId}/cards`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cardData)
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
   } catch (error) {
     throw new Error(handleApiError(error, 'Failed to create student card'));
   }
@@ -374,7 +393,17 @@ export const createStudentCard = async (studentId, cardData) => {
 // Update student card
 export const updateStudentCard = async (cardId, cardData) => {
   try {
-    return await apiPut(`/routes.php/student-cards/${cardId}`, cardData);
+    const studentBackendUrl = 'http://localhost:8086';
+    const response = await fetch(`${studentBackendUrl}/routes.php/student-cards/${cardId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cardData)
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
   } catch (error) {
     throw new Error(handleApiError(error, 'Failed to update student card'));
   }
@@ -383,7 +412,16 @@ export const updateStudentCard = async (cardId, cardData) => {
 // Delete student card
 export const deleteStudentCard = async (cardId) => {
   try {
-    return await apiDelete(`/routes.php/student-cards/${cardId}`);
+    const studentBackendUrl = 'http://localhost:8086';
+    const response = await fetch(`${studentBackendUrl}/routes.php/student-cards/${cardId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
   } catch (error) {
     throw new Error(handleApiError(error, 'Failed to delete student card'));
   }

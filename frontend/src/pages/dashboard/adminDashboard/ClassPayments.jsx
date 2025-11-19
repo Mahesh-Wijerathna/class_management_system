@@ -6,12 +6,14 @@ import { getAllStudents } from '../../../api/students';
 import { getAllEarningsConfigs, saveClassEarningsConfig } from '../../../api/earningsConfig';
 import axios from 'axios';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
-import AdminDashboardSidebar from './AdminDashboardSidebar';
+import AdminDashboardSidebar, { adminSidebarSections } from './AdminDashboardSidebar';
+import { cashierSidebarSections } from '../cashierDashboard/CashierDashboardSidebar';
 import { getUserPermissions } from '../../../api/rbac';
-import { getUserData } from '../../../api/apiUtils';
+import { getUserData, logout as authLogout } from '../../../api/apiUtils';
 import BasicTable from '../../../components/BasicTable';
 
 const ClassPayments = () => {
+  const [user, setUser] = useState(null);
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -27,8 +29,6 @@ const ClassPayments = () => {
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [classPaymentData, setClassPaymentData] = useState({});
-  // Sidebar permissions state
-  const [userPermissions, setUserPermissions] = useState([]);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
   
@@ -40,6 +40,24 @@ const ClassPayments = () => {
   useEffect(() => {
     loadEarningsConfigs();
   }, []);
+
+  useEffect(() => {
+    try {
+      const u = getUserData();
+      setUser(u);
+    } catch (err) {
+      setUser(null);
+    }
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await authLogout();
+    } catch (err) {
+      // ignore
+    }
+    window.location.href = '/login';
+  };
   
   const loadEarningsConfigs = async () => {
     try {
@@ -121,14 +139,11 @@ const ClassPayments = () => {
         }
 
         if (!userId) {
-          const user = getUserData();
-          userId = user?.userid || user?.userId || user?.id;
+          const fallbackUser = getUserData();
+          userId = fallbackUser?.userid || fallbackUser?.userId || fallbackUser?.id;
         }
 
-        
-
         const perms = await getUserPermissions(userId);
-        setUserPermissions(perms || []);
         setFilteredSidebarSections(AdminDashboardSidebar(perms || []));
       } catch (err) {
         console.error('Failed to load user permissions for sidebar', err);
@@ -948,9 +963,33 @@ const ClassPayments = () => {
     );
   };
 
+  const isCashier = user?.role === 'cashier';
+  const layoutProps = isCashier
+    ? {
+        userRole: 'Cashier',
+        sidebarItems: cashierSidebarSections,
+        onLogout: handleLogout,
+        customTitle: 'TCMS',
+        customSubtitle: `Cashier Dashboard - ${user?.name || 'Cashier'}`
+      }
+    : {
+        userRole: 'Administrator',
+        sidebarItems: filteredSidebarSections.length ? filteredSidebarSections : adminSidebarSections,
+        onLogout: handleLogout
+      };
+
+  if (!isCashier && permissionsLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-600">Loading permissions...</span>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
+      <DashboardLayout {...layoutProps}>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -963,7 +1002,7 @@ const ClassPayments = () => {
 
   if (error) {
     return (
-      <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
+      <DashboardLayout {...layoutProps}>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <FaExclamationTriangle className="text-red-500 text-4xl mx-auto mb-4" />
@@ -981,7 +1020,7 @@ const ClassPayments = () => {
   }
 
   return (
-    <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
+    <DashboardLayout {...layoutProps}>
       <div className="w-full max-w-7xl mx-auto bg-white p-8 rounded-lg shadow">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
