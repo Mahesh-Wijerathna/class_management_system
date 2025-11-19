@@ -195,7 +195,48 @@ const CreateClass = ({ onLogout }) => {
       setLoading(true);
       const response = await getAllClasses();
       if (response.success) {
-        setClasses(response.data || []);
+        // Compute derived status from startDate/endDate on the frontend
+        const now = new Date();
+        const computed = (response.data || []).map(c => {
+          try {
+            const copy = { ...c };
+            const start = c.startDate ? new Date(c.startDate) : null;
+            const end = c.endDate ? new Date(c.endDate) : null;
+
+            // Default to existing status
+            let derived = copy.status;
+
+            // If both start and end provided, active during [start, end], inactive after end
+            if (start && end) {
+              if (now > end) {
+                derived = 'inactive';
+              } else if (now >= start && now <= end) {
+                derived = 'active';
+              }
+            } else if (start && !end) {
+              // If only start provided, become active on/after start
+              if (now >= start) derived = 'active';
+            } else if (!start && end) {
+              // If only end provided, become inactive after end
+              if (now > end) derived = 'inactive';
+            }
+
+            // Only overwrite status when derived differs to preserve explicit admin settings
+            if (derived && derived !== copy.status) {
+              copy._autoStatus = true; // mark that UI derived this
+              copy.status = derived;
+            } else {
+              copy._autoStatus = false;
+            }
+
+            return copy;
+          } catch (err) {
+            console.error('Error computing derived status for class', c, err);
+            return c;
+          }
+        });
+
+        setClasses(computed);
       } else {
         console.error('Failed to load classes:', response.message);
         setClasses([]);
@@ -445,19 +486,15 @@ const CreateClass = ({ onLogout }) => {
     ) {
       const related = classes.find(tc => String(tc.id) === String(selectedTheoryId));
       if (related) {
-        // Copy core identifying fields from related theory class but DO NOT
-        // forcibly override schedule/start/end/maxStudents so the revision
-        // class can have its own schedule when the user edits it.
+        // Only copy minimal linking fields from related theory class:
+        // teacher, teacherId, stream and record relatedTheoryId.
+        // Do NOT copy className, subject, schedule, deliveryMethod, zoomLink,
+        // description or fees — admin should enter those for the revision class.
         submitValues = {
           ...submitValues,
-          className: related.className,
-          subject: related.subject,
           teacher: related.teacher,
           teacherId: related.teacherId,
           stream: related.stream,
-          deliveryMethod: related.deliveryMethod,
-          zoomLink: related.zoomLink || submitValues.zoomLink,
-          description: related.description,
           relatedTheoryId: related.id,
         };
       }
@@ -847,23 +884,16 @@ const CreateClass = ({ onLogout }) => {
     if (formValues.courseType !== 'revision' || revisionRelation !== 'related') return;
     const related = classes.find(tc => String(tc.id) === String(selectedTheoryId));
     if (related) {
+      // Only auto-fill teacher, teacherId and stream for related revision classes.
+      // Other fields (className, subject, schedule, fees, etc.) should be
+      // entered by the admin for the revision class and saved independently.
       setFormValues(prev => ({
         ...prev,
-        className: related.className,
-        subject: related.subject,
         teacher: related.teacher,
         teacherId: related.teacherId,
         stream: related.stream,
-        deliveryMethod: related.deliveryMethod,
-        schedule: { ...related.schedule },
-        startDate: related.startDate,
-        endDate: related.endDate,
-        maxStudents: related.maxStudents,
-        zoomLink: related.zoomLink,
-        description: related.description,
         relatedTheoryId: related.id,
-        // Do NOT overwrite fee or revisionDiscountPrice here!
-        status: 'active',
+        // Do NOT overwrite fee, className, subject, schedule, or other fields
       }));
     }
   }, [selectedTheoryId, formValues.courseType, revisionRelation, classes]);

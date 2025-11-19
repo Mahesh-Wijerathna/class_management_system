@@ -11,6 +11,17 @@ class ClassModel {
         $this->conn = $db;
     }
 
+    // Ensure statuses are in sync with start_date/end_date
+    private function syncStatusWithDates() {
+        // Set classes to active when current date is between start_date and end_date
+        $activateSql = "UPDATE classes SET status = 'active' WHERE start_date IS NOT NULL AND end_date IS NOT NULL AND CURDATE() BETWEEN start_date AND end_date AND status != 'active'";
+        @$this->conn->query($activateSql);
+
+        // Set classes to inactive when current date is before start_date or after end_date
+        $deactivateSql = "UPDATE classes SET status = 'inactive' WHERE ((start_date IS NOT NULL AND CURDATE() < start_date) OR (end_date IS NOT NULL AND CURDATE() > end_date)) AND status != 'inactive'";
+        @$this->conn->query($deactivateSql);
+    }
+
     public function createClass($data) {
         // Prepare payment tracking - handle both boolean and object formats
         $paymentTracking = null;
@@ -228,6 +239,9 @@ class ClassModel {
     }
 
     public function getClassById($id) {
+        // Sync statuses before returning data
+        $this->syncStatusWithDates();
+
         $stmt = $this->conn->prepare("SELECT * FROM classes WHERE id = ?");
         $stmt->bind_param("i", $id);
         $stmt->execute();
@@ -370,6 +384,9 @@ class ClassModel {
     }
 
     public function getAllClasses() {
+        // Ensure statuses reflect current date ranges before returning list
+        $this->syncStatusWithDates();
+
         $result = $this->conn->query("SELECT * FROM classes ORDER BY created_at DESC");
         if (!$result) {
             return [];
@@ -383,6 +400,9 @@ class ClassModel {
     }
 
     public function getActiveClasses() {
+        // Ensure statuses are up to date
+        $this->syncStatusWithDates();
+
         $stmt = $this->conn->prepare("SELECT * FROM classes WHERE status = 'active' ORDER BY created_at DESC");
         $stmt->execute();
         $result = $stmt->get_result();
@@ -395,6 +415,9 @@ class ClassModel {
     }
 
     public function getClassesByType($courseType) {
+        // Ensure statuses are up to date
+        $this->syncStatusWithDates();
+
         $stmt = $this->conn->prepare("SELECT * FROM classes WHERE course_type = ? AND status = 'active' ORDER BY created_at DESC");
         $stmt->bind_param("s", $courseType);
         $stmt->execute();
@@ -408,6 +431,9 @@ class ClassModel {
     }
 
     public function getClassesByDeliveryMethod($deliveryMethod) {
+        // Ensure statuses are up to date
+        $this->syncStatusWithDates();
+
         $stmt = $this->conn->prepare("SELECT * FROM classes WHERE delivery_method = ? AND status = 'active' ORDER BY created_at DESC");
         $stmt->bind_param("s", $deliveryMethod);
         $stmt->execute();
@@ -421,6 +447,9 @@ class ClassModel {
     }
 
     public function getClassesByTeacher($teacherId) {
+        // Ensure statuses are up to date
+        $this->syncStatusWithDates();
+
         $stmt = $this->conn->prepare("SELECT * FROM classes WHERE teacher_id = ? AND status = 'active' ORDER BY created_at DESC");
         $stmt->bind_param("s", $teacherId);
         $stmt->execute();
@@ -434,6 +463,9 @@ class ClassModel {
     }
 
     public function getClassesByStream($stream) {
+        // Ensure statuses are up to date
+        $this->syncStatusWithDates();
+
         $stmt = $this->conn->prepare("SELECT * FROM classes WHERE stream = ? AND status = 'active' ORDER BY created_at DESC");
         $stmt->bind_param("s", $stream);
         $stmt->execute();
