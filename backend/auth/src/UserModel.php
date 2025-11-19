@@ -120,7 +120,7 @@ class UserModel {
 
     // Get all users
     public function getAllUsers() {
-        $result = $this->conn->query("SELECT userid, role, otp FROM users");
+        $result = $this->conn->query("SELECT userid, role, name, email, phone, otp FROM users");
         if ($result) {
             return $result->fetch_all(MYSQLI_ASSOC);
         }

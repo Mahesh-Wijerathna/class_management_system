@@ -118,6 +118,21 @@ const CoreAdminInfo = () => {
                 <span className="flex items-center gap-1"><FaIdCard className="inline mr-1 text-gray-500" />{row.adminId}</span>
               ),
             },
+            {
+              key: 'name',
+              label: 'Name',
+              render: (row) => row.name,
+            },
+            {
+              key: 'email',
+              label: 'Email',
+              render: (row) => row.email,
+            },
+            {
+              key: 'phone',
+              label: 'Phone',
+              render: (row) => row.phone,
+            },
           ]}
           data={coreAdmins}
           actions={(row) => (
