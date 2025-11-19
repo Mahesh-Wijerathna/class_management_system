@@ -53,6 +53,12 @@ const adminSidebarSections = [
     ]
   },
   {
+    section: 'Delivery Management',
+    items: [
+      { name: 'Speed Post Deliveries', path: '/admin/speed-post-deliveries', icon: <FaTruck className="h-5 w-5" />, requiredPermissions: ['delivery_management.speed_post_deliveries'] },
+    ]
+  },
+  {
     section: 'Finance & Reports',
     items: [
       { name: 'Financial Records', path: '/admin/financial', icon: <FaChartBar className="h-5 w-5" />, requiredPermissions: ['finance_and_reports.financial_records'] },
