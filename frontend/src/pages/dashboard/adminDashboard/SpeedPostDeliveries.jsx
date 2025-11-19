@@ -5,7 +5,6 @@ import adminSidebarSections from './AdminDashboardSidebar';
 import cashierSidebarSections from '../cashierDashboard/CashierDashboardSidebar';
 import { getUserData, logout as authLogout } from '../../../api/apiUtils';
 import { FaTruck, FaSearch, FaFilter, FaCheckCircle, FaTimesCircle, FaClock, FaMapMarkerAlt, FaUser, FaPhone, FaEnvelope, FaBook, FaCalendar, FaDownload, FaPrint, FaExclamationTriangle, FaSync } from 'react-icons/fa';
-import { FaTruck, FaSearch, FaFilter, FaCheckCircle, FaClock, FaMapMarkerAlt, FaUser, FaPhone, FaEnvelope, FaBook, FaCalendar, FaDownload, FaPrint, FaExclamationTriangle, FaSync } from 'react-icons/fa';
 import axios from 'axios';
 
 const SpeedPostDeliveries = ({ onLogout }) => {
