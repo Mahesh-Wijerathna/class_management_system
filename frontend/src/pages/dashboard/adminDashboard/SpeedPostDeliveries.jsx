@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/layout/DashboardLayout';
 import BasicTable from '../../../components/BasicTable';
 import adminSidebarSections from './AdminDashboardSidebar';
+import cashierSidebarSections from '../cashierDashboard/CashierDashboardSidebar';
+import { getUserData, logout as authLogout } from '../../../api/apiUtils';
 import { FaTruck, FaSearch, FaFilter, FaCheckCircle, FaTimesCircle, FaClock, FaMapMarkerAlt, FaUser, FaPhone, FaEnvelope, FaBook, FaCalendar, FaDownload, FaPrint, FaExclamationTriangle, FaSync } from 'react-icons/fa';
 import axios from 'axios';
 
@@ -9,6 +11,7 @@ const SpeedPostDeliveries = ({ onLogout }) => {
   const [deliveries, setDeliveries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [user, setUser] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // all, pending, processing, delivered
   const [refreshing, setRefreshing] = useState(false);
@@ -350,6 +353,24 @@ const SpeedPostDeliveries = ({ onLogout }) => {
     fetchDeliveries();
   }, []);
 
+  useEffect(() => {
+    try {
+      const u = getUserData();
+      setUser(u);
+    } catch (err) {
+      setUser(null);
+    }
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await authLogout();
+    } catch (err) {
+      // ignore logout errors
+    }
+    window.location.href = '/login';
+  };
+
   // Filter deliveries based on search and status
   const getFilteredDeliveries = () => {
     return deliveries.filter(delivery => {
@@ -417,9 +438,21 @@ const SpeedPostDeliveries = ({ onLogout }) => {
     totalRevenue: deliveries.reduce((sum, d) => sum + (d.speedPostFee || 0), 0)
   };
 
+  const layoutProps = user?.role === 'cashier' ? {
+    userRole: 'Cashier',
+    sidebarItems: cashierSidebarSections,
+    onLogout: handleLogout,
+    customTitle: 'TCMS',
+    customSubtitle: `Cashier Dashboard - ${user?.name || 'Cashier'}`
+  } : {
+    userRole: 'Administrator',
+    sidebarItems: adminSidebarSections,
+    onLogout
+  };
+
   if (loading) {
     return (
-      <DashboardLayout sidebarItems={adminSidebarSections} onLogout={onLogout}>
+      <DashboardLayout {...layoutProps}>
         <div className="flex justify-center items-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -431,7 +464,7 @@ const SpeedPostDeliveries = ({ onLogout }) => {
   }
 
   return (
-    <DashboardLayout sidebarItems={adminSidebarSections} onLogout={onLogout}>
+    <DashboardLayout {...layoutProps}>
       <div className="p-6">
         {/* Header */}
         <div className="mb-6">
