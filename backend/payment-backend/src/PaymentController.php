@@ -122,8 +122,8 @@ class PaymentController {
             $stmt = $this->db->prepare("
                 INSERT INTO financial_records (
                     transaction_id, date, type, category, person_name, user_id, person_role,
-                    class_name, class_id, amount, status, payment_method, reference_number, notes, created_by, payment_type
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    class_name, class_id, amount, status, payment_method, reference_number, notes, created_by, session_id, payment_type
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
             $date = date('Y-m-d');
@@ -133,8 +133,8 @@ class PaymentController {
             $userId = $studentId; // Use studentId as user_id
             $personRole = 'student';
             $className = $class['className'] ?? '';
-            // For admission fee without class, classId will be empty
-            $classIdValue = !empty($classId) ? $classId : null;
+            // For admission fee without class, classId will be empty - use 0 instead of NULL for integer field
+            $classIdValue = !empty($classId) ? (int)$classId : 0;
             // For cash payments, status should be 'paid' immediately
             $status = ($data['paymentMethod'] === 'cash' || $data['status'] === 'paid') ? 'paid' : 'pending';
             $paymentMethod = $data['paymentMethod'] ?? 'online';
@@ -157,11 +157,55 @@ class PaymentController {
             
             // Get cashier ID from request data (who is creating this payment)
             $createdBy = $data['cashierId'] ?? $data['createdBy'] ?? $studentId; // Fallback to studentId for backward compatibility
+            // Get session ID if provided (for cashier payments) - use 0 instead of NULL for integer field
+            $sessionId = isset($data['sessionId']) && $data['sessionId'] !== null ? (int)$data['sessionId'] : 0;
 
-            $stmt->bind_param("ssssssssidssssss", 
+            // Robust dynamic binding: construct types and parameter array, then bind by reference
+            // Use explicit types for known numeric values to avoid mismatches
+            $bindValues = [
                 $transactionId, $date, $type, $category, $personName, $userId, $personRole,
-                $className, $classIdValue, $finalAmount, $status, $paymentMethod, $referenceNumber, $notes, $createdBy, $paymentType
-            );
+                $className, $classIdValue, $finalAmount, $status, $paymentMethod, $referenceNumber, $notes, $createdBy, $sessionId, $paymentType
+            ];
+
+            // Build type string explicitly to match expected column types
+            // transaction_id,date,type,category,person_name,user_id,person_role => string
+            // class_name => string
+            // class_id => integer
+            // amount => double
+            // status,payment_method,reference_number,notes,created_by => string
+            // session_id => integer
+            // payment_type => string
+            $types = '';
+            foreach ($bindValues as $idx => $val) {
+                // Determine type based on position (explicit is safer than heuristic)
+                switch ($idx) {
+                    case 8: // class_id
+                    case 15: // session_id
+                        $types .= 'i';
+                        // ensure integer value
+                        $bindValues[$idx] = (int)$bindValues[$idx];
+                        break;
+                    case 9: // amount
+                        $types .= 'd';
+                        $bindValues[$idx] = (float)$bindValues[$idx];
+                        break;
+                    default:
+                        $types .= 's';
+                        $bindValues[$idx] = (string)$bindValues[$idx];
+                }
+            }
+
+            // Prepare parameters as references for call_user_func_array
+            $refs = [$types];
+            foreach ($bindValues as $k => $v) {
+                $refs[] = &$bindValues[$k];
+            }
+
+            // Bind dynamically and safely
+            if (!call_user_func_array([$stmt, 'bind_param'], $refs)) {
+                error_log('Failed to bind parameters for financial_records: types="' . $types . '" values_count=' . count($bindValues));
+                return ['success' => false, 'message' => 'Failed to bind payment parameters'];
+            }
 
             if (!$stmt->execute()) {
                 return ['success' => false, 'message' => 'Failed to create payment record'];
@@ -796,21 +840,18 @@ class PaymentController {
     }
 
     // Get cashier statistics (daily or monthly)
-    public function getCashierStats($cashierId, $period = 'today') {
+    public function getCashierStats($cashierId, $period = 'today', $sessionId = null) {
         try {
-            // Determine date range based on period
-            // Note: Using CURDATE() ensures data persists for entire day (not reset on logout/login)
-            // Data automatically resets at midnight when new day starts
-            if ($period === 'today') {
-                $dateCondition = "DATE(fr.created_at) = CURDATE()";
-            } elseif ($period === 'month') {
-                $dateCondition = "YEAR(fr.created_at) = YEAR(CURDATE()) AND MONTH(fr.created_at) = MONTH(CURDATE())";
-            } elseif ($period === 'all') {
-                $dateCondition = "1=1"; // No date filter
-            } else {
-                // Custom date range: period should be in format 'YYYY-MM-DD'
-                $dateCondition = "DATE(fr.created_at) = ?";
+            // Enforce session-based KPIs only: require sessionId to be provided.
+            // This makes all cashier KPIs strictly scoped to an active session
+            // (session collections, drawer balance, card counts, receipts etc.).
+            if (!$sessionId) {
+                return ['success' => false, 'message' => 'sessionId is required for cashier KPI queries'];
             }
+
+            // Session filter (session-only mode)
+            $sessionCondition = " AND fr.session_id = ?";
+            $dateCondition = "1=1"; // ignored when using session filter
 
             // Query to get cashier statistics
             // COUNT(DISTINCT transaction_id) counts unique transactions/receipts (not rows)
@@ -822,7 +863,8 @@ class PaymentController {
                     SUM(CASE WHEN fr.status = 'pending' THEN 1 ELSE 0 END) as pending_count,
                     SUM(CASE WHEN fr.status = 'paid' AND fr.payment_method = 'cash' THEN fr.amount ELSE 0 END) as cash_collected,
                     SUM(CASE WHEN fr.status = 'paid' AND fr.payment_method = 'card' THEN fr.amount ELSE 0 END) as card_collected,
-                    SUM(CASE WHEN fr.status = 'paid' AND fr.payment_type = 'admission_fee' THEN fr.amount ELSE 0 END) as admission_fees,
+                    -- Treat explicit admission_fee rows OR payments whose notes mention 'admission' as admission fees
+                    SUM(CASE WHEN fr.status = 'paid' AND (fr.payment_type = 'admission_fee' OR LOWER(fr.notes) LIKE '%admission%') THEN fr.amount ELSE 0 END) as admission_fees,
                     SUM(CASE WHEN fr.status = 'paid' AND fr.payment_type = 'class_payment' THEN fr.amount ELSE 0 END) as class_payments,
                     MIN(fr.created_at) as first_transaction,
                     MAX(fr.created_at) as last_transaction
@@ -830,15 +872,13 @@ class PaymentController {
                 WHERE fr.created_by = ? 
                 AND fr.type = 'income'
                 AND $dateCondition
+                $sessionCondition
             ";
 
             $stmt = $this->db->prepare($sql);
             
-            if ($period !== 'today' && $period !== 'month' && $period !== 'all') {
-                $stmt->bind_param("ss", $cashierId, $period);
-            } else {
-                $stmt->bind_param("s", $cashierId);
-            }
+            // Bind cashierId and sessionId
+            $stmt->bind_param("si", $cashierId, $sessionId);
 
             $stmt->execute();
             $result = $stmt->get_result();
@@ -862,6 +902,7 @@ class PaymentController {
                 FROM financial_records fr
                 WHERE fr.created_by = ?
                 AND $dateCondition
+                $sessionCondition
                 AND fr.type = 'income'
                 ORDER BY fr.created_at DESC
                 LIMIT 50
@@ -869,11 +910,8 @@ class PaymentController {
 
             $recentStmt = $this->db->prepare($recentSql);
             
-            if ($period !== 'today' && $period !== 'month' && $period !== 'all') {
-                $recentStmt->bind_param("ss", $cashierId, $period);
-            } else {
-                $recentStmt->bind_param("s", $cashierId);
-            }
+            // Bind cashierId and sessionId for recent transactions
+            $recentStmt->bind_param("si", $cashierId, $sessionId);
 
             $recentStmt->execute();
             $recentResult = $recentStmt->get_result();
@@ -917,7 +955,8 @@ class PaymentController {
                         'half_count' => 0,
                         'free_count' => 0,
                         'total_amount' => 0,
-                        'tx_count' => 0
+                        'tx_count' => 0,
+                        'admission_fee' => 0
                     ];
                 }
                 
@@ -926,6 +965,11 @@ class PaymentController {
                 if ($paymentType === 'class_payment' || $paymentType === 'admission_fee') {
                     $classMap[$className]['tx_count']++;
                     $classMap[$className]['total_amount'] += floatval($tx['amount'] ?? 0);
+
+                    // Track admission fee separately
+                    if ($paymentType === 'admission_fee') {
+                        $classMap[$className]['admission_fee'] += floatval($tx['amount'] ?? 0);
+                    }
                     
                     // Only analyze card type for class_payment (admission fees don't use cards)
                     if ($paymentType === 'class_payment') {
@@ -1051,6 +1095,52 @@ class PaymentController {
             error_log("Half Cards: $halfCardsIssued");
             error_log("Free Cards: $freeCardsIssued");
             error_log("============================");
+
+            // Fetch session's cash_drawer_balance AND opening_balance from cashier backend
+            $sessionDrawerBalance = null;
+            $sessionOpeningBalance = null;
+            try {
+                $cashierSessionUrl = "http://cashier-backend/api/session/current?cashier_id=" . urlencode($cashierId) . "&date=" . date('Y-m-d');
+                error_log("🔍 Fetching from cashier backend: $cashierSessionUrl");
+                $sessionResponse = @file_get_contents($cashierSessionUrl);
+                if ($sessionResponse !== false) {
+                    error_log("✅ Got response from cashier backend, length: " . strlen($sessionResponse));
+                    $sessionData = json_decode($sessionResponse, true);
+                    if ($sessionData['success'] && isset($sessionData['data']['session'])) {
+                        $session = $sessionData['data']['session'];
+                        error_log("📊 Session data from cashier: " . json_encode($session));
+                        if (isset($session['cash_drawer_balance'])) {
+                            $sessionDrawerBalance = floatval($session['cash_drawer_balance']);
+                            error_log("✅ Fetched cash_drawer_balance from cashier session: $sessionDrawerBalance");
+                        } else {
+                            error_log("⚠️ cash_drawer_balance NOT found in session data!");
+                        }
+                        if (isset($session['opening_balance'])) {
+                            $sessionOpeningBalance = floatval($session['opening_balance']);
+                            error_log("✅ Fetched opening_balance from cashier session: $sessionOpeningBalance");
+                        }
+                    } else {
+                        error_log("⚠️ Invalid response structure from cashier backend");
+                    }
+                } else {
+                    error_log("❌ Failed to fetch from cashier backend - file_get_contents returned false");
+                }
+            } catch (Exception $e) {
+                error_log("⚠️ Failed to fetch session balances: " . $e->getMessage());
+            }
+            
+            // Provide both opening_balance and calculated drawer balance
+            // Frontend can decide which to show based on context (e.g., opening_balance + collections)
+            if ($sessionOpeningBalance !== null) {
+                $stats['opening_balance'] = $sessionOpeningBalance;
+            }
+            
+            // If we have a session drawer balance from cashier backend, use it; otherwise fall back to opening + cash_collected
+            if ($sessionDrawerBalance !== null) {
+                $stats['cash_drawer_balance'] = $sessionDrawerBalance;
+            } else {
+                $stats['cash_drawer_balance'] = ($sessionOpeningBalance !== null ? $sessionOpeningBalance : 0) + $stats['cash_collected'];
+            }
 
             return [
                 'success' => true,

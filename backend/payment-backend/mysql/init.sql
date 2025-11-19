@@ -99,9 +99,11 @@ CREATE TABLE IF NOT EXISTS financial_records (
     reference_number VARCHAR(100),
     notes TEXT,
     created_by VARCHAR(50),
+    session_id INT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_transaction_id (transaction_id),
     INDEX idx_user_id (user_id),
     INDEX idx_class_id (class_id),
-    INDEX idx_status (status)
+    INDEX idx_status (status),
+    INDEX idx_session_id (session_id)
 );

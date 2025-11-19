@@ -97,4 +97,21 @@ class StudentController {
         return ['success' => true, 'message' => "Generated barcodes for {$count} students"];
     }
 
+    // Student cards API wrappers
+    public function getStudentCards($studentId) {
+        return $this->model->getStudentCards($studentId);
+    }
+
+    public function createStudentCard($studentId, $data) {
+        return $this->model->createStudentCard($studentId, $data);
+    }
+
+    public function updateStudentCard($cardId, $data) {
+        return $this->model->updateStudentCard($cardId, $data);
+    }
+
+    public function deleteStudentCard($cardId) {
+        return $this->model->deleteStudentCard($cardId);
+    }
+
 }

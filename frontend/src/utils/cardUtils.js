@@ -1,4 +1,5 @@
 // Utility functions for student card management
+import { createStudentCard, updateStudentCard, deleteStudentCard } from '../api/students';
 
 /**
  * Get student's card for a specific class
@@ -177,6 +178,36 @@ export const createCard = (cardData) => {
     
     cards.push(newCard);
     localStorage.setItem('studentCards', JSON.stringify(cards));
+    // Background sync: try to persist to backend student-cards API.
+    (async () => {
+      try {
+        const payload = {
+          card_id: newCard.id,
+          class_id: newCard.classId,
+          card_type: newCard.cardType || newCard.type || 'half',
+          reason: newCard.reason || null,
+          valid_from: newCard.validFrom || newCard.valid_from || null,
+          valid_until: newCard.validUntil || newCard.valid_until || null,
+          is_active: newCard.isActive ? 1 : 0
+        };
+
+        const res = await createStudentCard(newCard.studentId, payload).catch(e => { throw e; });
+        // If backend returned an id, persist the backend id in local storage for future reconciliation
+        if (res && (res.success === true || res.id || res.insertId)) {
+          const backendId = res.id || res.insertId || res.insert_id || null;
+          if (backendId) {
+            const updated = JSON.parse(localStorage.getItem('studentCards') || '[]');
+            const idx = updated.findIndex(c => c.id === newCard.id);
+            if (idx !== -1) {
+              updated[idx].backendId = backendId;
+              localStorage.setItem('studentCards', JSON.stringify(updated));
+            }
+          }
+        }
+      } catch (err) {
+        console.debug('Background card sync failed:', err && err.message ? err.message : err);
+      }
+    })();
     return true;
   } catch (error) {
     console.error('Error creating card:', error);
@@ -207,6 +238,23 @@ export const updateCard = (cardId, updates) => {
     };
     
     localStorage.setItem('studentCards', JSON.stringify(cards));
+    // Background: attempt to update backend record if it exists
+    (async () => {
+      try {
+        const card = cards[cardIndex];
+        const backendId = card.backendId || card.id; // fallback to local id if backend id missing
+        const payload = {
+          card_type: card.cardType || card.type,
+          reason: card.reason || null,
+          valid_from: card.validFrom || card.valid_from || null,
+          valid_until: card.validUntil || card.valid_until || null,
+          is_active: card.isActive ? 1 : 0
+        };
+        await updateStudentCard(backendId, payload).catch(e => { throw e; });
+      } catch (err) {
+        console.debug('Background card update failed:', err && err.message ? err.message : err);
+      }
+    })();
     return true;
   } catch (error) {
     console.error('Error updating card:', error);
@@ -228,6 +276,18 @@ export const deleteCard = (cardId) => {
     const filteredCards = cards.filter(card => card.id !== cardId);
     
     localStorage.setItem('studentCards', JSON.stringify(filteredCards));
+    // Background: attempt to delete from backend if backendId is present
+    (async () => {
+      try {
+        const maybe = cards.find(c => c.id === cardId);
+        const backendId = maybe && (maybe.backendId || maybe.id);
+        if (backendId) {
+          await deleteStudentCard(backendId).catch(e => { throw e; });
+        }
+      } catch (err) {
+        console.debug('Background card delete failed:', err && err.message ? err.message : err);
+      }
+    })();
     return true;
   } catch (error) {
     console.error('Error deleting card:', error);
