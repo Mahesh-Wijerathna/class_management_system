@@ -1,53 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { FaIdCard, FaTrash } from 'react-icons/fa';
 import BasicTable from '../../../components/BasicTable';
-import DashboardLayout from '../../../components/layout/DashboardLayout';
-import AdminDashboardSidebar from './AdminDashboardSidebar';
-import { getUserPermissions } from '../../../api/rbac';
-import { getUserData } from '../../../api/apiUtils';
 
 const CoreAdminInfo = () => {
-  // Sidebar permissions state
-  const [userPermissions, setUserPermissions] = useState([]);
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
-  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
   const [coreAdmins, setCoreAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const loadUserPermissions = async () => {
-      try {
-        setPermissionsLoading(true);
-        const stored = sessionStorage.getItem('userData') || localStorage.getItem('userData');
-        let userId;
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            userId = parsed.userid || parsed.userId || parsed.id;
-          } catch (e) {
-            // ignore
-          }
-        }
-
-        if (!userId) {
-          const user = getUserData();
-          userId = user?.userid || user?.userId || user?.id;
-        }
-
-        const perms = await getUserPermissions(userId);
-        setUserPermissions(perms || []);
-        setFilteredSidebarSections(AdminDashboardSidebar(perms || []));
-      } catch (err) {
-        console.error('Failed to load user permissions for sidebar', err);
-        setFilteredSidebarSections(AdminDashboardSidebar([]));
-      } finally {
-        setPermissionsLoading(false);
-      }
-    };
-
-    loadUserPermissions();
-  }, []);
 
   useEffect(() => {
     const fetchAdmins = async () => {
@@ -131,28 +89,23 @@ const CoreAdminInfo = () => {
 
   if (loading) {
     return (
-      <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
         <div className="flex justify-center items-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <span className="ml-3 text-gray-600">Loading admin details...</span>
         </div>
-      </DashboardLayout>
     );
   }
 
   if (error) {
     return (
-      <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
         <div className="p-6 bg-white rounded-lg shadow">
           <h1 className="text-2xl font-bold mb-4">Core Admin Information</h1>
           <p className="text-red-600">{error}</p>
         </div>
-      </DashboardLayout>
     );
   }
 
   return (
-    <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
       <div className="p-6 bg-white rounded-lg shadow">
         <h1 className="text-2xl font-bold mb-4">Core Admin Information</h1>
         <p className="mb-6 text-gray-700">View, edit and delete core admin details.</p>
@@ -175,7 +128,6 @@ const CoreAdminInfo = () => {
           className="mb-6"
         />
       </div>
-    </DashboardLayout>
   );
 };
 

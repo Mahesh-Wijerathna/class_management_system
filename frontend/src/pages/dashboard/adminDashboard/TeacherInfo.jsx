@@ -2,10 +2,6 @@ import React, { useState, useEffect } from 'react';
 import * as Yup from 'yup';
 import { FaUser, FaLock, FaPhone, FaIdCard } from 'react-icons/fa';
 // import { Formik } from 'formik';
-import DashboardLayout from '../../../components/layout/DashboardLayout';
-import AdminDashboardSidebar from './AdminDashboardSidebar';
-import { getUserPermissions } from '../../../api/rbac';
-import { getUserData } from '../../../api/apiUtils';
 import CustomButton from '../../../components/CustomButton';
 import { FaEdit, FaTrash, FaEnvelope,   FaBook } from 'react-icons/fa';
 import BasicTable from '../../../components/BasicTable';
@@ -19,8 +15,6 @@ import { getActiveTeachers, updateTeacherDetails, updateTeacher, deleteTeacherFr
 const TeacherInfo = () => {
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [filteredSidebarSections, setFilteredSidebarSections] = useState(() => AdminDashboardSidebar([]));
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [editValues, setEditValues] = useState({});
   const [showEditModal, setShowEditModal] = useState(false);
@@ -58,35 +52,6 @@ const TeacherInfo = () => {
   // Load teachers on component mount
   useEffect(() => {
     loadTeachers();
-  }, []);
-
-
-  // Load RBAC permissions for sidebar filtering
-  useEffect(() => {
-    const loadPermissions = async () => {
-      try {
-        setPermissionsLoading(true);
-        const userData = sessionStorage.getItem('userData') || localStorage.getItem('userData');
-        let userId = null;
-        if (userData) {
-          try { const parsed = JSON.parse(userData); userId = parsed.userid || parsed.id || userId; } catch (e) { }
-        } else {
-          const user = getUserData();
-          if (user) userId = user.userid || user.id || userId;
-        }
-
-        const resp = await getUserPermissions(userId);
-        const perms = Array.isArray(resp) ? resp : (resp?.permissions || resp?.data || []);
-        setFilteredSidebarSections(AdminDashboardSidebar(perms));
-      } catch (err) {
-        console.error('Failed to load permissions for TeacherInfo sidebar', err);
-        setFilteredSidebarSections(AdminDashboardSidebar([]));
-      } finally {
-        setPermissionsLoading(false);
-      }
-    };
-
-    loadPermissions();
   }, []);
 
   // Only one set of delete/confirm/cancel functions
@@ -309,7 +274,6 @@ const TeacherInfo = () => {
   // Note: Teachers are now loaded from database, not localStorage
 
       return (
-    <DashboardLayout userRole="Administrator" sidebarItems={permissionsLoading ? AdminDashboardSidebar([]) : filteredSidebarSections}>
       <div className="p-6 bg-white rounded-lg shadow">
          <div className="flex justify-between items-center mb-4">
            <div>
@@ -552,7 +516,6 @@ const TeacherInfo = () => {
           type={saveAlert.type}
         />
       </div>
-    </DashboardLayout>
   );
 };
 

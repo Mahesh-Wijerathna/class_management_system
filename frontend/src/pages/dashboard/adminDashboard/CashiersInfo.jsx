@@ -1,10 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import * as Yup from 'yup';
 import { FaUser, FaLock, FaPhone, FaIdCard, FaEnvelope, FaEdit, FaTrash } from 'react-icons/fa';
-import DashboardLayout from '../../../components/layout/DashboardLayout';
-import AdminDashboardSidebar from './AdminDashboardSidebar';
-import { getUserPermissions } from '../../../api/rbac';
-import { getUserData } from '../../../api/apiUtils';
 import CustomButton from '../../../components/CustomButton';
 import BasicTable from '../../../components/BasicTable';
 import BasicForm from '../../../components/BasicForm';
@@ -22,11 +18,6 @@ const CashiersInfo = () => {
   const [showAlert, setShowAlert] = useState(false);
   const [alertCashierId, setAlertCashierId] = useState(null);
   const [saveAlert, setSaveAlert] = useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
-
-  // Sidebar permissions state
-  const [userPermissions, setUserPermissions] = useState([]);
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
-  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
 
   // Fetch cashiers data from API
   useEffect(() => {
@@ -49,43 +40,6 @@ const CashiersInfo = () => {
     };
 
     fetchCashiers();
-  }, []);
-
-  // Load user permissions and compute filtered sidebar
-  useEffect(() => {
-    const loadUserPermissions = async () => {
-      try {
-        setPermissionsLoading(true);
-        const stored = sessionStorage.getItem('userData') || localStorage.getItem('userData');
-        let userId;
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            userId = parsed.userid || parsed.userId || parsed.id;
-          } catch (e) {
-            console.error('Failed to parse stored userData', e);
-          }
-        }
-
-        if (!userId) {
-          const user = getUserData();
-          userId = user?.userid || user?.userId || user?.id;
-        }
-
-        
-
-        const perms = await getUserPermissions(userId);
-        setUserPermissions(perms || []);
-        setFilteredSidebarSections(AdminDashboardSidebar(perms || []));
-      } catch (err) {
-        console.error('Failed to load user permissions for sidebar', err);
-        setFilteredSidebarSections(AdminDashboardSidebar([]));
-      } finally {
-        setPermissionsLoading(false);
-      }
-    };
-
-    loadUserPermissions();
   }, []);
 
   const handleDelete = (cashierId) => {
@@ -203,7 +157,6 @@ const CashiersInfo = () => {
   };
 
   return (
-    <DashboardLayout sidebarItems={filteredSidebarSections}>
       <div className="p-6 bg-white rounded-lg shadow">
         <h1 className="text-2xl font-bold mb-4">Cashiers Information</h1>
         <p className="mb-6 text-gray-700">View, edit and delete cashier details.</p>
@@ -385,7 +338,6 @@ const CashiersInfo = () => {
           type={saveAlert.type}
         />
       </div>
-    </DashboardLayout>
   );
 };
 

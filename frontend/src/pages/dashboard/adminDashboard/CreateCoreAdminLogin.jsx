@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import BasicAlertBox from '../../../components/BasicAlertBox';
 import CustomTextField from '../../../components/CustomTextField';
 import CustomButton from '../../../components/CustomButton';
@@ -6,10 +6,6 @@ import BasicForm from '../../../components/BasicForm';
 import { useNavigate } from 'react-router-dom';
 import * as Yup from 'yup';
 import { FaUser, FaLock, FaPhone, FaIdCard, FaEnvelope } from 'react-icons/fa';
-import DashboardLayout from '../../../components/layout/DashboardLayout';
-import AdminDashboardSidebar from './AdminDashboardSidebar';
-import { getUserPermissions } from '../../../api/rbac';
-import { getUserData } from '../../../api/apiUtils';
 
 const phoneRegex = /^0\d{9}$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
@@ -34,10 +30,6 @@ const initialValues = {
 
 const CreateCoreAdminLogin = () => {
   const navigate = useNavigate();
-  // Sidebar permissions state
-  const [userPermissions, setUserPermissions] = useState([]);
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
-  const [filteredSidebarSections, setFilteredSidebarSections] = useState([]);
 
   const [submitCount, setSubmitCount] = React.useState(0);
   const [alertBox, setAlertBox] = React.useState({ open: false, message: '', onConfirm: null, confirmText: 'OK', type: 'success' });
@@ -51,49 +43,14 @@ const CreateCoreAdminLogin = () => {
       message: 'Core admin account created!',
       onConfirm: () => {
         setAlertBox(a => ({ ...a, open: false }));
-        navigate('/admin/coreadmins/info');
+        navigate('/admin/core-admins/info');
       },
       confirmText: 'OK',
       type: 'success'
     });
   };
 
-  useEffect(() => {
-    const loadUserPermissions = async () => {
-      try {
-        setPermissionsLoading(true);
-        const stored = sessionStorage.getItem('userData') || localStorage.getItem('userData');
-        let userId;
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            userId = parsed.userid || parsed.userId || parsed.id;
-          } catch (e) {
-            // ignore
-          }
-        }
-
-        if (!userId) {
-          const user = getUserData();
-          userId = user?.userid || user?.userId || user?.id;
-        }
-
-        const perms = await getUserPermissions(userId);
-        setUserPermissions(perms || []);
-        setFilteredSidebarSections(AdminDashboardSidebar(perms || []));
-      } catch (err) {
-        console.error('Failed to load user permissions for sidebar', err);
-        setFilteredSidebarSections(AdminDashboardSidebar([]));
-      } finally {
-        setPermissionsLoading(false);
-      }
-    };
-
-    loadUserPermissions();
-  }, []);
-
   return (
-    <DashboardLayout userRole="Administrator" sidebarItems={filteredSidebarSections}>
       <div className="w-full max-w-5xl mx-auto bg-white p-8 rounded-lg shadow mt-10">
       <BasicAlertBox
         open={alertBox.open}
@@ -228,18 +185,26 @@ const CreateCoreAdminLogin = () => {
               const coreAdmins = JSON.parse(localStorage.getItem('coreAdmins')) || [];
               coreAdmins.push({ ...values, userid: data.userid });
               localStorage.setItem('coreAdmins', JSON.stringify(coreAdmins));
+              
+              setAlertBox({
+                open: true,
+                message: `Additional core admin account created successfully! Admin ID: ${data.userid}`,
+                onConfirm: () => {
+                  setAlertBox(a => ({ ...a, open: false }));
+                  navigate('/admin/core-admins/info');
+                },
+                confirmText: 'OK',
+                type: 'success'
+              });
+            } else {
+              setAlertBox({
+                open: true,
+                message: data.message || 'Failed to create additional admin account. Please try again.',
+                onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+                confirmText: 'OK',
+                type: 'error'
+              });
             }
-            
-            setAlertBox({
-              open: true,
-              message: 'Additional core admin account created successfully!',
-              onConfirm: () => {
-                setAlertBox(a => ({ ...a, open: false }));
-                navigate('/admin/coreadmins/info');
-              },
-              confirmText: 'OK',
-              type: 'success'
-            });
           } catch (error) {
             console.error('Failed to create additional admin:', error);
             setAlertBox({
@@ -327,7 +292,6 @@ const CreateCoreAdminLogin = () => {
         )}
       </BasicForm>
       </div>
-    </DashboardLayout>
   );
 };
 
