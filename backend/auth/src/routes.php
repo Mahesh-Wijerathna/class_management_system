@@ -171,6 +171,21 @@ if ($method === 'POST' && $path === '/routes.php/user') {
     if ($user->createUser($data['role'], $data['password'])) {
         $userid = $user->userid;
         
+        // For admin and cashier roles, update with additional information
+        if (in_array($data['role'], ['admin', 'cashier'])) {
+            $updateStmt = $mysqli->prepare("
+                UPDATE users 
+                SET name = ?, email = ?, phone = ? 
+                WHERE userid = ?
+            ");
+            $name = $data['firstName'] . ' ' . ($data['lastName'] ?? '');
+            $email = $data['email'] ?? '';
+            $phone = $data['phone'] ?? '';
+            $updateStmt->bind_param("ssss", $name, $email, $phone, $userid);
+            $updateStmt->execute();
+            $updateStmt->close();
+        }
+        
         // Generate a service token for RBAC system calls (using current global token if available)
         // Note: RBAC user creation endpoints should be made public, or we need admin token
         $serviceToken = $globalToken ?? null; // Use current user's token if they're creating another user
