@@ -311,6 +311,20 @@ CREATE TABLE IF NOT EXISTS study_pack_links (
   FOREIGN KEY (study_pack_id) REFERENCES study_packs(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
+CREATE TABLE hall_requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    teacher_id VARCHAR(255) NOT NULL,
+    subject VARCHAR(255) DEFAULT '',
+    class_name VARCHAR(255) DEFAULT '',
+    date DATE NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
 -- Initialization complete message
 SELECT 'Teacher Database Initialization Complete! All tables created successfully.' AS status;
 

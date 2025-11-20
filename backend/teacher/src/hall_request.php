@@ -14,7 +14,13 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'POST') {
 	// Create a new hall request
-	$data = json_decode(file_get_contents('php://input'), true);
+	$raw = file_get_contents('php://input');
+	$data = json_decode($raw, true);
+	// Defensive: if JSON fails, return helpful error
+	if ($data === null && json_last_error() !== JSON_ERROR_NONE) {
+		echo json_encode(['success' => false, 'message' => 'Invalid JSON payload', 'json_error' => json_last_error_msg(), 'raw' => $raw]);
+		exit;
+	}
 	$teacher_id = $data['teacher_id'] ?? null;
 	$subject = $data['subject'] ?? '';
 	$class_name = $data['class_name'] ?? '';
@@ -30,11 +36,20 @@ if ($method === 'POST') {
 
 	$sql = "INSERT INTO hall_requests (teacher_id, subject, class_name, date, start_time, end_time, status) VALUES (?, ?, ?, ?, ?, ?, ?)";
 	$stmt = $conn->prepare($sql);
-	$stmt->bind_param("sssssss", $teacher_id, $subject, $class_name, $date, $start_time, $end_time, $status);
-	if ($stmt->execute()) {
+	if ($stmt === false) {
+		echo json_encode(['success' => false, 'message' => 'Failed to prepare statement', 'db_error' => $conn->error]);
+		exit;
+	}
+	$bind = $stmt->bind_param("sssssss", $teacher_id, $subject, $class_name, $date, $start_time, $end_time, $status);
+	if ($bind === false) {
+		echo json_encode(['success' => false, 'message' => 'Failed to bind parameters', 'db_error' => $stmt->error]);
+		exit;
+	}
+	$exec = $stmt->execute();
+	if ($exec) {
 		echo json_encode(['success' => true, 'message' => 'Request submitted successfully']);
 	} else {
-		echo json_encode(['success' => false, 'message' => 'Error submitting request']);
+		echo json_encode(['success' => false, 'message' => 'Error submitting request', 'db_error' => $stmt->error]);
 	}
 	exit;
 

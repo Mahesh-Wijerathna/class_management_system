@@ -29,9 +29,13 @@ define('JWT_EXPIRY', 3600); // 1 hour
 // CORS configuration
 define('ALLOWED_ORIGINS', ['http://localhost:3000', 'http://127.0.0.1:3000']); 
 
-// Suppress any output before headers
-ini_set('display_errors', 0);
+// Error reporting - enable while debugging local 500s. Remove or set to 0 in production.
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
+// Also log PHP errors to a file for investigation
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/php_error.log');
 
 // Create MySQL connection
 $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);

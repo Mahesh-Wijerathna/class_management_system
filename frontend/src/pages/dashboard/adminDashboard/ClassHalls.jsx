@@ -151,10 +151,22 @@ const fetchHalls = async () => {
       const data = await res.json();
       if (data.success) {
         fetchHalls();
-        alert("Hall added successfully");
+        setAlertBox({
+          open: true,
+          message: 'Hall added successfully',
+          onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+          confirmText: 'OK',
+          type: 'success'
+        });
         resetForm();
       } else {
-        alert(data.message || "Failed to add hall");
+        setAlertBox({
+          open: true,
+          message: data.message || 'Failed to add hall',
+          onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+          confirmText: 'OK',
+          type: 'danger'
+        });
       }
     } catch (err) {
       console.error("Error adding hall:", err);
@@ -173,9 +185,21 @@ const fetchHalls = async () => {
           const data = await res.json();
           if (data.success) {
             fetchHalls();
-            alert("Hall deleted successfully");
+            setAlertBox({
+              open: true,
+              message: 'Hall deleted successfully',
+              onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+              confirmText: 'OK',
+              type: 'success'
+            });
           } else {
-            alert(data.message);
+            setAlertBox({
+              open: true,
+              message: data.message || 'Failed to delete hall',
+              onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+              confirmText: 'OK',
+              type: 'danger'
+            });
           }
         } catch (err) {
           console.error("Error deleting hall:", err);
@@ -211,14 +235,32 @@ const fetchHalls = async () => {
     if (data.success) {
       fetchHalls();
       setEditingHall(null);
-      alert("Hall updated successfully");
+      setAlertBox({
+        open: true,
+        message: 'Hall updated successfully',
+        onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'success'
+      });
     } else {
       // Show alert with backend message
-      alert(data.message || "Failed to update hall");
+      setAlertBox({
+        open: true,
+        message: data.message || 'Failed to update hall',
+        onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+        confirmText: 'OK',
+        type: 'danger'
+      });
     }
   } catch (err) {
     console.error("Error editing hall:", err);
-    alert("Network error updating hall");
+    setAlertBox({
+      open: true,
+      message: 'Network error updating hall',
+      onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
+      confirmText: 'OK',
+      type: 'danger'
+    });
   }
 };
 
@@ -249,8 +291,8 @@ const fetchHalls = async () => {
     setAlertBox({
       open: true,
       message,
-      onConfirm: () => { onConfirm(); setAlertBox({ ...alertBox, open: false }); },
-      onCancel: () => setAlertBox({ ...alertBox, open: false }),
+  onConfirm: () => { onConfirm(); setAlertBox(a => ({ ...a, open: false })); },
+  onCancel: () => setAlertBox(a => ({ ...a, open: false })),
       confirmText,
       cancelText,
       type
@@ -280,7 +322,7 @@ const fetchHalls = async () => {
           message: data.message || 'Failed to update request',
           onConfirm: () => setAlertBox(a => ({ ...a, open: false })),
           confirmText: 'OK',
-          type: 'error'
+          type: 'danger'
         });
       }
     } catch (err) {
