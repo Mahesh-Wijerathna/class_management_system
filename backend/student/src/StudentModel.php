@@ -89,14 +89,23 @@ class StudentModel {
         // Set registration method (default to 'Physical' for backward compatibility)
         $registrationMethod = $studentData['registration_method'] ?? 'Physical';
 
+        // $stmt = $this->conn->prepare("
+        //     INSERT INTO students (
+        //         user_id, first_name, last_name, nic, gender, age, email, mobile_number, 
+        //         parent_name, parent_mobile_number, stream, date_of_birth, school, address, district,
+        //         barcode_data, barcode_generated_at, registration_method
+        //     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        // ");
+        
+        // Ensure empty NIC is stored as NULL to avoid UNIQUE '' collisions
         $stmt = $this->conn->prepare("
             INSERT INTO students (
                 user_id, first_name, last_name, nic, gender, age, email, mobile_number, 
                 parent_name, parent_mobile_number, stream, date_of_birth, school, address, district,
                 barcode_data, barcode_generated_at, registration_method
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
-        
+
         $stmt->bind_param("ssssssssssssssssss", 
             $userid,
             $firstName,
@@ -229,7 +238,7 @@ class StudentModel {
 
         $stmt = $this->conn->prepare("
             UPDATE students SET 
-                first_name = ?, last_name = ?, nic = ?, gender = ?, age = ?, 
+                first_name = ?, last_name = ?, nic = NULLIF(?, ''), gender = ?, age = ?, 
                 email = ?, mobile_number = ?, parent_name = ?, parent_mobile_number = ?, 
                 stream = ?, date_of_birth = ?, school = ?, address = ?, district = ?,
                 barcode_data = ?, barcode_generated_at = ?

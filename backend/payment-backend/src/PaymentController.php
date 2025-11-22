@@ -62,11 +62,16 @@ class PaymentController {
                     'className' => 'Admission Fee',
                     'fee' => 0
                 ];
-            } elseif (!empty($classId)) {
-                // For class-related payments, fetch class details
-                $class = $this->getClassFromClassBackend($classId);
-                if (!$class) {
-                    return ['success' => false, 'message' => 'Class not found'];
+            } else {
+                // Only attempt to fetch class details when this is NOT a study pack
+                if (!$isStudyPack) {
+                    if (!empty($classId)) {
+                        // For class-related payments, fetch class details
+                        $class = $this->getClassFromClassBackend($classId);
+                        if (!$class) {
+                            return ['success' => false, 'message' => 'Class not found'];
+                        }
+                    }
                 }
             }
 
