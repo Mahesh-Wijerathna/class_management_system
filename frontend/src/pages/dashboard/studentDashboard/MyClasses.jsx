@@ -1348,16 +1348,6 @@ useEffect(() => {
 
   // Handle view details - modern modal approach
   const handleViewDetails = async (cls) => {
-    // Prevent access when admin deactivated the class
-    if (cls.status === 'inactive') {
-      setAlertBox({
-        open: true,
-        title: 'Class Inactive',
-        message: 'This class has been deactivated by the administrator. You cannot view details until it is reactivated.',
-        type: 'danger'
-      });
-      return;
-    }
     // Check enrollment status first
     if (cls.enrollmentStatus === 'suspended') {
       setAlertBox({
@@ -1475,16 +1465,6 @@ useEffect(() => {
 
   // Handle join class
   const handleJoinClass = (cls) => {
-    // Prevent access when admin deactivated the class
-    if (cls.status === 'inactive') {
-      setAlertBox({
-        open: true,
-        title: 'Class Inactive',
-        message: 'This class has been deactivated by the administrator. You cannot join or access materials until it is reactivated.',
-        type: 'danger'
-      });
-      return;
-    }
     // Check enrollment status first
     if (cls.enrollmentStatus === 'suspended') {
       setAlertBox({
@@ -2488,11 +2468,11 @@ useEffect(() => {
                         </span>
                         
                         {/* Join Button */}
-                                            <button
-                                              onClick={() => handleJoinClass(cls)}
-                                              disabled={isSuspended || isCompleted || isDropped || !paymentTrackingInfo.canAccess || cls.videoUrl || cls.status === 'inactive'}
+                        <button
+                          onClick={() => handleJoinClass(cls)}
+                          disabled={isSuspended || isCompleted || isDropped || !paymentTrackingInfo.canAccess || cls.videoUrl}
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-all ${
-                                                isSuspended || isCompleted || isDropped || !paymentTrackingInfo.canAccess || cls.videoUrl || cls.status === 'inactive'
+                            isSuspended || isCompleted || isDropped || !paymentTrackingInfo.canAccess || cls.videoUrl
                               ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                               : 'bg-blue-600 text-white hover:bg-blue-700'
                           }`}
@@ -2500,20 +2480,18 @@ useEffect(() => {
                             isSuspended ? 'Access suspended' :
                             isCompleted ? 'Course completed' :
                             isDropped ? 'Course dropped' :
-                                                !paymentTrackingInfo.canAccess ? 'Payment required' :
-                                                cls.videoUrl ? 'Video only' :
-                                                cls.status === 'inactive' ? 'Class inactive' :
-                                                'Join class'
+                            !paymentTrackingInfo.canAccess ? 'Payment required' :
+                            cls.videoUrl ? 'Video only' :
+                            'Join class'
                           }
                         >
                           <FaPlay className="text-xs" /> 
-                                              {isSuspended ? 'Suspended' : 
+                          {isSuspended ? 'Suspended' : 
                            isCompleted ? 'Completed' : 
                            isDropped ? 'Dropped' : 
                            !paymentTrackingInfo.canAccess ? 'Pay' :
-                                               cls.videoUrl ? 'Video' :
-                                               cls.status === 'inactive' ? 'Inactive' :
-                                               'Join'}
+                           cls.videoUrl ? 'Video' :
+                           'Join'}
                         </button>
                       </div>
                       
@@ -2544,7 +2522,7 @@ useEffect(() => {
                   }
                   buttonText="View Details"
                   onButtonClick={() => handleViewDetails(cls)}
-                  buttonDisabled={isSuspended || isDropped || !paymentTrackingInfo.canAccess || cls.status === 'inactive'}
+                  buttonDisabled={isSuspended || isDropped || !paymentTrackingInfo.canAccess}
                 >
                   {/* Action Buttons */}
                   <div className="flex flex-wrap gap-2.5 mt-4">

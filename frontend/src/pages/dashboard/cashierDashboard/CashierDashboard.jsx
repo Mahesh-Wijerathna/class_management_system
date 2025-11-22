@@ -1,36 +1,7 @@
-﻿import React, {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useCallback,
-} from "react";
+﻿import React, {useEffect, useMemo, useRef, useState, useCallback} from "react";
 
-import {
-  FaLock,
-  FaLockOpen,
-  FaSignOutAlt,
-  FaBarcode,
-  FaUserPlus,
-  FaMoneyBill,
-  FaHistory,
-  FaFileInvoice,
-  FaStickyNote,
-  FaSearch,
-  FaCamera,
-  FaUser,
-  FaPhone,
-  FaGraduationCap,
-  FaClock,
-  FaExclamationTriangle,
-  FaCheckCircle,
-  FaEdit,
-  FaPlus,
-  FaTicketAlt,
-  FaArrowRight,
-  FaCalculator,
-  FaCoins,
-} from "react-icons/fa";
+import {FaLock, FaLockOpen, FaSignOutAlt, FaBarcode, FaUserPlus,FaMoneyBill, FaHistory, FaFileInvoice,FaStickyNote,
+  FaSearch, FaCamera, FaUser, FaPhone, FaGraduationCap, FaClock, FaExclamationTriangle, FaCheckCircle, FaEdit, FaPlus, FaTicketAlt, FaArrowRight, FaCalculator, FaCoins} from "react-icons/fa";
 
 import { getUserData, logout as authLogout } from "../../../api/apiUtils";
 
@@ -58,11 +29,9 @@ import Html5BarcodeScanner from "../../../components/Html5BarcodeScanner";
 
 import DashboardLayout from "../../../components/layout/DashboardLayout";
 
-import CashierDashboardSidebar from "./CashierDashboardSidebar";
+import cashierSidebarSections from "./CashierDashboardSidebar";
 
 import AttendanceCalendar from "../../../components/AttendanceCalendar";
-
-import { getCurrentUserPermissions } from '../../../utils/permissionChecker';
 
 // Add CSS animation for toast notification
 
@@ -7590,10 +7559,6 @@ export default function CashierDashboard() {
   const [cashDrawerLoading, setCashDrawerLoading] = useState(false);
   const [sessionCheckComplete, setSessionCheckComplete] = useState(false);
 
-  // Permissions state
-  const [permissions, setPermissions] = useState([]);
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
-
   // Track cashier opening time (first login of the day)
 
   useEffect(() => {
@@ -7625,24 +7590,6 @@ export default function CashierDashboard() {
       setOpeningTime(currentTime);
     }
   }, []);
-
-  // Fetch permissions
-  useEffect(() => {
-    const fetchPermissions = async () => {
-      try {
-        const perms = await getCurrentUserPermissions(user?.userid);
-        setPermissions(perms);
-      } catch (error) {
-        console.error('Failed to fetch permissions:', error);
-      } finally {
-        setPermissionsLoading(false);
-      }
-    };
-
-    if (user?.userid) {
-      fetchPermissions();
-    }
-  }, [user?.userid]);
 
   // Load cashier KPIs from backend database
   // Note: Data is fetched from database (not localStorage), so it persists throughout the day
@@ -9214,15 +9161,21 @@ export default function CashierDashboard() {
       
       console.log('✅ Cash out recorded successfully:', result);
 
+      // Preserve previous total collections so the Session Collections KPI
+      // does not appear to be reduced immediately after cash-out.
+      const prevTotalToday = kpis?.totalToday || 0;
+
       // CRITICAL FIX: Keep session active but mark as cashed-out (disable Cash Out button)
       console.log('💰 Cash-out recorded, session remains active for reports. Remaining drawer:', nextOpeningBalance);
       
       // Mark as cashed out (this will disable Cash Out button)
       setIsCashedOut(true);
 
-      // Update KPIs to reflect remaining balance in drawer (variance amount)
+      // Update KPIs to reflect remaining balance in drawer but preserve
+      // the total collections value so it doesn't look reduced after cash-out.
       setKpis((prev) => ({
         ...prev,
+        totalToday: prevTotalToday,
         drawer: nextOpeningBalance, // Show remaining balance (shortage retained in drawer)
       }));
       
@@ -9253,7 +9206,7 @@ export default function CashierDashboard() {
         );
       }
       
-      console.log('✅ Cash out complete - Reloading page to refresh data');
+      console.log('✅ Cash out complete - preserving totalToday and refreshing UI state');
       
       // Attempt to save a draft session report after cash-out (non-blocking)
       try {
@@ -9263,10 +9216,17 @@ export default function CashierDashboard() {
         console.warn('Failed to trigger save after cash-out', e);
       }
 
-      // Reload page after brief delay to show toast message
+      // Do not reload the entire page (reload can cause session state to reset).
+      // Instead, attempt a non-blocking refresh of session report save and let
+      // the periodic KPI refresh pick up persistent changes.
       setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+        try {
+          // Try to save a draft session report again (non-blocking)
+          saveCurrentSessionReport(false).catch(() => {});
+        } catch (e) {
+          // ignore
+        }
+      }, 1000);
 
       return result;
     } catch (error) {
@@ -11770,7 +11730,7 @@ export default function CashierDashboard() {
   return (
     <DashboardLayout
       userRole="Cashier"
-      sidebarItems={CashierDashboardSidebar(permissions)}
+      sidebarItems={cashierSidebarSections}
       onLogout={handleLogout}
       customTitle="TCMS"
       customSubtitle={`Cashier Dashboard - ${user?.name || "Cashier"}`}

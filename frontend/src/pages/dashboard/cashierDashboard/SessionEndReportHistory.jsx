@@ -40,6 +40,7 @@ const ViewReportModal = ({ report, onClose }) => {
 
           const normalize = (s) => (s || '').toString().toLowerCase();
 
+          
           for (const tx of transactions) {
             const paymentType = tx.payment_type || tx.paymentType || '';
             const status = tx.status || '';

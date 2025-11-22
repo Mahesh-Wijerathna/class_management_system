@@ -1,5 +1,4 @@
 import { apiPost, apiGet, apiPut, handleApiError } from './apiUtils';
-import { getStaffById } from './teachers';
 
 export const login = async (credentials) => {
   try {
@@ -11,26 +10,8 @@ export const login = async (credentials) => {
       const { teacherLoginWithId } = await import('./teachers');
       return await teacherLoginWithId(credentials.userid, credentials.password);
     } else {
-      // Use regular login endpoint (for students/admins/cashiers and staff)
-      const data = await apiPost('/routes.php/login', credentials);
-
-      // If this user is a teacher_staff, fetch their permissions from teacher backend and merge
-      try {
-        if (data && data.success && data.user && data.user.role === 'teacher_staff') {
-          const staffId = data.user.userid;
-          if (staffId) {
-            const staffResp = await getStaffById(staffId);
-            if (staffResp && staffResp.success && staffResp.data) {
-              data.user.permissions = staffResp.data.permissions ?? null;
-              data.user.teacherId = staffResp.data.teacherId ?? data.user.teacherId;
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Could not merge staff permissions after login:', e.message || e);
-      }
-
-      return data;
+      // Use regular login endpoint (for students/admins/cashiers)
+      return await apiPost('/routes.php/login', credentials);
     }
   } catch (error) {
     throw new Error(handleApiError(error, 'Login failed'));

@@ -12,16 +12,7 @@ export const getNextCashierId = async () => {
 };
 
 export const createCashier = async (cashierData) => {
-  // Use the user creation endpoint with role: "cashier" for automatic RBAC role assignment
-  const userData = {
-    role: 'cashier',
-    password: cashierData.password,
-    firstName: cashierData.name,
-    lastName: '', // Empty lastName for cashiers
-    email: cashierData.email,
-    phone: cashierData.phone
-  };
-  return await apiPost('/routes.php/user', userData);
+  return await apiPost('/routes.php/cashier', cashierData);
 };
 
 export const getAllCashiers = async () => {

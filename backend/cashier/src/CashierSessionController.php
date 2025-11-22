@@ -410,74 +410,88 @@ class CashierSessionController {
             // 🔥 CRITICAL FIX: Capture complete session data BEFORE cash-out clears anything
             error_log("📸 CAPTURING SESSION SNAPSHOT before cash-out...");
             try {
-                // Fetch complete session stats using the same logic as getCashierStats API
-                require_once '../payment-backend/src/PaymentController.php';
-                $paymentController = new PaymentController();
-                
-                // Get the session stats, transactions, and per-class data
-                $statsResult = $paymentController->getCashierStatsInternal($session['cashier_id'], 'session', $sessionId);
-                
-                if ($statsResult && isset($statsResult['stats'])) {
-                    $stats = $statsResult['stats'];
-                    $transactions = $statsResult['transactions'] ?? [];
-                    $perClass = $statsResult['perClass'] ?? [];
-                    
-                    // Build complete report data with all session information
-                    $snapshotData = [
-                        'card_summary' => [
-                            'full_count' => intval($stats['full_cards_issued'] ?? 0),
-                            'full_amount' => floatval($stats['full_cards_amount'] ?? 0),
-                            'half_count' => intval($stats['half_cards_issued'] ?? 0),
-                            'half_amount' => floatval($stats['half_cards_amount'] ?? 0),
-                            'free_count' => intval($stats['free_cards_issued'] ?? 0),
-                            'free_amount' => floatval($stats['free_cards_amount'] ?? 0)
-                        ],
-                        'per_class' => $perClass,
-                        'transactions' => $transactions,
-                        'total_collections' => floatval($stats['total_collected'] ?? 0),
-                        'total_receipts' => intval($stats['total_receipts'] ?? 0),
-                        'admission_fees_total' => floatval($stats['admission_fees'] ?? 0),
-                        'captured_at' => date('Y-m-d H:i:s'),
-                        'capture_reason' => 'auto_snapshot_on_cashout'
-                    ];
-                    
-                    // Auto-save this snapshot as a session report
-                    $stmt = $db->prepare("
-                        INSERT INTO session_end_reports (
-                            session_id, report_date, report_time, report_type,
-                            cashier_id, cashier_name, session_date,
-                            session_start_time, opening_balance,
-                            total_collections, total_receipts, cash_out_amount,
-                            expected_closing, variance,
-                            full_cards_issued, half_cards_issued, free_cards_issued,
-                            report_data, is_final, created_by
-                        ) VALUES (?, CURDATE(), NOW(), 'auto_cashout_snapshot', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
-                    ");
-                    
-                    $expectedClosing = floatval($session['opening_balance']) + $snapshotData['total_collections'];
-                    $variance = $closingBalance ? ($closingBalance - $expectedClosing) : 0;
-                    
-                    $stmt->execute([
-                        $sessionId,
-                        $session['cashier_id'],
-                        $session['cashier_name'],
-                        $session['session_date'],
-                        $session['first_login_time'],
-                        floatval($session['opening_balance']),
-                        $snapshotData['total_collections'],
-                        $snapshotData['total_receipts'],
-                        $closingBalance,
-                        $expectedClosing,
-                        $variance,
-                        $snapshotData['card_summary']['full_count'],
-                        $snapshotData['card_summary']['half_count'],
-                        $snapshotData['card_summary']['free_count'],
-                        json_encode($snapshotData),
-                        $session['cashier_id']
-                    ]);
-                    
-                    error_log("✅ AUTO-SNAPSHOT SAVED: Collections=" . $snapshotData['total_collections'] . ", Receipts=" . $snapshotData['total_receipts'] . ", Classes=" . count($perClass) . ", Transactions=" . count($transactions));
+                // Use the payment-backend HTTP API to get cashier stats instead of including files across containers.
+                $paymentUrl = "http://payment-backend/get_cashier_stats?cashierId=" . urlencode($session['cashier_id']) . "&period=session&sessionId=" . urlencode($sessionId);
+                error_log("🔍 Fetching cashier stats from payment-backend: $paymentUrl");
+
+                $context = stream_context_create([
+                    'http' => [ 'method' => 'GET', 'timeout' => 5 ]
+                ]);
+
+                $resp = @file_get_contents($paymentUrl, false, $context);
+
+                $stats = [];
+                $transactions = [];
+                $perClass = [];
+
+                if ($resp === false) {
+                    error_log("❌ Failed to fetch cashier stats from payment-backend");
+                } else {
+                    $json = json_decode($resp, true);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        error_log('Invalid JSON from payment-backend: ' . json_last_error_msg());
+                    } elseif (isset($json['success']) && $json['success'] && isset($json['data'])) {
+                        $stats = $json['data']['stats'] ?? [];
+                        $transactions = $json['data']['transactions'] ?? [];
+                        $perClass = $json['data']['perClass'] ?? [];
+                    } else {
+                        error_log('⚠️ payment-backend returned error: ' . ($json['message'] ?? json_encode($json)));
+                    }
                 }
+
+                // Build complete report data with all session information
+                $snapshotData = [
+                    'card_summary' => [
+                        'full_count' => intval($stats['full_cards_issued'] ?? 0),
+                        'full_amount' => floatval($stats['full_cards_amount'] ?? 0),
+                        'half_count' => intval($stats['half_cards_issued'] ?? 0),
+                        'half_amount' => floatval($stats['half_cards_amount'] ?? 0),
+                        'free_count' => intval($stats['free_cards_issued'] ?? 0),
+                        'free_amount' => floatval($stats['free_cards_amount'] ?? 0)
+                    ],
+                    'per_class' => $perClass,
+                    'transactions' => $transactions,
+                    'total_collections' => floatval($stats['total_collected'] ?? 0),
+                    'total_receipts' => intval($stats['total_receipts'] ?? 0),
+                    'admission_fees_total' => floatval($stats['admission_fees'] ?? 0),
+                    'captured_at' => date('Y-m-d H:i:s'),
+                    'capture_reason' => 'auto_snapshot_on_cashout'
+                ];
+
+                // Auto-save this snapshot as a session report
+                $stmt = $db->prepare("INSERT INTO session_end_reports (
+                    session_id, report_date, report_time, report_type,
+                    cashier_id, cashier_name, session_date,
+                    session_start_time, opening_balance,
+                    total_collections, total_receipts, cash_out_amount,
+                    expected_closing, variance,
+                    full_cards_issued, half_cards_issued, free_cards_issued,
+                    report_data, is_final, created_by
+                ) VALUES (?, CURDATE(), NOW(), 'auto_cashout_snapshot', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)");
+
+                $expectedClosing = floatval($session['opening_balance']) + $snapshotData['total_collections'];
+                $variance = $closingBalance ? ($closingBalance - $expectedClosing) : 0;
+
+                $stmt->execute([
+                    $sessionId,
+                    $session['cashier_id'],
+                    $session['cashier_name'],
+                    $session['session_date'],
+                    $session['first_login_time'],
+                    floatval($session['opening_balance']),
+                    $snapshotData['total_collections'],
+                    $snapshotData['total_receipts'],
+                    $closingBalance,
+                    $expectedClosing,
+                    $variance,
+                    $snapshotData['card_summary']['full_count'],
+                    $snapshotData['card_summary']['half_count'],
+                    $snapshotData['card_summary']['free_count'],
+                    json_encode($snapshotData),
+                    $session['cashier_id']
+                ]);
+
+                error_log("✅ AUTO-SNAPSHOT SAVED: Collections=" . $snapshotData['total_collections'] . ", Receipts=" . $snapshotData['total_receipts'] . ", Classes=" . count($perClass) . ", Transactions=" . count($transactions));
             } catch (Exception $e) {
                 error_log("❌ SNAPSHOT CAPTURE FAILED: " . $e->getMessage());
                 // Continue with cash-out even if snapshot fails
@@ -492,7 +506,7 @@ class CashierSessionController {
 
             if ($denominationBreakdown) {
                 $transactionNotes .= "\n--- Denomination Breakdown ---\n";
-                $breakdown = json_decode($denominationBreakdown, true);
+                $breakdown = is_array($denominationBreakdown) ? $denominationBreakdown : json_decode($denominationBreakdown, true);
                 if ($breakdown && isset($breakdown['bills'])) {
                     $transactionNotes .= "Bills:\n";
                     foreach ($breakdown['bills'] as $denom => $count) {
@@ -665,7 +679,7 @@ class CashierSessionController {
 
             if ($denominationBreakdown) {
                 $transactionNotes .= "\n--- Denomination Breakdown ---\n";
-                $breakdown = json_decode($denominationBreakdown, true);
+                $breakdown = is_array($denominationBreakdown) ? $denominationBreakdown : json_decode($denominationBreakdown, true);
                 if ($breakdown && isset($breakdown['bills'])) {
                     $transactionNotes .= "Bills:\n";
                     foreach ($breakdown['bills'] as $denom => $count) {

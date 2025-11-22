@@ -18,9 +18,6 @@ import ClassStudents from '../../pages/dashboard/adminDashboard/ClassStudents';
 import AllRoles from '../../pages/dashboard/adminDashboard/AllRoles';
 import RolesWithPermission from '../../pages/dashboard/adminDashboard/RolesWithPermission';
 import SpeedPostDeliveries from '../../pages/dashboard/adminDashboard/SpeedPostDeliveries';
-import PermissionManagement from '../../pages/dashboard/adminDashboard/PermissionManagement';
-import RoleManagement from '../../pages/dashboard/adminDashboard/RoleManagement';
-import UserRoleAssignment from '../../pages/dashboard/adminDashboard/UserRoleAssignment';
 
 export const adminDashboardRoutes = [
   { path: "/admindashboard", element: <AdminDashboard/> },
@@ -42,8 +39,6 @@ export const adminDashboardRoutes = [
   { path: "/admin/classes/all/:classId", element: <ClassStudents /> },
   { path: "/admin/roles", element: <AllRoles /> },
   { path: "/admin/roles/permissions", element: <RolesWithPermission /> },
-  { path: "/admin/speed-post-deliveries", element: <SpeedPostDeliveries /> },
-  { path: "/admin/permissions", element: <PermissionManagement /> },
-  { path: "/admin/roles/manage", element: <RoleManagement /> },
-  { path: "/admin/roles/assign", element: <UserRoleAssignment /> },
-];
+  { path: "/admin/speed-post-deliveries", element: <SpeedPostDeliveries /> }, 
+  
+]; 
