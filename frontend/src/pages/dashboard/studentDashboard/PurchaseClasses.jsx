@@ -44,7 +44,10 @@ const PurchaseClasses = ({ onLogout }) => {
       noClassesFound: 'No {tab} classes found.',
       zoomAvailable: 'Zoom Available',
       recordedVideoAvailable: 'Recorded Video Available',
+      try_change_search: 'Try changing your search terms or selecting a different tab.',
       paymentTrackingInfo: 'Payment Tracking',
+      payment_tracking_days_free: '({days} days free)',
+      payment_tracking_default_free: '(7 days free)',
       studentCardLabel: 'Student Card',
       cardValidPrefix: '✓',
       cardNotValidPrefix: '✗',
@@ -56,6 +59,32 @@ const PurchaseClasses = ({ onLogout }) => {
       btn_view: 'View in My Classes',
       btn_buy_with_discount: 'Buy with Discount',
       btn_buy_now: 'Buy Now'
+      ,
+      // Delivery method labels
+      delivery_online: 'Online Only',
+      delivery_physical: 'Physical Only',
+      delivery_hybrid: 'Hybrid',
+      delivery_hybrid1: 'Hybrid (Physical + Online)',
+      delivery_hybrid2: 'Hybrid (Physical + Recorded)',
+      delivery_hybrid3: 'Hybrid (Online + Recorded)',
+      delivery_hybrid4: 'Hybrid (Physical + Online + Recorded)',
+      delivery_other: 'Other',
+      delivery_unknown: 'Unknown',
+      // Course type labels
+      course_theory: 'Theory',
+      course_revision: 'Revision',
+      course_unknown: 'Unknown',
+      // Field labels
+      label_delivery: 'Delivery:',
+      label_course_type: 'Course Type:'
+      ,
+      // Field labels
+      label_subject: 'Subject:',
+      label_stream: 'Stream:',
+      label_schedule: 'Schedule:',
+      label_students: 'Students:',
+      label_reason: 'Reason:',
+      label_valid: 'Valid:'
     },
     si: {
       loadingClasses: 'පන්ති පූරණය වෙමින් පවති...',
@@ -77,7 +106,10 @@ const PurchaseClasses = ({ onLogout }) => {
       noClassesFound: '{tab} පන්තියන් සොයා ගත නොහැකි විය.',
       zoomAvailable: 'Zoom ලබා ගත හැක',
       recordedVideoAvailable: 'සටහන් වීඩියෝ ලබා ගත හැක',
+      try_change_search: 'ඔබගේ සෙවුම් වචන වෙනස් කර නැවත උත්සාහ කරන්න, හෝ වෙනත් ටැබයක් තෝරන්න.',
       paymentTrackingInfo: 'ගෙවීම් නිරීක්ෂණය',
+      payment_tracking_days_free: '({days} දින නොමිලේ)',
+      payment_tracking_default_free: '(7 දින නොමිලේ)',
       studentCardLabel: 'ශිෂ්‍ය කාඩ්',
       cardValidPrefix: '✓',
       cardNotValidPrefix: '✗',
@@ -89,6 +121,32 @@ const PurchaseClasses = ({ onLogout }) => {
       btn_view: 'මගේ පන්ති බලන්න',
       btn_buy_with_discount: 'වට්ටම සමඟ මිලදී ගන්න',
       btn_buy_now: 'දැන් මිලදී ගන්න'
+      ,
+      // Delivery method labels
+      delivery_online: 'සිරස්ව ඔන්ලයින්',
+      delivery_physical: 'භෞතිකම පමණි',
+      delivery_hybrid: 'සන්‍යෝජිත',
+      delivery_hybrid1: 'සන්‍යෝජිත (භෞතික + ඔන්ලයින්)',
+      delivery_hybrid2: 'සන්‍යෝජිත (භෞතික + සටහන්)',
+      delivery_hybrid3: 'සන්‍යෝජිත (ඔන්ලයින් + සටහන්)',
+      delivery_hybrid4: 'සන්‍යෝජිත (භෞතික + ඔන්ලයින් + සටහන්)',
+      delivery_other: 'වෙනත්',
+      delivery_unknown: 'නොදනිමි',
+      // Course type labels
+      course_theory: 'තර්ක',
+      course_revision: 'සංශෝධන',
+      course_unknown: 'නොදනිමි',
+      // Field labels
+      label_delivery: 'වහාම:',
+      label_course_type: 'පාඨමාලා වර්ගය:'
+      ,
+      // Field labels
+      label_subject: 'විෂය:',
+      label_stream: 'ප්‍රවාහය:',
+      label_schedule: 'කාලසටහන:',
+      label_students: 'සිසුන්:',
+      label_reason: 'හේතුව:',
+      label_valid: 'වලංගු:'
     }
   };
 
@@ -328,10 +386,10 @@ const PurchaseClasses = ({ onLogout }) => {
     if (alreadyOwned) {
       return {
         status: 'owned',
-        text: 'Already Purchased',
+        text: t('purchase_owned_text'),
         color: 'text-green-600',
         icon: <FaCheckCircle />,
-        buttonText: 'View in My Classes',
+        buttonText: t('btn_view'),
         buttonAction: 'view',
         disabled: false
       };
@@ -340,10 +398,10 @@ const PurchaseClasses = ({ onLogout }) => {
     if (cls.courseType === 'revision' && cls.revisionDiscountPrice && ownsRelatedTheory) {
       return {
         status: 'discount_available',
-        text: 'Discount Available (Theory Student)',
+        text: t('purchase_discount_text'),
         color: 'text-blue-600',
         icon: <FaExclamationTriangle />,
-        buttonText: 'Buy with Discount',
+        buttonText: t('btn_buy_with_discount'),
         buttonAction: 'purchase',
         disabled: false
       };
@@ -351,10 +409,10 @@ const PurchaseClasses = ({ onLogout }) => {
 
     return {
       status: 'available',
-      text: 'Available for Purchase',
+      text: t('purchase_available_text'),
       color: 'text-gray-600',
       icon: <FaBook />,
-      buttonText: 'Buy Now',
+      buttonText: t('btn_buy_now'),
       buttonAction: 'purchase',
       disabled: false
     };
@@ -448,44 +506,44 @@ const PurchaseClasses = ({ onLogout }) => {
   // Get delivery method info with fallbacks
   const getDeliveryMethodInfo = (method) => {
     if (!method) {
-      return { color: 'text-gray-600', icon: <FaUsers />, text: 'Unknown' };
+      return { color: 'text-gray-600', icon: <FaUsers />, text: t('delivery_unknown') };
     }
     
     switch (method) {
       case 'online':
-        return { color: 'text-purple-600', icon: <FaVideo />, text: 'Online Only' };
+        return { color: 'text-purple-600', icon: <FaVideo />, text: t('delivery_online') };
       case 'physical':
-        return { color: 'text-orange-600', icon: <FaMapMarkerAlt />, text: 'Physical Only' };
+        return { color: 'text-orange-600', icon: <FaMapMarkerAlt />, text: t('delivery_physical') };
       case 'hybrid1':
-        return { color: 'text-indigo-600', icon: <FaUsers />, text: 'Hybrid (Physical + Online)' };
+        return { color: 'text-indigo-600', icon: <FaUsers />, text: t('delivery_hybrid1') };
       case 'hybrid2':
-        return { color: 'text-green-600', icon: <FaVideo />, text: 'Hybrid (Physical + Recorded)' };
+        return { color: 'text-green-600', icon: <FaVideo />, text: t('delivery_hybrid2') };
       case 'hybrid3':
-        return { color: 'text-blue-600', icon: <FaVideo />, text: 'Hybrid (Online + Recorded)' };
+        return { color: 'text-blue-600', icon: <FaVideo />, text: t('delivery_hybrid3') };
       case 'hybrid4':
-        return { color: 'text-teal-600', icon: <FaUsers />, text: 'Hybrid (Physical + Online + Recorded)' };
+        return { color: 'text-teal-600', icon: <FaUsers />, text: t('delivery_hybrid4') };
       case 'hybrid':
-        return { color: 'text-indigo-600', icon: <FaUsers />, text: 'Hybrid' };
+        return { color: 'text-indigo-600', icon: <FaUsers />, text: t('delivery_hybrid') };
       case 'other':
-        return { color: 'text-gray-600', icon: <FaUsers />, text: 'Other' };
+        return { color: 'text-gray-600', icon: <FaUsers />, text: t('delivery_other') };
       default:
-        return { color: 'text-gray-600', icon: <FaUsers />, text: method };
+        return { color: 'text-gray-600', icon: <FaUsers />, text: method || t('delivery_unknown') };
     }
   };
 
   // Get course type info with fallbacks
   const getCourseTypeInfo = (type) => {
     if (!type) {
-      return { color: 'text-gray-600', icon: <FaBook />, text: 'Unknown' };
+      return { color: 'text-gray-600', icon: <FaBook />, text: t('course_unknown') };
     }
     
     switch (type) {
       case 'theory':
-        return { color: 'text-blue-600', icon: <FaBook />, text: 'Theory' };
+        return { color: 'text-blue-600', icon: <FaBook />, text: t('course_theory') };
       case 'revision':
-        return { color: 'text-green-600', icon: <FaGraduationCap />, text: 'Revision' };
+        return { color: 'text-green-600', icon: <FaGraduationCap />, text: t('course_revision') };
       default:
-        return { color: 'text-gray-600', icon: <FaBook />, text: type };
+        return { color: 'text-gray-600', icon: <FaBook />, text: type || t('course_unknown') };
     }
   };
 
@@ -649,27 +707,27 @@ const PurchaseClasses = ({ onLogout }) => {
                     <div className="text-xs text-gray-600 space-y-1">
                       <div className="flex items-center gap-1">
                         <FaBook className="text-gray-400" />
-                        <strong>Subject:</strong> {cls.subject || 'Unknown Subject'}
+                        <strong>{t('label_subject')}</strong> {cls.subject || t('course_unknown')}
                       </div>
                       <div className="flex items-center gap-1">
                         <FaGraduationCap className="text-gray-400" />
-                        <strong>Stream:</strong> {cls.stream || 'Unknown Stream'}
+                        <strong>{t('label_stream')}</strong> {cls.stream || 'Unknown Stream'}
                       </div>
                       <div className="flex items-center gap-1">
                         <FaCalendar className="text-gray-400" />
-                        <strong>Schedule:</strong> {scheduleText}
+                        <strong>{t('label_schedule')}</strong> {scheduleText}
                       </div>
                       <div className="flex items-center gap-1">
                         <span className={deliveryInfo.color}>{deliveryInfo.icon}</span>
-                        <strong>Delivery:</strong> {deliveryInfo.text}
+                        <strong>{t('label_delivery')}</strong> {deliveryInfo.text}
                       </div>
                       <div className="flex items-center gap-1">
                         <span className={courseTypeInfo.color}>{courseTypeInfo.icon}</span>
-                        <strong>Course Type:</strong> {courseTypeInfo.text}
+                        <strong>{t('label_course_type')}</strong> {courseTypeInfo.text}
                       </div>
                       <div className="flex items-center gap-1">
                         <FaUsers className="text-gray-400" />
-                        <strong>Students:</strong> {cls.currentStudents || 0}/{cls.maxStudents || 50}
+                        <strong>{t('label_students')}</strong> {cls.currentStudents || 0}/{cls.maxStudents || 50}
                       </div>
                       {cls.zoomLink && (cls.deliveryMethod === 'online' || cls.deliveryMethod === 'hybrid1' || cls.deliveryMethod === 'hybrid3' || cls.deliveryMethod === 'hybrid4') && (
                         <div className="flex items-center gap-1 text-blue-600">
@@ -687,12 +745,12 @@ const PurchaseClasses = ({ onLogout }) => {
                         <div className="flex items-center gap-1 text-green-600">
                           <FaMoneyBill />
                           <span className="text-xs">
-                            Payment Tracking 
+                            {t('paymentTrackingInfo')}
                             {cls.paymentTracking.enabled && cls.paymentTracking.freeDays && (
-                              <span> ({cls.paymentTracking.freeDays} days free)</span>
+                              <span> {t('payment_tracking_days_free', { days: cls.paymentTracking.freeDays })}</span>
                             )}
                             {cls.paymentTracking === true && (
-                              <span> (7 days free)</span>
+                              <span> {t('payment_tracking_default_free')}</span>
                             )}
                           </span>
                         </div>
@@ -724,11 +782,11 @@ const PurchaseClasses = ({ onLogout }) => {
                           )}
                           {cls.studentCard.reason && (
                             <div className="text-xs text-gray-600 mt-1">
-                              <strong>Reason:</strong> {cls.studentCard.reason}
+                              <strong>{t('label_reason')}</strong> {cls.studentCard.reason}
                             </div>
                           )}
                           <div className="text-xs text-gray-600">
-                            <strong>Valid:</strong> {new Date(cls.studentCard.validFrom).toLocaleDateString()} - {new Date(cls.studentCard.validUntil).toLocaleDateString()}
+                            <strong>{t('label_valid')}</strong> {new Date(cls.studentCard.validFrom).toLocaleDateString()} - {new Date(cls.studentCard.validUntil).toLocaleDateString()}
                           </div>
                         </div>
                       )}
@@ -769,11 +827,11 @@ const PurchaseClasses = ({ onLogout }) => {
           <div className="flex items-center justify-center min-h-[40vh]">
             <div className="text-center">
               <div className="text-gray-400 text-4xl mb-4">📚</div>
-              <div className="text-gray-500 text-sm sm:text-base">
-                {selectedTab === 'all' ? 'No classes available for purchase.' : `No ${selectedTab} classes found.`}
-              </div>
+                    <div className="text-gray-500 text-sm sm:text-base">
+                      {selectedTab === 'all' ? t('noClassesAvailable') : t('noClassesFound', { tab: t('tab_' + selectedTab) })}
+                    </div>
               <div className="text-gray-400 text-xs mt-2">
-                Try changing your search terms or selecting a different tab.
+                {t('try_change_search')}
               </div>
             </div>
           </div>
