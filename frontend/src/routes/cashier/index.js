@@ -1,1 +1,0 @@
-export { cashierRoutes } from './cashierRoutes'; 
