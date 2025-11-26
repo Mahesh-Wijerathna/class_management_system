@@ -4607,6 +4607,17 @@ const StartCashDrawerModal = ({ onClose, onStart, cashierName }) => {
 
         {/* Content */}
         <div className="p-6">
+          {/* Prominent quick search for classes - always visible */}
+          <div className="mb-4">
+            <input
+              ref={searchInputRef}
+              type="search"
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); setFocusedIndex(-1); }}
+              placeholder="Quick search classes (name, subject, teacher, stream)..."
+              className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm"
+            />
+          </div>
           <form onSubmit={handleSubmit}>
             <div className="mb-6">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -5982,6 +5993,11 @@ const QuickEnrollmentModal = ({
 
   const [selectedClass, setSelectedClass] = useState(null);
 
+  // Local search/filter state for quick enrollment
+  const [searchTerm, setSearchTerm] = useState("");
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const searchInputRef = useRef(null);
+
   const [loading, setLoading] = useState(true);
 
   const [submitting, setSubmitting] = useState(false);
@@ -6108,6 +6124,34 @@ const QuickEnrollmentModal = ({
   useEffect(() => {
     loadClasses();
   }, []);
+
+  // Focus the search input when modal opens
+  useEffect(() => {
+    if (searchInputRef.current) searchInputRef.current.focus();
+  }, []);
+
+  const filteredAvailableClasses = React.useMemo(() => {
+    if (!searchTerm || !availableClasses || availableClasses.length === 0)
+      return availableClasses;
+
+    const q = searchTerm.toString().toLowerCase().trim();
+
+    return availableClasses.filter((cls) => {
+      const name = (cls.class_name || cls.className || "").toString().toLowerCase();
+      const subject = (cls.subject || "").toString().toLowerCase();
+      const stream = (cls.stream || "").toString().toLowerCase();
+      const teacher = (cls.teacher || "").toString().toLowerCase();
+      const id = (cls.id || "").toString().toLowerCase();
+
+      return (
+        name.includes(q) ||
+        subject.includes(q) ||
+        stream.includes(q) ||
+        teacher.includes(q) ||
+        id.includes(q)
+      );
+    });
+  }, [availableClasses, searchTerm]);
 
   // Set default payment option when admission fee is required
 
@@ -6718,8 +6762,45 @@ const QuickEnrollmentModal = ({
                   Select Class to Enroll:
                 </label>
 
-                <div className="space-y-2 max-h-[400px] overflow-y-auto border border-slate-200 rounded-lg p-3">
-                  {availableClasses.length === 0 ? (
+                <div className="mb-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <input
+                      ref={searchInputRef}
+                      type="search"
+                      value={searchTerm}
+                      onChange={(e) => { setSearchTerm(e.target.value); setFocusedIndex(-1); }}
+                      placeholder="Search classes, subject, teacher or stream..."
+                      className="flex-1 px-3 py-2 border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm"
+                    />
+                    {searchTerm && (
+                      <button
+                        type="button"
+                        onClick={() => { setSearchTerm(""); setFocusedIndex(-1); if (searchInputRef.current) searchInputRef.current.focus(); }}
+                        className="px-3 py-2 bg-slate-100 rounded-lg text-sm"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto border border-slate-200 rounded-lg p-3" tabIndex={0} onKeyDown={(e) => {
+                    // Keyboard navigation: ArrowDown / ArrowUp / Enter
+                    if (!filteredAvailableClasses || filteredAvailableClasses.length === 0) return;
+
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      setFocusedIndex((prev) => Math.min(prev + 1, filteredAvailableClasses.length - 1));
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setFocusedIndex((prev) => Math.max(prev - 1, 0));
+                    } else if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (focusedIndex >= 0 && filteredAvailableClasses[focusedIndex]) {
+                        setSelectedClass(filteredAvailableClasses[focusedIndex]);
+                      }
+                    }
+                  }}>
+                  {(!filteredAvailableClasses || filteredAvailableClasses.length === 0) ? (
                     <div className="text-center py-8 text-slate-500">
                       <FaCheckCircle className="text-4xl mx-auto mb-3 text-emerald-400" />
 
@@ -6733,7 +6814,7 @@ const QuickEnrollmentModal = ({
                       </div>
                     </div>
                   ) : (
-                    availableClasses.map((cls) => {
+                    filteredAvailableClasses.map((cls, idx) => {
                       const fee = Number(cls.fee || 0);
 
                       const discount = Number(
@@ -6764,13 +6845,23 @@ const QuickEnrollmentModal = ({
 
                       const final = canGetDiscount ? fee - discount : fee;
 
+                      const isFocused = focusedIndex === idx;
+
                       return (
                         <div
                           key={cls.id}
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') setSelectedClass(cls);
+                            if (e.key === 'ArrowDown') setFocusedIndex((i) => Math.min(i + 1, filteredAvailableClasses.length - 1));
+                            if (e.key === 'ArrowUp') setFocusedIndex((i) => Math.max(i - 1, 0));
+                          }}
                           onClick={() => setSelectedClass(cls)}
                           className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
                             selectedClass?.id === cls.id
                               ? "border-blue-600 bg-blue-50 shadow-md"
+                              : isFocused
+                              ? "border-blue-300 bg-slate-50"
                               : "border-slate-200 hover:border-blue-300 hover:bg-slate-50"
                           }`}
                         >
@@ -7472,6 +7563,7 @@ const QuickEnrollmentModal = ({
                     ? "💰 Enroll & Pay"
                     : "✅ Enroll"}
                 </button>
+              </div>
               </div>
             </>
           )}
