@@ -1496,10 +1496,16 @@ const DayEndReportModal = ({
 
     console.log("📊 Processing transactions for day-end report:", transactions.length);
 
-    // Track unique transaction IDs for class payments
+    // Track unique transaction IDs for receipts (include class payments and admission fees)
     const uniqueTransactionIds = new Set();
 
     transactions.forEach((t) => {
+      const ptypeCheck = (t.payment_type || t.paymentType || t.category || '').toString().toLowerCase();
+      // Count transaction IDs for both class payments and admission fees
+      if (t.transaction_id && (ptypeCheck === 'class_payment' || ptypeCheck === 'admission_fee')) {
+        uniqueTransactionIds.add(t.transaction_id);
+      }
+
       const amt = Number(t.amount || 0);
 
       const ptype = (t.payment_type || t.paymentType || t.category || "").toLowerCase();
@@ -2989,8 +2995,8 @@ const DayEndReportModal = ({
                 </div>
               )}
 
-              {/* Session Details - Only for Day End Reports */}
-              {!isSessionReport && mode === "full" && (
+              {/* Session Details - Show for Day End Reports (summary or full) */}
+              {!isSessionReport && (mode === "full" || mode === "summary") && (
                 <div className="section">
                   <div className="section-title">Session Details</div>
                   <div className="overflow-x-auto">
@@ -3109,9 +3115,11 @@ const DayEndReportModal = ({
                       </td>
 
                       <td>
-                        {aggregatedTotals.totalUniqueTransactions > 0
-                          ? aggregatedTotals.totalUniqueTransactions
-                          : kpis.total_receipts || 0}{" "}
+                        {(Number(dayEndReportMeta?.total_receipts) > 0)
+                          ? Number(dayEndReportMeta.total_receipts)
+                          : (aggregatedTotals.totalUniqueTransactions > 0
+                              ? aggregatedTotals.totalUniqueTransactions
+                              : kpis.total_receipts || 0)}{' '}
                         receipts issued
                       </td>
                     </tr>
@@ -12144,7 +12152,7 @@ export default function CashierDashboard() {
                           }
                         >
                           <FaLock className="text-lg" />
-                          {isCashedOut ? "✓ Cash Out Done" : "Cash Out (Record)"}
+                          {isCashedOut ? "✓ Cash Out Done" : "Cash Out"}
                         </button>
 
                         <button
@@ -12208,96 +12216,52 @@ export default function CashierDashboard() {
                               setDayEndCardSummary(reportData.card_summary || {});
                               setDayEndReportMeta(report || null);
 
-                              // Aggregate admission fees across all sessions by querying per-session stats
+                              // If server provided per_class rows, use them as authoritative and skip per-session merging
                               try {
-                                const sessionList = Array.isArray(reportData.sessions) ? reportData.sessions : [];
-                                const admissionMap = {}; // key: class identifier (id or name) -> amount
-                                let admissionTotal = 0;
+                                if (Array.isArray(reportData.per_class) && reportData.per_class.length > 0) {
+                                  setDayEndPerClass(reportData.per_class);
+                                } else {
+                                  // Aggregate admission fees across all sessions by querying per-session stats
+                                  const sessionList = Array.isArray(reportData.sessions) ? reportData.sessions : [];
+                                  const admissionMap = {}; // key: class identifier (id or name) -> amount
+                                  let admissionTotal = 0;
 
-                                for (const s of sessionList) {
-                                  const sid = s.session_id || s.sessionId || null;
-                                  if (!sid) continue;
-                                  // Use session-level cashier id when available (sessions for a day may belong to different cashiers)
-                                  const sessionCashierId = s.cashier_id || s.cashierId || cashierId;
-                                  try {
-                                    const sres = await getCashierStats(sessionCashierId, 'session', sid);
-                                    if (sres && sres.success && Array.isArray(sres.data.perClass)) {
-                                      for (const pc of sres.data.perClass) {
-                                        const key = pc.class_id ?? pc.class_name ?? pc.className ?? 'Unspecified';
-                                        const amt = Number(pc.admission_fee ?? pc.admission_fee ?? pc.admissionFee ?? 0) || 0;
-                                        if (!admissionMap[key]) admissionMap[key] = { ...pc, admission_fee: 0 };
-                                        admissionMap[key].admission_fee = (admissionMap[key].admission_fee || 0) + amt;
-                                        admissionTotal += amt;
+                                  for (const s of sessionList) {
+                                    const sid = s.session_id || s.sessionId || null;
+                                    if (!sid) continue;
+                                    // Use session-level cashier id when available (sessions for a day may belong to different cashiers)
+                                    const sessionCashierId = s.cashier_id || s.cashierId || cashierId;
+                                    try {
+                                      const sres = await getCashierStats(sessionCashierId, 'session', sid);
+                                      if (sres && sres.success && Array.isArray(sres.data.perClass)) {
+                                        for (const pc of sres.data.perClass) {
+                                          const key = pc.class_id ?? pc.class_name ?? pc.className ?? 'Unspecified';
+                                          const amt = Number(pc.admission_fee ?? pc.admissionFee ?? 0) || 0;
+                                          if (!admissionMap[key]) admissionMap[key] = { ...pc, admission_fee: 0 };
+                                          admissionMap[key].admission_fee = (admissionMap[key].admission_fee || 0) + amt;
+                                          admissionTotal += amt;
+                                        }
                                       }
+                                    } catch (e) {
+                                      // ignore per-session fetch errors
                                     }
-                                    // Also include session-level admission total if available in stats
-                                    if (sres && sres.success && sres.data && sres.data.stats && (sres.data.stats.admission_fees || sres.data.stats.admission_fees_total || sres.data.stats.admission_fees)) {
-                                      // some variants use admission_fees
-                                      const statsAmt = Number(sres.data.stats.admission_fees ?? sres.data.stats.admission_fees_total ?? 0) || 0;
-                                      // Note: this may double-count if perClass included same amounts; we prefer perClass summation
-                                    }
-                                  } catch (e) {
-                                    // ignore per-session fetch errors
                                   }
+
+                                  // Build merged per-class rows from admissionMap only (no server base to overlay)
+                                  const merged = Object.keys(admissionMap).map((k) => ({
+                                    class_id: admissionMap[k].class_id ?? null,
+                                    class_name: admissionMap[k].class_name || admissionMap[k].className || 'Unspecified',
+                                    teacher: admissionMap[k].teacher || '-',
+                                    full_count: 0,
+                                    half_count: 0,
+                                    free_count: 0,
+                                    total_amount: admissionMap[k].total_amount || 0,
+                                    tx_count: admissionMap[k].tx_count || 0,
+                                    admission_fee: admissionMap[k].admission_fee || 0,
+                                  }));
+
+                                  setDayEndPerClass(merged);
                                 }
-
-                                // Merge admissionMap into reportData.per_class (overlay admission_fee)
-                                const basePerClass = reportData.per_class || [];
-                                const merged = basePerClass.map((pc) => {
-                                  const key = pc.class_id ?? pc.class_name ?? pc.className ?? 'Unspecified';
-                                  const extra = admissionMap[key];
-                                  if (extra) {
-                                    return { ...pc, admission_fee: Number(pc.admission_fee ?? pc.admissionFee ?? 0) + Number(extra.admission_fee || 0) };
-                                  }
-                                  return pc;
-                                });
-
-                                // Add any classes present only in admissionMap
-                                for (const k of Object.keys(admissionMap)) {
-                                  const exists = merged.find((m) => (m.class_id ?? m.class_name ?? m.className ?? 'Unspecified') === k);
-                                  if (!exists) merged.push({ class_id: admissionMap[k].class_id ?? null, class_name: admissionMap[k].class_name || admissionMap[k].className || 'Unspecified', teacher: admissionMap[k].teacher || '-', full_count: 0, half_count: 0, free_count: 0, total_amount: admissionMap[k].total_amount || 0, tx_count: admissionMap[k].tx_count || 0, admission_fee: admissionMap[k].admission_fee || 0 });
-                                }
-
-                                // Deduplicate merged per-class rows by class_id or normalized class_name
-                                const dedupe = (arr) => {
-                                  const map = {};
-                                  for (const pc of arr) {
-                                    const rawName = (pc.class_name || pc.className || '').toString();
-                                    const norm = rawName.trim().toLowerCase() || (pc.class_id ? String(pc.class_id) : 'unclassified');
-                                    const key = norm;
-                                    if (!map[key]) {
-                                      map[key] = {
-                                        class_id: pc.class_id ?? null,
-                                        class_name: (pc.class_name ?? pc.className ?? rawName) || 'Unspecified',
-                                        teacher: pc.teacher || pc.teacher_name || '-',
-                                        full_count: Number(pc.full_count || 0),
-                                        half_count: Number(pc.half_count || 0),
-                                        free_count: Number(pc.free_count || 0),
-                                        total_amount: Number(pc.total_amount || pc.totalAmount || 0),
-                                        tx_count: Number(pc.tx_count || pc.transactions || 0),
-                                        admission_fee: Number(pc.admission_fee || pc.admissionFee || 0)
-                                      };
-                                    } else {
-                                      map[key].full_count += Number(pc.full_count || 0);
-                                      map[key].half_count += Number(pc.half_count || 0);
-                                      map[key].free_count += Number(pc.free_count || 0);
-                                      map[key].total_amount += Number(pc.total_amount || pc.totalAmount || 0);
-                                      map[key].tx_count += Number(pc.tx_count || pc.transactions || 0);
-                                      map[key].admission_fee += Number(pc.admission_fee || pc.admissionFee || 0);
-                                      // combine teacher names uniquely
-                                      const existingTeachers = (map[key].teacher || '').toString().split(/,\s*/).filter(Boolean);
-                                      const newTeacher = pc.teacher || pc.teacher_name || '';
-                                      if (newTeacher && !existingTeachers.includes(newTeacher)) {
-                                        existingTeachers.push(newTeacher);
-                                        map[key].teacher = existingTeachers.join(', ');
-                                      }
-                                    }
-                                  }
-                                  return Object.values(map);
-                                };
-
-                                const deduped = dedupe(merged);
-                                setDayEndPerClass(deduped);
                               } catch (e) {
                                 // if everything fails, fallback to saved per_class
                                 setDayEndPerClass(reportData.per_class || []);
@@ -12363,86 +12327,50 @@ export default function CashierDashboard() {
                               setDayEndCardSummary(reportData.card_summary || {});
                               setDayEndReportMeta(report || null);
 
-                              // Aggregate admission fees across all sessions by querying per-session stats
+                              // If server provided per_class rows, use them as authoritative and skip per-session merging
                               try {
-                                const sessionList = Array.isArray(reportData.sessions) ? reportData.sessions : [];
-                                const admissionMap = {}; // key: class identifier (id or name) -> amount
-                                let admissionTotal = 0;
+                                if (Array.isArray(reportData.per_class) && reportData.per_class.length > 0) {
+                                  setDayEndPerClass(reportData.per_class);
+                                } else {
+                                  // Aggregate admission fees across all sessions by querying per-session stats
+                                  const sessionList = Array.isArray(reportData.sessions) ? reportData.sessions : [];
+                                  const admissionMap = {}; // key: class identifier (id or name) -> amount
+                                  let admissionTotal = 0;
 
-                                for (const s of sessionList) {
-                                  const sid = s.session_id || s.sessionId || null;
-                                  if (!sid) continue;
-                                  try {
-                                    const sres = await getCashierStats(cashierId, 'session', sid);
-                                    if (sres && sres.success && Array.isArray(sres.data.perClass)) {
-                                      for (const pc of sres.data.perClass) {
-                                        const key = pc.class_id ?? pc.class_name ?? pc.className ?? 'Unspecified';
-                                        const amt = Number(pc.admission_fee ?? pc.admissionFee ?? 0) || 0;
-                                        if (!admissionMap[key]) admissionMap[key] = { ...pc, admission_fee: 0 };
-                                        admissionMap[key].admission_fee = (admissionMap[key].admission_fee || 0) + amt;
-                                        admissionTotal += amt;
+                                  for (const s of sessionList) {
+                                    const sid = s.session_id || s.sessionId || null;
+                                    if (!sid) continue;
+                                    try {
+                                      const sres = await getCashierStats(cashierId, 'session', sid);
+                                      if (sres && sres.success && Array.isArray(sres.data.perClass)) {
+                                        for (const pc of sres.data.perClass) {
+                                          const key = pc.class_id ?? pc.class_name ?? pc.className ?? 'Unspecified';
+                                          const amt = Number(pc.admission_fee ?? pc.admissionFee ?? 0) || 0;
+                                          if (!admissionMap[key]) admissionMap[key] = { ...pc, admission_fee: 0 };
+                                          admissionMap[key].admission_fee = (admissionMap[key].admission_fee || 0) + amt;
+                                          admissionTotal += amt;
+                                        }
                                       }
-                                    }
-                                  } catch (e) {
-                                    // ignore per-session fetch errors
-                                  }
-                                }
-
-                                // Merge admissionMap into reportData.per_class (overlay admission_fee)
-                                const basePerClass = reportData.per_class || [];
-                                const merged = basePerClass.map((pc) => {
-                                  const key = pc.class_id ?? pc.class_name ?? pc.className ?? 'Unspecified';
-                                  const extra = admissionMap[key];
-                                  if (extra) {
-                                    return { ...pc, admission_fee: Number(pc.admission_fee ?? pc.admissionFee ?? 0) + Number(extra.admission_fee || 0) };
-                                  }
-                                  return pc;
-                                });
-
-                                // Add any classes present only in admissionMap
-                                for (const k of Object.keys(admissionMap)) {
-                                  const exists = merged.find((m) => (m.class_id ?? m.class_name ?? m.className ?? 'Unspecified') === k);
-                                  if (!exists) merged.push({ class_id: admissionMap[k].class_id ?? null, class_name: admissionMap[k].class_name || admissionMap[k].className || 'Unspecified', teacher: admissionMap[k].teacher || '-', full_count: 0, half_count: 0, free_count: 0, total_amount: admissionMap[k].total_amount || 0, tx_count: admissionMap[k].tx_count || 0, admission_fee: admissionMap[k].admission_fee || 0 });
-                                }
-
-                                const dedupe = (arr) => {
-                                  const map = {};
-                                  for (const pc of arr) {
-                                    const rawName = (pc.class_name || pc.className || '').toString();
-                                    const norm = rawName.trim().toLowerCase() || (pc.class_id ? String(pc.class_id) : 'unclassified');
-                                    const key = norm;
-                                    if (!map[key]) {
-                                      map[key] = {
-                                        class_id: pc.class_id ?? null,
-                                        class_name: (pc.class_name ?? pc.className ?? rawName) || 'Unspecified',
-                                        teacher: pc.teacher || pc.teacher_name || '-',
-                                        full_count: Number(pc.full_count || 0),
-                                        half_count: Number(pc.half_count || 0),
-                                        free_count: Number(pc.free_count || 0),
-                                        total_amount: Number(pc.total_amount || pc.totalAmount || 0),
-                                        tx_count: Number(pc.tx_count || pc.transactions || 0),
-                                        admission_fee: Number(pc.admission_fee || pc.admissionFee || 0)
-                                      };
-                                    } else {
-                                      map[key].full_count += Number(pc.full_count || 0);
-                                      map[key].half_count += Number(pc.half_count || 0);
-                                      map[key].free_count += Number(pc.free_count || 0);
-                                      map[key].total_amount += Number(pc.total_amount || pc.totalAmount || 0);
-                                      map[key].tx_count += Number(pc.tx_count || pc.transactions || 0);
-                                      map[key].admission_fee += Number(pc.admission_fee || pc.admissionFee || 0);
-                                      const existingTeachers = (map[key].teacher || '').toString().split(/,\s*/).filter(Boolean);
-                                      const newTeacher = pc.teacher || pc.teacher_name || '';
-                                      if (newTeacher && !existingTeachers.includes(newTeacher)) {
-                                        existingTeachers.push(newTeacher);
-                                        map[key].teacher = existingTeachers.join(', ');
-                                      }
+                                    } catch (e) {
+                                      // ignore per-session fetch errors
                                     }
                                   }
-                                  return Object.values(map);
-                                };
 
-                                const deduped = dedupe(merged);
-                                setDayEndPerClass(deduped);
+                                  // Build merged per-class rows from admissionMap only (no server base to overlay)
+                                  const merged = Object.keys(admissionMap).map((k) => ({
+                                    class_id: admissionMap[k].class_id ?? null,
+                                    class_name: admissionMap[k].class_name || admissionMap[k].className || 'Unspecified',
+                                    teacher: admissionMap[k].teacher || '-',
+                                    full_count: 0,
+                                    half_count: 0,
+                                    free_count: 0,
+                                    total_amount: admissionMap[k].total_amount || 0,
+                                    tx_count: admissionMap[k].tx_count || 0,
+                                    admission_fee: admissionMap[k].admission_fee || 0,
+                                  }));
+
+                                  setDayEndPerClass(merged);
+                                }
                               } catch (e) {
                                 // if everything fails, fallback to saved per_class
                                 setDayEndPerClass(reportData.per_class || []);
