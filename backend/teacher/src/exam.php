@@ -92,6 +92,15 @@ if (strpos($request, '/api/marks') === 0 && $method === 'GET') {
                 $markController->getResults($exam_id);
             } elseif ($method == 'POST') {
                 $markController->saveMarks($exam_id);
+            } elseif ($method == 'DELETE') {
+                // DELETE /api/exams/{exam_id}/marks?student_id={student_identifier}
+                $student_identifier = $_GET['student_id'] ?? null;
+                if ($student_identifier) {
+                    $markController->deleteByStudent($exam_id, $student_identifier);
+                } else {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'student_id parameter required']);
+                }
             }
         } elseif ($endpoint == 'results') {
            if ($method == 'GET') {

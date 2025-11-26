@@ -1,4 +1,4 @@
-// ...existing code...
+
 import React from 'react';
 
 const Sidebar = ({ sections = [] }) => {
