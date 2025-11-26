@@ -38,5 +38,14 @@ class MarkController {
         $marks = $this->markModel->getByStudentIdentifier($student_identifier);
         echo json_encode($marks);
     }
+
+    public function deleteByStudent($exam_id, $student_identifier) {
+        if ($this->markModel->deleteByStudentAndExam($exam_id, $student_identifier)) {
+            echo json_encode(['success' => true, 'message' => 'Student marks deleted successfully']);
+        } else {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to delete student marks']);
+        }
+    }
 }
 ?>

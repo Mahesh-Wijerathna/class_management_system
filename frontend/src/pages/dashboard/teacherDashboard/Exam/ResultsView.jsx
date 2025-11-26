@@ -4,7 +4,8 @@ import { markAPI } from '../../../../api/Examapi';
 import DashboardLayout from '../../../../components/layout/DashboardLayout';
 import teacherSidebarSections from '../TeacherDashboardSidebar';
 import BasicTable from '../../../../components/BasicTable';
-import { FaBars, FaTimes, FaGraduationCap, FaSearch, FaStar, FaSync } from 'react-icons/fa';
+import BasicAlertBox from '../../../../components/BasicAlertBox';
+import { FaBars, FaTimes, FaGraduationCap, FaSearch, FaStar, FaSync, FaEdit, FaTrash } from 'react-icons/fa';
 
 
 
@@ -22,6 +23,18 @@ const ResultsView = () => {
   const [showStudentModal, setShowStudentModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [studentHierarchy, setStudentHierarchy] = useState([]);
+
+  // Alert box states
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    message: '',
+    title: '',
+    type: 'info',
+    confirmText: 'OK',
+    cancelText: '',
+    onConfirm: null,
+    onCancel: null,
+  });
 
   useEffect(() => {
     fetchResults();
@@ -85,7 +98,11 @@ const ResultsView = () => {
 
   const calculateStudentTotals = () => {
     const totals = {};
+    // Only sum marks from top-level questions (questions without parent_part_id)
     results.forEach(r => {
+      // Skip if this question has a parent (it's a sub-question)
+      if (r.parent_part_id) return;
+      
       const idKey = r.student_identifier ?? 'unknown';
       if (!totals[idKey]) totals[idKey] = 0;
       totals[idKey] += Number(r.score_awarded) || 0;
@@ -209,6 +226,66 @@ const ResultsView = () => {
     setSelectedStudent(studentId);
     setStudentHierarchy(tree);
     setShowStudentModal(true);
+  };
+
+  // Calculate total max marks for each student from hierarchy
+  const calculateStudentMaxMarks = (studentId) => {
+    const rows = results.filter(r => (r.student_identifier ?? '') === studentId && !r.parent_part_id);
+    const totalMax = rows.reduce((sum, r) => sum + (Number(r.max_marks) || 0), 0);
+    return totalMax;
+  };
+
+ 
+
+  const handleDeleteStudent = async (studentId, e) => {
+    e.stopPropagation(); // Prevent modal from opening
+    
+    // Show confirmation dialog using BasicAlertBox
+    setAlertConfig({
+      message: `Are you sure you want to delete all marks for student "${studentId}"? This action cannot be undone.`,
+      title: 'Confirm Deletion',
+      type: 'danger',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        setAlertOpen(false);
+        try {
+          // Call the delete API to remove records from database
+          await markAPI.deleteByStudent(id, studentId);
+          
+          // Refresh results after deletion
+          await fetchResults();
+          
+          // Show success message
+          setAlertConfig({
+            message: `Marks for student "${studentId}" have been deleted successfully.`,
+            title: 'Success',
+            type: 'success',
+            confirmText: 'OK',
+            cancelText: '',
+            onConfirm: () => setAlertOpen(false),
+            onCancel: null,
+          });
+          setAlertOpen(true);
+        } catch (error) {
+          console.error('Error deleting student marks:', error);
+          
+          // Show error message
+          setAlertConfig({
+            message: 'Failed to delete student marks. Please try again.',
+            title: 'Error',
+            type: 'danger',
+            confirmText: 'OK',
+            cancelText: '',
+            onConfirm: () => setAlertOpen(false),
+            onCancel: null,
+          });
+          setAlertOpen(true);
+        }
+      },
+      onCancel: () => setAlertOpen(false),
+    });
+    setAlertOpen(true);
   };
 
   const closeStudentModal = () => {
@@ -382,18 +459,51 @@ const ResultsView = () => {
           {filteredStudentTotalsEntries.length === 0 ? (
             <li style={{ color: '#666' }}>No students match the filter.</li>
           ) : (
-            filteredStudentTotalsEntries.map(([student, total]) => (
-              <li key={student}>
-                <button
-                style={{ display: 'block', width: '100%', textAlign: 'left', border: '1px solid #b3d1ff', borderRadius: 8, padding: '12px 16px', background: '#e6f2ff' }}
-                  onClick={() => openStudentModal(student)}
-                  className="text-cyan-700 hover:underline"
-                  aria-label={`View breakdown for ${student}`}
-                >
-                  {student}: {total}
-                </button>
-              </li>
-            ))
+            filteredStudentTotalsEntries.map(([student, total]) => {
+              const maxMarks = calculateStudentMaxMarks(student);
+              const percentage = maxMarks > 0 ? ((total / maxMarks) * 100).toFixed(1) : 0;
+              return (
+                <li key={student}>
+                  <div
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '8px',
+                      border: '1px solid #b3d1ff', 
+                      borderRadius: 8, 
+                      padding: '12px 16px', 
+                      background: '#e6f2ff' 
+                    }}
+                  >
+                    <button
+                      style={{ 
+                        flex: 1, 
+                        textAlign: 'left', 
+                        border: 'none', 
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        padding: 0
+                      }}
+                      onClick={() => openStudentModal(student)}
+                      className="text-cyan-700 hover:underline"
+                      aria-label={`View breakdown for ${student}`}
+                    >
+                      {student}: {total} / {maxMarks} ({percentage}%)
+                    </button>
+                    
+                    
+                    <button
+                      onClick={(e) => handleDeleteStudent(student, e)}
+                      className="p-2 text-red-600 hover:bg-red-100 rounded transition-colors"
+                      aria-label={`Delete marks for ${student}`}
+                      title="Delete marks"
+                    >
+                      <FaTrash />
+                    </button>
+                  </div>
+                </li>
+              );
+            })
           )}
           </ul>
         </div>
@@ -465,6 +575,19 @@ const ResultsView = () => {
           </div>
         </div>
       )}
+      
+      {/* Alert Box */}
+      <BasicAlertBox
+        open={alertOpen}
+        message={alertConfig.message}
+        title={alertConfig.title}
+        type={alertConfig.type}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
+        onConfirm={alertConfig.onConfirm}
+        onCancel={alertConfig.onCancel}
+        showCloseButton={true}
+      />
     </DashboardLayout>
   );
 };

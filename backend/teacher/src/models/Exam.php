@@ -19,9 +19,26 @@ class Exam {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function create($title, $date, $creator_user_id) {
-        $stmt = $this->db->prepare("INSERT INTO exams (title, date, creator_user_id) VALUES (?, ?, ?)");
-        $stmt->execute([$title, $date, $creator_user_id]);
+    public function create($title, $date, $creator_user_id, $teacher_id = null) {
+        // Detect if teacher_id column exists (cache result in static var to avoid repeated queries)
+        static $hasTeacherCol = null;
+        if ($hasTeacherCol === null) {
+            try {
+                $cols = $this->db->query("SHOW COLUMNS FROM exams LIKE 'teacher_id'")->fetchAll(PDO::FETCH_ASSOC);
+                $hasTeacherCol = count($cols) > 0;
+            } catch (Exception $e) {
+                $hasTeacherCol = false; // fail safe
+            }
+        }
+        if ($hasTeacherCol) {
+            $stmt = $this->db->prepare("INSERT INTO exams (title, date, creator_user_id, teacher_id) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$title, $date, $creator_user_id, $teacher_id]);
+        } else {
+            // Fallback for older schema (without teacher_id column)
+            $stmt = $this->db->prepare("INSERT INTO exams (title, date, creator_user_id) VALUES (?, ?, ?)");
+            $stmt->execute([$title, $date, $creator_user_id]);
+            // (Optional) could log missing teacher column here
+        }
         return $this->db->lastInsertId();
     }
 

@@ -34,6 +34,7 @@ export const markAPI = {
   getResults: (examId) => api.get(`/exams/${examId}/results`),
   saveMarks: (examId, data) => api.post(`/exams/${examId}/marks`, data),
   getByStudent: (studentIdentifier) => api.get(`/marks/student/${studentIdentifier}`),
+  deleteByStudent: (examId, studentIdentifier) => api.delete(`/exams/${examId}/marks?student_id=${studentIdentifier}`),
 };
 
 export default api;
